@@ -664,6 +664,9 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
       ${stepHTML('conditions', cdkOn() ? 6 : 5, t('step.conditions'), esc(condSum), () => conditionsBody(isFlyer))}
       ${stepHTML('advanced', cdkOn() ? 7 : 6, t('step.advanced'), esc(t('adv.missionType.' + c.missionType).split(' (')[0]), () => advancedBody())}
     </div>
+    ${S.lastGen?.vid === v.id ? `<div class="gen-done">${icon('check', 'ic-sm')}
+      <div><b>${esc(t('toast.generated', { file: S.lastGen.file }))}</b><span>${esc(t('toast.generatedHint', { title: S.lastGen.title }))}</span></div>
+      <button class="icon-btn" data-act="genDone" title="${esc(t('action.close'))}">${icon('x', 'ic-sm')}</button></div>` : ''}
     <div class="dr-foot">
       <button class="icon-btn" data-act="save" title="${esc(t('action.save'))}">${icon('save')}</button>
       <button class="btn btn-ghost" data-act="preview">${icon('file')}<span>${esc(t('action.preview'))}</span></button>
@@ -850,6 +853,7 @@ function bindDrawer() {
       case 'save': return saveSetup();
       case 'reset-mods': c.mods = {}; return renderDrawer();
       case 'editor': return openEditor();
+      case 'genDone': S.lastGen = null; return renderDrawer();
       case 'fill': {
         const g = mainGun(d, v); const used = c.ammo.reduce((s, a, i) => s + (a.id !== null && i > 0 ? +a.count : 0), 0);
         if (c.ammo[0].id !== null) c.ammo[0].count = Math.max(0, g.cap - used);
@@ -941,6 +945,8 @@ async function generate() {
   btn.querySelector('span').textContent = t('action.generating');
   try {
     const r = await api('generate', missionPayload());
+    S.lastGen = { vid: S.cfg.vehicle, file: r.file, title: missionPayload().title };  // stays shown above the button
+    renderDrawer();
     toast({
       title: t('toast.generated', { file: r.file }),
       sub: t('toast.generatedHint', { title: missionPayload().title }) + (r.cdkFiles?.length ? ' ' + t('toast.cdkHint', { n: r.cdkFiles.length }) : ''), ms: 12000,
@@ -1319,6 +1325,7 @@ function showOnboarding() {
   $('#btnOnboard').addEventListener('click', () => startUpdate($('#onboardLog'), $('#btnOnboard')));
   $('#btnSettings').addEventListener('click', openSettings);
   $('#btnSaveSettings').addEventListener('click', saveSettings);
+  startUpdate($('#onboardLog'), $('#btnOnboard'));  // first launch: get the game data right away
 }
 
 boot().catch(e => { console.error(e); toastErr(e); });

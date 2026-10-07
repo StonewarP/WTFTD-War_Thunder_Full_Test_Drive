@@ -735,3 +735,10 @@ body.resizing .drawer, body.resizing .content { transition: none; }
 .ed-maphint.warn { border-color: var(--warn); }
 .ed-ground { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .btn-xs { padding: 2px 8px; font-size: 11.5px; min-height: 0; }
+/* last created mission: where to find it in game */
+.gen-done { display: flex; gap: 10px; align-items: flex-start; margin: 0 18px 0; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); }
+.gen-done > .ic-sm { color: var(--accent-2); margin-top: 2px; flex: none; }
+.gen-done div { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.gen-done b { font-size: 13px; overflow-wrap: anywhere; }
+.gen-done span { font-size: 14px; font-weight: 600; color: var(--accent-2); }

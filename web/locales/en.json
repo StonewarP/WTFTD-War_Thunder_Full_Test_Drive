@@ -204,7 +204,7 @@
   "settings.howto": "How it works",
   "settings.howtoText": "WTFTD writes a mission file into War Thunder's UserMissions folder. Start the game, open Single missions → User missions and pick it.",
   "onboard.title": "Welcome to WTFTD",
-  "onboard.text": "Game data is missing. Download it once (≈1 GB, needs Git) to list every vehicle, loadout and scenario.",
+  "onboard.text": "First launch: WTFTD downloads the game data once (≈1 GB from the community War Thunder datamine, a few minutes) and builds its database on your PC. You can keep this window open.",
   "onboard.button": "Download game data",
   "preview.title": "Mission file preview",
   "step.mods": "Modifications",
@@ -412,5 +412,6 @@
   "editor.retargeted": "Training targets: replaces the scenario's {cls}.",
   "editor.tpStart": "The scenario moves this unit here when the mission starts.",
   "editor.tpStartMoved": "Moved: the scenario no longer teleports it at start.",
-  "editor.tpLater": "When destroyed, it respawns at the circled point."
+  "editor.tpLater": "When destroyed, it respawns at the circled point.",
+  "settings.languageHint": "Translations other than English were machine-assisted and may contain mistakes — corrections are welcome on GitHub."
 }

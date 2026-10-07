@@ -21,9 +21,12 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
+import urllib.request
+import zipfile
 from collections import defaultdict
 from pathlib import Path
 
@@ -116,15 +119,59 @@ def clean(s: str) -> str:
 
 # --------------------------------------------------------------------------- datamine
 
+MINGIT = CACHE / "mingit"
+_git_exe: str | None = None
+
+
+def find_git(progress=None) -> str:
+    """Git of this PC, or else the official portable MinGit (git-for-windows), downloaded once."""
+    global _git_exe
+    if _git_exe:
+        return _git_exe
+    found = shutil.which("git")
+    for cand in ([found] if found else []) + [str(MINGIT / "cmd" / "git.exe"),
+                                              r"C:\Program Files\Git\cmd\git.exe"]:
+        if cand and Path(cand).is_file():
+            _git_exe = cand
+            return cand
+    if sys.platform != "win32":
+        raise RuntimeError("Git is required: install it from https://git-scm.com")
+    log("Git not found: downloading the portable MinGit (git-for-windows, ~40 MB, once)...", progress)
+    req = urllib.request.Request("https://api.github.com/repos/git-for-windows/git/releases/latest",
+                                 headers={"User-Agent": "WTFTD", "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        assets = json.load(r).get("assets", [])
+    url = next((a["browser_download_url"] for a in assets
+                if re.fullmatch(r"MinGit-[\d.]+(?:\.windows\.\d+)?-64-bit\.zip", a.get("name", ""))), None)
+    if not url:
+        raise RuntimeError("Could not find MinGit. Install Git from https://git-scm.com and retry.")
+    if not url.startswith("https://github.com/git-for-windows/git/releases/download/"):
+        raise RuntimeError("Unexpected MinGit download location")
+    CACHE.mkdir(parents=True, exist_ok=True)
+    tmp = CACHE / "mingit.zip"
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "WTFTD"}), timeout=120) as r,             open(tmp, "wb") as f:
+        shutil.copyfileobj(r, f)
+    shutil.rmtree(MINGIT, ignore_errors=True)
+    with zipfile.ZipFile(tmp) as z:
+        z.extractall(MINGIT)
+    tmp.unlink()
+    _git_exe = str(MINGIT / "cmd" / "git.exe")
+    return _git_exe
+
+
 def git(*args, cwd=None):
-    subprocess.run(["git", "-c", "core.longpaths=true", *args], cwd=cwd, check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    # no console window flashing from the packaged (windowed) app
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    subprocess.run([find_git(), "-c", "core.longpaths=true", *args], cwd=cwd, check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, creationflags=flags)
 
 
 def fetch_datamine(progress=None):
-    CACHE.mkdir(exist_ok=True)
+    CACHE.mkdir(parents=True, exist_ok=True)
+    find_git(progress)
     if not (DM / ".git").exists():
-        log("Cloning the War Thunder datamine (sparse, first run takes ~1-2 min)...", progress)
+        shutil.rmtree(DM, ignore_errors=True)  # leftover of an interrupted first download
+        log("Downloading the War Thunder datamine (community, ~1 GB, first run takes a few minutes)...", progress)
         git("clone", "--filter=blob:none", "--no-checkout", "--depth", "1", REPO, str(DM))
         git("sparse-checkout", "init", "--cone", cwd=DM)
         git("sparse-checkout", "set", *SPARSE, cwd=DM)

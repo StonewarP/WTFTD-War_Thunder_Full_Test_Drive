@@ -204,7 +204,7 @@
   "settings.howto": "使い方",
   "settings.howtoText": "WTFTD は War Thunder の UserMissions フォルダーにミッションファイルを書き込みます。ゲームを起動し、シングルミッション → ユーザーミッションから選択してください。",
   "onboard.title": "WTFTD へようこそ",
-  "onboard.text": "ゲームデータがありません。一度ダウンロードすると（約 1 GB、Git が必要）、すべての兵器・兵装・シナリオが表示されます。",
+  "onboard.text": "初回起動: WTFTD はゲームデータを一度だけダウンロードし（コミュニティの War Thunder データマインから約 1 GB、数分）、PC 上でデータベースを作成します。このウィンドウは開いたままにしてください。",
   "onboard.button": "ゲームデータをダウンロード",
   "preview.title": "ミッションファイルのプレビュー",
   "step.mods": "改修",
@@ -412,5 +412,6 @@
   "editor.retargeted": "訓練標的: シナリオの {cls} を置き換えます。",
   "editor.tpStart": "ミッション開始時、シナリオはこのユニットをここへ移動します。",
   "editor.tpStartMoved": "移動済み: 開始時にシナリオがテレポートしなくなります。",
-  "editor.tpLater": "撃破されると、円で示した地点に再出現します。"
+  "editor.tpLater": "撃破されると、円で示した地点に再出現します。",
+  "settings.languageHint": "英語以外の翻訳は AI の支援で作成されており、誤りを含む可能性があります — GitHub での修正を歓迎します。"
 }

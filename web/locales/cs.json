@@ -204,7 +204,7 @@
   "settings.howto": "Jak to funguje",
   "settings.howtoText": "WTFTD zapíše soubor mise do složky UserMissions hry. Spusťte hru, otevřete Jednotlivé mise → Uživatelské mise a vyberte ji.",
   "onboard.title": "Vítejte ve WTFTD",
-  "onboard.text": "Chybí herní data. Stáhněte je jednou (≈1 GB, vyžaduje Git), aby se zobrazila všechna vozidla, výzbroje a scénáře.",
+  "onboard.text": "První spuštění: WTFTD jednou stáhne herní data (≈1 GB z komunitního datamine War Thunder, pár minut) a sestaví databázi na vašem PC. Nechte toto okno otevřené.",
   "onboard.button": "Stáhnout herní data",
   "preview.title": "Náhled souboru mise",
   "step.mods": "Modifikace",
@@ -412,5 +412,6 @@
   "editor.retargeted": "Cvičné cíle: nahrazuje {cls} ze scénáře.",
   "editor.tpStart": "Scénář tuto jednotku na začátku mise přesune sem.",
   "editor.tpStartMoved": "Přesunuto: scénář ji na startu už neteleportuje.",
-  "editor.tpLater": "Po zničení se znovu objeví v zakroužkovaném bodě."
+  "editor.tpLater": "Po zničení se znovu objeví v zakroužkovaném bodě.",
+  "settings.languageHint": "Překlady kromě angličtiny vznikly s pomocí AI a mohou obsahovat chyby — opravy jsou na GitHubu vítány."
 }

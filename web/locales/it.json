@@ -204,7 +204,7 @@
   "settings.howto": "Come funziona",
   "settings.howtoText": "WTFTD scrive un file di missione nella cartella UserMissions di War Thunder. Avvia il gioco, apri Missioni singole → Missioni utente e selezionala.",
   "onboard.title": "Benvenuto in WTFTD",
-  "onboard.text": "Mancano i dati di gioco. Scaricali una volta (≈1 GB, richiede Git) per elencare tutti i veicoli, armamenti e scenari.",
+  "onboard.text": "Primo avvio: WTFTD scarica una sola volta i dati di gioco (≈1 GB dal datamine della community di War Thunder, qualche minuto) e crea il suo database sul tuo PC. Lascia aperta questa finestra.",
   "onboard.button": "Scarica i dati di gioco",
   "preview.title": "Anteprima del file di missione",
   "step.mods": "Modifiche",
@@ -412,5 +412,6 @@
   "editor.retargeted": "Bersagli di addestramento: sostituisce {cls} dello scenario.",
   "editor.tpStart": "Lo scenario sposta questa unità qui all'inizio della missione.",
   "editor.tpStartMoved": "Spostata: lo scenario non la teletrasporta più alla partenza.",
-  "editor.tpLater": "Quando viene distrutta, ricompare nel punto cerchiato."
+  "editor.tpLater": "Quando viene distrutta, ricompare nel punto cerchiato.",
+  "settings.languageHint": "Le traduzioni diverse dall'inglese sono state realizzate con l'aiuto dell'IA e possono contenere errori — le correzioni sono benvenute su GitHub."
 }

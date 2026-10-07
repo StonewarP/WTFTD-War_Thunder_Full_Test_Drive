@@ -204,7 +204,7 @@
   "settings.howto": "工作原理",
   "settings.howtoText": "WTFTD 会将任务文件写入战争雷霆的 UserMissions 文件夹。启动游戏，打开 单人任务 → 用户任务 并选择它。",
   "onboard.title": "欢迎使用 WTFTD",
-  "onboard.text": "缺少游戏数据。下载一次（约 1 GB，需要 Git）即可列出所有载具、挂载和场景。",
+  "onboard.text": "首次启动：WTFTD 会一次性下载游戏数据（约 1 GB，来自社区的战争雷霆数据挖掘，需要几分钟），并在你的电脑上生成数据库。请保持此窗口打开。",
   "onboard.button": "下载游戏数据",
   "preview.title": "任务文件预览",
   "step.mods": "改装",
@@ -412,5 +412,6 @@
   "editor.retargeted": "训练目标：替换场景中的 {cls}。",
   "editor.tpStart": "任务开始时场景会把该单位移到这里。",
   "editor.tpStartMoved": "已移动：场景开始时不再传送它。",
-  "editor.tpLater": "被摧毁后，会在圆圈标记处重生。"
+  "editor.tpLater": "被摧毁后，会在圆圈标记处重生。",
+  "settings.languageHint": "除英语外的翻译由 AI 辅助完成，可能存在错误——欢迎在 GitHub 上提交修正。"
 }

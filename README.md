@@ -1,5 +1,8 @@
 # WTFTD — War Thunder Full Test Drive
 
+> **Beta** — it works, but some features are still untested in game (see *Known limits*). Feedback and bug
+> reports are welcome in the issues.
+
 Test drive **any** War Thunder vehicle — ground, aircraft, helicopters, boats, ships — with the
 loadout, ammunition, map, targets and conditions you choose, even vehicles you don't own.
 
@@ -11,14 +14,16 @@ triggers and respawn logic), puts your vehicle and setup in it, and writes it to
 
 ## Download
 
-**[⬇ Download WTFTD.exe](https://github.com/StonewarP/WTFTD/releases/latest)** (Windows 10/11) —
+**[⬇ Download WTFTD.exe](https://github.com/StonewarP/WTFTD/releases)** (Windows 10/11) —
 nothing to install: double-click it, the app opens in its own window and finds your game by itself
 (Steam or standalone). Close the window to quit.
 
+- **First launch**: WTFTD downloads the game data once (≈1 GB from the community
+  [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine), 2–5 minutes) and builds its
+  database on your PC. No game data is shipped with WTFTD. If Git isn't installed, the official portable
+  MinGit (git-for-windows) is fetched automatically. The data then updates itself after each game patch.
 - Your settings, missions and the game database live in `%LOCALAPPDATA%\WTFTD`.
 - The exe is not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**.
-- The game database ships inside the exe and updates itself after a game patch
-  (that needs [Git](https://git-scm.com) installed; without it you keep the shipped data).
 
 ## How it works
 
@@ -61,7 +66,8 @@ nothing to install: double-click it, the app opens in its own window and finds y
 - **Cheats**: invulnerable, unlimited ammo, no reload, unlimited fuel, auto repair / rearm, passive
   targets, no collisions, expert / ace crew
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
-  简体中文, 日本語 — vehicle, weapon and map names follow the game's own translations
+  简体中文, 日本語 — vehicle, weapon and map names follow the game's own translations. UI translations
+  other than English were machine-assisted and may contain mistakes: corrections are welcome
 - Dark / light theme, saved setups, list of generated missions, `.blk` preview, launch War Thunder
 
 ## Custom vehicles (on by default)
@@ -104,16 +110,17 @@ To build `dist\WTFTD.exe` yourself, run **`build_exe.bat`** (installs PyInstalle
 
 ## Game data & automatic updates
 
-`data/` is generated from the community datamine
-([gszabi99/War-Thunder-Datamine](https://github.com/gszabi99/War-Thunder-Datamine)). Every 3 hours (and at
-start-up) WTFTD checks the datamine's game version; after a patch it rebuilds its database in the
-background (needs Git; first download ≈1 GB into `.cache/datamine`). Manual update: **Settings → Update
+The game database (`data/`, not in this repository) is generated on your PC from the community datamine
+([gszabi99/War-Thunder-Datamine](https://github.com/gszabi99/War-Thunder-Datamine)): first download ≈1 GB
+into `.cache/datamine`, with your Git or an automatically fetched MinGit. Every 3 hours (and at start-up)
+WTFTD checks the datamine's game version and rebuilds after a patch. Manual update: **Settings → Update
 game data**, or `python -m wtftd.builder`.
 
 ## Translations
 
-UI text lives in `web/locales/<code>.json`. To add a language: copy `en.json`, translate the values (keep
-the keys and `{placeholders}`), and add it to `web/locales/index.json`. Corrections are welcome.
+UI text lives in `web/locales/<code>.json`. The non-English files were machine-assisted: native speakers'
+corrections are very welcome (pull request or issue). To add a language: copy `en.json`, translate the
+values (keep the keys and `{placeholders}`), and add it to `web/locales/index.json`.
 
 ## Known limits
 
@@ -136,6 +143,6 @@ wtftd/                      Python backend (stdlib only)
   builder.py                datamine -> data/*.json
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations
-data/                       generated game database
+data/                       game database, generated on first launch (not versioned)
 docs/screenshots/           README images
 ```

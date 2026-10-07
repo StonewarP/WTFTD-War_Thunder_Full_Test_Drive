@@ -273,7 +273,7 @@ def check_for_update(start: bool = True) -> dict:
     st["remote"], st["checked"] = remote, int(time.time())
     local = read_json(DATA / "meta.json", {}).get("version")
     st["available"] = bool(remote and remote != local)
-    if start and st["available"] and not st["running"] and shutil.which("git"):
+    if start and st["available"] and not st["running"]:
         threading.Thread(target=run_update, daemon=True).start()
     return st
 
@@ -517,8 +517,6 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(check_for_update(start=bool(body.get("start", True))))
         if route == "update":
             if not STATE.update["running"]:
-                if not shutil.which("git"):
-                    return self.send_json({"error": "Git is required to download game data (https://git-scm.com)."}, 400)
                 threading.Thread(target=run_update, daemon=True).start()
             return self.send_json(STATE.update)
         return self.send_json({"error": "unknown route"}, 404)
