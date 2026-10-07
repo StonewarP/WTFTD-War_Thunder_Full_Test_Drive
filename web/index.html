@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WTFTD — War Thunder Full Test Drive</title>
+  <link rel="icon" href="favicon.ico?v=3" sizes="any">
+  <link rel="icon" href="logo.svg?v=3" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="logo-192.png?v=3">
+  <link rel="manifest" href="manifest.webmanifest?v=3">
+  <meta name="theme-color" content="#0a0d11">
+  <link rel="stylesheet" href="app.css">
+  <script>
+    // apply the theme before first paint (no dark/light flash)
+    (function () {
+      var t = 'dark';
+      try { t = JSON.parse(localStorage.getItem('wtftd.theme')) || 'dark'; } catch (e) {}
+      if (t === 'system') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-all" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-ground" viewBox="0 0 24 24"><path d="M3.5 15.5h17l-1.6 3.2a1 1 0 0 1-.9.6H6a1 1 0 0 1-.9-.6z"/><path d="M6 15.5v-2.6a1 1 0 0 1 1-1h9.5l.9 3.6"/><path d="M8.5 11.9V9.6a1 1 0 0 1 1-1h4.2a1 1 0 0 1 1 1v2.3"/><path d="M14.7 10h6.8"/></symbol>
+    <symbol id="i-air" viewBox="0 0 24 24"><path d="M12 2.8c.8 0 1.3 1 1.3 2.3v4.4l7.9 4.2v1.9l-7.9-2.2v4.4l2.3 1.7v1.6L12 20.2l-3.6.9v-1.6l2.3-1.7v-4.4l-7.9 2.2v-1.9l7.9-4.2V5.1c0-1.3.5-2.3 1.3-2.3z"/></symbol>
+    <symbol id="i-heli" viewBox="0 0 24 24"><path d="M3 5.5h16"/><path d="M11 5.5v3"/><path d="M5.5 12.6c0-2.3 2.4-4.1 5.5-4.1s5 1.6 5 4.1-2 3.9-5.3 3.9-5.2-1.6-5.2-3.9z"/><path d="M16 11.8h5.5l.8-2.3"/><path d="M6.5 19.5h10M8.6 16.3v3.2M13.4 16.3v3.2"/></symbol>
+    <symbol id="i-boat" viewBox="0 0 24 24"><path d="M2.8 14.5h18.4l-2.4 4.2a1 1 0 0 1-.9.5H5.6a1 1 0 0 1-.8-.4z"/><path d="M8 14.5v-3.2h6.3l2.2 3.2"/><path d="M11 11.3V7.5"/></symbol>
+    <symbol id="i-ship" viewBox="0 0 24 24"><path d="M1.8 14.2h20.4l-2.7 4.6a1 1 0 0 1-.9.5H5.2a1 1 0 0 1-.8-.4z"/><path d="M5.5 14.2v-2.6h3.3V8.4h3.4v3.2h3.4l1.8 2.6"/><path d="M10.5 8.4V5M15.8 11.6h4.4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h3.6l2 2.2h7.4a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z"/><path d="M14 3.5v5h5M9 13h6M9 16.5h6"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M6.5 3.5h9.3l4.2 4.2v10.8a2 2 0 0 1-2 2h-11.5a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2z"/><path d="M8 3.5v5h7v-5M8 20.5v-6h8v6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5V4.5h5v2M6.5 6.5l1 13a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1l1-13M10 10.5v6M14 10.5v6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11.5A8 8 0 0 0 6 6.6L4 8.5M4 4v4.5h4.5M4 12.5a8 8 0 0 0 14 4.9l2-1.9M20 20v-4.5h-4.5"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5 11 13M17 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 4 18.5v-10A1.5 1.5 0 0 1 5.5 7H10"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="m3.5 6.5 5-2 7 2.5 5-2v13l-5 2-7-2.5-5 2z"/><path d="M8.5 4.5v13M15.5 7v13"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></symbol>
+    <symbol id="i-ammo" viewBox="0 0 24 24"><path d="M7 21V9.5C7 6 8.5 3.5 9.5 3c1 .5 2.5 3 2.5 6.5V21zM12 21V9.5C12 6 13.5 3.5 14.5 3c1 .5 2.5 3 2.5 6.5V21z"/><path d="M7 17h10"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2.5 5 13.5h6l-1 8 8.5-11h-6z"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></symbol>
+    <symbol id="i-tree" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="4.5" rx="1"/><rect x="3" y="16.5" width="6" height="4.5" rx="1"/><rect x="15" y="16.5" width="6" height="4.5" rx="1"/><path d="M12 7.5V12M6 16.5V12h12v4.5"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <img class="brand-logo" src="logo.svg?v=3" alt="">
+    <div class="brand-text"><b data-i18n="app.title">WTFTD</b><span data-i18n="app.tagline"></span></div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
+    <button class="tab" data-view="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
+    <button class="tab" data-view="setups" role="tab"><span data-i18n="nav.setups"></span><span class="tab-count" id="setupCount"></span></button>
+  </nav>
+  <label class="search">
+    <svg class="ic"><use href="#i-search"/></svg>
+    <input id="search" type="search" autocomplete="off" spellcheck="false" data-i18n-ph="search.placeholder">
+    <kbd>Ctrl K</kbd>
+  </label>
+  <div class="top-actions">
+    <div class="status" id="status"></div>
+    <button class="btn btn-ghost" id="btnLaunchTop"><svg class="ic"><use href="#i-play"/></svg><span data-i18n="action.launch"></span></button>
+    <button class="icon-btn" id="btnTheme" data-i18n-title="theme.toggle"><svg class="ic"><use href="#i-sun"/></svg></button>
+    <button class="icon-btn" id="btnSettings" data-i18n-title="settings.title"><svg class="ic"><use href="#i-gear"/></svg></button>
+  </div>
+</header>
+
+<div class="update-banner hidden" id="updateBanner"></div>
+<main class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-section">
+      <div class="cats" id="cats"></div>
+    </div>
+    <div class="side-section">
+      <div class="side-title" data-i18n="filters.nations"></div>
+      <div class="nations" id="nations"></div>
+    </div>
+    <div class="side-section">
+      <div class="side-title" data-i18n="filters.rank"></div>
+      <div class="ranks" id="ranks"></div>
+    </div>
+    <div class="side-section">
+      <div class="side-title row-between"><span data-i18n="filters.br"></span>
+        <div class="seg seg-xs" id="brMode">
+          <button data-mode="0" data-i18n="filters.mode.ab"></button><button data-mode="1" data-i18n="filters.mode.rb"></button><button data-mode="2" data-i18n="filters.mode.sb"></button>
+        </div>
+      </div>
+      <div class="range" id="brRange">
+        <div class="range-track"><div class="range-fill" id="brFill"></div></div>
+        <input type="range" id="brMin" min="1" max="14.3" step="0.1">
+        <input type="range" id="brMax" min="1" max="14.3" step="0.1">
+      </div>
+      <div class="range-labels"><span id="brMinLabel"></span><span id="brMaxLabel"></span></div>
+    </div>
+    <div class="side-section">
+      <div class="side-title" data-i18n="filters.options"></div>
+      <label class="switch"><input type="checkbox" id="optFav"><span class="sw"></span><span data-i18n="filters.favorites"></span></label>
+      <label class="switch"><input type="checkbox" id="optPrem"><span class="sw"></span><span data-i18n="filters.premium"></span></label>
+      <label class="switch" data-i18n-title="filters.hiddenHint"><input type="checkbox" id="optHidden"><span class="sw"></span><span data-i18n="filters.hidden"></span></label>
+    </div>
+    <div class="side-section side-foot">
+      <button class="btn btn-ghost btn-block" id="btnReset"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="filters.reset"></span></button>
+    </div>
+  </aside>
+
+  <section class="content">
+    <div class="view" id="view-vehicles">
+      <div class="results-bar">
+        <div class="results-count" id="resultsCount"></div>
+        <div class="row gap">
+        <div class="seg" id="viewMode"><button data-v="tree"><svg class="ic-sm"><use href="#i-tree"/></svg><span data-i18n="view.tree"></span></button><button data-v="grid"><svg class="ic-sm"><use href="#i-all"/></svg><span data-i18n="view.grid"></span></button></div>
+        <label class="select-inline" id="sortWrap"><span data-i18n="filters.sort"></span>
+          <select id="sort">
+            <option value="br" data-i18n="sort.br"></option>
+            <option value="rank" data-i18n="sort.rank"></option>
+            <option value="name" data-i18n="sort.name"></option>
+            <option value="nation" data-i18n="sort.nation"></option>
+          </select>
+        </label>
+        </div>
+      </div>
+      <div class="tree hidden" id="tree"></div>
+      <div class="grid" id="grid"></div>
+      <div class="empty hidden" id="gridEmpty"><svg class="ic-xl"><use href="#i-search"/></svg><p data-i18n="results.empty"></p></div>
+      <div id="sentinel"></div>
+    </div>
+
+    <div class="view hidden" id="view-missions">
+      <div class="page-head">
+        <div><h2 data-i18n="missions.title"></h2><p class="muted" data-i18n="missions.hint"></p></div>
+        <button class="btn btn-ghost" id="btnOpenFolder"><svg class="ic"><use href="#i-folder"/></svg><span data-i18n="action.openFolder"></span></button>
+      </div>
+      <div class="list" id="missionList"></div>
+    </div>
+
+    <div class="view hidden" id="view-setups">
+      <div class="page-head"><div><h2 data-i18n="setups.title"></h2></div></div>
+      <div class="list" id="setupList"></div>
+    </div>
+  </section>
+
+  <aside class="drawer" id="drawer" aria-hidden="true"></aside>
+</main>
+
+<div class="onboard hidden" id="onboard">
+  <div class="onboard-card">
+    <img class="brand-logo big" src="logo.svg?v=3" alt="">
+    <h2 data-i18n="onboard.title"></h2>
+    <p class="muted" data-i18n="onboard.text"></p>
+    <button class="btn btn-primary" id="btnOnboard"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="onboard.button"></span></button>
+    <pre class="log hidden" id="onboardLog"></pre>
+  </div>
+</div>
+
+<dialog class="modal" id="dlgSettings">
+  <form method="dialog" class="modal-inner">
+    <div class="modal-head"><h3 data-i18n="settings.title"></h3><button class="icon-btn" value="close"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="setLang" data-i18n="settings.language"></label>
+        <select id="setLang"></select>
+      </div>
+      <div class="field">
+        <label for="setTheme" data-i18n="theme.label"></label>
+        <select id="setTheme"><option value="dark" data-i18n="theme.dark"></option><option value="light" data-i18n="theme.light"></option><option value="system" data-i18n="theme.system"></option></select>
+      </div>
+      <div class="field">
+        <label for="setGameDir" data-i18n="settings.gameDir"></label>
+        <input id="setGameDir" type="text" spellcheck="false" placeholder="D:\SteamLibrary\steamapps\common\War Thunder">
+        <small class="muted" id="setGameDirHint"></small>
+      </div>
+      <div class="field">
+        <label data-i18n="settings.data"></label>
+        <small class="muted" data-i18n="settings.dataHint"></small>
+        <label class="switch"><input type="checkbox" id="setAutoUpdate"><span class="sw"></span><span data-i18n="settings.autoUpdate"></span></label>
+        <div class="row gap"><button type="button" class="btn btn-ghost" id="btnUpdate"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="settings.update"></span></button><small class="muted" id="dataVersion"></small></div>
+        <pre class="log hidden" id="updateLog"></pre>
+      </div>
+      <div class="field">
+        <label data-i18n="settings.cdk"></label>
+        <label class="switch"><input type="checkbox" id="setCdk"><span class="sw"></span><span data-i18n="settings.cdkEnable"></span></label>
+        <small class="muted" data-i18n="settings.cdkHint"></small>
+        <div class="hosts" id="setHosts"></div>
+        <small class="muted" data-i18n="settings.hostsHint"></small>
+        <label class="host-row"><span data-i18n="settings.airMethod"></span>
+          <select id="setAirMethod"><option value="custom" data-i18n="settings.airMethod.custom"></option><option value="userVehicles" data-i18n="settings.airMethod.userVehicles"></option></select></label>
+        <div class="row gap"><button type="button" class="btn btn-ghost" id="btnCdkCleanup"><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="settings.cdkCleanup"></span></button><small class="muted" id="cdkFiles"></small></div>
+      </div>
+      <div class="field howto">
+        <label data-i18n="settings.howto"></label>
+        <p class="muted" data-i18n="settings.howtoText"></p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" value="cancel" data-i18n="action.cancel"></button>
+      <button type="button" class="btn btn-primary" id="btnSaveSettings" data-i18n="settings.save"></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="modal modal-wide" id="dlgPreview">
+  <form method="dialog" class="modal-inner">
+    <div class="modal-head"><h3><span data-i18n="preview.title"></span> <code id="previewName"></code></h3>
+      <div class="row gap"><button type="button" class="btn btn-ghost btn-sm" id="btnCopyPreview" data-i18n="action.copy"></button><button class="icon-btn" value="close"><svg class="ic"><use href="#i-x"/></svg></button></div></div>
+    <pre class="code" id="previewText"></pre>
+  </form>
+</dialog>
+
+<dialog class="modal" id="dlgPrompt">
+  <form method="dialog" class="modal-inner">
+    <div class="modal-head"><h3 id="promptTitle"></h3></div>
+    <div class="modal-body"><input id="promptInput" type="text" spellcheck="false"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" value="cancel" data-i18n="action.cancel"></button>
+      <button class="btn btn-primary" value="ok" id="promptOk" data-i18n="action.save"></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="modal modal-editor" id="dlgEditor">
+  <div class="modal-inner">
+    <div class="modal-head">
+      <h3><svg class="ic"><use href="#i-map"/></svg><span data-i18n="editor.title"></span></h3>
+      <div class="row gap"><span class="muted" id="edChanges"></span><button class="btn btn-primary btn-sm" id="edDone" data-i18n="editor.done"></button></div>
+    </div>
+    <div class="ed-body">
+      <div class="ed-map">
+        <div class="ed-tools" id="edTools">
+          <button class="btn btn-sm" data-edmode="select"><span data-i18n="editor.select"></span></button>
+          <button class="btn btn-sm" data-edmode="add" data-block="tankModels"><svg class="ic-sm"><use href="#i-ground"/></svg><span data-i18n="editor.addGround"></span></button>
+          <button class="btn btn-sm" data-edmode="add" data-block="armada"><svg class="ic-sm"><use href="#i-air"/></svg><span data-i18n="editor.addAir"></span></button>
+          <button class="btn btn-sm" data-edmode="add" data-block="ships"><svg class="ic-sm"><use href="#i-ship"/></svg><span data-i18n="editor.addShip"></span></button>
+          <span class="ed-sep"></span>
+          <button class="btn btn-ghost btn-sm" data-edact="fit" data-i18n="editor.fit"></button>
+          <button class="btn btn-ghost btn-sm" data-edact="reset"><svg class="ic-sm"><use href="#i-refresh"/></svg><span data-i18n="editor.reset"></span></button>
+        </div>
+        <canvas id="edCanvas"></canvas>
+        <div class="ed-hint" id="edHint"></div>
+        <div class="ed-legend"><span><i class="dot player"></i><span data-i18n="editor.you"></span></span><span><i class="dot enemy"></i><span data-i18n="editor.enemies"></span></span><span><i class="dot ally"></i><span data-i18n="editor.allies"></span></span><span><i class="dot other"></i><span data-i18n="editor.scenery"></span></span></div>
+      </div>
+      <div class="ed-panel" id="edPanel">
+        <div id="edInspector"></div>
+        <div class="opt-group-title" data-i18n="editor.units"></div>
+        <div class="ed-list" id="edList"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+<script src="loadout.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

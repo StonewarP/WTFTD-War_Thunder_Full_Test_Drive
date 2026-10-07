@@ -1,0 +1,5 @@
+.cache/
+user/
+__pycache__/
+*.pyc
+.claude/

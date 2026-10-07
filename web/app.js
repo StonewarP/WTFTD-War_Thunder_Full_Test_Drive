@@ -1,0 +1,1304 @@
+/* WTFTD front-end */
+'use strict';
+
+const t = (k, v) => I18N.t(k, v);
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const icon = (id, cls = 'ic') => `<svg class="${cls}"><use href="#i-${id}"/></svg>`;
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+const CATS = ['all', 'ground', 'air', 'heli', 'boat', 'ship'];
+const CAT_ICON = { all: 'all', ground: 'ground', air: 'air', heli: 'heli', boat: 'boat', ship: 'ship' };
+const NATIONS = ['usa', 'germany', 'ussr', 'britain', 'japan', 'china', 'italy', 'france', 'sweden', 'israel'];
+const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', britain: '#2f8a63', japan: '#d65a5a', china: '#e2a92b', italy: '#2fa262', france: '#4766dd', sweden: '#f0c637', israel: '#4fa6e3', other: '#5b6b84' };
+const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
+const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
+const WEATHERS = ['clear', 'good', 'hazy', 'thin_clouds', 'cloudy', 'cloudy_windy', 'overcast', 'poor', 'rain', 'thunder', 'blind'];
+const AMMO_COLORS = ['#f3b33d', '#5ab8ff', '#5fcf8a', '#d482ff'];
+const BR_MIN = 1.0, BR_MAX = 14.3;
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('wtftd.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('wtftd.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
+};
+
+const S = {
+  status: null,
+  vehicles: [],
+  byId: new Map(),
+  scenarios: [],
+  details: new Map(),
+  favs: new Set(store.get('favs', [])),
+  setups: [],
+  missions: [],
+  filtered: [],
+  rendered: 0,
+  sel: null,      // selected vehicle record
+  cfg: null,      // current setup for the selected vehicle
+  openStep: 'scenario',
+  showAllScen: false,
+  showUnofficial: false,
+  f: Object.assign({ cat: 'all', nations: [], ranks: [], brMode: 1, brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', sort: 'br', view: 'tree' }, store.get('filters', {})),
+  trees: {},
+  openGroups: new Set(),
+};
+
+// ------------------------------------------------------------------ API
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  const r = await fetch('/api/' + path, opt);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+async function getData(name) {
+  const r = await fetch('data/' + name, { cache: 'no-cache' });
+  if (!r.ok) throw new Error(name);
+  return r.json();
+}
+
+// ------------------------------------------------------------------ helpers
+const unitImg = id => `/img/unit/${encodeURIComponent(id)}.png`;
+
+// Images already shown once are rendered "loaded" right away (no fade / lazy wait on re-render);
+// known-missing ones are not requested again. Remembered across page loads.
+const IMG_OK = new Set(store.get('imgOk', []));
+const IMG_BAD = new Set();
+const saveImgOk = debounce(() => store.set('imgOk', [...IMG_OK].slice(-6000)), 1500);
+function unitImgTag(id, eager = false) {
+  const src = unitImg(id);
+  if (IMG_BAD.has(src)) return '';
+  const ok = IMG_OK.has(src);
+  return `<img src="${src}" alt="" decoding="async"${ok ? ' class="loaded"' : eager ? '' : ' loading="lazy"'}>`;
+}
+document.addEventListener('load', e => {
+  const img = e.target;
+  if (img.tagName !== 'IMG' || !img.getAttribute('src')?.startsWith('/img/unit/')) return;
+  img.classList.add('loaded');
+  if (!IMG_OK.has(img.getAttribute('src'))) { IMG_OK.add(img.getAttribute('src')); saveImgOk(); }
+}, true);
+document.addEventListener('error', e => {
+  const img = e.target;
+  if (img.tagName !== 'IMG' || !img.getAttribute('src')?.startsWith('/img/unit/')) return;
+  IMG_BAD.add(img.getAttribute('src'));
+  IMG_OK.delete(img.getAttribute('src'));
+  img.remove();
+}, true);
+const flagImg = n => `/img/flag/${n}.svg`;
+const brOf = (v, mode = S.f.brMode) => v.br?.[mode] ?? null;
+const fmtBR = b => (b == null ? '—' : b.toFixed(1));
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[\s\-_.()'"/]+/g, '');
+const className = k => I18N.tOr('class.' + k, k ? k.replace(/_/g, ' ') : t('class.'));
+const nationName = n => I18N.tOr('nation.' + n, n);
+const kindsFor = cat => SCENARIO_KINDS[cat] || [cat];
+const blockFor = cat => ({ ground: 'tankModels', air: 'armada', heli: 'armada', boat: 'ships', ship: 'ships' }[cat]);
+
+function flagHTML(n, cls = 'flag') {
+  if (!n || n === 'other') return `<span class="${cls}"></span>`;
+  return `<img class="${cls}" src="${flagImg(n)}" alt="${esc(nationName(n))}" title="${esc(nationName(n))}" loading="lazy" onerror="this.style.visibility='hidden'">`;
+}
+
+function debounce(fn, ms) { let h; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); }; }
+
+function toast({ title, sub = '', err = false, actions = [], ms = 6000 }) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (err ? ' err' : '');
+  el.innerHTML = `<div class="toast-ic">${icon(err ? 'x' : 'check', 'ic-sm')}</div>
+    <div class="toast-main"><div class="toast-title">${esc(title)}</div>${sub ? `<div class="toast-sub">${esc(sub)}</div>` : ''}
+    ${actions.length ? `<div class="toast-actions">${actions.map((a, i) => `<button class="btn btn-sm ${a.primary ? 'btn-primary' : 'btn-ghost'}" data-i="${i}">${a.icon ? icon(a.icon, 'ic-sm') : ''}${esc(a.label)}</button>`).join('')}</div>` : ''}</div>
+    <button class="icon-btn" data-close>${icon('x', 'ic-sm')}</button>`;
+  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 200); };
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.hasAttribute('data-close')) return close();
+    const a = actions[+b.dataset.i];
+    if (a) { a.run(); close(); }
+  });
+  $('#toasts').appendChild(el);
+  if (ms) setTimeout(close, ms);
+}
+const toastErr = e => toast({ title: t('toast.error', { msg: e.message || e }), err: true });
+
+
+// ------------------------------------------------------------------ theme
+const themePref = () => store.get('theme', 'dark');
+const resolveTheme = pref => (pref === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : pref);
+function applyTheme(pref = themePref()) {
+  store.set('theme', pref);
+  const t = resolveTheme(pref);
+  document.documentElement.dataset.theme = t;
+  const use = $('#btnTheme use');
+  if (use) use.setAttribute('href', t === 'light' ? '#i-moon' : '#i-sun');
+}
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (themePref() === 'system') applyTheme('system'); });
+
+// ------------------------------------------------------------------ boot
+async function boot() {
+  S.status = await api('status');
+  const lang = S.status.settings?.lang || store.get('lang', 'en');
+  await I18N.init(lang, S.status.data?.langs || ['en']);
+  I18N.apply();
+  applyTheme(S.status.settings?.theme || themePref());
+  $('#btnTheme').addEventListener('click', () => {
+    const next = resolveTheme(themePref()) === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    api('settings', { theme: next }).then(st => { S.status = st; }).catch(() => {});
+  });
+  renderStatus();
+
+  if (!S.status.dataReady) { showOnboarding(); return; }
+  const [vehicles, scenarios, trees] = await Promise.all([getData('vehicles.json'), getData('scenarios.json'), getData('trees.json').catch(() => ({}))]);
+  S.trees = trees;
+  S.vehicles = vehicles;
+  S.scenarios = scenarios;
+  S.byId = new Map(vehicles.map(v => [v.id, v]));
+  for (const v of vehicles) v._s = norm(I18N.unit(v.id)) + '|' + norm(I18N.unitFull(v.id)) + '|' + norm(v.id);
+
+  buildSidebar();
+  bindUI();
+  applyFilters();
+  refreshSetups();
+  refreshMissions();
+  watchUpdates();
+  edBind();
+}
+
+function renderStatus() {
+  const st = S.status;
+  const game = st.gameFound
+    ? `<span class="pill ok" title="${esc(st.gameDir)}"><span class="dot"></span>${esc(t('status.gameFound'))}</span>`
+    : `<span class="pill bad" id="pillGame" title="${esc(t('settings.gameDirHint'))}"><span class="dot"></span>${esc(t('status.gameMissing'))}</span>`;
+  const data = st.data?.version
+    ? `<span class="pill" title="${esc(t('settings.version', { version: st.data.version, date: new Date(st.data.built * 1000).toLocaleDateString(I18N.code) }))}">${esc(t('status.data', { version: st.data.version }))}</span>`
+    : `<span class="pill bad"><span class="dot"></span>${esc(t('status.noData'))}</span>`;
+  $('#status').innerHTML = game + data;
+  $('#pillGame')?.addEventListener('click', openSettings);
+}
+
+// ------------------------------------------------------------------ sidebar & filters
+function buildSidebar() {
+  const counts = { all: 0 };
+  for (const v of S.vehicles) if (!v.h || S.f.hidden) { counts.all++; counts[v.c] = (counts[v.c] || 0) + 1; }
+  $('#cats').innerHTML = CATS.map(c => `<button class="cat${S.f.cat === c ? ' active' : ''}" data-cat="${c}">
+      <svg><use href="#i-${CAT_ICON[c]}"/></svg><span>${esc(t('cat.' + c))}</span><span class="n">${I18N.num(counts[c] || 0)}</span></button>`).join('');
+
+  $('#nations').innerHTML = NATIONS.map(n => `<button class="nation${S.f.nations.includes(n) ? ' active' : ''}" data-n="${n}" title="${esc(nationName(n))}">
+      <img src="${flagImg(n)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'fallback',textContent:'${n.slice(0, 3).toUpperCase()}'}))"></button>`).join('');
+  $('#nations').classList.toggle('has-active', S.f.nations.length > 0);
+
+  const maxRank = Math.max(8, ...S.vehicles.map(v => v.r || 0));
+  $('#ranks').innerHTML = Array.from({ length: maxRank }, (_, i) => i + 1)
+    .map(r => `<button class="rank-chip${S.f.ranks.includes(r) ? ' active' : ''}" data-r="${r}">${ROMAN[r] || r}</button>`).join('');
+
+  $$('#brMode button').forEach(b => b.classList.toggle('active', +b.dataset.mode === S.f.brMode));
+  $('#brMin').value = S.f.brMin; $('#brMax').value = S.f.brMax;
+  updateBrRange();
+  $('#optFav').checked = S.f.fav; $('#optPrem').checked = S.f.prem; $('#optHidden').checked = S.f.hidden;
+  $('#sort').value = S.f.sort;
+  $('#search').value = S.f.q;
+}
+
+function updateBrRange() {
+  let a = +$('#brMin').value, b = +$('#brMax').value;
+  if (a > b) [a, b] = [b, a];
+  S.f.brMin = a; S.f.brMax = b;
+  const pct = x => ((x - BR_MIN) / (BR_MAX - BR_MIN)) * 100;
+  $('#brFill').style.left = pct(a) + '%';
+  $('#brFill').style.right = (100 - pct(b)) + '%';
+  $('#brMinLabel').textContent = a.toFixed(1);
+  $('#brMaxLabel').textContent = b.toFixed(1);
+}
+
+// filters shared by grid and tree (the tree shows one nation / one category at a time)
+function matcher() {
+  const f = S.f, q = norm(f.q);
+  const fullBR = f.brMin <= BR_MIN && f.brMax >= BR_MAX;
+  return v => {
+    if (f.ranks.length && !f.ranks.includes(v.r)) return false;
+    if (!fullBR) { const b = brOf(v); if (b == null || b < f.brMin - 0.01 || b > f.brMax + 0.01) return false; }
+    if (f.fav && !S.favs.has(v.id)) return false;
+    if (f.prem && !v.p && !v.g) return false;
+    if (q && !v._s.includes(q)) return false;
+    return true;
+  };
+}
+
+function applyFilters() {
+  const f = S.f;
+  store.set('filters', f);
+  const view = currentView();
+  $$('#viewMode button').forEach(b => b.classList.toggle('active', b.dataset.v === view));
+  $('#sortWrap').classList.toggle('hidden', view === 'tree');
+  syncStickyOffset();
+  if (view === 'tree') return renderTree();
+  $('#tree').classList.add('hidden');
+  $('#grid').classList.remove('hidden');
+  const ok = matcher();
+  let list = S.vehicles.filter(v => {
+    if (v.h && !f.hidden) return false;
+    if (f.cat !== 'all' && v.c !== f.cat) return false;
+    if (f.nations.length && !f.nations.includes(v.n)) return false;
+    return ok(v);
+  });
+  const name = v => I18N.unit(v.id);
+  const cmp = {
+    br: (a, b) => (brOf(a) ?? 99) - (brOf(b) ?? 99) || (a.r - b.r) || name(a).localeCompare(name(b)),
+    rank: (a, b) => (a.r || 99) - (b.r || 99) || (brOf(a) ?? 99) - (brOf(b) ?? 99),
+    name: (a, b) => name(a).localeCompare(name(b), I18N.code, { numeric: true }),
+    nation: (a, b) => NATIONS.indexOf(a.n) - NATIONS.indexOf(b.n) || (brOf(a) ?? 99) - (brOf(b) ?? 99),
+  }[f.sort] || (() => 0);
+  list.sort(cmp);
+  S.filtered = list;
+  S.rendered = 0;
+  $('#grid').innerHTML = '';
+  $('#gridEmpty').classList.toggle('hidden', list.length > 0);
+  $('#resultsCount').innerHTML = `<b>${I18N.num(list.length)}</b>${esc(t('results.count', { n: '' }).trim())}`;
+  renderMore();
+  requestAnimationFrame(fillGrid);
+}
+
+function cardHTML(v) {
+  const br = brOf(v);
+  const cls = ['card', v.p ? 'prem' : '', v.h ? 'hid' : '', S.sel?.id === v.id ? 'selected' : ''].join(' ');
+  const tag = v.h ? `<span class="tagx hid">${esc(t('badge.hidden'))}</span>` : v.p ? `<span class="tagx prem">${esc(t('badge.premium'))}</span>` : v.g ? `<span class="tagx ev">${esc(t('badge.event'))}</span>` : '';
+  return `<button class="${cls}" data-id="${esc(v.id)}" style="--tint:${NATION_TINT[v.n] || NATION_TINT.other}">
+    <div class="card-img">
+      ${unitImgTag(v.id)}
+      <svg class="ph"><use href="#i-${CAT_ICON[v.c]}"/></svg>
+      ${v.r ? `<span class="card-rank">${ROMAN[v.r] || v.r}</span>` : ''}
+      ${br != null ? `<span class="card-br">${fmtBR(br)}</span>` : ''}
+      ${S.favs.has(v.id) ? `<svg class="card-fav"><use href="#i-star"/></svg>` : ''}
+    </div>
+    <div class="card-body">${flagHTML(v.n)}
+      <div class="card-txt"><div class="card-name" title="${esc(I18N.unitFull(v.id))}">${esc(I18N.unit(v.id))}</div>
+      <div class="card-sub"><span>${esc(className(v.k))}</span>${tag}</div></div>
+    </div></button>`;
+}
+
+function renderMore() {
+  const next = S.filtered.slice(S.rendered, S.rendered + 96);
+  if (!next.length) return;
+  $('#grid').insertAdjacentHTML('beforeend', next.map(cardHTML).join(''));
+  S.rendered += next.length;
+}
+
+// Keep adding cards while the end of the grid is within ~1.5 screens of the viewport.
+function fillGrid() {
+  const content = $('.content');
+  if ($('#grid').classList.contains('hidden')) return;
+  let guard = 0;
+  while (S.rendered < S.filtered.length && guard++ < 40) {
+    const gap = $('#sentinel').getBoundingClientRect().top - content.getBoundingClientRect().bottom;
+    if (gap > content.clientHeight * 1.5) break;
+    renderMore();
+  }
+}
+
+// the tree header sticks right under the results bar, whatever its height
+function syncStickyOffset() {
+  const h = $('.results-bar')?.offsetHeight;
+  if (h) document.documentElement.style.setProperty('--rb-h', h + 'px');
+}
+window.addEventListener('resize', () => syncStickyOffset());
+
+// "All" always lists every vehicle in the grid; the research tree is per vehicle type
+// The research tree needs one vehicle type and one nation. Without a nation the grid lists that type
+// for every nation; the nation picker only shows when the user explicitly asks for the tree view.
+const currentView = () => {
+  if (S.f.cat === 'all' || S.f.view !== 'tree') return 'grid';
+  return S.f.nations.length === 1 || S.pickNation ? 'tree' : 'grid';
+};
+
+function setFilter(patch) {
+  if (!('view' in patch)) S.pickNation = false;
+  Object.assign(S.f, patch);
+  buildSidebar();
+  applyFilters();
+}
+
+// ------------------------------------------------------------------ research tree
+const TREE_CATS = ['ground', 'air', 'heli', 'boat', 'ship'];
+const SPECIAL_FLAGS = ['gift', 'event', 'clan', 'market', 'removed'];
+
+function treeCardHTML(it, ok) {
+  const v = S.byId.get(it.id);
+  if (!v) return '';
+  const f = it.f || [];
+  const br = brOf(v);
+  const cls = ['tcard', f.includes('gift') || v.p ? 'prem' : '', f.includes('clan') ? 'clan' : '', f.includes('removed') ? 'removed' : '',
+    ok(v) ? '' : 'dim', S.sel?.id === v.id ? 'selected' : ''].join(' ');
+  const tag = f.includes('removed') ? 'badge.removed' : f.includes('clan') ? 'badge.squadron' : f.includes('event') ? 'badge.event' : '';
+  return `<button class="${cls}" data-id="${esc(v.id)}" title="${esc(I18N.unitFull(v.id))}" style="--tint:${NATION_TINT[v.n] || NATION_TINT.other}">
+    <span class="tcard-img">${unitImgTag(v.id)}<svg class="ph"><use href="#i-${CAT_ICON[v.c]}"/></svg></span>
+    <span class="tcard-name">${esc(I18N.unit(v.id))}</span>
+    <span class="tcard-meta">${br != null ? `<b>${fmtBR(br)}</b>` : ''}${tag ? `<i>${esc(t(tag))}</i>` : ''}${S.favs.has(v.id) ? `<svg class="tfav"><use href="#i-star"/></svg>` : ''}</span>
+  </button>`;
+}
+
+function treeItemHTML(it, ok) {
+  if (!it.g) return treeCardHTML(it, ok);
+  const open = S.openGroups.has(it.g);
+  const members = it.u.filter(m => S.byId.has(m.id));
+  const first = S.byId.get(members[0]?.id);
+  if (!first) return '';
+  const anyOk = members.some(m => ok(S.byId.get(m.id)));
+  const brs = members.map(m => brOf(S.byId.get(m.id))).filter(b => b != null);
+  const lo = Math.min(...brs), hi = Math.max(...brs);
+  const brTxt = brs.length ? (lo === hi ? fmtBR(lo) : `${fmtBR(lo)}–${fmtBR(hi)}`) : '';
+  return `<div class="tgroup${open ? ' open' : ''}${anyOk ? '' : ' dim'}">
+    <button class="tcard tfolder" data-group="${esc(it.g)}" title="${esc(t('tree.group', { n: members.length }))}" style="--tint:${NATION_TINT[first.n] || NATION_TINT.other}">
+      <span class="tcard-img">${unitImgTag(first.id)}<svg class="ph"><use href="#i-${CAT_ICON[first.c]}"/></svg><span class="tcount">${members.length}</span></span>
+      <span class="tcard-name">${esc(I18N.unit(it.g))}</span>
+      <span class="tcard-meta"><b>${brTxt}</b><svg class="tchev"><use href="#i-chev"/></svg></span>
+    </button>
+    ${open ? `<div class="tgroup-items">${members.map(m => treeCardHTML(m, ok)).join('')}</div>` : ''}
+  </div>`;
+}
+
+function renderTree() {
+  const el = $('#tree');
+  $('#grid').classList.add('hidden');
+  $('#gridEmpty').classList.add('hidden');
+  el.classList.remove('hidden');
+  S.filtered = [];
+  const nation = S.f.nations.length === 1 ? S.f.nations[0] : null;
+  if (!nation) {
+    $('#resultsCount').innerHTML = esc(t('tree.pickNation'));
+    el.innerHTML = `<div class="nation-pick">${NATIONS.filter(n => S.trees[n]).map(n => `<button class="npick" data-pick="${n}" style="--tint:${NATION_TINT[n]}">
+      <img src="${flagImg(n)}" alt=""><span>${esc(nationName(n))}</span></button>`).join('')}</div>`;
+    return;
+  }
+  const trees = S.trees[nation] || {};
+  const cat = TREE_CATS.includes(S.f.cat) ? S.f.cat : 'ground';
+  const cols = trees[cat] || [];
+  const ok = matcher();
+  const tabs = `<div class="tree-head">
+      <div class="tree-title">${flagHTML(nation, 'flag')}<h2>${esc(nationName(nation))}</h2></div>
+      <div class="seg tree-tabs">${TREE_CATS.filter(c => trees[c]).map(c => `<button class="${c === cat ? 'active' : ''}" data-tcat="${c}"><svg class="ic-sm"><use href="#i-${CAT_ICON[c]}"/></svg>${esc(t('cat.' + c))}</button>`).join('')}</div>
+    </div>`;
+  if (!cols.length) {
+    $('#resultsCount').innerHTML = '';
+    el.innerHTML = tabs + `<div class="empty"><p>${esc(t('tree.empty'))}</p></div>`;
+    return;
+  }
+  const count = cols.reduce((n, c) => n + c.reduce((m, it) => m + (it.g ? it.u.length : 1), 0), 0);
+  $('#resultsCount').innerHTML = `<b>${I18N.num(count)}</b>${esc(t('results.count', { n: '' }).trim())}`;
+  const special = cols.map(c => c.every(it => (it.g ? it.u : [it]).every(u => (u.f || []).some(x => SPECIAL_FLAGS.includes(x)) || S.byId.get(u.id)?.p)));
+  const ranks = [...new Set(cols.flat().map(it => it.r))].sort((a, b) => a - b);
+  const cell = (c, i, r) => `<div class="tcell${special[i] ? ' special' : ''}">${c.filter(it => it.r === r).map(it => treeItemHTML(it, ok)).join('')}</div>`;
+  const rows = ranks.map(r => `<div class="trow"><div class="trank"><span>${ROMAN[r] || r}</span></div>${cols.map((c, i) => cell(c, i, r)).join('')}</div>`).join('');
+  const heads = `<div class="trow thead"><div class="trank"></div>${cols.map((c, i) => `<div class="tcell${special[i] ? ' special' : ''}">${special[i] ? `<span>${esc(t('tree.premium'))}</span>` : ''}</div>`).join('')}</div>`;
+  el.innerHTML = tabs + `<div class="tree-scroll"><div class="tree-grid" style="--cols:${cols.length}">${heads}${rows}</div></div>`;
+}
+
+function onTreeClick(e) {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.pick) return setFilter({ nations: [b.dataset.pick], cat: TREE_CATS.includes(S.f.cat) ? S.f.cat : 'ground' });
+  if (b.dataset.tcat) return setFilter({ cat: b.dataset.tcat });
+  if (b.dataset.group) {
+    S.openGroups.has(b.dataset.group) ? S.openGroups.delete(b.dataset.group) : S.openGroups.add(b.dataset.group);
+    return renderTree();
+  }
+  if (b.dataset.id) openVehicle(b.dataset.id);
+}
+
+// ------------------------------------------------------------------ UI bindings
+function bindUI() {
+  const grid = $('#grid');
+  grid.addEventListener('click', e => { const c = e.target.closest('.card'); if (c) openVehicle(c.dataset.id); });
+  const tree = $('#tree');
+  tree.addEventListener('click', onTreeClick);
+  $('#viewMode').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const patch = { view: b.dataset.v };
+    S.pickNation = b.dataset.v === 'tree' && S.f.nations.length !== 1;
+    if (b.dataset.v === 'tree' && S.f.cat === 'all') patch.cat = 'ground';  // a tree shows one vehicle type
+    if (b.dataset.v === 'tree' && S.f.nations.length > 1) patch.nations = [S.f.nations[0]];
+    setFilter(patch);
+  });
+  $('.content').addEventListener('scroll', fillGrid, { passive: true });
+  window.addEventListener('resize', fillGrid);
+
+  $('#cats').addEventListener('click', e => { const b = e.target.closest('.cat'); if (b) setFilter({ cat: b.dataset.cat }); });
+  $('#nations').addEventListener('click', e => {
+    const b = e.target.closest('.nation'); if (!b) return;
+    const n = b.dataset.n, cur = new Set(S.f.nations);
+    if (currentView() === 'tree') return setFilter({ nations: [n] });
+    if (e.ctrlKey || e.shiftKey) cur.has(n) ? cur.delete(n) : cur.add(n);
+    else if (cur.size === 1 && cur.has(n)) cur.clear();
+    else if (cur.has(n)) cur.delete(n); else cur.add(n);
+    setFilter({ nations: [...cur] });
+  });
+  $('#ranks').addEventListener('click', e => {
+    const b = e.target.closest('.rank-chip'); if (!b) return;
+    const r = +b.dataset.r, cur = new Set(S.f.ranks);
+    cur.has(r) ? cur.delete(r) : cur.add(r);
+    setFilter({ ranks: [...cur] });
+  });
+  $('#brMode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setFilter({ brMode: +b.dataset.mode }); });
+  const brChanged = debounce(applyFilters, 120);
+  ['#brMin', '#brMax'].forEach(s => $(s).addEventListener('input', () => { updateBrRange(); brChanged(); }));
+  $('#optFav').addEventListener('change', e => setFilter({ fav: e.target.checked }));
+  $('#optPrem').addEventListener('change', e => setFilter({ prem: e.target.checked }));
+  $('#optHidden').addEventListener('change', e => setFilter({ hidden: e.target.checked }));
+  $('#sort').addEventListener('change', e => setFilter({ sort: e.target.value }));
+  $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '' }));
+  $('#search').addEventListener('input', debounce(e => { S.f.q = e.target.value; applyFilters(); }, 90));
+
+  $$('.tab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+  $('#btnSettings').addEventListener('click', openSettings);
+  $('#btnLaunchTop').addEventListener('click', launchGame);
+  $('#btnOpenFolder').addEventListener('click', () => api('open-folder', {}).catch(toastErr));
+  $('#btnSaveSettings').addEventListener('click', saveSettings);
+  $('#btnCdkCleanup').addEventListener('click', cdkCleanup);
+  $('#btnUpdate').addEventListener('click', () => startUpdate($('#updateLog'), $('#btnUpdate')));
+  $('#btnCopyPreview').addEventListener('click', async () => {
+    await navigator.clipboard.writeText($('#previewText').textContent);
+    $('#btnCopyPreview').textContent = t('action.copied');
+    setTimeout(() => { $('#btnCopyPreview').textContent = t('action.copy'); }, 1400);
+  });
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); showView('vehicles'); $('#search').focus(); $('#search').select(); }
+    else if (e.key === 'Escape' && !document.querySelector('dialog[open]') && S.sel) { closeDrawer(); }
+  });
+
+  $('#missionList').addEventListener('click', onMissionListClick);
+  $('#setupList').addEventListener('click', onSetupListClick);
+}
+
+function showView(name) {
+  $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
+  if (name === 'missions') refreshMissions();
+  if (name === 'setups') renderSetups();
+}
+
+// ------------------------------------------------------------------ vehicle drawer
+async function openVehicle(id, cfg = null) {
+  const v = S.byId.get(id);
+  if (!v) return;
+  S.sel = v;
+  $$('.card.selected, .tcard.selected').forEach(c => c.classList.remove('selected'));
+  $$(`.card[data-id="${CSS.escape(id)}"], .tcard[data-id="${CSS.escape(id)}"]`).forEach(c => c.classList.add('selected'));
+  let d = S.details.get(id);
+  if (!d) {
+    try { d = await api('vehicle/' + encodeURIComponent(id)); S.details.set(id, d); }
+    catch (e) { toastErr(e); return; }
+  }
+  if (S.sel !== v) return;
+  S.cfg = cfg ? normalizeCfg(v, d, cfg) : defaultCfg(v, d);
+  S.openStep = 'scenario';
+  if (typeof LP !== 'undefined') LP.slot = null;
+  renderDrawer({ keepScroll: false });
+  $('.layout').classList.add('drawer-open');
+  $('#drawer').setAttribute('aria-hidden', 'false');
+}
+
+function closeDrawer() {
+  $('.layout').classList.remove('drawer-open');
+  $('#drawer').setAttribute('aria-hidden', 'true');
+  $$('.card.selected, .tcard.selected').forEach(c => c.classList.remove('selected'));
+  S.sel = null;
+}
+
+function scenariosFor(v, all = S.showAllScen) {
+  const kinds = kindsFor(v.c);
+  const levels = new Set(S.status.levels || []);
+  const score = s => (kinds.includes(s.kind) ? 100 : 0) + (s.nation && s.nation === v.n ? 20 : 0)
+    + (s.tags.includes('universal') ? (v.r >= 6 ? 12 : 4) : 0) + (s.tags.includes('jet') && v.r >= 5 ? 6 : 0)
+    + (levels.size && !levels.has(s.map) ? -50 : 0) + (s.tags.includes('destroyer') === (v.k === 'destroyer' || v.k === 'cruiser') ? 2 : 0);
+  return S.scenarios.filter(s => all || kinds.includes(s.kind)).sort((a, b) => score(b) - score(a) || I18N.map(a.map).localeCompare(I18N.map(b.map)));
+}
+
+function mainGun(d, v) { return v.c === 'ground' ? (d.am[0] || null) : null; }
+
+function defaultAmmo(v, d) {
+  if (v.c === 'ground') {
+    const g = mainGun(d, v);
+    if (!g) return [];
+    const opts = g.opts.filter(o => !o.x);
+    const def = opts[0] || g.opts[0];
+    return [{ id: def ? def.id : '', count: g.cap || 30 }, { id: null, count: 0 }, { id: null, count: 0 }, { id: null, count: 0 }];
+  }
+  return d.am.slice(0, 4).map(g => ({ id: '', count: (g.cap || 0) * (g.n || 1) }));
+}
+
+function defaultCfg(v, d) {
+  const scen = scenariosFor(v, false)[0] || S.scenarios[0];
+  const name = I18N.unit(v.id);
+  return {
+    vehicle: v.id, block: d.b || blockFor(v.c), scenario: scen?.id,
+    preset: d.pr[0]?.id || '', ammo: defaultAmmo(v, d),
+    environment: '', weather: '', start: 'scenario', altitude: 1500, speed: 450, heading: '',
+    missionType: S.status.settings?.missionType || 'singleMission', allMods: true, mods: {}, pylons: null,
+    targets: { mode: 'scenario', br: v.br?.[1] || 5.0 },
+    cheats: { immortal: false, infAmmo: false, noReload: false, infFuel: false, passiveEnemies: false, ghost: false, crew: '', repairEvery: 0 },
+    title: '', fileName: '', _autoTitle: `Test Drive: ${name}`,
+  };
+}
+
+function normalizeCfg(v, d, cfg) {
+  const base = defaultCfg(v, d);
+  const c = Object.assign({}, base, cfg, { vehicle: v.id, block: d.b || blockFor(v.c) });
+  if (!S.scenarios.some(s => s.id === c.scenario)) c.scenario = base.scenario;
+  if (!d.pr.some(p => p.id === c.preset) && c.preset !== 'wtftd_custom') c.preset = base.preset;
+  c.cheats = Object.assign({}, base.cheats, cfg.cheats || {});
+  c.targets = Object.assign({}, base.targets, cfg.targets || {});
+  if (cfg.edits && cfg.edits.sid) c.edits = JSON.parse(JSON.stringify(cfg.edits));
+  // setups saved with a mission use the server format: convert back to the UI's
+  c.mods = JSON.parse(JSON.stringify(c.mods || {}));
+  delete c.mods.noReload;
+  for (const g of Object.values(c.mods.guns || {})) {
+    if (g.shells && '' in g.shells) { g.shells._ = g.shells['']; delete g.shells['']; }
+  }
+  if (v.c === 'ground' && Array.isArray(cfg.ammo)) {
+    c.ammo = [0, 1, 2, 3].map(i => {
+      const a = cfg.ammo[i];
+      return a && (a.id || a.count) ? { id: a.id ?? '', count: +a.count || 0 } : { id: i === 0 ? '' : null, count: 0 };
+    });
+  }
+  if (c.heading == null) c.heading = '';
+  if (c.preset === 'wtftd_custom') c.preset = base.preset;
+  if (c.title && c.title === autoTitleFor(c)) c.title = '';
+  if (c.fileName === `wtftd_${v.id}`) c.fileName = '';
+  return c;
+}
+
+function presetLabel(v, p) {
+  const id = p.id;
+  if (/(^|_)default$/.test(id) && !p.w.length) return t('loadout.default');
+  const prefix = v.id.toLowerCase().replace(/-/g, '_');
+  let s = id.toLowerCase();
+  for (const pre of [prefix + '_', prefix.replace(/^nt_/, '') + '_', prefix.split('_').slice(0, 2).join('_') + '_']) if (s.startsWith(pre)) { s = s.slice(pre.length); break; }
+  if (s === 'default') return t('loadout.default');
+  return s.split('_').filter(Boolean).map(w => (/\d/.test(w) || w.length <= 3 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1))).join(' ');
+}
+
+function presetChips(p) {
+  if (!p.w.length) return `<span class="chip dim">${esc(t('loadout.empty'))}</span>`;
+  return p.w.map(([k, n]) => `<span class="chip"><b>${n}×</b>${esc(I18N.weapon(k))}</span>`).join('');
+}
+
+function ammoLabel(o, belt = false) {
+  const types = o.t.map(x => I18N.btype(x)).join(' / ');
+  if (belt) {
+    const m = o.id ? I18N.mod(o.id) : t('ammo.default');
+    return `${m || o.id.replace(/_/g, ' ')}${types ? ` (${types})` : ''}`;
+  }
+  const names = o.b.map(b => I18N.bullet(b)).join(', ');
+  return `${types || '?'}${names ? ' · ' + names : ''}${o.id ? '' : ' — ' + t('ammo.default')}`;
+}
+
+function stepHTML(key, num, title, summary, body) {
+  const open = S.openStep === key;
+  return `<section class="step${open ? ' open' : ''}" data-step="${key}">
+    <button class="step-head" data-toggle="${key}"><span class="step-num">${num}</span><span class="step-title">${esc(title)}</span>
+      <span class="step-sum">${summary}</span><svg class="step-chev"><use href="#i-chev"/></svg></button>
+    <div class="step-body">${open ? body() : ''}</div></section>`;
+}
+
+function renderDrawer({ keepScroll = true, reveal = null } = {}) {
+  const v = S.sel, d = S.details.get(v.id), c = S.cfg;
+  const prevScroll = keepScroll ? ($('#drawer .dr-scroll')?.scrollTop || 0) : 0;
+  const scen = S.scenarios.find(s => s.id === c.scenario);
+  const preset = d.pr.find(p => p.id === c.preset);
+  const isFlyer = d.b === 'armada';
+  const fav = S.favs.has(v.id);
+  const brs = ['AB', 'RB', 'SB'].map((m, i) => `<div class="stat br"><small>${m}</small><b>${fmtBR(v.br?.[i])}</b></div>`).join('');
+
+  const ammoSum = (() => {
+    if (v.c === 'ground') {
+      const g = mainGun(d, v); if (!g) return '';
+      const used = c.ammo.filter(a => a.id !== null).reduce((s, a) => s + (+a.count || 0), 0);
+      return esc(t('ammo.capacity', { used, cap: g.cap }));
+    }
+    return d.am.length ? esc(`${d.am.length} × ${t('ammo.belt').toLowerCase()}`) : '';
+  })();
+  const condSum = [c.environment ? t('env.' + c.environment) : '', c.weather ? t('weather.' + c.weather) : '', c.start === 'air' ? `${c.altitude} m` : ''].filter(Boolean).join(' · ') || t('cond.keep');
+
+  $('#drawer').style.setProperty('--tint', NATION_TINT[v.n] || NATION_TINT.other);
+  $('#drawer').innerHTML = `
+    <div class="dr-scroll">
+      <div class="hero">
+        <div class="hero-top">
+          <div class="row gap">${v.r ? `<span class="chip">${esc(t('rank', { r: ROMAN[v.r] || v.r }))}</span>` : ''}<span class="chip">${icon(CAT_ICON[v.c], 'ic-sm')}${esc(className(v.k))}</span>
+            ${v.h ? `<span class="tagx hid">${esc(t('badge.hidden'))}</span>` : v.p ? `<span class="tagx prem">${esc(t('badge.premium'))}</span>` : ''}</div>
+          <div class="hero-actions">
+            <button class="icon-btn${fav ? ' on' : ''}" data-act="fav" title="${esc(t(fav ? 'drawer.unfavorite' : 'drawer.favorite'))}">${icon('star')}</button>
+            <a class="icon-btn" href="https://wiki.warthunder.com/unit/${encodeURIComponent(v.id)}" target="_blank" rel="noopener" title="${esc(t('drawer.wiki'))}">${icon('ext')}</a>
+            <button class="icon-btn" data-act="close" title="${esc(t('drawer.close'))}">${icon('x')}</button>
+          </div>
+        </div>
+        <div class="hero-img">${unitImgTag(v.id, true)}</div>
+        <div class="hero-name">${flagHTML(v.n)}<h2>${esc(I18N.unit(v.id))}</h2></div>
+        <div class="hero-full">${esc(I18N.unitFull(v.id))} · <code>${esc(v.id)}</code></div>
+        <div class="hero-stats">${brs}</div>
+      </div>
+      ${stepHTML('scenario', 1, t('step.scenario'), esc(scen ? I18N.map(scen.map) : ''), () => scenarioBody(v))}
+      ${stepHTML('loadout', 2, t('step.loadout'), esc(c.pylons ? t('loadout.customShort', { n: Object.keys(c.pylons).length }) : preset ? presetLabel(v, preset) : t('loadout.default')), () => loadoutBody(v, d))}
+      ${stepHTML('ammo', 3, t('step.ammo'), ammoSum, () => ammoBody(v, d))}
+      ${cdkOn() ? stepHTML('mods', 4, t('step.mods'), esc(countMods(c.mods) ? t('mods.count', { n: countMods(c.mods) }) : t('mods.stockShort')), () => modsBody(v, d)) : ''}
+      ${stepHTML('cheats', cdkOn() ? 5 : 4, t('step.cheats'), esc(cheatsSummary()), () => cheatsBody())}
+      ${stepHTML('conditions', cdkOn() ? 6 : 5, t('step.conditions'), esc(condSum), () => conditionsBody(isFlyer))}
+      ${stepHTML('advanced', cdkOn() ? 7 : 6, t('step.advanced'), esc(t('adv.missionType.' + c.missionType).split(' (')[0]), () => advancedBody())}
+    </div>
+    <div class="dr-foot">
+      <button class="icon-btn" data-act="save" title="${esc(t('action.save'))}">${icon('save')}</button>
+      <button class="btn btn-ghost" data-act="preview">${icon('file')}<span>${esc(t('action.preview'))}</span></button>
+      <button class="btn btn-primary btn-lg" data-act="generate">${icon('play')}<span>${esc(t('action.generate'))}</span></button>
+    </div>`;
+  bindDrawer();
+  const sc = $('#drawer .dr-scroll');
+  sc.scrollTop = prevScroll;
+  if (reveal) {
+    const el = $(`.step[data-step="${reveal}"]`, sc);
+    if (el) {
+      const top = el.offsetTop - 8;
+      if (top < sc.scrollTop || top > sc.scrollTop + sc.clientHeight - 120) sc.scrollTo({ top, behavior: 'smooth' });
+    }
+  }
+}
+
+function scenarioBody(v) {
+  const c = S.cfg;
+  const levels = new Set(S.status.levels || []);
+  const list = scenariosFor(v);
+  const kinds = kindsFor(v.c);
+  const groups = {};
+  for (const s of list) (groups[kinds.includes(s.kind) ? 'match' : s.kind] ||= []).push(s);
+  const item = s => {
+    const missing = levels.size && !levels.has(s.map);
+    const chips = [
+      `<span class="chip">${esc(t('kind.' + s.kind))}</span>`,
+      ...s.tags.filter(x => x !== 'heli' && x !== 'ucav' && x !== 'destroyer').map(x => `<span class="chip info">${esc(I18N.tOr('tag.' + x, x))}</span>`),
+      s.nation ? `<span class="chip">${flagHTML(s.nation, 'flag')} ${esc(t('scenario.targets', { nation: nationName(s.nation) }))}</span>` : '',
+      `<span class="chip dim">${esc(t('scenario.start.' + s.start))}</span>`,
+      missing ? `<span class="chip warn">${esc(t('scenario.notInstalled'))}</span>` : '',
+    ].join('');
+    return `<button class="opt${c.scenario === s.id ? ' active' : ''}${missing ? ' disabled' : ''}" data-scen="${esc(s.id)}">
+      <span class="opt-ic">${icon(s.kind === 'ground' ? 'target' : 'map')}</span>
+      <span class="opt-main"><span class="opt-title">${esc(s.title ? t(s.title) : I18N.map(s.map))}</span><span class="chips">${chips}</span></span>
+      <span class="opt-radio"></span></button>`;
+  };
+  const order = ['match', ...Object.keys(groups).filter(k => k !== 'match')];
+  return `<p class="hint">${esc(t('scenario.hint'))}</p>
+    <div class="opt-list">${order.filter(k => groups[k]).map(k => (k === 'match' ? '' : `<div class="opt-group-title">${esc(t('kind.' + k))}</div>`) + groups[k].map(item).join('')).join('')}</div>
+    <label class="switch" style="margin-top:10px"><input type="checkbox" data-bind="showAllScen" ${S.showAllScen ? 'checked' : ''}><span class="sw"></span><span>${esc(t('scenario.showAll'))}</span></label>
+    ${targetsBody(v)}
+    <div class="opt-group-title" style="margin-top:16px">${icon('map', 'ic-sm')} ${esc(t('editor.title'))}</div>
+    <p class="hint">${esc(t('editor.intro'))}</p>
+    <button class="btn" data-act="editor">${icon('map', 'ic-sm')}<span>${esc(t('editor.open'))}</span>${typeof edCount === 'function' && edCount() ? `<span class="chip">${esc(t('editor.changes', { n: edCount() }))}</span>` : ''}</button>`;
+}
+
+function targetsBody(v) {
+  const c = S.cfg, tg = c.targets;
+  const scen = S.scenarios.find(s => s.id === c.scenario);
+  const editable = scen && Object.keys(scen.en || {}).length;
+  const myBR = v.br?.[1];
+  const kinds = Object.entries(scen?.en || {}).map(([b, n]) => `${n} ${t('targets.block.' + b)}`).join(' · ');
+  let html = `<div class="opt-group-title" style="margin-top:16px">${icon('target', 'ic-sm')} ${esc(t('targets.title'))}</div>`;
+  if (!editable) return html + `<p class="hint">${esc(t('targets.fixed'))}</p>`;
+  html += `<p class="hint">${esc(t('targets.hint', { what: kinds }))}</p>
+    <div class="seg" data-seg-targets>
+      <button class="${tg.mode === 'scenario' ? 'active' : ''}" data-tmode="scenario">${esc(t('targets.scenario'))}</button>
+      <button class="${tg.mode === 'match' ? 'active' : ''}" data-tmode="match">${esc(t('targets.match', { br: fmtBR(myBR) }))}</button>
+      <button class="${tg.mode === 'br' ? 'active' : ''}" data-tmode="br">${esc(t('targets.custom'))}</button>
+    </div>`;
+  if (tg.mode === 'br') {
+    html += `<div class="slider-row" style="margin-top:10px"><input type="range" min="1" max="14.3" step="0.3" data-tbr value="${tg.br}"><output>BR ${(+tg.br).toFixed(1)}</output></div>`;
+  }
+  return html;
+}
+
+function loadoutBody(v, d) {
+  const c = S.cfg;
+  if (d.pr.length <= 1 && !(d.pr[0]?.w.length) && !(cdkOn() && d.sl?.length)) return `<p class="hint">${esc(t('loadout.none'))}</p>`;
+  const items = d.pr.map(p => `<button class="opt${c.preset === p.id ? ' active' : ''}" data-preset="${esc(p.id)}">
+      <span class="opt-main"><span class="opt-title">${esc(presetLabel(v, p))}</span>
+        <span class="chips">${presetChips(p)}${p.req ? `<span class="chip dim" title="${esc(p.req)}">${esc(t('loadout.requires', { mod: I18N.mod(p.req) || p.req }))}</span>` : ''}</span></span>
+      <span class="opt-radio"></span></button>`).join('');
+  const nuke = cdkOn() && d.em?.length ? nukeBody() : '';
+  if (d.sl?.length) return nuke + loadoutGridHTML(v, d);
+  return `${nuke}<div class="opt-list">${items}</div>${d.b === 'armada' ? `<p class="hint" style="margin-top:12px">${esc(t('loadout.note'))}</p>` : ''}`;
+}
+
+function ammoOptions(g, selected, belt) {
+  const opts = g.opts.filter(o => S.showUnofficial || !o.x || o.id === selected);
+  return opts.map(o => `<option value="${esc(o.id)}"${o.id === selected ? ' selected' : ''}>${esc(ammoLabel(o, belt))}${o.x ? ' ⚠' : ''}</option>`).join('');
+}
+
+function ammoBody(v, d) {
+  const c = S.cfg;
+  const unofficialToggle = d.am.some(g => g.opts.some(o => o.x))
+    ? `<label class="switch" style="margin-top:4px"><input type="checkbox" data-bind="showUnofficial" ${S.showUnofficial ? 'checked' : ''}><span class="sw"></span><span>${esc(t('ammo.showUnofficial'))}</span></label>` : '';
+  if (v.c === 'ground') {
+    const g = mainGun(d, v);
+    if (!g) return `<p class="hint">${esc(t('ammo.none'))}</p>`;
+    const used = c.ammo.filter(a => a.id !== null).reduce((s, a) => s + (+a.count || 0), 0);
+    const over = g.cap && used > g.cap;
+    const slots = c.ammo.map((a, i) => `<div class="slot">
+        <span class="slot-n" style="color:${a.id !== null ? AMMO_COLORS[i] : ''}">${i + 1}</span>
+        <select data-ammo="${i}"><option value="__empty"${a.id === null ? ' selected' : ''}>— ${esc(t('ammo.empty'))} —</option>${ammoOptions(g, a.id, false)}</select>
+        <div class="stepper"><button data-step-ammo="${i}" data-d="-1">−</button><input type="number" min="0" data-count="${i}" value="${a.id === null ? 0 : a.count}" ${a.id === null ? 'disabled' : ''}><button data-step-ammo="${i}" data-d="1">+</button></div>
+      </div>`).join('');
+    const bar = g.cap ? c.ammo.map((a, i) => a.id === null ? '' : `<span style="width:${Math.min(100, (a.count / Math.max(g.cap, used)) * 100)}%;background:${AMMO_COLORS[i]}"></span>`).join('') : '';
+    return `<div class="gun"><div class="gun-head">${icon('ammo', 'ic-sm')}<span class="gun-name">${esc(I18N.weapon(g.w))}</span>
+        <div class="mini-actions"><button class="btn btn-ghost btn-sm" data-act="fill">${esc(t('ammo.fill'))}</button><button class="btn btn-ghost btn-sm" data-act="split">${esc(t('ammo.split'))}</button></div></div>
+      ${slots}
+      ${g.cap ? `<div class="cap"><div class="cap-bar">${bar}</div><div class="cap-legend${over ? ' over' : ''}"><span>${esc(t('ammo.capacity', { used, cap: g.cap }))}</span>${over ? `<span>${esc(t('ammo.overCap'))}</span>` : ''}</div></div>` : ''}
+    </div>${unofficialToggle}`;
+  }
+  if (!d.am.length) return `<p class="hint">${esc(t('ammo.none'))}</p>`;
+  const guns = d.am.map((g, i) => `<div class="gun"><div class="gun-head">${icon('ammo', 'ic-sm')}<span class="gun-name">${esc(I18N.weapon(g.w))}</span>
+      ${g.n > 1 ? `<span class="chip">${esc(t('ammo.guns', { n: g.n }))}</span>` : ''}</div>
+      <select data-belt="${i}" style="width:100%">${ammoOptions(g, c.ammo[i]?.id ?? '', true)}</select></div>`).join('');
+  return `<p class="hint">${esc(t('ammo.beltNote'))}</p>${guns}${unofficialToggle}`;
+}
+
+function conditionsBody(isFlyer) {
+  const c = S.cfg;
+  const seg = (name, values, cur, label) => `<div class="seg seg-wrap" data-seg="${name}">
+      <button class="${!cur ? 'active' : ''}" data-v="">${esc(t('cond.keep'))}</button>
+      ${values.map(x => `<button class="${cur === x ? 'active' : ''}" data-v="${x}">${esc(t(label + x))}</button>`).join('')}</div>`;
+  return `<div class="field"><label>${esc(t('cond.time'))}</label>${seg('environment', ENVS, c.environment, 'env.')}</div>
+    <div class="field"><label>${esc(t('cond.weather'))}</label>
+      <select data-field="weather"><option value="">${esc(t('cond.keep'))}</option>${WEATHERS.map(w => `<option value="${w}"${c.weather === w ? ' selected' : ''}>${esc(t('weather.' + w))}</option>`).join('')}</select></div>
+    ${isFlyer ? `<div class="field"><label>${esc(t('cond.start'))}</label>
+      <div class="seg" data-seg="start"><button class="${c.start !== 'air' ? 'active' : ''}" data-v="scenario">${esc(t('cond.startScenario'))}</button><button class="${c.start === 'air' ? 'active' : ''}" data-v="air">${esc(t('cond.startAir'))}</button></div></div>
+      ${c.start === 'air' ? `<div class="field"><label>${esc(t('cond.altitude'))}</label><div class="slider-row"><input type="range" min="100" max="10000" step="100" data-num="altitude" value="${c.altitude}"><output>${c.altitude} m</output></div></div>
+      <div class="field"><label>${esc(t('cond.speed'))}</label><div class="slider-row"><input type="range" min="0" max="1500" step="10" data-num="speed" value="${c.speed}"><output>${c.speed} km/h</output></div></div>` : ''}` : ''}`;
+}
+
+function advancedBody() {
+  const c = S.cfg;
+  return `<div class="field"><label>${esc(t('adv.missionType'))}</label>
+      <select data-field="missionType">${['singleMission', 'testFlight'].map(m => `<option value="${m}"${c.missionType === m ? ' selected' : ''}>${esc(t('adv.missionType.' + m))}</option>`).join('')}</select></div>
+    <label class="switch"><input type="checkbox" data-check="allMods" ${c.allMods ? 'checked' : ''}><span class="sw"></span><span>${esc(t('adv.allMods'))}</span></label>
+    <div class="field-row" style="margin-top:12px">
+      <div class="field"><label>${esc(t('adv.heading'))}</label><input type="number" min="0" max="359" data-field="heading" value="${esc(c.heading)}" placeholder="${esc(t('adv.headingAuto'))}"></div>
+      <div class="field"><label>${esc(t('adv.fileName'))}</label><input type="text" data-field="fileName" value="${esc(c.fileName)}" placeholder="wtftd_${esc(c.vehicle)}"></div>
+    </div>
+    <div class="field"><label>${esc(t('adv.title'))}</label><input type="text" data-field="title" value="${esc(c.title)}" placeholder="${esc(autoTitle())}"></div>`;
+}
+
+function autoTitleFor(c) {
+  const s = S.scenarios.find(x => x.id === c.scenario);
+  return `Test Drive: ${I18N.unit(c.vehicle)}${s ? ' - ' + I18N.map(s.map) : ''}`;
+}
+const autoTitle = () => autoTitleFor(S.cfg);
+
+function bindDrawer() {
+  const dr = $('#drawer');
+  dr.onclick = e => {
+    const row = e.target.closest('[data-lrow]');
+    if (row) { loadoutRowClick(row, S.sel, S.details.get(S.sel.id)); return renderDrawer(); }
+    const b = e.target.closest('button, a');
+    if (!b) return;
+    const c = S.cfg, v = S.sel, d = S.details.get(v.id);
+    if (loadoutClick(b, v, d)) return renderDrawer();
+    if (b.dataset.crew !== undefined) { c.cheats.crew = b.dataset.crew; delete c.cheats.expertCrew; return renderDrawer(); }
+    if (b.dataset.tmode) { c.targets.mode = b.dataset.tmode; return renderDrawer(); }
+    if (b.dataset.modreset) { setPath(c.mods, b.dataset.modreset, null); return renderDrawer(); }
+    if (b.dataset.toggle) { S.openStep = S.openStep === b.dataset.toggle ? '' : b.dataset.toggle; return renderDrawer({ reveal: S.openStep }); }
+    if (b.dataset.scen) { c.scenario = b.dataset.scen; return renderDrawer(); }
+    if (b.dataset.preset !== undefined) { c.preset = b.dataset.preset; return renderDrawer(); }
+    if (b.dataset.stepAmmo !== undefined) {
+      const i = +b.dataset.stepAmmo, a = c.ammo[i];
+      if (a.id === null) return;
+      const g = mainGun(d, v);
+      const stepSize = g && g.cap >= 200 ? 10 : 1;
+      a.count = Math.max(0, (+a.count || 0) + (+b.dataset.d) * stepSize);
+      return renderDrawer();
+    }
+    const seg = b.closest('[data-seg]');
+    if (seg) { c[seg.dataset.seg] = b.dataset.v; return renderDrawer(); }
+    switch (b.dataset.act) {
+      case 'close': return closeDrawer();
+      case 'fav': return toggleFav(v.id);
+      case 'generate': return generate();
+      case 'preview': return preview();
+      case 'save': return saveSetup();
+      case 'reset-mods': c.mods = {}; return renderDrawer();
+      case 'editor': return openEditor();
+      case 'fill': {
+        const g = mainGun(d, v); const used = c.ammo.reduce((s, a, i) => s + (a.id !== null && i > 0 ? +a.count : 0), 0);
+        if (c.ammo[0].id !== null) c.ammo[0].count = Math.max(0, g.cap - used);
+        return renderDrawer();
+      }
+      case 'split': {
+        const g = mainGun(d, v); const act = c.ammo.filter(a => a.id !== null);
+        act.forEach((a, i) => { a.count = Math.floor(g.cap / act.length) + (i < g.cap % act.length ? 1 : 0); });
+        return renderDrawer();
+      }
+    }
+  };
+  dr.onchange = e => {
+    const el = e.target, c = S.cfg;
+    if (el.dataset.bind) { S[el.dataset.bind] = el.checked; return renderDrawer(); }
+    if (el.dataset.ammo !== undefined) {
+      const a = c.ammo[+el.dataset.ammo];
+      const was = a.id;
+      a.id = el.value === '__empty' ? null : el.value;
+      if (was === null && a.id !== null && !a.count) {
+        const g = mainGun(S.details.get(S.sel.id), S.sel);
+        a.count = Math.min(10, g?.cap || 10);
+        const used = c.ammo.reduce((sum, x) => sum + (x.id !== null ? +x.count || 0 : 0), 0);
+        const over = g?.cap ? used - g.cap : 0;
+        const first = c.ammo.find(x => x !== a && x.id !== null);
+        if (over > 0 && first) first.count = Math.max(0, first.count - over);
+      }
+      return renderDrawer();
+    }
+    if (el.dataset.count !== undefined) { c.ammo[+el.dataset.count].count = Math.max(0, parseInt(el.value, 10) || 0); return renderDrawer(); }
+    if (el.dataset.belt !== undefined) { const i = +el.dataset.belt; c.ammo[i] = Object.assign(c.ammo[i] || {}, { id: el.value }); return; }
+    if (el.dataset.field) { c[el.dataset.field] = el.value; if (el.dataset.field === 'missionType') { renderDrawer(); } return; }
+    if (el.dataset.check) { c[el.dataset.check] = el.checked; return; }
+    if (el.dataset.cheat) { c.cheats[el.dataset.cheat] = el.checked; return renderDrawer(); }
+    if (el.dataset.cheatnum) { c.cheats[el.dataset.cheatnum] = +el.value; return renderDrawer(); }
+    if (el.dataset.mod) {
+      const val = el.value.trim() === '' ? null : +el.value;
+      setPath(c.mods, el.dataset.mod, Number.isFinite(val) ? val : null);
+      return renderDrawer();
+    }
+    if (el.dataset.modNuke !== undefined) { if (el.value) c.mods.nuke = el.value; else delete c.mods.nuke; return renderDrawer(); }
+    if (el.dataset.modshell !== undefined) { (S.modShell ||= {})[el.dataset.modshell] = el.value; return renderDrawer(); }
+    if (el.dataset.bindCfg === 'customPylons') {
+      const p = S.details.get(S.sel.id).pr.find(x => x.id === c.preset);
+      c.pylons = el.checked ? Object.fromEntries(Object.entries(p?.s || {}).map(([k, val]) => [+k, val])) : null;
+      LP.slot = null;
+      return renderDrawer();
+    }
+    if (loadoutChange(el)) return renderDrawer();
+    if (el.dataset.pylon !== undefined) { if (el.value) c.pylons[el.dataset.pylon] = el.value; else delete c.pylons[el.dataset.pylon]; return renderDrawer(); }
+  };
+  dr.oninput = e => {
+    const el = e.target;
+    if (loadoutInput(el)) return;
+    if (el.dataset.tbr !== undefined) { S.cfg.targets.br = +el.value; el.nextElementSibling.textContent = `BR ${(+el.value).toFixed(1)}`; return; }
+    if (el.dataset.cheatnum) { el.nextElementSibling.textContent = +el.value ? `${el.value} s` : t('cheat.off'); return; }
+    if (el.dataset.num) { S.cfg[el.dataset.num] = +el.value; el.nextElementSibling.textContent = `${el.value} ${el.dataset.num === 'altitude' ? 'm' : 'km/h'}`; }
+  };
+}
+
+function toggleFav(id) {
+  S.favs.has(id) ? S.favs.delete(id) : S.favs.add(id);
+  store.set('favs', [...S.favs]);
+  const card = $(`.card[data-id="${CSS.escape(id)}"]`);
+  if (card) card.outerHTML = cardHTML(S.byId.get(id));
+  if (currentView() === 'tree') renderTree();
+  if (S.sel?.id === id) renderDrawer();
+}
+
+// ------------------------------------------------------------------ mission actions
+function missionPayload() {
+  const c = S.cfg;
+  return {
+    scenario: c.scenario, vehicle: c.vehicle, block: c.block, preset: c.preset,
+    ammo: c.ammo.map(a => a && a.id !== null ? { id: a.id || '', count: +a.count || 0 } : { id: '', count: 0 }),
+    environment: c.environment, weather: c.weather, start: c.start, altitude: c.altitude, speed: c.speed,
+    heading: c.heading === '' ? null : +c.heading, missionType: c.missionType, allMods: c.allMods,
+    title: c.title || autoTitle(), fileName: c.fileName || `wtftd_${c.vehicle}`,
+    mods: cdkOn() ? Object.assign(modsPayload(c.mods), c.cheats.noReload ? { noReload: true } : {}) : undefined,
+    pylons: cdkOn() && c.pylons ? c.pylons : undefined, cheats: c.cheats, targets: c.targets,
+    edits: c.edits && c.edits.sid === c.scenario ? c.edits : undefined,
+  };
+}
+
+async function generate() {
+  const btn = $('[data-act="generate"]');
+  btn.disabled = true;
+  btn.querySelector('span').textContent = t('action.generating');
+  try {
+    const r = await api('generate', missionPayload());
+    toast({
+      title: t('toast.generated', { file: r.file }),
+      sub: t('toast.generatedHint', { title: missionPayload().title }) + (r.cdkFiles?.length ? ' ' + t('toast.cdkHint', { n: r.cdkFiles.length }) : ''), ms: 12000,
+      actions: [{ label: t('action.launch'), icon: 'play', primary: true, run: launchGame }, { label: t('action.openFolder'), icon: 'folder', run: () => api('open-folder', {}) }],
+    });
+    refreshMissions();
+  } catch (e) { toastErr(e); }
+  finally { btn.disabled = false; btn.querySelector('span').textContent = t('action.generate'); }
+}
+
+async function preview() {
+  try {
+    const r = await api('preview', missionPayload());
+    $('#previewName').textContent = r.file;
+    const extra = Object.entries(r.files || {}).map(([path, text]) => `\n\n// ===== content/pkg_local/${path}\n${text}`).join('');
+    $('#previewText').textContent = r.text + extra;
+    $('#dlgPreview').showModal();
+  } catch (e) { toastErr(e); }
+}
+
+async function launchGame() {
+  try { await api('launch', {}); toast({ title: t('toast.launched'), ms: 4000 }); } catch (e) { toastErr(e); }
+}
+
+function promptText(title, value) {
+  return new Promise(resolve => {
+    const dlg = $('#dlgPrompt');
+    $('#promptTitle').textContent = title;
+    $('#promptInput').value = value;
+    dlg.onclose = () => resolve(dlg.returnValue === 'ok' ? $('#promptInput').value.trim() : null);
+    dlg.showModal();
+    $('#promptInput').select();
+  });
+}
+
+async function saveSetup() {
+  const c = S.cfg;
+  const name = await promptText(t('setups.namePrompt'), c.title || autoTitle());
+  if (!name) return;
+  const { _autoTitle, ...cfg } = c;
+  S.setups.unshift({ id: Date.now().toString(36), name, vehicle: c.vehicle, cfg, created: Date.now() });
+  await persistSetups();
+  toast({ title: t('toast.saved'), ms: 2500 });
+}
+
+async function persistSetups() {
+  try { await api('setups', { setups: S.setups }); } catch (e) { toastErr(e); }
+  $('#setupCount').textContent = S.setups.length || '';
+  renderSetups();
+}
+
+async function refreshSetups() {
+  try { S.setups = await api('setups'); } catch { S.setups = []; }
+  $('#setupCount').textContent = S.setups.length || '';
+  renderSetups();
+}
+
+function listThumb(vid) {
+  return `<div class="list-thumb">${unitImgTag(vid, true)}</div>`;
+}
+
+function renderSetups() {
+  const el = $('#setupList');
+  if (!S.setups.length) { el.innerHTML = `<div class="empty">${icon('save', 'ic-xl')}<p>${esc(t('setups.empty'))}</p></div>`; return; }
+  el.innerHTML = S.setups.map(s => {
+    const v = S.byId.get(s.vehicle);
+    const scen = S.scenarios.find(x => x.id === s.cfg?.scenario);
+    return `<div class="list-item">${listThumb(s.vehicle)}
+      <div class="list-main"><div class="list-title">${v ? flagHTML(v.n) : ''}${esc(s.name)}</div>
+        <div class="list-sub">${esc(v ? I18N.unit(v.id) : s.vehicle)}${scen ? ' · ' + esc(I18N.map(scen.map)) : ''} · ${new Date(s.created).toLocaleDateString(I18N.code)}</div></div>
+      <div class="list-actions"><button class="btn btn-sm" data-load="${esc(s.id)}">${esc(t('action.load'))}</button>
+        <button class="icon-btn btn-danger" data-del="${esc(s.id)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`;
+  }).join('');
+}
+
+function onSetupListClick(e) {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.load) {
+    const s = S.setups.find(x => x.id === b.dataset.load);
+    if (s) { showView('vehicles'); openVehicle(s.vehicle, s.cfg); }
+  } else if (b.dataset.del) {
+    S.setups = S.setups.filter(x => x.id !== b.dataset.del);
+    persistSetups();
+  }
+}
+
+async function refreshMissions() {
+  try { S.missions = await api('missions'); } catch { S.missions = []; }
+  $('#missionCount').textContent = S.missions.length || '';
+  const el = $('#missionList');
+  if (!S.missions.length) { el.innerHTML = `<div class="empty">${icon('file', 'ic-xl')}<p>${esc(t('missions.empty'))}</p></div>`; return; }
+  el.innerHTML = S.missions.map(m => {
+    const vid = m.file.replace(/^wtftd_/, '').replace(/\.blk$/, '');
+    const v = S.byId.get(vid);
+    return `<div class="list-item">${listThumb(vid)}
+      <div class="list-main"><div class="list-title">${v ? flagHTML(v.n) : ''}${esc(v ? I18N.unit(v.id) : vid)}</div>
+        <div class="list-sub"><code>${esc(m.file)}</code> · ${new Date(m.mtime * 1000).toLocaleString(I18N.code)}</div></div>
+      <div class="list-actions">${v ? `<button class="btn btn-sm" data-open="${esc(vid)}" data-file="${esc(m.file)}">${esc(t('action.load'))}</button>` : ''}
+        <button class="icon-btn btn-danger" data-delm="${esc(m.file)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`;
+  }).join('');
+}
+
+async function onMissionListClick(e) {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.open) {
+    // restore the exact setup the mission was created with (cheats, mods, loadout…) when we have it
+    let cfg = null;
+    try { cfg = await api('mission-setup/' + encodeURIComponent(b.dataset.file.replace(/\.blk$/, ''))); } catch { /* older mission */ }
+    showView('vehicles');
+    openVehicle(b.dataset.open, cfg && cfg.vehicle === b.dataset.open ? cfg : null);
+  }
+  else if (b.dataset.delm) {
+    try { S.missions = await api('delete-mission', { file: b.dataset.delm }); } catch (err) { toastErr(err); }
+    refreshMissions();
+  }
+}
+
+
+
+// ------------------------------------------------------------------ cheats (mission rules)
+const CHEATS = [
+  ['immortal', 'cheat.immortal', 'cheat.immortalHint'],
+  ['infAmmo', 'cheat.infAmmo', 'cheat.infAmmoHint'],
+  ['noReload', 'cheat.noReload', 'cheat.noReloadHint'],
+  ['infFuel', 'cheat.infFuel', 'cheat.infFuelHint'],
+  ['passiveEnemies', 'cheat.passive', 'cheat.passiveHint'],
+  ['ghost', 'cheat.ghost', 'cheat.ghostHint'],
+];
+
+function cheatsBody() {
+  const ch = S.cfg.cheats;
+  const rows = CHEATS.map(([k, label, hint]) => `<label class="cheat${ch[k] ? ' on' : ''}">
+      <input type="checkbox" data-cheat="${k}" ${ch[k] ? 'checked' : ''}><span class="sw"></span>
+      <span class="cheat-txt"><b>${esc(t(label))}</b><small>${esc(t(hint))}${k === 'noReload' && !cdkOn() ? ' ' + esc(t('cheat.noReloadCdk')) : ''}</small></span></label>`).join('');
+  const crew = ch.crew || (ch.expertCrew ? 'expert' : '');
+  return `<div class="cheats">${rows}</div>
+    <div class="field" style="margin-top:12px"><label>${esc(t('cheat.crew'))}</label>
+      <div class="seg">${['', 'expert', 'ace'].map(k => `<button class="${crew === k ? 'active' : ''}" data-crew="${k}">${esc(t('cheat.crew.' + (k || 'default')))}</button>`).join('')}</div>
+      <small class="muted">${esc(t('cheat.crewHint'))}</small></div>
+    <div class="field" style="margin-top:12px"><label>${esc(t('cheat.repair'))}</label>
+      <div class="slider-row"><input type="range" min="0" max="60" step="5" data-cheatnum="repairEvery" value="${ch.repairEvery || 0}"><output>${ch.repairEvery ? ch.repairEvery + ' s' : esc(t('cheat.off'))}</output></div>
+      <small class="muted">${esc(t('cheat.repairHint'))}</small></div>`;
+}
+
+function cheatsSummary() {
+  const n = CHEATS.filter(([k]) => S.cfg.cheats[k]).length + (S.cfg.cheats.repairEvery ? 1 : 0) + (S.cfg.cheats.crew ? 1 : 0);
+  return n ? t('cheat.count', { n }) : t('cheat.none');
+}
+
+// ------------------------------------------------------------------ custom vehicle (CDK) modifications
+const cdkOn = () => S.status?.cdk?.enabled !== false;
+const hostOf = cat => (S.status?.settings?.hosts || {})[cat] || S.status?.cdk?.defaultHosts?.[cat] || '';
+
+// field: [path, label key, stock value, unit, step]; values are stored in cfg.mods by path
+function modFields(v, d) {
+  const st = d.st || {};
+  const f = [];
+  if (v.c === 'ground') {
+    f.push({ sec: 'mods.mobility' });
+    if (st.hp != null) f.push(['hp', 'mods.hp', st.hp, 'hp', 10]);
+    if (st.rpm != null) f.push(['rpm', 'mods.rpm', st.rpm, 'rpm', 50]);
+    if (st.mass != null) f.push(['mass', 'mods.mass', st.mass, 'kg', 100]);
+    if (st.brake != null) f.push(['brake', 'mods.brake', st.brake, 'N', 1000]);
+    if (st.gear != null) f.push(['speedMul', 'mods.speedMul', 1, '×', 0.05]);
+  } else if (v.c === 'air' || v.c === 'heli') {
+    if (st.fm) {
+      f.push({ sec: 'mods.flight' });
+      if (st.mass != null) f.push(['mass', 'mods.mass', st.mass, 'kg', 50]);
+      if (st.fuel != null) f.push(['fuel', 'mods.fuel', st.fuel, 'kg', 50]);
+      if (st.thrust) f.push(['thrustMul', 'mods.thrustMul', 1, '×', 0.05]);
+      if (st.tboost != null) f.push(['tboost', 'mods.tboost', st.tboost, '×', 0.01]);
+      if (st.abboost != null) f.push(['abboost', 'mods.abboost', st.abboost, '×', 0.01]);
+    }
+  }
+  return f;
+}
+
+function getPath(o, path) { return path.split('.').reduce((a, k) => (a == null ? a : a[k]), o); }
+function setPath(o, path, val) {
+  const ks = path.split('.');
+  let cur = o;
+  ks.slice(0, -1).forEach(k => { cur = cur[k] ||= {}; });
+  if (val === null) delete cur[ks.at(-1)]; else cur[ks.at(-1)] = val;
+}
+function countMods(m) {
+  if (!m || typeof m !== 'object') return 0;
+  return Object.values(m).reduce((n, x) => n + (x && typeof x === 'object' ? countMods(x) : 1), 0);
+}
+
+function modInput(path, label, stock, unit, step) {
+  const val = getPath(S.cfg.mods, path);
+  const changed = val != null && val !== '';
+  const fmt = x => (Math.abs(x) >= 100 ? Math.round(x) : +(+x).toFixed(3));
+  return `<div class="mod${changed ? ' changed' : ''}">
+    <label>${esc(t(label))}</label>
+    <div class="mod-in"><input type="number" step="${step}" data-mod="${esc(path)}" value="${changed ? esc(val) : ''}" placeholder="${esc(fmt(stock))}"><span>${esc(unit)}</span>
+    ${changed ? `<button class="icon-btn" data-modreset="${esc(path)}" title="${esc(t('mods.reset'))}">${icon('refresh', 'ic-sm')}</button>` : ''}</div>
+    <small>${esc(t('mods.stock', { v: fmt(stock) + (unit === '×' ? '×' : ' ' + unit) }))}</small>
+  </div>`;
+}
+
+function modsBody(v, d) {
+  if (!cdkOn()) return `<p class="hint">${esc(t('mods.off'))}</p>`;
+  const host = hostOf(v.c);
+  const customAir = (v.c === 'air' || v.c === 'heli') && (S.status?.cdk?.airMethod || 'custom') === 'custom';
+  const note = customAir ? t('mods.noteAir') : t('mods.note', { host: host ? I18N.unit(host) : '—' });
+  let html = `<div class="cdk-note">${icon('bolt', 'ic-sm')}<div>${esc(note)}</div></div>`;
+  let grid = [];
+  const flush = () => { if (grid.length) { html += `<div class="mod-grid">${grid.join('')}</div>`; grid = []; } };
+  for (const f of modFields(v, d)) {
+    if (f.sec) { flush(); html += `<div class="opt-group-title">${esc(t(f.sec))}</div>`; continue; }
+    grid.push(modInput(...f));
+  }
+  flush();
+  // guns listed directly on the vehicle (tank main gun, ship guns, older aircraft guns)
+  (d.am || []).forEach((g, gi) => {
+    if (!g.wi) return;
+    const base = `guns.${gi}`;
+    html += `<div class="opt-group-title">${icon('ammo', 'ic-sm')} ${esc(I18N.weapon(g.w))}${g.n > 1 ? ` ×${g.n}` : ''}</div>`;
+    const fields = [];
+    if (g.yaw != null) fields.push(modInput(`${base}.yaw`, 'mods.yaw', g.yaw, '°/s', 1));
+    if (g.pitch != null) fields.push(modInput(`${base}.pitch`, 'mods.pitch', g.pitch, '°/s', 1));
+    if (g.cap) fields.push(modInput(`${base}.cap`, 'mods.cap', g.cap, t('mods.rounds'), 1));
+    if (g.sf) fields.push(modInput(`${base}.reload`, v.c === 'ground' ? 'mods.reload' : 'mods.interval', +(1 / g.sf).toFixed(3), 's', 0.1));
+    html += `<div class="mod-grid">${fields.join('')}</div>`;
+    const shells = g.opts.filter(o => o.s && Object.keys(o.s).length && (S.showUnofficial || !o.x));
+    if (!shells.length) return;
+    const sel = S.modShell?.[gi] ?? shells[0].id;
+    const o = shells.find(x => x.id === sel) || shells[0];
+    html += `<div class="shell-pick"><label>${esc(t('mods.shell'))}</label><select data-modshell="${gi}">${shells.map(x => {
+      const n = countMods(getPath(S.cfg.mods, `${base}.shells.${x.id || '_'}`));
+      return `<option value="${esc(x.id)}"${x.id === o.id ? ' selected' : ''}>${esc(ammoLabel(x, v.c !== 'ground'))}${n ? ` ● ${n}` : ''}</option>`;
+    }).join('')}</select></div>`;
+    const sp = `${base}.shells.${o.id || '_'}`;
+    const sf = [];
+    if (o.s.v != null) sf.push(modInput(`${sp}.v`, 'mods.speed', o.s.v, 'm/s', 10));
+    if (o.s.m != null) sf.push(modInput(`${sp}.m`, 'mods.shellMass', o.s.m, 'kg', 0.1));
+    if (o.s.e != null) sf.push(modInput(`${sp}.e`, 'mods.expl', o.s.e, 'kg', 0.05));
+    if (o.s.h != null) sf.push(modInput(`${sp}.h`, 'mods.heat', o.s.h, 'mm', 10));
+    if (o.s.l != null) sf.push(modInput(`${sp}.l`, 'mods.rod', o.s.l, 'mm', 10));
+    html += `<div class="mod-grid">${sf.join('')}</div>`;
+  });
+  const n = countMods(S.cfg.mods);
+  if (n) html += `<button class="btn btn-ghost btn-sm" data-act="reset-mods" style="margin-top:6px">${icon('refresh', 'ic-sm')}${esc(t('mods.resetAll'))}</button>`;
+  return html;
+}
+
+// cfg.mods uses '_' for the default shell set; the server expects '' -> convert on send
+function modsPayload(m) {
+  const out = JSON.parse(JSON.stringify(m || {}));
+  for (const g of Object.values(out.guns || {})) {
+    if (g.shells && g.shells._) { g.shells[''] = g.shells._; delete g.shells._; }
+  }
+  return out;
+}
+
+const NUKES = ['su_rn_28_nt', 'su_rn_40', 'us_b61_5kt', 'us_b61_30kt', 'fr_an52_5kt_nt', 'fr_an52_30kt_nt',
+  'cn_kb1_5kt', 'cn_kb1_30kt', 'su_rds4_5kt_nt', 'su_rds4_30kt_nt', 'su_rds37'];
+
+function nukeBody() {
+  const cur = S.cfg.mods.nuke || '';
+  return `<div class="field nuke-field"><label>☢ ${esc(t('loadout.nuke'))}</label>
+    <select data-mod-nuke><option value="">— ${esc(t('loadout.nukeNone'))} —</option>
+      ${NUKES.map(n => `<option value="${n}"${n === cur ? ' selected' : ''}>${esc(I18N.weapon(n))}</option>`).join('')}</select>
+    <small class="muted">${esc(t('loadout.nukeHint'))}</small></div>`;
+}
+
+function pylonBodyLegacy(v, d) {
+  const c = S.cfg;
+  const custom = !!c.pylons;
+  let html = `<label class="switch" style="margin:10px 0 6px"><input type="checkbox" data-bind-cfg="customPylons" ${custom ? 'checked' : ''}><span class="sw"></span><span>${esc(t('loadout.custom'))}</span></label>`;
+  if (!custom) return html;
+  html += `<div class="pylons">${d.sl.map(s => {
+    const cur = c.pylons[s.i] || '';
+    const opt = s.o.find(o => o.n === cur);
+    return `<div class="pylon"><span class="slot-n">${s.i}</span>
+      <div class="pylon-main"><select data-pylon="${s.i}"><option value="">— ${esc(t('ammo.empty'))} —</option>${s.o.map(o => `<option value="${esc(o.n)}"${o.n === cur ? ' selected' : ''}>${esc(o.w.map(([k, n]) => `${n}× ${I18N.weapon(k)}`).join(', '))}</option>`).join('')}</select></div></div>`;
+  }).join('')}</div>`;
+  return html;
+}
+
+async function cdkCleanup() {
+  try {
+    const r = await api('cdk-cleanup', {});
+    S.status = Object.assign(S.status, r);
+    $('#cdkFiles').textContent = t('settings.cdkFiles', { n: r.cdk?.present || 0 });
+    toast({ title: t('toast.cdkRemoved', { n: r.removed }) });
+  } catch (e) { toastErr(e); }
+}
+
+
+// ------------------------------------------------------------------ automatic data updates
+let updatePoll = null;
+function renderUpdateBanner(st) {
+  const el = $('#updateBanner');
+  if (st.running) {
+    const last = (st.log || []).at(-1) || '';
+    el.className = 'update-banner';
+    el.innerHTML = `<span class="spin"></span><b>${esc(t('update.running', { v: st.remote || '' }))}</b><span class="muted">${esc(last)}</span>`;
+  } else if (st.done && st.after && st.after !== S.status?.data?.version) {
+    el.className = 'update-banner done';
+    el.innerHTML = `${icon('check', 'ic-sm')}<b>${esc(t('update.done', { v: st.after }))}</b>
+      ${st.newVehicles ? `<span class="muted">${esc(t('update.newVehicles', { n: st.newVehicles }))}</span>` : ''}
+      <button class="btn btn-primary btn-sm" data-act="reload">${esc(t('update.reload'))}</button>`;
+    el.querySelector('[data-act="reload"]').onclick = () => location.reload();
+    if (!S.sel) setTimeout(() => location.reload(), 2500);
+  } else if (st.error) {
+    el.className = 'update-banner err';
+    el.innerHTML = `${icon('x', 'ic-sm')}<b>${esc(t('update.error'))}</b><span class="muted">${esc(st.error)}</span>`;
+  } else {
+    el.className = 'update-banner hidden';
+  }
+}
+
+async function watchUpdates() {
+  clearTimeout(updatePoll);
+  try {
+    const st = await api('update');
+    renderUpdateBanner(st);
+    updatePoll = setTimeout(watchUpdates, st.running ? 1500 : 60000);
+  } catch { updatePoll = setTimeout(watchUpdates, 60000); }
+}
+
+// ------------------------------------------------------------------ settings & data update
+async function openSettings() {
+  const st = S.status;
+  let locales = [{ code: 'en', name: 'English' }];
+  try { locales = await (await fetch('locales/index.json')).json(); } catch { /* keep default */ }
+  $('#setLang').innerHTML = locales.map(l => `<option value="${esc(l.code)}"${l.code === I18N.code ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
+  $('#setGameDir').value = st.settings?.gameDir || '';
+  $('#setGameDirHint').textContent = st.gameDir ? t('settings.detected', { path: st.gameDir }) : t('settings.gameDirHint');
+  $('#setCdk').checked = st.cdk?.enabled !== false;
+  const hosts = st.settings?.hosts || {};
+  $('#setHosts').innerHTML = ['ground', 'air', 'heli', 'boat', 'ship'].map(cat => {
+    const list = S.vehicles.filter(x => x.c === cat && !x.h).sort((a, b) => (a.r - b.r) || I18N.unit(a.id).localeCompare(I18N.unit(b.id)));
+    const cur = hosts[cat] || st.cdk?.defaultHosts?.[cat] || '';
+    return `<label class="host-row"><span>${icon(CAT_ICON[cat], 'ic-sm')}${esc(t('cat.' + cat))}</span>
+      <select data-host="${cat}"><option value="">—</option>${list.map(x => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(I18N.unit(x.id))} (${esc(nationName(x.n))}, ${ROMAN[x.r] || x.r})</option>`).join('')}</select></label>`;
+  }).join('');
+  $('#cdkFiles').textContent = t('settings.cdkFiles', { n: st.cdk?.present || 0 });
+  $('#setAirMethod').value = st.cdk?.airMethod || 'custom';
+  $('#setAutoUpdate').checked = st.settings?.autoUpdate !== false;
+  $('#setTheme').value = themePref();
+  $('#dataVersion').textContent = st.data?.version ? t('settings.version', { version: st.data.version, date: new Date(st.data.built * 1000).toLocaleDateString(I18N.code) }) : '';
+  $('#dlgSettings').showModal();
+}
+
+async function saveSettings() {
+  const lang = $('#setLang').value;
+  try {
+    const hosts = {};
+    $$('#setHosts select').forEach(s => { if (s.value) hosts[s.dataset.host] = s.value; });
+    S.status = await api('settings', { gameDir: $('#setGameDir').value.trim(), lang, cdk: $('#setCdk').checked, hosts, airMethod: $('#setAirMethod').value, autoUpdate: $('#setAutoUpdate').checked, theme: $('#setTheme').value });
+    applyTheme($('#setTheme').value);
+    if (S.sel) renderDrawer();
+    store.set('lang', lang);
+    $('#dlgSettings').close();
+    if (lang !== I18N.code) { location.reload(); return; }
+    renderStatus();
+    refreshMissions();
+  } catch (e) { toastErr(e); }
+}
+
+async function startUpdate(logEl, btn) {
+  try {
+    await api('update', {});
+    logEl.classList.remove('hidden');
+    if (btn) btn.disabled = true;
+    const poll = async () => {
+      const st = await api('update');
+      logEl.textContent = st.log.join('\n');
+      logEl.scrollTop = logEl.scrollHeight;
+      if (st.running) return setTimeout(poll, 700);
+      if (btn) btn.disabled = false;
+      if (st.error) toastErr(new Error(st.error));
+      else if (st.done) { toast({ title: t('settings.updated') }); setTimeout(() => location.reload(), 800); }
+    };
+    poll();
+  } catch (e) { toastErr(e); }
+}
+
+function showOnboarding() {
+  $('#onboard').classList.remove('hidden');
+  $('#btnOnboard').addEventListener('click', () => startUpdate($('#onboardLog'), $('#btnOnboard')));
+  $('#btnSettings').addEventListener('click', openSettings);
+  $('#btnSaveSettings').addEventListener('click', saveSettings);
+}
+
+boot().catch(e => { console.error(e); toastErr(e); });
