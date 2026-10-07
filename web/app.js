@@ -419,6 +419,24 @@ function bindUI() {
     setFilter(patch);
   });
   $('.content').addEventListener('scroll', fillGrid, { passive: true });
+  // drag the drawer's left edge to resize it (remembered)
+  const setDrawerW = w => document.documentElement.style.setProperty('--drawer-w', Math.round(w) + 'px');
+  const savedW = store.get('drawerW', 0);
+  if (savedW) setDrawerW(Math.min(savedW, innerWidth - 320));
+  $('#drawer').addEventListener('pointerdown', e => {
+    if (!e.target.classList.contains('drawer-resize')) return;
+    e.preventDefault();
+    e.target.setPointerCapture(e.pointerId);
+    document.body.classList.add('resizing');
+    const move = ev => setDrawerW(Math.max(420, Math.min(innerWidth - 320, innerWidth - ev.clientX)));
+    const up = () => {
+      e.target.removeEventListener('pointermove', move);
+      document.body.classList.remove('resizing');
+      store.set('drawerW', parseInt(getComputedStyle(document.documentElement).getPropertyValue('--drawer-w'), 10));
+    };
+    e.target.addEventListener('pointermove', move);
+    e.target.addEventListener('pointerup', up, { once: true });
+  });
   window.addEventListener('resize', fillGrid);
 
   $('#cats').addEventListener('click', e => { const b = e.target.closest('.cat'); if (b) setFilter({ cat: b.dataset.cat }); });
@@ -532,7 +550,7 @@ function defaultCfg(v, d) {
   return {
     vehicle: v.id, block: d.b || blockFor(v.c), scenario: scen?.id,
     preset: d.pr[0]?.id || '', ammo: defaultAmmo(v, d),
-    environment: '', weather: '', start: 'scenario', altitude: 1500, speed: 450, heading: '',
+    environment: '', weather: '', start: 'scenario', altitude: 1500, speed: 450, heading: '', fuel: 0,
     missionType: S.status.settings?.missionType || 'singleMission', allMods: true, mods: {}, pylons: null,
     targets: { mode: 'scenario', br: v.br?.[1] || 5.0 },
     cheats: { immortal: false, infAmmo: false, noReload: false, infFuel: false, passiveEnemies: false, ghost: false, crew: '', repairEvery: 0 },
@@ -617,10 +635,11 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
     }
     return d.am.length ? esc(`${d.am.length} × ${t('ammo.belt').toLowerCase()}`) : '';
   })();
-  const condSum = [c.environment ? t('env.' + c.environment) : '', c.weather ? t('weather.' + c.weather) : '', c.start === 'air' ? `${c.altitude} m` : ''].filter(Boolean).join(' · ') || t('cond.keep');
+  const condSum = [c.environment ? t('env.' + c.environment) : '', c.weather ? t('weather.' + c.weather) : '', c.start === 'air' ? `${c.altitude} m` : '', c.fuel ? `${t('cond.fuel')} ${c.fuel} %` : ''].filter(Boolean).join(' · ') || t('cond.keep');
 
   $('#drawer').style.setProperty('--tint', NATION_TINT[v.n] || NATION_TINT.other);
   $('#drawer').innerHTML = `
+    <div class="drawer-resize" title="${esc(t('drawer.resize'))}"></div>
     <div class="dr-scroll">
       <div class="hero">
         <div class="hero-top">
@@ -720,9 +739,8 @@ function loadoutBody(v, d) {
       <span class="opt-main"><span class="opt-title">${esc(presetLabel(v, p))}</span>
         <span class="chips">${presetChips(p)}${p.req ? `<span class="chip dim" title="${esc(p.req)}">${esc(t('loadout.requires', { mod: I18N.mod(p.req) || p.req }))}</span>` : ''}</span></span>
       <span class="opt-radio"></span></button>`).join('');
-  const nuke = cdkOn() && d.em?.length ? nukeBody() : '';
-  if (d.sl?.length) return nuke + loadoutGridHTML(v, d);
-  return `${nuke}<div class="opt-list">${items}</div>${d.b === 'armada' ? `<p class="hint" style="margin-top:12px">${esc(t('loadout.note'))}</p>` : ''}`;
+  if (d.sl?.length) return loadoutGridHTML(v, d);
+  return `<div class="opt-list">${items}</div>${d.b === 'armada' ? `<p class="hint" style="margin-top:12px">${esc(t('loadout.note'))}</p>` : ''}`;
 }
 
 function ammoOptions(g, selected, belt) {
@@ -769,7 +787,16 @@ function conditionsBody(isFlyer) {
     ${isFlyer ? `<div class="field"><label>${esc(t('cond.start'))}</label>
       <div class="seg" data-seg="start"><button class="${c.start !== 'air' ? 'active' : ''}" data-v="scenario">${esc(t('cond.startScenario'))}</button><button class="${c.start === 'air' ? 'active' : ''}" data-v="air">${esc(t('cond.startAir'))}</button></div></div>
       ${c.start === 'air' ? `<div class="field"><label>${esc(t('cond.altitude'))}</label><div class="slider-row"><input type="range" min="100" max="10000" step="100" data-num="altitude" value="${c.altitude}"><output>${c.altitude} m</output></div></div>
-      <div class="field"><label>${esc(t('cond.speed'))}</label><div class="slider-row"><input type="range" min="0" max="1500" step="10" data-num="speed" value="${c.speed}"><output>${c.speed} km/h</output></div></div>` : ''}` : ''}`;
+      <div class="field"><label>${esc(t('cond.speed'))}</label><div class="slider-row"><input type="range" min="0" max="1500" step="10" data-num="speed" value="${c.speed}"><output>${c.speed} km/h</output></div></div>` : ''}
+      <div class="field"><label>${esc(t('cond.fuel'))}</label><div class="slider-row"><input type="range" min="0" max="100" step="5" data-fuel value="${c.fuel || 0}"><output>${fuelLabel(c.fuel)}</output></div>
+        <small class="muted">${esc(t('cond.fuelHint'))}</small></div>` : ''}`;
+}
+
+// "45 % · ~1 230 kg" (tank capacity from the flight model, or the custom value in Modifications)
+function fuelLabel(pct) {
+  if (!pct) return esc(t('cond.fuelKeep'));
+  const cap = S.cfg.mods?.fuel ?? S.details.get(S.cfg.vehicle)?.st?.fuel;
+  return `${pct} %${cap ? ` · ~${Math.round(cap * pct / 100).toLocaleString()} kg` : ''}`;
 }
 
 function advancedBody() {
@@ -863,7 +890,6 @@ function bindDrawer() {
       setPath(c.mods, el.dataset.mod, Number.isFinite(val) ? val : null);
       return renderDrawer();
     }
-    if (el.dataset.modNuke !== undefined) { if (el.value) c.mods.nuke = el.value; else delete c.mods.nuke; return renderDrawer(); }
     if (el.dataset.modshell !== undefined) { (S.modShell ||= {})[el.dataset.modshell] = el.value; return renderDrawer(); }
     if (el.dataset.bindCfg === 'customPylons') {
       const p = S.details.get(S.sel.id).pr.find(x => x.id === c.preset);
@@ -879,6 +905,7 @@ function bindDrawer() {
     if (loadoutInput(el)) return;
     if (el.dataset.tbr !== undefined) { S.cfg.targets.br = +el.value; el.nextElementSibling.textContent = `BR ${(+el.value).toFixed(1)}`; return; }
     if (el.dataset.cheatnum) { el.nextElementSibling.textContent = +el.value ? `${el.value} s` : t('cheat.off'); return; }
+    if (el.dataset.fuel !== undefined) { S.cfg.fuel = +el.value; el.nextElementSibling.textContent = fuelLabel(S.cfg.fuel); return; }
     if (el.dataset.num) { S.cfg[el.dataset.num] = +el.value; el.nextElementSibling.textContent = `${el.value} ${el.dataset.num === 'altitude' ? 'm' : 'km/h'}`; }
   };
 }
@@ -900,6 +927,7 @@ function missionPayload() {
     ammo: c.ammo.map(a => a && a.id !== null ? { id: a.id || '', count: +a.count || 0 } : { id: '', count: 0 }),
     environment: c.environment, weather: c.weather, start: c.start, altitude: c.altitude, speed: c.speed,
     heading: c.heading === '' ? null : +c.heading, missionType: c.missionType, allMods: c.allMods,
+    fuel: (c.block === 'armada' && c.fuel) || null,
     title: c.title || autoTitle(), fileName: c.fileName || `wtftd_${c.vehicle}`,
     mods: cdkOn() ? Object.assign(modsPayload(c.mods), c.cheats.noReload ? { noReload: true } : {}) : undefined,
     pylons: cdkOn() && c.pylons ? c.pylons : undefined, cheats: c.cheats, targets: c.targets,
@@ -1163,21 +1191,11 @@ function modsBody(v, d) {
 // cfg.mods uses '_' for the default shell set; the server expects '' -> convert on send
 function modsPayload(m) {
   const out = JSON.parse(JSON.stringify(m || {}));
+  delete out.nuke;  // old setups: nuclear bombs are now picked per pylon
   for (const g of Object.values(out.guns || {})) {
     if (g.shells && g.shells._) { g.shells[''] = g.shells._; delete g.shells._; }
   }
   return out;
-}
-
-const NUKES = ['su_rn_28_nt', 'su_rn_40', 'us_b61_5kt', 'us_b61_30kt', 'fr_an52_5kt_nt', 'fr_an52_30kt_nt',
-  'cn_kb1_5kt', 'cn_kb1_30kt', 'su_rds4_5kt_nt', 'su_rds4_30kt_nt', 'su_rds37'];
-
-function nukeBody() {
-  const cur = S.cfg.mods.nuke || '';
-  return `<div class="field nuke-field"><label>☢ ${esc(t('loadout.nuke'))}</label>
-    <select data-mod-nuke><option value="">— ${esc(t('loadout.nukeNone'))} —</option>
-      ${NUKES.map(n => `<option value="${n}"${n === cur ? ' selected' : ''}>${esc(I18N.weapon(n))}</option>`).join('')}</select>
-    <small class="muted">${esc(t('loadout.nukeHint'))}</small></div>`;
 }
 
 function pylonBodyLegacy(v, d) {
@@ -1244,6 +1262,8 @@ async function openSettings() {
   $('#setLang').innerHTML = locales.map(l => `<option value="${esc(l.code)}"${l.code === I18N.code ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
   $('#setGameDir').value = st.settings?.gameDir || '';
   $('#setGameDirHint').textContent = st.gameDir ? t('settings.detected', { path: st.gameDir }) : t('settings.gameDirHint');
+  $('#setOodle').value = st.settings?.oodleDll || '';
+  $('#setOodleFound').textContent = st.oodle ? t('settings.oodleFound', { path: st.oodle }) : t('settings.oodleNone');
   $('#setCdk').checked = st.cdk?.enabled !== false;
   const hosts = st.settings?.hosts || {};
   $('#setHosts').innerHTML = ['ground', 'air', 'heli', 'boat', 'ship'].map(cat => {
@@ -1265,7 +1285,7 @@ async function saveSettings() {
   try {
     const hosts = {};
     $$('#setHosts select').forEach(s => { if (s.value) hosts[s.dataset.host] = s.value; });
-    S.status = await api('settings', { gameDir: $('#setGameDir').value.trim(), lang, cdk: $('#setCdk').checked, hosts, airMethod: $('#setAirMethod').value, autoUpdate: $('#setAutoUpdate').checked, theme: $('#setTheme').value });
+    S.status = await api('settings', { gameDir: $('#setGameDir').value.trim(), lang, cdk: $('#setCdk').checked, hosts, airMethod: $('#setAirMethod').value, autoUpdate: $('#setAutoUpdate').checked, theme: $('#setTheme').value, oodleDll: $('#setOodle').value.trim() });
     applyTheme($('#setTheme').value);
     if (S.sel) renderDrawer();
     store.set('lang', lang);

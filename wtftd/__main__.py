@@ -13,6 +13,7 @@ import threading
 import webbrowser
 from pathlib import Path
 
+from .paths import CACHE, prepare
 from .server import ROOT, serve
 
 
@@ -31,6 +32,10 @@ def find_app_browser() -> str | None:
 
 
 def main():
+    if sys.stdout is None:  # packaged app without a console: keep a log instead
+        CACHE.mkdir(parents=True, exist_ok=True)
+        sys.stdout = sys.stderr = open(CACHE / "wtftd.log", "w", encoding="utf-8", buffering=1)
+    prepare()
     port = 8777
     if "--port" in sys.argv:
         port = int(sys.argv[sys.argv.index("--port") + 1])

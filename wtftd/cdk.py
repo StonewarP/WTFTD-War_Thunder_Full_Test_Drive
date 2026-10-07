@@ -38,8 +38,6 @@ UNIT_DIRS = {
     "ship": "gameData/units/ships",
 }
 CUSTOM_PRESET = "wtftd_custom"
-NUKES = ("su_rn_28_nt", "su_rn_40", "us_b61_5kt", "us_b61_30kt", "fr_an52_5kt_nt", "fr_an52_30kt_nt",
-         "cn_kb1_5kt", "cn_kb1_30kt", "su_rds4_5kt_nt", "su_rds4_30kt_nt", "su_rds37")
 # How aircraft / helicopters are loaded:
 #   "custom"       - new aircraft file content/pkg_user/gameData/flightModels/wtftd_<id>.blk (CDK docs);
 #                    the ownership check only applies to shop vehicles.
@@ -151,6 +149,35 @@ def _clean_shells(shells: dict, group: dict) -> dict:
     return out
 
 
+def _weapon_slots(unit_data: dict | None) -> dict[int, tuple[int, str]]:
+    """Slot index -> (1-based position of its WeaponSlot block, bomb emitter of that slot or "")."""
+    ws = (unit_data or {}).get("WeaponSlots")
+    sl = ws.get("WeaponSlot") if isinstance(ws, dict) else None
+    sl = sl if isinstance(sl, list) else [sl] if isinstance(sl, dict) else []
+    out = {}
+    for pos, s in enumerate(sl, start=1):
+        if not isinstance(s, dict) or not isinstance(s.get("index"), int):
+            continue
+        bomb_em = ""
+        wps = s.get("WeaponPreset")
+        for wp in wps if isinstance(wps, list) else [wps] if isinstance(wps, dict) else []:
+            ws_ = wp.get("Weapon") if isinstance(wp, dict) else None
+            for w in ws_ if isinstance(ws_, list) else [ws_] if isinstance(ws_, dict) else []:
+                if not bomb_em and isinstance(w, dict) and w.get("trigger") == "bombs" and w.get("external") \
+                        and isinstance(w.get("emitter"), str):
+                    bomb_em = w["emitter"]
+        out[s["index"]] = (pos, bomb_em)
+    return out
+
+
+def _weapon_lines(trigger: str, blk: str, emitter: str, bullets: int | None, ind: str = "") -> list[str]:
+    lines = ["Weapon{", f'  trigger:t="{trigger}"', f'  blk:t="{blk}"', f'  emitter:t="{emitter}"']
+    if bullets:
+        lines.append(f"  bullets:i={bullets}")
+    lines += ["  external:b=yes", "}"]
+    return [ind + s for s in lines]
+
+
 HP_MULT = 1000.0
 
 
@@ -176,7 +203,7 @@ def _damage_overrides(b: "Blk", node: dict, mult: float):
 
 def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons: dict | None,
                 air_method: str = "custom", unit_data: dict | None = None,
-                base_preset: dict | None = None, catalog: dict | None = None) -> tuple[dict[str, str], str, str, str]:
+                catalog: dict | None = None) -> tuple[dict[str, str], str, str, str]:
     """Returns ({path under the package: text}, weapons preset or "", mission unit_class, package dir)."""
     flyer = cat in ("air", "heli")
     custom_name = flyer and air_method == "custom"
@@ -310,63 +337,56 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
                 files[f"gameData/flightModels/userVehicles/fm/{fm_name}.blk"] = text
             b.text("fmFile", f"fm/{fm_name}.blk")
 
-        nuke = mods.get("nuke") if mods.get("nuke") in NUKES and details.get("em") else None
+        emitters = {s["i"]: s.get("e") for s in details.get("sl", [])}
         chosen, extras = [], []
         if pylons:
             slots = {str(s["i"]): {o["n"] for o in s["o"]} for s in details.get("sl", [])}
-            emitters = {str(s["i"]): s.get("e") for s in details.get("sl", [])}
             for k, v in pylons.items():
                 if isinstance(v, str) and v and str(k) in slots and v in slots[str(k)]:
                     chosen.append((int(k), v))  # official option of that pylon
-                elif isinstance(v, dict) and str(k) in emitters and emitters[str(k)]:
+                elif isinstance(v, dict) and str(k).isdigit() and emitters.get(int(k)):
                     w = (catalog or {}).get(str(v.get("w", "")))
                     if w and SAFE.match(str(v.get("w"))):
                         n = max(1, min(int(v.get("n") or 1), 8))
-                        extras.append((w, emitters[str(k)], n))  # any weapon of the game on that pylon
-        base_weapons = []
-        if nuke and not chosen and isinstance(base_preset, dict):
-            # keep the selected official preset and add the bomb to it
-            base_weapons = [w for w in base_preset.get("Weapon", []) if isinstance(w, dict)] \
-                if isinstance(base_preset.get("Weapon"), list) else [base_preset["Weapon"]] if isinstance(base_preset.get("Weapon"), dict) else []
-        if chosen or extras or nuke:
+                        extras.append((int(k), w, emitters[int(k)], n))  # any weapon of the game on that pylon
+        # Aircraft with pylons (WeaponSlots) only take "slot + preset" entries in a loadout: a bare
+        # Weapon{trigger, blk, emitter} there is ignored by the game. So each non-standard weapon
+        # becomes a new WeaponPreset of its pylon (added to the unit file), picked by slot + preset.
+        wslots = _weapon_slots(unit_data)
+        slot_weapons: dict[int, list[tuple]] = {}  # slot -> [(trigger, blk, emitter, bullets)]
+        raw: list[tuple] = []  # aircraft without pylons: plain weapons in the loadout
+        for k, w, emitter, n in extras:
+            bullets = None if w.get("pod") else n
+            if k in wslots:
+                bomb_em = wslots[k][1] if w["t"] == "bombs" else ""
+                slot_weapons.setdefault(k, []).append((w["t"], w["p"], bomb_em or emitter, bullets))
+            else:
+                raw.append((w["t"], w["p"], emitter, bullets))
+        if chosen or slot_weapons or raw:
             if True:
                 pname = f"wtftd_{vid}".lower()
                 pb = Blk()
                 pb.line(f"{MARKER} - {vid} custom loadout")
-                for idx, name in sorted(chosen):
+                for idx, name in sorted(chosen) + [(k, f"wtftd_slot{k}") for k in sorted(slot_weapons)]:
                     pb.line("Weapon{")
                     pb.line(f"  slot:i={idx}")
                     pb.line(f'  preset:t="{name}"')
                     pb.line("}")
-                for w in base_weapons:
-                    pb.line("Weapon{")
-                    for k, v in w.items():
-                        if isinstance(v, bool):
-                            pb.line(f"  {k}:b={'yes' if v else 'no'}")
-                        elif isinstance(v, int):
-                            pb.line(f"  {k}:i={v}")
-                        elif isinstance(v, float):
-                            pb.line(f"  {k}:r={_r(v)}")
-                        elif isinstance(v, str):
-                            pb.line(f'  {k}:t="{v}"')
-                    pb.line("}")
-                for w, emitter, n in extras:
-                    pb.line("Weapon{")
-                    pb.line(f'  trigger:t="{w["t"]}"')
-                    pb.line(f'  blk:t="{w["p"]}"')
-                    pb.line(f'  emitter:t="{emitter}"')
-                    if not w.get("pod"):
-                        pb.line(f"  bullets:i={n}")
-                    pb.line("  external:b=yes")
-                    pb.line("}")
-                if nuke:
-                    pb.line("Weapon{")
-                    pb.line('  trigger:t="bombs"')
-                    pb.line(f'  blk:t="gameData/Weapons/bombGuns/{nuke}.blk"')
-                    pb.line(f'  emitter:t="{details["em"][0]}"')
-                    pb.line("  bullets:i=1")
-                    pb.line("  external:b=yes")
-                    pb.line("}")
+                for weapon in raw:
+                    for line in _weapon_lines(*weapon):
+                        pb.line(line)
+                if slot_weapons:
+                    b.open("WeaponSlots")
+                    for k, weapons in sorted(slot_weapons.items()):
+                        b.open(f"WeaponSlot[{wslots[k][0]}]")
+                        b.line("WeaponPreset{")
+                        b.line(f'  name:t="wtftd_slot{k}"')
+                        for weapon in weapons:
+                            for line in _weapon_lines(*weapon, ind="  "):
+                                b.line(line)
+                        b.line("}")
+                        b.close()
+                    b.close()
                 files[f"gameData/flightModels/weaponPresets/{pname}.blk"] = str(pb)
                 b.line('"@override:weapon_presets"{')
                 b.line("  preset{")

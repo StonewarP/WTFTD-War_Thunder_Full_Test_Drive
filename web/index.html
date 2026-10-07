@@ -182,6 +182,11 @@
         <small class="muted" id="setGameDirHint"></small>
       </div>
       <div class="field">
+        <label for="setOodle" data-i18n="settings.oodle"></label>
+        <input id="setOodle" type="text" spellcheck="false" placeholder="…\oo2core_9_win64.dll">
+        <small class="muted"><span data-i18n="settings.oodleHint"></span> <span id="setOodleFound"></span></small>
+      </div>
+      <div class="field">
         <label data-i18n="settings.data"></label>
         <small class="muted" data-i18n="settings.dataHint"></small>
         <label class="switch"><input type="checkbox" id="setAutoUpdate"><span class="sw"></span><span data-i18n="settings.autoUpdate"></span></label>
@@ -242,12 +247,15 @@
           <button class="btn btn-sm" data-edmode="add" data-block="tankModels"><svg class="ic-sm"><use href="#i-ground"/></svg><span data-i18n="editor.addGround"></span></button>
           <button class="btn btn-sm" data-edmode="add" data-block="armada"><svg class="ic-sm"><use href="#i-air"/></svg><span data-i18n="editor.addAir"></span></button>
           <button class="btn btn-sm" data-edmode="add" data-block="ships"><svg class="ic-sm"><use href="#i-ship"/></svg><span data-i18n="editor.addShip"></span></button>
+          <span class="seg ed-addside"><button data-edside="enemy"><i class="dot enemy"></i><span data-i18n="editor.enemy"></span></button><button data-edside="ally"><i class="dot ally"></i><span data-i18n="editor.ally"></span></button></span>
           <span class="ed-sep"></span>
           <button class="btn btn-ghost btn-sm" data-edact="fit" data-i18n="editor.fit"></button>
+          <button class="btn btn-ghost btn-sm hidden" id="edFitMap" data-edact="fitMap" data-i18n="editor.fitMap"></button>
           <button class="btn btn-ghost btn-sm" data-edact="reset"><svg class="ic-sm"><use href="#i-refresh"/></svg><span data-i18n="editor.reset"></span></button>
         </div>
         <canvas id="edCanvas"></canvas>
         <div class="ed-hint" id="edHint"></div>
+        <div class="ed-maphint hidden" id="edMapHint"><svg class="ic-sm"><use href="#i-map"/></svg><span data-i18n="editor.noMap"></span></div>
         <div class="ed-legend"><span><i class="dot player"></i><span data-i18n="editor.you"></span></span><span><i class="dot enemy"></i><span data-i18n="editor.enemies"></span></span><span><i class="dot ally"></i><span data-i18n="editor.allies"></span></span><span><i class="dot other"></i><span data-i18n="editor.scenery"></span></span></div>
       </div>
       <div class="ed-panel" id="edPanel">

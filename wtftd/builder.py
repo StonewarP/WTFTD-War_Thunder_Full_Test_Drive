@@ -16,6 +16,7 @@ Run:  python -m wtftd.builder            (clone or update the datamine, then bui
 from __future__ import annotations
 
 import csv
+import math
 import io
 import json
 import os
@@ -26,10 +27,8 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-CACHE = ROOT / ".cache"
+from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-DATA = ROOT / "data"
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -951,6 +950,74 @@ def scenario_kind(rel: str, level: str) -> str:
     return "air"
 
 
+def _mission_path(game_path: str) -> Path:
+    """'gameData/missions/x/y.blk' -> datamine .blkx path."""
+    rel = game_path.replace("\\", "/").lower()
+    if rel.startswith("gamedata/"):
+        rel = rel[len("gamedata/"):]
+    return DM / "mis.vromfs.bin_u" / "gamedata" / (rel[:-4] + ".blkx" if rel.endswith(".blk") else rel)
+
+
+def imported_units(d: dict, depth: int = 0, seen: set | None = None) -> list:
+    """Units defined in the game templates a mission imports (read-only for the editor)."""
+    seen = seen if seen is not None else set()
+    out = []
+    if depth > 4 or not isinstance(d, dict):
+        return out
+    for rec in aslist((d.get("imports") or {}).get("import_record") if isinstance(d.get("imports"), dict) else None):
+        if not isinstance(rec, dict) or rec.get("importUnits") is False:
+            continue
+        path = first_str(rec.get("file"))
+        if not path or path.lower() in seen:
+            continue
+        seen.add(path.lower())
+        sub = load(_mission_path(path))
+        if not isinstance(sub, dict):
+            continue
+        for block, entries in (sub.get("units") or {}).items():
+            if block == "squad":
+                continue
+            for u in aslist(entries):
+                if not isinstance(u, dict) or not isinstance(u.get("tm"), list):
+                    continue
+                try:
+                    x, y, z = (float(c) for c in u["tm"][3])
+                    yaw = math.degrees(math.atan2(float(u["tm"][0][2]), float(u["tm"][0][0])))
+                except (TypeError, ValueError, IndexError):
+                    continue
+                props = u.get("props") or {}
+                out.append({"name": u.get("name"), "block": block, "cls": first_str(u.get("unit_class")),
+                            "x": round(x, 1), "y": round(y, 1), "z": round(z, 1), "yaw": round(yaw, 1),
+                            "army": props.get("army", 0) if isinstance(props, dict) else 0,
+                            "count": props.get("count", 1) if isinstance(props, dict) else 1,
+                            "attack": props.get("attack_type", "") if isinstance(props, dict) else ""})
+        out += imported_units(sub, depth + 1, seen)
+    return out
+
+
+def build_levels(progress=None) -> dict:
+    """Tactical maps per level: world x/z extents (a0/a1 = full map, t0/t1 = ground battle map) and
+    the game textures holding them (am / tm), used as the scenario editor background."""
+    out = {}
+    for f in (DM / "aces.vromfs.bin_u" / "levels").glob("*.blkx"):
+        d = load(f)
+        if not isinstance(d, dict):
+            continue
+        e = {}
+        for key, name in (("mapCoord0", "a0"), ("mapCoord1", "a1"), ("tankMapCoord0", "t0"), ("tankMapCoord1", "t1")):
+            v = d.get(key)
+            if isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) for c in v):
+                e[name] = [float(v[0]), float(v[1])]
+        level = f.stem.lower()
+        if "a0" in e:
+            e["am"] = (first_str(d.get("customLevelMap")) or f"{level}_map*").split("*")[0].lower()
+        if "t0" in e:
+            e["tm"] = (first_str(d.get("customLevelTankMap")) or f"{level}_tankmap*").split("*")[0].lower()
+        if e:
+            out[f.stem.lower()] = e
+    return out
+
+
 def build_scenarios(lang: Lang, progress=None):
     log("Collecting official test drive / test flight missions...", progress)
     root = DM / "mis.vromfs.bin_u" / "gamedata" / "missions"
@@ -997,6 +1064,10 @@ def build_scenarios(lang: Lang, progress=None):
                  fallback=humanize(re.sub(r"^(avg|avn|air|hvg|arcade)_", "", level)))
         with open(out_dir / f"{sid}.json", "w", encoding="utf-8") as fo:
             json.dump(d, fo, ensure_ascii=False, separators=(",", ":"))
+        tpl = imported_units(d)
+        if tpl:
+            with open(out_dir / f"{sid}.units.json", "w", encoding="utf-8") as fo:
+                json.dump(tpl, fo, ensure_ascii=False, separators=(",", ":"))
         scenarios.append({
             "id": sid,
             "map": level,
@@ -1045,6 +1116,8 @@ def build(pull: bool = True, progress=None):
         json.dump(vehicles, f, separators=(",", ":"))
     with open(DATA / "details.json", "w", encoding="utf-8") as f:
         json.dump(details, f, separators=(",", ":"))
+    with open(DATA / "levels.json", "w", encoding="utf-8") as f:
+        json.dump(build_levels(progress), f, separators=(",", ":"))
     with open(DATA / "trees.json", "w", encoding="utf-8") as f:
         json.dump(trees, f, separators=(",", ":"))
     with open(DATA / "scenarios.json", "w", encoding="utf-8") as f:

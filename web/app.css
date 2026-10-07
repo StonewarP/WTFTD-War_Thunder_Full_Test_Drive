@@ -663,8 +663,6 @@ option { background: var(--surface); }
 .seg-wrap3 { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
 .ed-panel .btn-danger { margin-top: 10px; align-self: flex-start; }
 
-.nuke-field { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,100,100,.3); background: rgba(255,100,100,.06); }
-.nuke-field select { width: 100%; }
 
 /* ------------------------------------------------------------------ pylon grid (in-game layout) */
 .lgrid-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); }
@@ -716,3 +714,24 @@ option { background: var(--surface); }
 .lsummary li .wicon { width: 24px; height: 24px; }
 .lsummary li span { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .lsummary li em { color: var(--warn); font-style: normal; font-size: 11.5px; width: 100%; }
+
+/* resizable drawer */
+:root { --drawer-w: 580px; }
+.drawer-resize { position: absolute; left: -5px; top: 0; bottom: 0; width: 10px; cursor: col-resize; z-index: 6; }
+.drawer-resize::after { content: ""; position: absolute; left: 4px; top: 50%; width: 2px; height: 46px; margin-top: -23px; border-radius: 2px; background: var(--line-2); opacity: 0; transition: opacity .15s; }
+.drawer:hover .drawer-resize::after, body.resizing .drawer-resize::after { opacity: 1; }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing .drawer, body.resizing .content { transition: none; }
+/* editor map hint */
+.ed-maphint { position: absolute; top: 84px; left: 10px; right: 10px; z-index: 2; display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--text-2);
+  background: var(--glass); border: 1px dashed var(--line-2); padding: 7px 12px; border-radius: 10px; max-width: 560px; }
+/* editor: sides, groups */
+.ed-addside { display: inline-flex; background: var(--glass); backdrop-filter: blur(8px); }
+.ed-addside button, .ed-side button { display: inline-flex; align-items: center; gap: 6px; }
+.ed-group { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); margin: 10px 2px 2px; }
+.ed-group:first-child { margin-top: 2px; }
+.ed-panel .ed-actions { margin-top: 10px; flex-wrap: wrap; }
+.ed-panel .ed-actions .btn-danger { margin-top: 0; }
+.ed-maphint.warn { border-color: var(--warn); }
+.ed-ground { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.btn-xs { padding: 2px 8px; font-size: 11.5px; min-height: 0; }

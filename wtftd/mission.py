@@ -13,8 +13,7 @@ from pathlib import Path
 
 from . import blk
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data"
+from .paths import DATA
 
 ENVIRONMENTS = ["Day", "Morning", "Noon", "Evening", "Dusk", "Dawn", "Night"]
 WEATHERS = ["clear", "good", "hazy", "thin_clouds", "cloudy", "cloudy_windy", "overcast", "poor", "rain", "thunder", "blind"]
@@ -104,6 +103,97 @@ ATTACK_TYPES = ("fire_at_will", "return_fire", "hold_fire", "dont_aim")
 _CLASS = re.compile(r"^[A-Za-z0-9_\-.]{1,120}$")
 
 
+def _area_pos(m: dict, name) -> dict | None:
+    a = (m.get("areas") or {}).get(name) if isinstance(name, str) else None
+    try:
+        x, y, z = (float(c) for c in a["tm"][3])
+        return {"x": round(x, 1), "y": round(y, 1), "z": round(z, 1)}
+    except (TypeError, KeyError, IndexError, ValueError):
+        return None
+
+
+def _is_start_trigger(t: dict) -> bool:
+    """Runs once when the mission starts, whatever the player does."""
+    ev = t.get("events") or {}
+    return not (t.get("conditions") or {}) and (not ev or "initMission" in ev) and "periodicEvent" not in ev
+
+
+def _trigger_actions(m: dict):
+    for name, t in (m.get("triggers") or {}).items():
+        if isinstance(t, dict) and isinstance(t.get("actions"), dict):
+            yield name, t, t["actions"]
+
+
+def player_spawn(m: dict, wing: str) -> dict | None:
+    """Where the player really appears when the scenario spawns them on a runway (spawnOnAirfield):
+    the airfield's spawn point, heading down the runway."""
+    airfields = {}
+    for _, _, a in _trigger_actions(m):
+        for af in _as_list(a.get("addAirfield")):
+            if isinstance(af, dict) and af.get("runwayStart"):
+                airfields[af["runwayStart"]] = af
+    for _, t, a in _trigger_actions(m):
+        if not _is_start_trigger(t):
+            continue
+        for sp in _as_list(a.get("spawnOnAirfield")):
+            if not isinstance(sp, dict) or wing not in _as_list(sp.get("objects")):
+                continue
+            af = airfields.get(sp.get("runwayName"))
+            start, end = _area_pos(m, (af or {}).get("runwayStart")), _area_pos(m, (af or {}).get("runwayEnd"))
+            pos = _area_pos(m, (af or {}).get("spawnPoint")) or start
+            if not pos:
+                return None
+            out = {**pos, "airfield": sp.get("runwayName")}
+            if start and end:
+                out["yaw"] = round(math.degrees(math.atan2(end["z"] - start["z"], end["x"] - start["x"])), 1)
+                out["runway"] = [[start["x"], start["z"]], [end["x"], end["z"]]]
+            return out
+    return None
+
+
+def teleports(m: dict) -> dict:
+    """Units the scenario's triggers move to an area: {unit: {x, y, z, area, start}} where start
+    means it happens as soon as the mission starts (else later, e.g. a periodic respawn)."""
+    out = {}
+    for _, t, a in _trigger_actions(m):
+        start = _is_start_trigger(t)
+        moves = [x for x in _as_list(a.get("unitMoveTo")) if isinstance(x, dict) and x.get("move_type") == "teleport"]
+        moves += [x for x in _as_list(a.get("unitRespawn")) if isinstance(x, dict)]
+        for mv in moves:
+            pos = _area_pos(m, mv.get("target"))
+            if not pos:
+                continue
+            for obj in _as_list(mv.get("object")):
+                if isinstance(obj, str) and (obj not in out or start and not out[obj]["start"]):
+                    out[obj] = {**pos, "area": mv.get("target"), "start": start}
+    return out
+
+
+def _strip_unit_moves(node, names: set):
+    """Removes the given units from the scenario's teleports / respawns (they were moved in the editor)."""
+    if isinstance(node, dict):
+        for k in list(node):
+            v = node[k]
+            if k in ("unitMoveTo", "unitRespawn"):
+                kept = []
+                for a in _as_list(v):
+                    if isinstance(a, dict) and (k == "unitRespawn" or a.get("move_type") == "teleport"):
+                        objs = [o for o in _as_list(a.get("object")) if o not in names]
+                        if not objs:
+                            continue
+                        a["object"] = objs if len(objs) > 1 else objs[0]
+                    kept.append(a)
+                if not kept:
+                    del node[k]
+                else:
+                    node[k] = kept if len(kept) > 1 else kept[0]
+            else:
+                _strip_unit_moves(v, names)
+    elif isinstance(node, list):
+        for x in node:
+            _strip_unit_moves(x, names)
+
+
 def scenario_units(sid: str) -> dict:
     """Units of a scenario for the map editor (only those defined in the mission itself)."""
     m = load_scenario(sid)
@@ -122,13 +212,37 @@ def scenario_units(sid: str) -> dict:
                 continue
             props = u.get("props") or {}
             out.append({
-                "name": u.get("name"), "block": block, "cls": u.get("unit_class", ""),
+                "name": u.get("name"), "block": block, "cls": u.get("unit_class", ""), "tpl": False,
                 "x": round(x, 1), "y": round(y, 1), "z": round(z, 1), "yaw": round(math.degrees(math.atan2(fz, fx)), 1),
                 "army": props.get("army", 0), "count": props.get("count", 1), "attack": props.get("attack_type", ""),
                 "moves": bool(u.get("way")), "player": u.get("name") == wing,
                 "edit": block in EDITABLE_BLOCKS and u.get("name") != wing,
             })
-    return {"wing": wing, "units": out}
+    # units of the game templates the mission imports: can be removed / frozen / made passive or hunting
+    tpl_path = DATA / "scenarios" / f"{sid}.units.json"
+    if tpl_path.exists():
+        names = {u["name"] for u in out}
+        try:
+            tpl = json.loads(tpl_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            tpl = []
+        for u in tpl:
+            if isinstance(u, dict) and u.get("name") and u["name"] not in names:
+                out.append({**u, "tpl": True, "moves": False, "player": False,
+                            # real vehicles only (bombing targets / dummies stay scenery)
+                            "edit": u.get("block") in EDITABLE_BLOCKS + ("air_defence", "tracked_vehicles", "wheeled_vehicles")
+                            and u.get("army") == 2 and not str(u.get("cls", "")).startswith("dummy")})
+    level = (((m.get("mission_settings") or {}).get("mission") or {}).get("level") or "")
+    level = level.replace("\\", "/").rsplit("/", 1)[-1].replace(".bin", "").lower()
+    me = next((u for u in out if u["player"]), None)
+    tp = teleports(m)
+    for u in out:
+        if u["name"] in tp and not u["player"]:
+            u["tp"] = tp[u["name"]]
+    spawn = player_spawn(m, wing) if wing else None
+    if not spawn and wing in tp and tp[wing]["start"]:
+        spawn = {k: tp[wing][k] for k in ("x", "y", "z", "area")}
+    return {"wing": wing, "units": out, "level": level, "army": (me or {}).get("army") or 1, "spawn": spawn}
 
 
 def _yaw_tm(deg: float, x: float, y: float, z: float):
@@ -138,13 +252,18 @@ def _yaw_tm(deg: float, x: float, y: float, z: float):
 
 def apply_edits(m: dict, wing: str, edits: dict):
     """Map editor changes:
-    units: {name: {cls, count, attack, behavior, remove}}   existing units of the scenario
-    add:   [{block, cls, x, y, z, yaw, count, attack, behavior, speed}]   new enemy units
+    units: {name: {cls, count, attack, behavior, remove, side, x, y, z}}   existing units of the scenario
+    add:   [{block, cls, x, y, z, yaw, count, attack, behavior, speed, side}]   new units
     player: {x, y, z, yaw}   moves the player's start
+    side:     "ally" | "enemy" (default for added units: enemy)
     behavior: "" | "stay" (cannotMove) | "hunt" (unitAttackTarget on the player)
+              | "follow" (unitMoveTo following the player: escort)
     attack:   "" | fire_at_will | return_fire | hold_fire (+ cannotShoot)"""
     units = m.setdefault("units", {})
-    stay, hunt, passive, sleep = [], [], [], []
+    stay, hunt, passive, sleep, follow = [], [], [], [], []
+    _, _, pu = _find_player(units, wing)
+    my_army = (pu.get("props") or {}).get("army", 1) if pu else 1
+    enemy_army = 2 if my_army == 1 else 1
 
     def apply(u: dict, e: dict):
         name = u["name"]
@@ -163,12 +282,36 @@ def apply_edits(m: dict, wing: str, edits: dict):
             props["attack_type"] = attack
             if attack == "hold_fire":
                 passive.append(name)
-        if e.get("behavior") == "stay":
+        if e.get("side") in ("ally", "enemy"):
+            props["army"] = my_army if e["side"] == "ally" else enemy_army
+        if "x" in e and "z" in e and isinstance(u.get("tm"), list) and len(u["tm"]) == 4:
+            try:
+                pos = u["tm"][3]
+                u["tm"][3] = [float(e["x"]), float(e.get("y", pos[1])), float(e["z"])]
+            except (TypeError, ValueError, IndexError):
+                pass
+        behavior(name, e)
+
+    def behavior(name: str, e: dict):
+        b = e.get("behavior")
+        if b == "stay":
             stay.append(name)
-        elif e.get("behavior") == "hunt":
+        elif b == "hunt":
             hunt.append(name)
+        elif b == "follow":
+            follow.append(name)
 
     edits_units = edits.get("units") or {}
+    own = {u.get("name") for entries in units.values() for u in _as_list(entries) if isinstance(u, dict)}
+    for name, e in edits_units.items():
+        if name in own or not isinstance(e, dict) or not _CLASS.match(str(name).replace(" ", "_")):
+            continue
+        if e.get("remove"):  # unit from an imported game template
+            sleep.append(name)
+            continue
+        behavior(name, e)
+        if e.get("attack") == "hold_fire":
+            passive.append(name)
     for block, entries in units.items():
         if block not in EDITABLE_BLOCKS:
             continue
@@ -183,6 +326,14 @@ def apply_edits(m: dict, wing: str, edits: dict):
                 continue
             apply(u, e)
 
+    moved = {n for n, e in edits_units.items() if isinstance(e, dict) and "x" in e and "z" in e and not e.get("remove")}
+    if isinstance(edits.get("player"), dict):
+        moved.add(wing)
+    if moved:  # placed on the map: drop the scenario's teleports at mission start (respawns later are kept)
+        for _, t, a in _trigger_actions(m):
+            if _is_start_trigger(t):
+                _strip_unit_moves(a, moved)
+
     for i, a in enumerate((edits.get("add") or [])[:40]):
         if not isinstance(a, dict) or a.get("block") not in EDITABLE_BLOCKS or not _CLASS.match(str(a.get("cls", ""))):
             continue
@@ -193,7 +344,7 @@ def apply_edits(m: dict, wing: str, edits: dict):
         except (TypeError, ValueError):
             continue
         props = copy.deepcopy(UNIT_DEFAULTS[block])
-        props["army"] = 2
+        props["army"] = my_army if a.get("side") == "ally" else enemy_army
         props["attack_type"] = "fire_at_will"
         u = {"name": f"wtftd_unit_{i + 1:02d}", "tm": _yaw_tm(yaw, x, y, z), "unit_class": a["cls"], "objLayer": 1,
              "closed_waypoints": False, "isShipSpline": False, "shipTurnRadius": 100.0,
@@ -210,7 +361,7 @@ def apply_edits(m: dict, wing: str, edits: dict):
 
     player = edits.get("player")
     if isinstance(player, dict):
-        _, _, pu = _find_player(units, wing)
+        _strip_airfield_spawn(m.get("triggers"), wing)  # the start was placed on the map: no runway spawn
         if pu:
             try:
                 pu["tm"] = _yaw_tm(float(player.get("yaw", 0)), float(player["x"]), float(player["y"]), float(player["z"]))
@@ -230,6 +381,12 @@ def apply_edits(m: dict, wing: str, edits: dict):
     if hunt:
         attacks = [{"playerAttracted": True, "object": n, "target": wing, "fireRandom": False} for n in hunt]
         actions["unitAttackTarget"] = attacks if len(attacks) > 1 else attacks[0]
+    if follow:
+        actions["unitMoveTo"] = {"target": wing, "follow_target": True, "object": follow, "shouldKeepFormation": False,
+                                 "teleportHeightType": "absolute", "useUnitHeightForTele": True, "teleportHeightValue": 0.0,
+                                 "horizontalDirectionForTeleport": True, "object_marking": 0, "target_marking": 0,
+                                 "waypointReachedDist": 10.0, "recalculatePathDist": -1.0, "follow_radius": 60.0,
+                                 "follow_offset": [-60.0, 0.0, 40.0]}
     if actions:
         triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
         if isinstance(triggers, dict):
@@ -239,6 +396,20 @@ def apply_edits(m: dict, wing: str, edits: dict):
 def retarget(units: dict, wing: str, pool: dict):
     """Swaps the scenario's enemy units for vehicles of the chosen level.
     pool = {unit block: [unit_class, ...]} prepared by the server (same vehicle type, chosen BR)."""
+    swaps = retarget_map(units, wing, pool)
+    for block in pool:
+        for u in _as_list(units.get(block)):
+            if isinstance(u, dict) and u.get("name") in swaps:
+                u["unit_class"] = swaps[u["name"]]
+                u["weapons"] = ""
+                for n in range(4):
+                    if f"bullets{n}" in u:
+                        u[f"bullets{n}"] = ""
+
+
+def retarget_map(units: dict, wing: str, pool: dict) -> dict:
+    """{unit name: new unit_class} for retarget()."""
+    out = {}
     for block, classes in pool.items():
         if not classes:
             continue
@@ -246,12 +417,9 @@ def retarget(units: dict, wing: str, pool: dict):
         for u in _as_list(units.get(block)):
             if not isinstance(u, dict) or u.get("name") == wing or (u.get("props") or {}).get("army") != 2:
                 continue
-            u["unit_class"] = classes[i % len(classes)]
-            u["weapons"] = ""
-            for n in range(4):
-                if f"bullets{n}" in u:
-                    u[f"bullets{n}"] = ""
+            out[u["name"]] = classes[i % len(classes)]
             i += 1
+    return out
 
 
 def _trigger(event: dict, actions: dict, repeat: bool) -> dict:
@@ -420,13 +588,25 @@ def build(cfg: dict) -> tuple[str, str]:
         tm[3][1] = alt if start_y >= 300 else max(alt, start_y + 100.0)
         unit.setdefault("props", {})["speed"] = speed
         _strip_airfield_spawn(m.get("triggers"), wing)
+    fuel = cfg.get("fuel")
+    if block == "armada" and fuel not in (None, ""):
+        pct = max(1.0, min(float(fuel), 100.0))
+        unit.setdefault("props", {})["fuel"] = pct  # % of the tanks, as official missions set it on AI aircraft
+        mission["fuelAmount"] = round(pct / 100.0, 3)
+        if not (cfg.get("cheats") or {}).get("infFuel"):
+            mission["isLimitedFuel"] = True
     if cfg.get("heading") not in (None, ""):
         yaw = math.radians(float(cfg["heading"]))
         x, y, z = unit["tm"][3]
         unit["tm"] = [[math.cos(yaw), 0.0, math.sin(yaw)], [0.0, 1.0, 0.0], [-math.sin(yaw), 0.0, math.cos(yaw)], [x, y, z]]
 
     retarget(units, wing, cfg.get("_targetPool") or {})
+    start_y = float(unit["tm"][3][1])
     apply_edits(m, wing, cfg.get("edits") or {})
+    pl = (cfg.get("edits") or {}).get("player")
+    if block == "armada" and isinstance(pl, dict) and float(unit["tm"][3][1]) > start_y + 50:
+        # start placed in the air in the editor: give it flying speed
+        unit.setdefault("props", {}).setdefault("speed", float(cfg.get("speed") or 450))
     apply_cheats(m, wing, cfg.get("cheats") or {})
 
     # ---- mission settings

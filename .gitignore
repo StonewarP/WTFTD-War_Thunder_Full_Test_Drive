@@ -3,3 +3,5 @@ user/
 __pycache__/
 *.pyc
 .claude/
+dist/
+*.spec

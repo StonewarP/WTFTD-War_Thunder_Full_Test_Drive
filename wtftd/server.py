@@ -6,6 +6,7 @@ import mimetypes
 import re
 import shutil
 import socket
+import struct
 import threading
 import time
 import urllib.error
@@ -15,14 +16,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import builder, cdk, game, mission
+from . import builder, cdk, game, maptex, mission, terrain
+from .paths import CACHE, DATA, HOME, USER, WEB
 
-ROOT = Path(__file__).resolve().parent.parent
-WEB = ROOT / "web"
-DATA = ROOT / "data"
-USER = ROOT / "user"
-IMG_CACHE = ROOT / ".cache" / "img"
-MISSION_SETUPS = ROOT / "user" / "missions"
+ROOT = HOME
+IMG_CACHE = CACHE / "img"
+MISSION_SETUPS = USER / "missions"
 UA = "WTFTD/1.0 (local War Thunder test drive tool)"
 
 IMAGE_SOURCES = {
@@ -185,11 +184,26 @@ def api_status():
         "levels": sorted(game.installed_levels(gd)),
         "data": meta,
         "dataReady": (DATA / "vehicles.json").exists(),
+        "oodle": oodle_dll(gd),
         "settings": STATE.settings(),
         "cdk": {"enabled": STATE.cdk_enabled(), "defaultHosts": cdk.DEFAULT_HOSTS,
                 "airMethod": STATE.settings().get("airMethod") or "custom",
                 **cdk.status(gd, USER)},
     }
+
+
+_oodle_memo: dict = {}
+
+
+def oodle_dll(gd: Path | None) -> str | None:
+    """Oodle runtime used to read the game's map textures: the one set in Settings, else auto-detected (once)."""
+    custom = STATE.settings().get("oodleDll")
+    if custom:
+        return custom if Path(custom).is_file() else None
+    key = str(gd)
+    if key not in _oodle_memo:
+        _oodle_memo[key] = maptex.find_oodle(gd)
+    return _oodle_memo[key]
 
 
 def api_vehicle(vid: str):
@@ -326,6 +340,23 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(urlparse(self.path).path)
         if path.startswith("/api/"):
             return self.get_api(path[5:])
+        if path.startswith("/img/levelmap/"):
+            meta = captured_map(path.rsplit("/", 1)[-1])
+            if meta:
+                return self.send_file(MAPS / meta["file"])
+            return self.send_error(HTTPStatus.NOT_FOUND)
+        if path.startswith("/img/terrain/"):
+            level = path.rsplit("/", 1)[-1].removesuffix(".bin")
+            if re.fullmatch(r"[a-z0-9_]+", level) and terrain.grid_path(level).exists():
+                return self.send_file(terrain.grid_path(level), cache=True)
+            return self.send_error(HTTPStatus.NOT_FOUND)
+        if path.startswith("/img/maptex/"):
+            name = path.rsplit("/", 1)[-1].removesuffix(".png")
+            try:
+                gd = STATE.game_dir()
+                return self.send_file(maptex.png_path(gd, name, oodle_dll(gd)), cache=True)
+            except (maptex.MapTexError, OSError) as e:
+                return self.send_json({"error": str(e)}, 404)
         if path.startswith("/img/"):
             parts = path.split("/")
             if len(parts) == 4 and parts[2] in IMAGE_SOURCES:
@@ -361,6 +392,20 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(read_json(USER / "setups.json", []))
         if route == "missions":
             return self.send_json(list_generated())
+        if route.startswith("terrain/"):
+            level = route.split("/", 1)[1]
+            gd = STATE.game_dir()
+            try:
+                meta = terrain.terrain(gd, level, oodle_dll(gd))
+            except (terrain.TerrainError, OSError, struct.error) as e:
+                return self.send_json({"available": False, "reason": str(e)})
+            if not meta:
+                return self.send_json({"available": False, "reason": "no heightmap"})
+            return self.send_json({**meta, "available": True,
+                                   "url": f"/img/terrain/{level}.bin?v={int(terrain.grid_path(level).stat().st_mtime)}"})
+        if route.startswith("level-map/"):
+            meta = level_map(route.split("/", 1)[1])
+            return self.send_json(meta) if meta else self.send_json({"error": "no map"}, 404)
         if route.startswith("scenario-units/"):
             try:
                 return self.send_json(mission.scenario_units(route.split("/", 1)[1]))
@@ -403,12 +448,27 @@ class Handler(BaseHTTPRequestHandler):
                 cdk.write_files(gd, USER, files, body.get("_pkg", "pkg_local"))
             # keep the exact setup next to the mission so "Load" can restore it
             write_json(MISSION_SETUPS / (name[:-4] + ".json"), setup)
+            try:
+                su = mission.scenario_units(str(body.get("scenario", "")))
+                me = next((u for u in su["units"] if u.get("player")), None)
+                pl = (body.get("edits") or {}).get("player") or {}
+                if me:
+                    set_capture_hint(su["level"], float(pl.get("x", me["x"])), float(pl.get("z", me["z"])))
+            except (mission.MissionError, ValueError, TypeError):
+                pass
             um = game.user_missions_dir(gd)
             um.mkdir(exist_ok=True)
             out = um / name
             out.write_text(text, encoding="utf-8")
             return self.send_json({"ok": True, "file": name, "path": str(out), "cdkFiles": sorted(files),
                                    "host": body.get("unitClass", "")})
+        if route == "target-swaps":  # vehicles "Training targets" puts in place of the scenario's enemies
+            try:
+                scen = mission.load_scenario(str(body.get("scenario", "")))
+                wing = ((scen.get("mission_settings") or {}).get("player") or {}).get("wing")
+                return self.send_json(mission.retarget_map(scen.get("units") or {}, wing, _target_pool(body)))
+            except mission.MissionError as e:
+                return self.send_json({"error": str(e)}, 400)
         if route == "preview":
             body, files = self.prepare_cdk(body)
             name, text = mission.build(body)
@@ -430,11 +490,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": bool(gd)})
         if route == "settings":
             s = STATE.settings()
-            for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate"):
+            for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll"):
                 if k in body:
                     s[k] = body[k]
             if s.get("gameDir") and not game.is_game_dir(Path(s["gameDir"])):
                 return self.send_json({"error": "This folder does not look like a War Thunder install."}, 400)
+            if s.get("oodleDll") and not maptex.OODLE_DLL.match(Path(s["oodleDll"]).name):
+                return self.send_json({"error": "Pick an oo2core_<version>_win64.dll file."}, 400)
             STATE.save_settings(s)
             return self.send_json(api_status())
         if route == "setups":
@@ -540,16 +602,13 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     unit_data = None
     if (body.get("cheats") or {}).get("immortal"):
         mods["invulnerable"] = True
-    if mods.get("invulnerable") or mods.get("nuke"):
-        unit_data = builder.load(builder.unit_file(vid, veh["c"]))  # needs the local datamine copy
-    base_preset = None
-    if mods.get("nuke") and unit_data and body.get("preset"):
-        for p in builder.aslist((unit_data.get("weapon_presets") or {}).get("preset")):
-            if isinstance(p, dict) and p.get("name") == body["preset"] and p.get("blk"):
-                base_preset = builder.load(builder.blk_to_path(builder.first_str(p["blk"])))
+    non_std = any(isinstance(v, dict) for v in (body.get("pylons") or {}).values())
+    if mods.get("invulnerable") or non_std:
+        # needs the local datamine copy (damage model, pylon layout for non-standard weapons)
+        unit_data = builder.load(builder.unit_file(vid, veh["c"]))
     try:
         files, preset, unit_class, pkg = cdk.build_files(vid, veh["c"], det, mods, host,
-                                                         body.get("pylons"), air_method, unit_data, base_preset,
+                                                         body.get("pylons"), air_method, unit_data,
                                                          STATE.get_catalog())
     except cdk.CdkError as e:
         raise mission.MissionError(str(e))
@@ -560,6 +619,123 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
 
 
 Handler.prepare_cdk = staticmethod(_prepare_cdk)
+
+
+# --------------------------------------------------------------------------- tactical map capture
+# While a battle / mission runs, War Thunder serves its tactical map on http://localhost:8111
+# (map.img + map_info.json, the API external map tools use). We save it for the level of the
+# mission WTFTD generated last, so the scenario editor can draw the real map under the units.
+
+WT_API = "http://127.0.0.1:8111"
+MAPS = CACHE / "maps"
+_capture = {"key": None, "hint": None}
+
+
+def _wt_get(path: str, timeout: float = 1.0) -> bytes | None:
+    try:
+        with urllib.request.urlopen(WT_API + path, timeout=timeout) as r:
+            return r.read()
+    except (urllib.error.URLError, OSError, TimeoutError, ValueError):
+        return None
+
+
+def set_capture_hint(level: str, x: float, z: float):
+    _capture["hint"] = {"level": level, "x": x, "z": z}
+
+
+def _matches(level_info: dict, mn, mx) -> bool:
+    for a, b in (("a0", "a1"), ("t0", "t1")):
+        if a in level_info and b in level_info:
+            if all(abs(level_info[a][i] - mn[i]) < 2 and abs(level_info[b][i] - mx[i]) < 2 for i in (0, 1)):
+                return True
+    return False
+
+
+def capture_once():
+    raw = _wt_get("/map_info.json")
+    if not raw:
+        return
+    try:
+        info = json.loads(raw.decode("utf-8", "ignore"))
+    except ValueError:
+        return
+    if not info.get("valid") or not isinstance(info.get("map_min"), list) or not isinstance(info.get("map_max"), list):
+        return
+    hint = _capture["hint"]
+    if not hint:
+        return
+    mn, mx = [float(c) for c in info["map_min"]], [float(c) for c in info["map_max"]]
+    key = (hint["level"], info.get("map_generation"), tuple(mn), tuple(mx))
+    if key == _capture["key"]:
+        return
+    levels = read_json(DATA / "levels.json", {})
+    if not _matches(levels.get(hint["level"], {}), mn, mx):
+        return  # another map is loaded (not the mission we generated)
+    img = _wt_get(f"/map.img?gen={info.get('map_generation', 0)}", timeout=4)
+    if not img or len(img) < 1000:
+        return
+    ext = ".png" if img[:4] == b"\x89PNG" else ".jpg"
+    # orientation: compare the player's marker with their known start position (the player has not moved yet)
+    z_up = True
+    try:
+        objs = json.loads((_wt_get("/map_obj.json") or b"[]").decode("utf-8", "ignore"))
+        me = next((o for o in objs if isinstance(o, dict) and o.get("icon") == "Player"), None)
+        if me and mx[0] > mn[0] and mx[1] > mn[1]:
+            ny = (hint["z"] - mn[1]) / (mx[1] - mn[1])
+            z_up = abs(float(me["y"]) - (1 - ny)) <= abs(float(me["y"]) - ny)
+    except (ValueError, KeyError, TypeError):
+        pass
+    MAPS.mkdir(parents=True, exist_ok=True)
+    for old in MAPS.glob(hint["level"] + ".*"):
+        old.unlink()
+    (MAPS / (hint["level"] + ext)).write_bytes(img)
+    write_json(MAPS / (hint["level"] + ".json"), {"min": mn, "max": mx, "zUp": z_up, "file": hint["level"] + ext,
+                                                  "captured": int(time.time())})
+    _capture["key"] = key
+
+
+def map_capture_loop():
+    while True:
+        try:
+            capture_once()
+        except Exception:  # never let the capture thread die
+            pass
+        time.sleep(4)
+
+
+def captured_map(level: str) -> dict | None:
+    if not re.fullmatch(r"[a-z0-9_]+", level or ""):
+        return None
+    meta = read_json(MAPS / f"{level}.json", None)
+    return meta if isinstance(meta, dict) and (MAPS / meta.get("file", "")).exists() else None
+
+
+def level_map(level: str) -> dict | None:
+    """Background layers of the scenario editor for a level, drawn in order:
+    the full tactical map, then the (more detailed) ground battle map on top.
+    From the game files when possible, else the map captured while playing."""
+    if not re.fullmatch(r"[a-z0-9_]+", level or ""):
+        return None
+    info = read_json(DATA / "levels.json", {}).get(level) or {}
+    gd = STATE.game_dir()
+    layers, oodle, no_oodle = [], None, False
+    for tex, a, b in (("am", "a0", "a1"), ("tm", "t0", "t1")):
+        name = info.get(tex)
+        if not name or a not in info or not maptex.available(gd, name):
+            continue
+        if not (maptex.CACHE / f"{name}.png").exists():
+            oodle = oodle or oodle_dll(gd)
+            if not oodle:
+                no_oodle = True
+                continue
+        layers.append({"url": f"/img/maptex/{name}.png", "min": info[a], "max": info[b], "zUp": True})
+    if layers:
+        return {"source": "game", "layers": layers}
+    cap = captured_map(level)
+    if cap:
+        return {"source": "capture", "layers": [{"url": f"/img/levelmap/{level}?v={cap.get('captured', 0)}",
+                                                 "min": cap["min"], "max": cap["max"], "zUp": cap.get("zUp", True)}]}
+    return {"source": None, "layers": [], "noOodle": no_oodle}
 
 
 def free_port(preferred: int) -> int:
@@ -578,4 +754,5 @@ def serve(port: int = 8777) -> tuple[ThreadingHTTPServer, str]:
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     httpd.daemon_threads = True
     threading.Thread(target=auto_update_loop, daemon=True).start()
+    threading.Thread(target=map_capture_loop, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}/"
