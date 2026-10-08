@@ -442,5 +442,7 @@
   "stat.tw": "Schub/Gewicht",
   "stat.wl": "Flächenbelastung",
   "stat.disp": "Verdrängung",
-  "stat.crew": "Besatzung"
+  "stat.crew": "Besatzung",
+  "stat.pwProp": "Leistungsgewicht (Propeller)",
+  "stat.twJet": "Schub/Gewicht (Jet)"
 }

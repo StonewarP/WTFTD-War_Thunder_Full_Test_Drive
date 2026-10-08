@@ -442,5 +442,7 @@
   "stat.tw": "Ciąg/masa",
   "stat.wl": "Obciążenie skrzydła",
   "stat.disp": "Wyporność",
-  "stat.crew": "Załoga"
+  "stat.crew": "Załoga",
+  "stat.pwProp": "Moc/masa (śmigłowe)",
+  "stat.twJet": "Ciąg/masa (odrzutowe)"
 }

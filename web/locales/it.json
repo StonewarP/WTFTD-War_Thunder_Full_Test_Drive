@@ -442,5 +442,7 @@
   "stat.tw": "Spinta/peso",
   "stat.wl": "Carico alare",
   "stat.disp": "Dislocamento",
-  "stat.crew": "Equipaggio"
+  "stat.crew": "Equipaggio",
+  "stat.pwProp": "Potenza/peso (elica)",
+  "stat.twJet": "Spinta/peso (jet)"
 }

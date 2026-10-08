@@ -442,5 +442,7 @@
   "stat.tw": "Empuxo/peso",
   "stat.wl": "Carga alar",
   "stat.disp": "Deslocamento",
-  "stat.crew": "Tripulação"
+  "stat.crew": "Tripulação",
+  "stat.pwProp": "Potência/peso (hélice)",
+  "stat.twJet": "Empuxo/peso (jato)"
 }

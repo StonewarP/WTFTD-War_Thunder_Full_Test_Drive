@@ -27,6 +27,8 @@ const STATS = {
   crew: { cats: ALL_CATS, unit: '', better: 0 },
 };
 
+// aircraft: propeller planes have a power-to-weight ratio, jets a thrust-to-weight ratio (not comparable)
+const statLabel = (k, cat) => t(cat === 'air' && k === 'pw' ? 'stat.pwProp' : cat === 'air' && k === 'tw' ? 'stat.twJet' : 'stat.' + k);
 const statKeys = cat => Object.keys(STATS).filter(k => cat === 'all' ? ['spd', 'crew'].includes(k) : STATS[k].cats.includes(cat));
 // one comparable number per stat (armor: the front plate)
 const statVal = (v, k) => { const x = v.s?.[k]; return Array.isArray(x) ? x[0] : (typeof x === 'number' ? x : null); };
@@ -82,7 +84,7 @@ function updateSortOptions() {
   const keys = statKeys(S.f.cat);
   if (S.f.sort?.startsWith('s:') && !keys.includes(S.f.sort.slice(2))) S.f.sort = 'br';
   const base = ['br', 'rank', 'name', 'nation'].map(k => `<option value="${k}">${esc(t('sort.' + k))}</option>`).join('');
-  sel.innerHTML = base + `<optgroup label="${esc(t('stats.title'))}">${keys.map(k => `<option value="s:${k}">${esc(t('stat.' + k))}${STATS[k].better ? (STATS[k].better > 0 ? ' ↓' : ' ↑') : ''}</option>`).join('')}</optgroup>`;
+  sel.innerHTML = base + `<optgroup label="${esc(t('stats.title'))}">${keys.map(k => `<option value="s:${k}">${esc(statLabel(k, S.f.cat))}${STATS[k].better ? (STATS[k].better > 0 ? ' ↓' : ' ↑') : ''}</option>`).join('')}</optgroup>`;
   sel.value = S.f.sort;
 }
 
@@ -98,7 +100,7 @@ function renderStatFilters() {
     <div class="stat-rows">${keys.map(k => {
       const [lo, hi] = f[k] || [];
       const unit = STATS[k].unit ? ` (${STATS[k].unit})` : '';
-      return `<div class="stat-row${lo != null || hi != null ? ' on' : ''}" title="${esc(t('stat.' + k) + unit)}"><span>${esc(t('stat.' + k))}</span>
+      return `<div class="stat-row${lo != null || hi != null ? ' on' : ''}" title="${esc(statLabel(k, S.f.cat) + unit)}"><span>${esc(statLabel(k, S.f.cat))}</span>
         <input type="number" step="any" data-stat="${k}" data-b="0" value="${lo ?? ''}" placeholder="${esc(t('filters.min'))}">
         <input type="number" step="any" data-stat="${k}" data-b="1" value="${hi ?? ''}" placeholder="${esc(t('filters.max'))}"></div>`;
     }).join('')}</div>`;
@@ -127,12 +129,12 @@ function bindStatFilters() {
 function cardStatHTML(v) {
   const k = S.f.sort?.startsWith('s:') ? S.f.sort.slice(2) : null;
   if (!k || !STATS[k]) return '';
-  return `<span class="card-stat" title="${esc(t('stat.' + k))}">${esc(fmtStat(k, v.s?.[k]))}</span>`;
+  return `<span class="card-stat" title="${esc(statLabel(k, v.c))}">${esc(fmtStat(k, v.s?.[k]))}</span>`;
 }
 
 function statsBlockHTML(v) {
   const keys = statKeys(v.c).filter(k => v.s?.[k] != null);
   if (!keys.length) return '';
   return `<div class="vstats">${keys.map(k => `<div class="vstat" title="${esc(STATS[k].triple ? t('stat.armHint') : '')}">
-      <span>${esc(t('stat.' + k))}</span><b>${esc(fmtStat(k, v.s[k]))}</b></div>`).join('')}</div>`;
+      <span>${esc(statLabel(k, v.c))}</span><b>${esc(fmtStat(k, v.s[k]))}</b></div>`).join('')}</div>`;
 }

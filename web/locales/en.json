@@ -442,5 +442,7 @@
   "stat.tw": "Thrust/weight",
   "stat.wl": "Wing loading",
   "stat.disp": "Displacement",
-  "stat.crew": "Crew"
+  "stat.crew": "Crew",
+  "stat.pwProp": "Power/weight (propeller)",
+  "stat.twJet": "Thrust/weight (jet)"
 }

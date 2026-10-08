@@ -442,5 +442,7 @@
   "stat.tw": "Tah/hmotnost",
   "stat.wl": "Plošné zatížení",
   "stat.disp": "Výtlak",
-  "stat.crew": "Posádka"
+  "stat.crew": "Posádka",
+  "stat.pwProp": "Výkon/hmotnost (vrtulová)",
+  "stat.twJet": "Tah/hmotnost (proudová)"
 }

@@ -442,5 +442,7 @@
   "stat.tw": "Poussée/poids",
   "stat.wl": "Charge alaire",
   "stat.disp": "Déplacement",
-  "stat.crew": "Équipage"
+  "stat.crew": "Équipage",
+  "stat.pwProp": "Puissance/poids (hélice)",
+  "stat.twJet": "Poussée/poids (jet)"
 }

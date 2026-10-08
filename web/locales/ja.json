@@ -442,5 +442,7 @@
   "stat.tw": "推力重量比",
   "stat.wl": "翼面荷重",
   "stat.disp": "排水量",
-  "stat.crew": "乗員"
+  "stat.crew": "乗員",
+  "stat.pwProp": "出力重量比（プロペラ機）",
+  "stat.twJet": "推力重量比（ジェット機）"
 }

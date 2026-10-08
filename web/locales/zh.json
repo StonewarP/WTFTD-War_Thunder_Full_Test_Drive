@@ -442,5 +442,7 @@
   "stat.tw": "推重比",
   "stat.wl": "翼载荷",
   "stat.disp": "排水量",
-  "stat.crew": "乘员"
+  "stat.crew": "乘员",
+  "stat.pwProp": "功重比（螺旋桨）",
+  "stat.twJet": "推重比（喷气）"
 }
