@@ -44,8 +44,9 @@ jobs:
           $hash = (Get-FileHash dist\WTFTD.exe -Algorithm SHA256).Hash.ToLower()
           "$hash  WTFTD.exe" | Out-File -Encoding ascii dist\WTFTD.exe.sha256
           gh release upload $env:TAG dist\WTFTD.exe dist\WTFTD.exe.sha256 --clobber
-          $body = gh release view $env:TAG --json body -q .body
-          if ($body -notmatch "SHA-256") {
+          # PowerShell gets the notes as an array of lines: join them back with line breaks, not spaces
+          $body = (gh release view $env:TAG --json body -q .body) -join "`n"
+          if ($body -notmatch "SHA-256\*\* of WTFTD\.exe") {
             $note = "`n`n**SHA-256** of WTFTD.exe (built by GitHub Actions from this tag): ``$hash```nCheck it in PowerShell: ``Get-FileHash WTFTD.exe``"
             gh release edit $env:TAG --notes "$body$note"
           }
