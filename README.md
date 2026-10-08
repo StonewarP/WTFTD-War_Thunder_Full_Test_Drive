@@ -73,7 +73,8 @@ nothing to install: double-click it, the app opens in its own window and finds y
   weapons by their game icon (missiles, bombs, rockets, nuclear, guns, shells — or a shell type like “any
   APFSDS”), with how many vehicles carry each; vehicles must carry all the picked weapons
 - **Weapons page**: every missile, bomb, rocket and torpedo (~860) by category — IR / radar air-to-air,
-  surface-to-air, ATGM, air-to-surface, guided bombs, bombs, rockets, torpedoes — with stats from the game files
+  surface-to-air, ATGM, air-to-surface, guided bombs, bombs, **nuclear bombs** (yield from 5 kt to 1.6 Mt, and the
+  ground battles' instant-win killstreak nukes), rockets, torpedoes — with stats from the game files
   (motor speed, max G, lock angle, IRCCM, seeker range, penetration, TNT equivalent…), **"best for" rankings**
   (dogfight, head-on, flare resistance, beyond visual range, killing tanks, stand-off…), a short guide per
   category, community notes on well-known weapons, side-by-side comparison and the vehicles that carry each one

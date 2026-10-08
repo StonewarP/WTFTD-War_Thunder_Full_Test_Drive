@@ -13,9 +13,10 @@ const AR_COLS = {
   lk: { better: 1, f: km }, aa: { better: 1, f: km }, rng: { better: 1, f: km }, sr: { better: 1, f: km },
   acc: { better: 1, f: x => `${x} G` }, pen: { better: 1, f: x => `${x} mm` }, tnt: { better: 1, f: kg }, e: { better: 1, f: kg }, m: { better: 0, f: kg },
   cal: { better: 0, f: x => `${x} mm` }, pf: { better: 1, f: x => `${x} m` }, burn: { better: 1, f: x => `${x} s` },
-  br: { better: 0, f: fmtBR }, nv: { better: 0, f: x => I18N.num(x) },
+  yld: { better: 1, f: kt }, bh: { better: 0, f: x => `${x} m` }, br: { better: 0, f: fmtBR }, nv: { better: 0, f: x => I18N.num(x) },
 };
 function km(x) { return x >= 1000 ? `${(x / 1000).toFixed(x >= 10000 ? 0 : 1)} km` : `${x} m`; }
+function kt(x) { return x >= 1000 ? `${(x / 1000).toFixed(2)} Mt` : `${x} kt`; }
 function kg(x) { return `${x >= 100 ? Math.round(x) : x} kg`; }
 
 // per category: table columns and "best for" use cases (weights of normalized stats, booleans count 0/1)
@@ -35,13 +36,14 @@ const AR_CATS = {
   gbomb: { cols: ['m', 'tnt', 'rng'],
     uses: { heavy: { tnt: 1 }, ff: { ff: .6, tnt: .4 }, standoff: { rng: .7, tnt: .3 } } },
   bomb: { cols: ['m', 'e', 'tnt'], uses: { heavy: { tnt: 1 }, eff: { eff: 1 } } },
+  nuke: { cols: ['yld', 'bh', 'm'], uses: { power: { yld: 1 }, effn: { eff: 1 } } },
   rocket: { cols: ['cal', 'pen', 'v', 'tnt', 'm'], uses: { tank: { pen: .7, v: .3 }, blast: { tnt: .8, v: .2 } } },
   torpedo: { cols: ['v', 'rng', 'tnt', 'm'], uses: { fast: { v: .7, tnt: .3 }, range: { rng: .7, v: .3 }, heavy: { tnt: 1 } } },
 };
-const AR_FLAGS = ['ccm', 'act', 'ins', 'dl', 'loft', 'ff', 'wire', 'nk'];
+const AR_FLAGS = ['ccm', 'act', 'ins', 'dl', 'loft', 'ff', 'wire', 'iw'];
 
-const arName = it => I18N.arm(it.id);
-const arVal = (it, k) => k === 'eff' ? (it.tnt && it.m ? it.tnt / it.m : null) : k === 'ff2' ? (it.g === 'ir' || it.g === 'arh' ? 1 : 0)
+const arName = it => I18N.arm(it.id) + (it.c === 'nuke' && it.yld ? ` (${kt(it.yld)})` : '');
+const arVal = (it, k) => k === 'eff' ? (it.c === 'nuke' ? (it.yld && it.m ? it.yld / it.m : null) : it.tnt && it.m ? it.tnt / it.m : null) : k === 'ff2' ? (it.g === 'ir' || it.g === 'arh' ? 1 : 0)
   : k === 'ccm' ? (it.ccm || 0) : AR_FLAGS.includes(k) ? (it[k] ? 1 : 0) : (typeof it[k] === 'number' ? it[k] : null);
 
 function arFmt(k, x, c) {
@@ -78,7 +80,9 @@ function arScore(it, use) {
   for (const [k, wt] of Object.entries(w)) {
     const x = arVal(it, k);
     if (!x) continue;
-    s += wt * (AR_FLAGS.includes(k) || k === 'ff2' ? x : x / (m[k] || x));
+    s += wt * (AR_FLAGS.includes(k) || k === 'ff2' ? x
+      : k === 'yld' ? Math.log10(1 + x) / Math.log10(1 + (m[k] || x))  // yields span 5 kt to 1.6 Mt: log scale
+      : x / (m[k] || x));
   }
   return s;
 }
@@ -103,7 +107,7 @@ function arItems() {
 }
 
 const arTags = it => `${it.g ? `<span class="ar-tag g">${esc(t('arm.g.' + it.g))}</span>` : ''}${AR_FLAGS.filter(f => it[f] && f !== 'act')
-  .map(f => `<span class="ar-tag${f === 'nk' ? ' nk' : ''}" title="${esc(t(f === 'ccm' && it.ccmt ? 'arm.fh.ccm_' + it.ccmt : 'arm.fh.' + f))}">${esc(t('arm.f.' + f))}</span>`).join('')}`;
+  .map(f => `<span class="ar-tag${f === 'iw' ? ' nk' : ''}" title="${esc(t(f === 'ccm' && it.ccmt ? 'arm.fh.ccm_' + it.ccmt : 'arm.fh.' + f))}">${esc(t('arm.f.' + f))}</span>`).join('')}`;
 const arFlags = it => (it.nat || []).slice(0, 4).map(n => flagHTML(n)).join('') + (it.nat?.length > 4 ? `<span class="muted">+${it.nat.length - 4}</span>` : '');
 
 function renderWeapons() {
@@ -176,6 +180,7 @@ function weaponDetailHTML(it) {
     <div class="ar-det-uses">${uses.map(u => `<span class="ar-rank" title="${esc(t('arm.useh.' + u))}">${esc(t('arm.use.' + u))} <b>#${rank(u)}</b><small>/${m.length}</small></span>`).join('')}</div>
     ${note ? `<div class="ar-note"><b>${esc(t('arm.community'))}</b> ${esc(note)}<small>${esc(t('arm.notesHint'))}</small></div>` : ''}
     <div class="ar-carriers"><span class="ar-lbl">${esc(t('arm.carriedBy', { n: car.length }))}</span>
+      ${!car.length && it.c === 'nuke' ? `<span class="muted">${esc(t('arm.nukeCustom'))}</span>` : ''}
       ${shown.map(v => `<button class="ar-veh" data-arveh="${esc(v.id)}" title="${esc(I18N.unitFull(v.id))}">${flagHTML(v.n)}<span>${esc(I18N.unit(v.id))}</span><small>${esc(fmtBR(v.br?.[1]))}</small></button>`).join('')}
       ${car.length > shown.length ? `<span class="muted">+${car.length - shown.length}</span>` : ''}</div>
   </div>`;

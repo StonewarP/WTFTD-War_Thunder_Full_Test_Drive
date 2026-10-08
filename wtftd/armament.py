@@ -8,7 +8,7 @@ data/armament.json = {"items": [...], "carriers": {id: [vehicle ids]}}. Item fie
   IR seeker: lk lock range (rear) m, aa all-aspect lock range m, ob off-boresight lock angle deg,
              trk tracking rate deg/s, ccm flare rejection (IRCCM) 0..1, ccmt its type,
   radar: act active seeker (fire & forget), ins inertial guidance, dl datalink, loft, sr seeker range m,
-  ff fire-and-forget, wire wire-guided, beam beam rider.
+  ff fire-and-forget, wire wire-guided, beam beam rider; nuclear: yld yield kt, bh burst height m, iw instant win.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ SKIP_TYPES = re.compile(r"^(flare|chaff|smoke|.*grenade)")
 
 ICONS = {"aam_ir": "missile_air_to_air", "aam_radar": "missile_air_to_air_midrange", "sam": "missile_air_to_air",
          "atgm": "missile_air_to_uni_middle", "agm": "missile_air_to_uni", "gbomb": "guided_bomb_middle_laser",
-         "bomb": "bombs_middle", "rocket": "rockets_he_large", "torpedo": "torpedo"}
+         "bomb": "bombs_middle", "nuke": "bombs_large_nuke", "rocket": "rockets_he_large", "torpedo": "torpedo"}
 
 
 def _n(v):
@@ -65,6 +65,8 @@ def _category(kind: str, p: dict, folder: str, stem: str):
         return "torpedo"
     if SKIP_TYPES.match(bt):
         return None
+    if kind == "bomb" and (_n(p.get("yield")) or p.get("isInstantWinOnExplode")):
+        return "nuke"
     if kind == "bomb":
         if folder != "bombguns":
             return None  # ships' depth charges / ASW mortars
@@ -170,7 +172,16 @@ def _stats(cat: str, g: str, p: dict, tnt_eq: dict) -> dict:
         put("v", _n(p.get("maxSpeedInWater")) or _n(p.get("speed")), 1)
         put("rng", _n(p.get("distToLive")), 0)
         return s
-    if cat in ("bomb",):
+    if cat == "bomb":
+        return s
+    if cat == "nuke":
+        s.pop("e", None)
+        s.pop("tnt", None)  # killstreak nukes carry a 0.01 kg placeholder charge
+        put("yld", _n(p.get("yield")), 1)  # kilotons of TNT
+        pfz = p.get("proximityFuse") if isinstance(p.get("proximityFuse"), dict) else {}
+        put("bh", _n(pfz.get("radius")), 0)  # bursts this high above the ground
+        if p.get("isInstantWinOnExplode"):
+            s["iw"] = 1  # ground battles' nuclear killstreak: the explosion wins the battle (no physical yield)
         return s
     # speed: what the motor gives on top of the launch speed, capped by the file's limits
     # (maxSpeed, machMax; endSpeed is often a 2000 m/s placeholder)
@@ -271,8 +282,6 @@ def build_armament(lang: Lang, vehicles: list, progress=None) -> dict:
                     continue
                 g = _guidance(cat, p)
                 it = {"id": iid, "c": cat, "g": g, "_src": stem, **_stats(cat, g, p, tnt_eq)}
-                if stem in NUKES or iid in NUKES:
-                    it["nk"] = 1
                 icon = first_str(p.get("iconType"))
                 votes = ICON_VOTES.get(stem)
                 it["ic"] = icon or (max(votes, key=votes.get) if votes else ICONS[cat])
@@ -293,8 +302,8 @@ def build_armament(lang: Lang, vehicles: list, progress=None) -> dict:
     out = []
     for iid, it in items.items():
         car = carriers.get(iid, set())
-        if not car:
-            continue  # not carried by any vehicle: test / unused file
+        if not car and not (it["c"] == "nuke" and it["_src"] in NUKES):
+            continue  # not carried by any vehicle: test / unused file (WTFTD's nukes can go on any pylon)
         if it["c"] == "bomb" and all(vmap[c]["c"] in ("boat", "ship") for c in car):
             continue  # depth charges, ASW mortars
         _name(lang, iid, it.pop("_src"))
@@ -310,7 +319,7 @@ def build_armament(lang: Lang, vehicles: list, progress=None) -> dict:
     names = lang.out["arm"]
     best: dict = {}
     for it in out:
-        key = ((names.get(it["id"]) or {}).get("en", it["id"]).strip().lower(), it["c"], round(it.get("m", 0)), round(it.get("tnt", 0)))
+        key = ((names.get(it["id"]) or {}).get("en", it["id"]).strip().lower(), it["c"], round(it.get("m", 0)), round(it.get("tnt", 0)), it.get("yld"))
         cur = best.get(key)
         if cur is None:
             best[key] = it
