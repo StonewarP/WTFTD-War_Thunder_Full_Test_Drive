@@ -55,6 +55,21 @@ chaff) on the same weapon; a group at 0 is left out.
 - [x] Stealth belts applied on the MiG-29SMT from slots 0, 3 and 4 (rounds 1, 3, probe d).
 - [x] With `bulletsWeapon`: Stealth belts on the F-14B, MiG-29SMT and Su-25 (round 4).
 
+## 2b. Custom loadouts on fixed-preset aircraft (new)
+
+772 aircraft (most low-BR ones) have no WeaponSlots, only fixed presets: lists of
+`Weapon{trigger, blk, emitter, bullets}`. WTFTD reads every emitter those presets use (`builder.py`
+`legacy_pylons` → `details.json` `lp`, presets' `ls`) and writes a custom loadout as a preset of plain weapons
+on those emitters (`cdk.py`, `weapons:t="wtftd_custom"`).
+
+| Mission | Loadout | Expect |
+|---|---|---|
+| `wtftd_legacy_fw190_mix` | Fw 190 A-5/U2: SC500 + 4 SC50 + 2 BR 21 (official weapons, no official preset has all three) | all carried and dropped / fired |
+| `wtftd_legacy_bf109_nonstd` | Bf 109 E-3: SC250 + 2 SC50 + BR 21 rockets on points 4-5 (never on this aircraft) | rockets under the wings, fire |
+
+- [x] Fw 190 mix (2026-10-08, works in game).
+- [x] Bf 109 non-standard (2026-10-08, works in game).
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own
@@ -63,16 +78,19 @@ went from 7 to 8: an installed copy rebuilds itself at first launch. Check: the 
 match the hangar's.
 
 - [x] 2026-10-08, Windows: rebuild to schema 8 OK (game v2.59.0.60, 58 s), icons show in the Ammunition step.
-- [ ] Icons compared with the hangar's.
+- [x] Icons compared with the hangar's (2026-10-08).
 
 ## 4. Windows regressions from the macOS work (v0.15.0)
 
 - [x] The app opens in its Edge / Chrome app window and **quits when that window is closed** (Windows still uses
   `proc.wait()`; the close beacon is macOS only). Checked from source (`python -m wtftd`), not the exe.
-- [x] Game detection (Steam). [ ] Standalone, **Launch War Thunder**, **Open folder** (UserMissions).
+- [x] Game detection (Steam), **Launch War Thunder**, **Open folder** (UserMissions).
+- [x] Standalone (Gaijin launcher): simulated install in `tests/test_platform.py` (found in
+  `%LOCALAPPDATA%\WarThunder` without Steam, started with its `launcher.exe`). [ ] A real standalone install.
 - [x] Settings: game folder and Oodle placeholders show Windows paths.
-- [ ] First launch: language picker above the logo, translated steps under the progress bar, no raw log
-  unless there is an error.
+- [x] First launch (fresh copy from source, French system): language picker above the logo, translated step
+  and time left under the progress bar, no raw log; datamine download + build in 2 min 26 s; a reload does
+  not start it again.
 - [x] Opening a vehicle: every setup step starts closed.
 - [x] Found and fixed on the way: `boot()` could run before `compare.js` / `weapons.js` were loaded
   (`bindCompare` / `bindWeapons is not defined`), and My missions guessed the vehicle from the file name.

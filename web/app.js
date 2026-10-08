@@ -37,6 +37,7 @@ const S = {
   cfg: null,      // current setup for the selected vehicle
   openStep: '',  // setup steps all start closed
   showAllScen: false,
+  pick: Object.assign({ vehicle: '', scenario: '' }, store.get('pick', {})),  // vehicle + map of the mission (maps.js)
   showUnofficial: false,
   f: Object.assign({ cat: 'all', nations: [], ranks: [], brMode: 1, brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', sort: 'br', view: 'tree', stats: {}, wsel: [] }, store.get('filters', {})),
   trees: {},
@@ -181,6 +182,8 @@ async function boot() {
   bindAppInfo();
   bindCompare();
   bindWeapons();
+  bindMaps();
+  showView('vehicles');
 }
 
 function renderStatus() {
@@ -550,6 +553,9 @@ function showView(name) {
   $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
   document.body.classList.toggle('view-weapons', name === 'weapons');
+  document.body.classList.toggle('view-maps', name === 'maps');
+  document.body.classList.toggle('pick-on', name === 'vehicles' || name === 'maps');
+  if (name === 'maps') openMapsView();
   if (name === 'weapons') { if (S.sel) closeDrawer(); openWeaponsView(); }
   if (name === 'missions') refreshMissions();
   if (name === 'setups') renderSetups();
@@ -568,7 +574,23 @@ async function openVehicle(id, cfg = null) {
     catch (e) { toastErr(e); return; }
   }
   if (S.sel !== v) return;
-  S.cfg = cfg ? normalizeCfg(v, d, cfg) : defaultCfg(v, d);
+  // the same vehicle opened again keeps its setup; map edits follow from one vehicle to the next
+  const prevEdits = S.cfg?.edits;
+  S.cfg = cfg ? normalizeCfg(v, d, cfg) : S.cfg?.vehicle === id ? S.cfg : defaultCfg(v, d);
+  if (!cfg && prevEdits && !S.cfg.edits) S.cfg.edits = prevEdits;
+  // the picked map follows the vehicle when it suits it (or was picked for this very vehicle)
+  const ps = pickedScenario();
+  const ownMap = !!cfg?.scenario;  // a mission's setup: its map, settings and edits come back with it
+  if (ownMap) mapFromSetup(cfg);
+  if (!ownMap && ps && (scenarioFits(ps, v) || S.pick.vehicle === id)) S.cfg.scenario = ps.id;
+  else if (!ownMap && ps && ps.id !== S.cfg.scenario) {
+    const now = S.scenarios.find(s => s.id === S.cfg.scenario);
+    if (now) toast({ title: t('pick.switched', { map: scenarioName(ps), other: scenarioName(now) }), ms: 6000 });
+  }
+  S.pick = { vehicle: id, scenario: S.cfg.scenario, variant: !ownMap && S.cfg.scenario === S.pick.scenario ? S.pick.variant || '' : '' };
+  applyPickedVariant(S.cfg);
+  savePick();
+  renderPickbar();
   S.openStep = '';
   if (typeof LP !== 'undefined') LP.slot = null;
   renderDrawer({ keepScroll: false });
@@ -614,7 +636,7 @@ function defaultCfg(v, d) {
     environment: '', weather: '', start: 'scenario', altitude: 1500, speed: 450, heading: '', fuel: 0,
     missionType: S.status.settings?.missionType || 'singleMission', allMods: true, mods: {}, pylons: null,
     targets: { mode: 'scenario', br: v.br?.[1] || 5.0 },
-    cheats: { immortal: false, infAmmo: false, noReload: false, infFuel: false, passiveEnemies: false, ghost: false, crew: '', repairEvery: 0 },
+    cheats: { immortal: false, infAmmo: false, noReload: false, infFuel: false, passiveEnemies: false, hostileEnemies: false, ghost: false, crew: '', repairEvery: 0 },
     title: '', fileName: '', _autoTitle: `Test Drive: ${name}`,
   };
 }
@@ -646,19 +668,48 @@ function normalizeCfg(v, d, cfg) {
   return c;
 }
 
+// the start all preset names of a vehicle share ("bf_109e_3_" for Bf-109E-3_4xSC50, Bf-109E-3_SC250…)
+function presetPrefix(v) {
+  const ids = (S.details.get(v.id)?.pr || []).map(p => p.id.toLowerCase().replace(/-/g, '_'));
+  if (ids.length < 2) return '';
+  let pre = ids[0];
+  for (const s of ids) while (pre && !s.startsWith(pre)) pre = pre.slice(0, -1);
+  return pre.slice(0, pre.lastIndexOf('_') + 1);
+}
+
 function presetLabel(v, p) {
   const id = p.id;
   if (/(^|_)default$/.test(id) && !p.w.length) return t('loadout.default');
   const prefix = v.id.toLowerCase().replace(/-/g, '_');
-  let s = id.toLowerCase();
-  for (const pre of [prefix + '_', prefix.replace(/^nt_/, '') + '_', prefix.split('_').slice(0, 2).join('_') + '_']) if (s.startsWith(pre)) { s = s.slice(pre.length); break; }
+  let s = id.toLowerCase().replace(/-/g, '_');
+  for (const pre of [presetPrefix(v), prefix + '_', prefix.replace(/^nt_/, '') + '_', prefix.split('_').slice(0, 2).join('_') + '_']) if (pre && s.startsWith(pre)) { s = s.slice(pre.length); break; }
+  // then what is left of the vehicle's own name (fw_190a_5_u2: "190a_5_4xsc50", "190_flamm_250")
+  const own = prefix.split('_');
+  const words = s.split('_').filter(Boolean);
+  while (words.length > 1 && own.some(o => o && o.startsWith(words[0]))) words.shift();
+  s = words.join('_');
   if (s === 'default') return t('loadout.default');
-  return s.split('_').filter(Boolean).map(w => (/\d/.test(w) || w.length <= 3 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1))).join(' ');
+  return words.map(w => {
+    if (/^\d+x$/.test(w)) return `${w.slice(0, -1)}×`;  // 3x_aero_131a -> 3× Aero 131A
+    const m = /^(\d+)x([a-z0-9].*)$/.exec(w);  // 4xsc50 -> SC50 ×4, as the game writes it
+    if (m) return `${m[2].toUpperCase()} ×${m[1]}`;
+    return /\d/.test(w) || w.length <= 3 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1);
+  }).join(' ');
+}
+
+// a weapon's icon from the game's own table (weapons.json "ic"); gun pods have none there
+function weaponIconId(k) {
+  const ic = LP.weapons?.[k]?.ic;
+  if (ic) return ic;
+  return /^cannon/i.test(k) ? 'multibarrel_box_cannon' : /^gun/i.test(k) ? 'machine_gun' : '';
 }
 
 function presetChips(p) {
   if (!p.w.length) return `<span class="chip dim">${esc(t('loadout.empty'))}</span>`;
-  return p.w.map(([k, n]) => `<span class="chip"><b>${n}×</b>${esc(I18N.weapon(k))}</span>`).join('');
+  return p.w.map(([k, n]) => {
+    const ic = weaponIconId(k);
+    return `<span class="chip${ic ? ' chip-w' : ''}">${ic ? ammoIcon(ic) : ''}<b>${n}×</b>${esc(I18N.weapon(k))}</span>`;
+  }).join('');
 }
 
 function ammoLabel(o, belt = false) {
@@ -696,7 +747,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
     }
     return d.am.length ? esc(`${d.am.length} × ${t('ammo.belt').toLowerCase()}`) : '';
   })();
-  const condSum = [c.environment ? t('env.' + c.environment) : '', c.weather ? t('weather.' + c.weather) : '', c.start === 'air' ? `${c.altitude} m` : '', c.fuel ? `${t('cond.fuel')} ${c.fuel} %` : ''].filter(Boolean).join(' · ') || t('cond.keep');
+  const condSum = [c.start === 'air' ? `${c.altitude} m` : '', c.fuel ? `${t('cond.fuel')} ${c.fuel} %` : ''].filter(Boolean).join(' · ') || t('cond.keep');
 
   $('#drawer').style.setProperty('--tint', NATION_TINT[v.n] || NATION_TINT.other);
   $('#drawer').innerHTML = `
@@ -719,13 +770,12 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
         <div class="hero-stats">${brs}</div>
         ${statsBlockHTML(v)}
       </div>
-      ${stepHTML('scenario', 1, t('step.scenario'), esc(scen ? I18N.map(scen.map) : ''), () => scenarioBody(v))}
-      ${stepHTML('loadout', 2, t('step.loadout'), esc(c.pylons ? t('loadout.customShort', { n: Object.keys(c.pylons).length }) : preset ? presetLabel(v, preset) : t('loadout.default')), () => loadoutBody(v, d))}
-      ${stepHTML('ammo', 3, t('step.ammo'), ammoSum, () => ammoBody(v, d))}
-      ${cdkOn() ? stepHTML('mods', 4, t('step.mods'), esc(countMods(c.mods) ? t('mods.count', { n: countMods(c.mods) }) : t('mods.stockShort')), () => modsBody(v, d)) : ''}
-      ${stepHTML('cheats', cdkOn() ? 5 : 4, t('step.cheats'), esc(cheatsSummary()), () => cheatsBody())}
-      ${stepHTML('conditions', cdkOn() ? 6 : 5, t('step.conditions'), esc(condSum), () => conditionsBody(isFlyer))}
-      ${stepHTML('advanced', cdkOn() ? 7 : 6, t('step.advanced'), esc(t('adv.missionType.' + c.missionType).split(' (')[0]), () => advancedBody())}
+      ${stepHTML('loadout', 1, t('step.loadout'), esc(c.pylons ? t('loadout.customShort', { n: Object.keys(c.pylons).length }) : preset ? presetLabel(v, preset) : t('loadout.default')), () => loadoutBody(v, d))}
+      ${stepHTML('ammo', 2, t('step.ammo'), ammoSum, () => ammoBody(v, d))}
+      ${cdkOn() ? stepHTML('mods', 3, t('step.mods'), esc(countMods(c.mods) ? t('mods.count', { n: countMods(c.mods) }) : t('mods.stockShort')), () => modsBody(v, d)) : ''}
+      ${stepHTML('cheats', cdkOn() ? 4 : 3, t('step.cheats'), esc(cheatsSummary()), () => cheatsBody())}
+      ${isFlyer ? stepHTML('conditions', cdkOn() ? 5 : 4, t('step.start'), esc(condSum), () => conditionsBody(isFlyer)) : ''}
+      ${stepHTML('advanced', cdkOn() ? (isFlyer ? 6 : 5) : (isFlyer ? 5 : 4), t('step.advanced'), esc(t('adv.missionType.' + c.missionType).split(' (')[0]), () => advancedBody())}
     </div>
     ${S.lastGen?.vid === v.id ? `<div class="gen-done">${icon('check', 'ic-sm')}
       <div><b>${esc(t('toast.generated', { file: S.lastGen.file }))}</b><span>${esc(t('toast.generatedHint', { title: S.lastGen.title }))}</span></div>
@@ -748,65 +798,18 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
   }
 }
 
-function scenarioBody(v) {
-  const c = S.cfg;
-  const levels = new Set(S.status.levels || []);
-  const list = scenariosFor(v);
-  const kinds = kindsFor(v.c);
-  const groups = {};
-  for (const s of list) (groups[kinds.includes(s.kind) ? 'match' : s.kind] ||= []).push(s);
-  const item = s => {
-    const missing = levels.size && !levels.has(s.map);
-    const chips = [
-      `<span class="chip">${esc(t('kind.' + s.kind))}</span>`,
-      ...s.tags.filter(x => x !== 'heli' && x !== 'ucav' && x !== 'destroyer').map(x => `<span class="chip info">${esc(I18N.tOr('tag.' + x, x))}</span>`),
-      s.nation ? `<span class="chip">${flagHTML(s.nation, 'flag')} ${esc(t('scenario.targets', { nation: nationName(s.nation) }))}</span>` : '',
-      `<span class="chip dim">${esc(t('scenario.start.' + s.start))}</span>`,
-      missing ? `<span class="chip warn">${esc(t('scenario.notInstalled'))}</span>` : '',
-    ].join('');
-    return `<button class="opt${c.scenario === s.id ? ' active' : ''}${missing ? ' disabled' : ''}" data-scen="${esc(s.id)}">
-      <span class="opt-ic">${icon(s.kind === 'ground' ? 'target' : 'map')}</span>
-      <span class="opt-main"><span class="opt-title">${esc(s.title ? t(s.title) : I18N.map(s.map))}</span><span class="chips">${chips}</span></span>
-      <span class="opt-radio"></span></button>`;
-  };
-  const order = ['match', ...Object.keys(groups).filter(k => k !== 'match')];
-  return `<p class="hint">${esc(t('scenario.hint'))}</p>
-    <div class="opt-list">${order.filter(k => groups[k]).map(k => (k === 'match' ? '' : `<div class="opt-group-title">${esc(t('kind.' + k))}</div>`) + groups[k].map(item).join('')).join('')}</div>
-    <label class="switch" style="margin-top:10px"><input type="checkbox" data-bind="showAllScen" ${S.showAllScen ? 'checked' : ''}><span class="sw"></span><span>${esc(t('scenario.showAll'))}</span></label>
-    ${targetsBody(v)}
-    <div class="opt-group-title" style="margin-top:16px">${icon('map', 'ic-sm')} ${esc(t('editor.title'))}</div>
-    <p class="hint">${esc(t('editor.intro'))}</p>
-    <button class="btn" data-act="editor">${icon('map', 'ic-sm')}<span>${esc(t('editor.open'))}</span>${typeof edCount === 'function' && edCount() ? `<span class="chip">${esc(t('editor.changes', { n: edCount() }))}</span>` : ''}</button>`;
-}
-
-function targetsBody(v) {
-  const c = S.cfg, tg = c.targets;
-  const scen = S.scenarios.find(s => s.id === c.scenario);
-  const editable = scen && Object.keys(scen.en || {}).length;
-  const myBR = v.br?.[1];
-  const kinds = Object.entries(scen?.en || {}).map(([b, n]) => `${n} ${t('targets.block.' + b)}`).join(' · ');
-  let html = `<div class="opt-group-title" style="margin-top:16px">${icon('target', 'ic-sm')} ${esc(t('targets.title'))}</div>`;
-  if (!editable) return html + `<p class="hint">${esc(t('targets.fixed'))}</p>`;
-  html += `<p class="hint">${esc(t('targets.hint', { what: kinds }))}</p>
-    <div class="seg" data-seg-targets>
-      <button class="${tg.mode === 'scenario' ? 'active' : ''}" data-tmode="scenario">${esc(t('targets.scenario'))}</button>
-      <button class="${tg.mode === 'match' ? 'active' : ''}" data-tmode="match">${esc(t('targets.match', { br: fmtBR(myBR) }))}</button>
-      <button class="${tg.mode === 'br' ? 'active' : ''}" data-tmode="br">${esc(t('targets.custom'))}</button>
-    </div>`;
-  if (tg.mode === 'br') {
-    html += `<div class="slider-row" style="margin-top:10px"><input type="range" min="1" max="14.3" step="0.3" data-tbr value="${tg.br}"><output>BR ${(+tg.br).toFixed(1)}</output></div>`;
-  }
-  return html;
-}
-
 function loadoutBody(v, d) {
   const c = S.cfg;
-  if (d.pr.length <= 1 && !(d.pr[0]?.w.length) && !(cdkOn() && d.sl?.length)) return `<p class="hint">${esc(t('loadout.none'))}</p>`;
+  if (d.pr.length <= 1 && !(d.pr[0]?.w.length) && !(cdkOn() && (d.sl?.length || d.lp?.length))) return `<p class="hint">${esc(t('loadout.none'))}</p>`;
   const items = d.pr.map(p => `<button class="opt${c.preset === p.id ? ' active' : ''}" data-preset="${esc(p.id)}">
       <span class="opt-main"><span class="opt-title">${esc(presetLabel(v, p))}</span>
         <span class="chips">${presetChips(p)}${p.req ? `<span class="chip dim" title="${esc(p.req)}">${esc(t('loadout.requires', { mod: I18N.mod(p.req) || p.req }))}</span>` : ''}</span></span>
       <span class="opt-radio"></span></button>`).join('');
   if (d.sl?.length) return loadoutGridHTML(v, d);
+  if (d.lp?.length && c.pylons) return loadoutGridHTML(v, d);  // fixed presets, custom: one column per attachment point
+  if (d.b === 'armada' && d.pr.some(p => p.w.length)) return legacyGridHTML(v, d);  // fixed presets, as in the game
+  // weapon icons need the catalog: draw again once it is loaded
+  if (!LP.weapons) loadWeapons().then(w => { if (w && S.sel?.id === v.id) renderDrawer(); });
   return `<div class="opt-list">${items}</div>${d.b === 'armada' ? `<p class="hint" style="margin-top:12px">${esc(t('loadout.note'))}</p>` : ''}`;
 }
 
@@ -883,10 +886,7 @@ function conditionsBody(isFlyer) {
   const seg = (name, values, cur, label) => `<div class="seg seg-wrap" data-seg="${name}">
       <button class="${!cur ? 'active' : ''}" data-v="">${esc(t('cond.keep'))}</button>
       ${values.map(x => `<button class="${cur === x ? 'active' : ''}" data-v="${x}">${esc(t(label + x))}</button>`).join('')}</div>`;
-  return `<div class="field"><label>${esc(t('cond.time'))}</label>${seg('environment', ENVS, c.environment, 'env.')}</div>
-    <div class="field"><label>${esc(t('cond.weather'))}</label>
-      <select data-field="weather"><option value="">${esc(t('cond.keep'))}</option>${WEATHERS.map(w => `<option value="${w}"${c.weather === w ? ' selected' : ''}>${esc(t('weather.' + w))}</option>`).join('')}</select></div>
-    ${isFlyer ? `<div class="field"><label>${esc(t('cond.start'))}</label>
+  return `${isFlyer ? `<div class="field"><label>${esc(t('cond.start'))}</label>
       <div class="seg" data-seg="start"><button class="${c.start !== 'air' ? 'active' : ''}" data-v="scenario">${esc(t('cond.startScenario'))}</button><button class="${c.start === 'air' ? 'active' : ''}" data-v="air">${esc(t('cond.startAir'))}</button></div></div>
       ${c.start === 'air' ? `<div class="field"><label>${esc(t('cond.altitude'))}</label><div class="slider-row"><input type="range" min="100" max="10000" step="100" data-num="altitude" value="${c.altitude}"><output>${c.altitude} m</output></div></div>
       <div class="field"><label>${esc(t('cond.speed'))}</label><div class="slider-row"><input type="range" min="0" max="1500" step="10" data-num="speed" value="${c.speed}"><output>${c.speed} km/h</output></div></div>` : ''}
@@ -915,7 +915,8 @@ function advancedBody() {
 
 function autoTitleFor(c) {
   const s = S.scenarios.find(x => x.id === c.scenario);
-  return `Test Drive: ${I18N.unit(c.vehicle)}${s ? ' - ' + I18N.map(s.map) : ''}`;
+  const sv = c.scenario === S.pick.scenario ? savedVariant() : null;
+  return `Test Drive: ${I18N.unit(c.vehicle)}${sv ? ' - ' + sv.name : s ? ' - ' + I18N.map(s.map) : ''}`;
 }
 const autoTitle = () => autoTitleFor(S.cfg);
 
@@ -929,10 +930,8 @@ function bindDrawer() {
     const c = S.cfg, v = S.sel, d = S.details.get(v.id);
     if (loadoutClick(b, v, d)) return renderDrawer();
     if (b.dataset.crew !== undefined) { c.cheats.crew = b.dataset.crew; delete c.cheats.expertCrew; return renderDrawer(); }
-    if (b.dataset.tmode) { c.targets.mode = b.dataset.tmode; return renderDrawer(); }
     if (b.dataset.modreset) { setPath(c.mods, b.dataset.modreset, null); return renderDrawer(); }
     if (b.dataset.toggle) { S.openStep = S.openStep === b.dataset.toggle ? '' : b.dataset.toggle; return renderDrawer({ reveal: S.openStep }); }
-    if (b.dataset.scen) { c.scenario = b.dataset.scen; return renderDrawer(); }
     if (b.dataset.preset !== undefined) { c.preset = b.dataset.preset; return renderDrawer(); }
     if (b.dataset.stepAmmo !== undefined) {
       const i = +b.dataset.stepAmmo, a = c.ammo[i];
@@ -994,7 +993,10 @@ function bindDrawer() {
     if (el.dataset.belt !== undefined) { const i = +el.dataset.belt; c.ammo[i] = Object.assign(c.ammo[i] || {}, { id: el.value }); return renderDrawer(); }
     if (el.dataset.field) { c[el.dataset.field] = el.value; if (el.dataset.field === 'missionType') { renderDrawer(); } return; }
     if (el.dataset.check) { c[el.dataset.check] = el.checked; return; }
-    if (el.dataset.cheat) { c.cheats[el.dataset.cheat] = el.checked; return renderDrawer(); }
+    if (el.dataset.cheat) {
+      c.cheats[el.dataset.cheat] = el.checked;
+      return renderDrawer();
+    }
     if (el.dataset.cheatnum) { c.cheats[el.dataset.cheatnum] = +el.value; return renderDrawer(); }
     if (el.dataset.mod) {
       const val = el.value.trim() === '' ? null : +el.value;
@@ -1004,7 +1006,7 @@ function bindDrawer() {
     if (el.dataset.modshell !== undefined) { (S.modShell ||= {})[el.dataset.modshell] = el.value; return renderDrawer(); }
     if (el.dataset.bindCfg === 'customPylons') {
       const p = S.details.get(S.sel.id).pr.find(x => x.id === c.preset);
-      c.pylons = el.checked ? Object.fromEntries(Object.entries(p?.s || {}).map(([k, val]) => [+k, val])) : null;
+      c.pylons = el.checked ? Object.fromEntries(Object.entries((p && presetPylons(p)) || {}).map(([k, val]) => [+k, val])) : null;
       LP.slot = null;
       return renderDrawer();
     }
@@ -1014,7 +1016,6 @@ function bindDrawer() {
   dr.oninput = e => {
     const el = e.target;
     if (loadoutInput(el)) return;
-    if (el.dataset.tbr !== undefined) { S.cfg.targets.br = +el.value; el.nextElementSibling.textContent = `BR ${(+el.value).toFixed(1)}`; return; }
     if (el.dataset.cheatnum) { el.nextElementSibling.textContent = +el.value ? `${el.value} s` : t('cheat.off'); return; }
     if (el.dataset.fuel !== undefined) { S.cfg.fuel = +el.value; el.nextElementSibling.textContent = fuelLabel(S.cfg.fuel); return; }
     if (el.dataset.num) { S.cfg[el.dataset.num] = +el.value; el.nextElementSibling.textContent = `${el.value} ${el.dataset.num === 'altitude' ? 'm' : 'km/h'}`; }
@@ -1045,24 +1046,24 @@ function missionPayload() {
       }
       return a && a.id !== null ? { id: a.id || '', count: +a.count || 0 } : { id: '', count: 0 };
     }),
-    environment: c.environment, weather: c.weather, start: c.start, altitude: c.altitude, speed: c.speed,
+    environment: S.map.environment, weather: S.map.weather, start: c.start, altitude: c.altitude, speed: c.speed,
     heading: c.heading === '' ? null : +c.heading, missionType: c.missionType, allMods: c.allMods,
     fuel: (c.block === 'armada' && c.fuel) || null,
     title: c.title || autoTitle(), fileName: c.fileName || `wtftd_${c.vehicle}`,
     mods: cdkOn() ? Object.assign(modsPayload(c.mods), c.cheats.noReload ? { noReload: true } : {}) : undefined,
-    pylons: cdkOn() && c.pylons ? c.pylons : undefined, cheats: c.cheats, targets: c.targets,
+    pylons: cdkOn() && c.pylons ? c.pylons : undefined, targets: S.map.targets,
+    cheats: { ...c.cheats, passiveEnemies: S.map.enemies === 'passive', hostileEnemies: S.map.enemies === 'hostile' },
     edits: c.edits && c.edits.sid === c.scenario ? c.edits : undefined,
   };
 }
 
-async function generate() {
-  const btn = $('[data-act="generate"]');
+async function generate(btn = $('[data-act="generate"]')) {
   btn.disabled = true;
   btn.querySelector('span').textContent = t('action.generating');
   try {
     const r = await api('generate', missionPayload());
     S.lastGen = { vid: S.cfg.vehicle, file: r.file, title: missionPayload().title };  // stays shown above the button
-    renderDrawer();
+    if (S.sel) renderDrawer();
     toast({
       title: t('toast.generated', { file: r.file }),
       sub: t('toast.generatedHint', { title: missionPayload().title }) + (r.cdkFiles?.length ? ' ' + t('toast.cdkHint', { n: r.cdkFiles.length }) : ''), ms: 12000,
@@ -1100,9 +1101,13 @@ function promptText(title, value) {
 
 async function saveSetup() {
   const c = S.cfg;
-  const name = await promptText(t('setups.namePrompt'), c.title || autoTitle());
+  const p = S.details.get(c.vehicle)?.pr.find(x => x.id === c.preset);
+  const name = await promptText(t('setups.namePrompt'), `${I18N.unit(c.vehicle)}${c.pylons ? ' · ' + t('loadout.customRow') : p && p.w.length ? ' · ' + presetLabel(S.byId.get(c.vehicle), p) : ''}`);
   if (!name) return;
-  const { _autoTitle, ...cfg } = c;
+  const { _autoTitle, scenario, edits, targets, environment, weather, title, fileName, ...cfg } = c;
+  cfg.cheats = { ...c.cheats };
+  delete cfg.cheats.passiveEnemies;
+  delete cfg.cheats.hostileEnemies;
   S.setups.unshift({ id: Date.now().toString(36), name, vehicle: c.vehicle, cfg, created: Date.now() });
   await persistSetups();
   toast({ title: t('toast.saved'), ms: 2500 });
@@ -1129,10 +1134,9 @@ function renderSetups() {
   if (!S.setups.length) { el.innerHTML = `<div class="empty">${icon('save', 'ic-xl')}<p>${esc(t('setups.empty'))}</p></div>`; return; }
   el.innerHTML = S.setups.map(s => {
     const v = S.byId.get(s.vehicle);
-    const scen = S.scenarios.find(x => x.id === s.cfg?.scenario);
     return `<div class="list-item">${listThumb(s.vehicle)}
       <div class="list-main"><div class="list-title">${v ? flagHTML(v.n) : ''}${esc(s.name)}</div>
-        <div class="list-sub">${esc(v ? I18N.unit(v.id) : s.vehicle)}${scen ? ' · ' + esc(I18N.map(scen.map)) : ''} · ${new Date(s.created).toLocaleDateString(I18N.code)}</div></div>
+        <div class="list-sub">${esc(v ? I18N.unit(v.id) : s.vehicle)} · ${new Date(s.created).toLocaleDateString(I18N.code)}</div></div>
       <div class="list-actions"><button class="btn btn-sm" data-load="${esc(s.id)}">${esc(t('action.load'))}</button>
         <button class="icon-btn" data-share="${esc(s.id)}" title="${esc(t('share.button'))}">${icon('share')}</button>
         <button class="icon-btn btn-danger" data-del="${esc(s.id)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`;
@@ -1192,7 +1196,6 @@ const CHEATS = [
   ['infAmmo', 'cheat.infAmmo', 'cheat.infAmmoHint'],
   ['noReload', 'cheat.noReload', 'cheat.noReloadHint'],
   ['infFuel', 'cheat.infFuel', 'cheat.infFuelHint'],
-  ['passiveEnemies', 'cheat.passive', 'cheat.passiveHint'],
   ['ghost', 'cheat.ghost', 'cheat.ghostHint'],
 ];
 

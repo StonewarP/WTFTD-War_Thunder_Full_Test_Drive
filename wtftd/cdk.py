@@ -337,13 +337,22 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
                 files[f"gameData/flightModels/userVehicles/fm/{fm_name}.blk"] = text
             b.text("fmFile", f"fm/{fm_name}.blk")
 
-        emitters = {s["i"]: s.get("e") for s in details.get("sl", [])}
+        # aircraft with fixed presets only: "lp" = their attachment points (emitters), taken from those presets
+        legacy = {s["i"]: s for s in details.get("lp", [])} if not details.get("sl") else {}
+        emitters = {s["i"]: s.get("e") for s in details.get("sl") or details.get("lp") or []}
         chosen, extras = [], []
+        raw: list[tuple] = []  # aircraft without pylons: plain weapons in the loadout
         if pylons:
-            slots = {str(s["i"]): {o["n"] for o in s["o"]} for s in details.get("sl", [])}
+            slots = {str(s["i"]): {o["n"] for o in s["o"]} for s in details.get("sl") or details.get("lp") or []}
             for k, v in pylons.items():
                 if isinstance(v, str) and v and str(k) in slots and v in slots[str(k)]:
-                    chosen.append((int(k), v))  # official option of that pylon
+                    lp = legacy.get(int(k))
+                    if lp:  # the official weapons of that point, as the game's preset hangs them
+                        o = next(x for x in lp["o"] if x["n"] == v)
+                        raw += [(trig, blk, lp["e"], bullets) for trig, blk, bullets in o.get("r", [])
+                                if SAFE.match(str(blk).replace("/", "_").replace(".", "_")) and SAFE.match(str(trig).replace(" ", "_"))]
+                    else:
+                        chosen.append((int(k), v))  # official option of that pylon
                 elif isinstance(v, dict) and str(k).isdigit() and emitters.get(int(k)):
                     w = (catalog or {}).get(str(v.get("w", "")))
                     if w and SAFE.match(str(v.get("w"))):
@@ -354,7 +363,6 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
         # becomes a new WeaponPreset of its pylon (added to the unit file), picked by slot + preset.
         wslots = _weapon_slots(unit_data)
         slot_weapons: dict[int, list[tuple]] = {}  # slot -> [(trigger, blk, emitter, bullets)]
-        raw: list[tuple] = []  # aircraft without pylons: plain weapons in the loadout
         for k, w, emitter, n in extras:
             bullets = None if w.get("pod") else n
             if k in wslots:

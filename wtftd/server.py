@@ -452,6 +452,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(d) if d is not None else self.send_json({"error": "not found"}, 404)
         if route == "setups":
             return self.send_json(read_json(USER / "setups.json", []))
+        if route == "variants":  # scenario variants saved from the map editor
+            return self.send_json(read_json(USER / "variants.json", []))
         if route == "missions":
             return self.send_json(list_generated())
         if route.startswith("terrain/"):
@@ -574,6 +576,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "Pick an Oodle runtime file: oo2core_<version>_win64.dll (Windows) or liboo2core*.dylib (macOS)."}, 400)
             STATE.save_settings(s)
             return self.send_json(api_status())
+        if route == "variants":
+            if not isinstance(body.get("variants"), list):
+                return self.send_json({"error": "variants must be a list"}, 400)
+            write_json(USER / "variants.json", [v for v in body["variants"] if isinstance(v, dict)][:500])
+            return self.send_json({"ok": True})
         if route == "setups":
             if not isinstance(body.get("setups"), list):
                 return self.send_json({"error": "setups must be a list"}, 400)

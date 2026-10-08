@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 8  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 10  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -517,6 +517,54 @@ NUKES = ("su_rn_28_nt", "su_rn_40", "us_b61_5kt", "us_b61_30kt", "fr_an52_5kt_nt
          "cn_kb1_5kt", "cn_kb1_30kt", "su_rds4_5kt_nt", "su_rds4_30kt_nt", "su_rds37")
 
 
+def _natural(s: str):
+    return [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", s.lower())]
+
+
+def legacy_pylons(udata: dict, wc: "WeaponCache") -> tuple[list, dict]:
+    """Aircraft without WeaponSlots: their fixed presets are plain Weapon{trigger, blk, emitter, bullets}
+    lists. Each emitter (attachment point) becomes a pylon whose options are what the official presets hang
+    there: ([{"i", "e": emitter, "o": [{"n", "w": composition, "r": [[trigger, blk, bullets]]}]}],
+    {preset name: {pylon index: option name}})."""
+    if isinstance(udata.get("WeaponSlots"), dict):
+        return [], {}
+    points: dict[str, dict] = {}  # emitter -> {signature: option}
+    per_preset: dict[str, dict] = {}
+    for p in aslist((udata.get("weapon_presets") or {}).get("preset")):
+        if not isinstance(p, dict) or not p.get("name") or not p.get("blk"):
+            continue
+        pdata = load(blk_to_path(first_str(p.get("blk")))) or {}
+        by_em: dict[str, list] = {}
+        for w in aslist(pdata.get("Weapon")):
+            if not isinstance(w, dict) or w.get("dummy"):
+                continue
+            em, blk, trig = first_str(w.get("emitter")), first_str(w.get("blk")), first_str(w.get("trigger"))
+            if not em or not blk or not trig or trig == "countermeasures":
+                continue
+            by_em.setdefault(em, []).append([trig, blk, num(w.get("bullets"), 1) or 1])
+        chosen = {}
+        for em, raw in by_em.items():
+            sig = repr(sorted(map(tuple, raw)))
+            opts = points.setdefault(em, {})
+            if sig not in opts:
+                comp = weapons_composition([{"trigger": t, "blk": b, "bullets": n} for t, b, n in raw], wc)
+                if not comp:
+                    continue
+                name = "+".join(k for k, _ in comp)
+                taken = {o["n"] for o in opts.values()}
+                base, i = name, 2
+                while name in taken:
+                    name, i = f"{base}#{i}", i + 1
+                opts[sig] = {"n": name, "w": comp, "r": raw}
+            chosen[em] = opts[sig]["n"]
+        if chosen:
+            per_preset[p["name"]] = chosen
+    pylons = [{"i": i + 1, "e": em, "o": list(points[em].values())}
+              for i, em in enumerate(sorted((e for e in points if points[e]), key=_natural))]
+    index = {s["e"]: s["i"] for s in pylons}
+    return pylons, {name: {str(index[em]): n for em, n in ch.items() if em in index} for name, ch in per_preset.items()}
+
+
 def pylon_emitters(udata: dict) -> list:
     """Emitter nodes where this aircraft carries external stores, bomb points first."""
     bombs, other = [], []
@@ -910,11 +958,18 @@ def build_vehicles(lang: Lang, progress=None):
             sl = weapon_slots(udata, wc)
             if sl:
                 details[vid]["sl"] = sl
+            # fixed presets only: their attachment points, for a custom loadout written as plain weapons
+            lp, lmap = legacy_pylons(udata, wc)
+            if lp:
+                details[vid]["lp"] = lp
+                for entry in presets:
+                    if lmap.get(entry["id"]):
+                        entry["ls"] = lmap[entry["id"]]
             em = pylon_emitters(udata)
             if em:
                 details[vid]["em"] = em
             keys = {k for s in sl for o in s["o"] for k, _ in o["w"]} | {k for p in presets for k, _ in p["w"]}
-            for s in sl:
+            for s in sl + lp:
                 for o in s["o"]:
                     o["c"] = next(((catalog.get(k) or {}).get("c") for k, _ in o["w"] if catalog.get(k)), "")
             caps = aircraft_caps(udata, catalog, keys)
@@ -1018,7 +1073,8 @@ def classify_weapon(d: dict, folder: str):
 
 
 def build_weapon_catalog(wc: "WeaponCache", progress=None) -> dict:
-    """Every air-launched weapon of the game: {key: {"p": blk path, "c": category, "g": guidance, "t": trigger}}."""
+    """Every air-launched weapon of the game: {key: {"p": blk path, "c": category, "g": guidance, "t": trigger,
+    "m": mass in kg}}."""
     log("Building the air weapons catalog...", progress)
     report(progress, 0.50)
     base = DM / "aces.vromfs.bin_u" / "gamedata" / "weapons"
@@ -1045,6 +1101,9 @@ def build_weapon_catalog(wc: "WeaponCache", progress=None) -> dict:
                 if f.stem in NUKES:
                     cat = "nuke"
                 entry = {"p": path, "c": cat, "g": g, "t": TRIGGERS.get(cat, "bombs")}
+                mass = _numval((_payload(d)[1] or {}).get("mass"))
+                if mass:
+                    entry["m"] = round(mass, 1)  # kg: the game's loadout grid puts the heaviest in the middle
             key = wc.weapon_name(path)
             out[key] = entry
     log(f"  {len(out)} weapons", progress)

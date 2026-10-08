@@ -42,6 +42,41 @@ class GameFolder(unittest.TestCase):
         self.assertIsNone(game._mac_app(self.root))
 
 
+class Standalone(unittest.TestCase):
+    """Gaijin launcher install (no Steam): found in %LOCALAPPDATA%\\WarThunder, started with its launcher.exe."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.local = Path(self.tmp.name)
+        self.files = self.local / "WarThunder"
+        self.files.mkdir()
+        for name in ("aces.vromfs.bin", "launcher.exe"):
+            (self.files / name).write_bytes(b"")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_detected_and_launched_without_steam(self):
+        with mock.patch.object(sys, "platform", "win32"), mock.patch.object(game, "_steam_roots", return_value=[]), \
+                mock.patch.dict("os.environ", {"LOCALAPPDATA": str(self.local)}):
+            found = game.detect_game_dir()
+        self.assertEqual(found, self.files)
+        self.assertFalse(game.is_steam_install(found))
+        self.assertEqual(game.user_missions_dir(found), self.files / "UserMissions")
+        with mock.patch.object(game.subprocess, "Popen") as popen:
+            self.assertEqual(game.launch(found), "launcher")
+        popen.assert_called_once_with([str(self.files / "launcher.exe")], cwd=str(self.files))
+
+    def test_steam_install_launches_through_steam(self):
+        steam = self.local / "steamapps" / "common" / "War Thunder"
+        steam.mkdir(parents=True)
+        (steam / "aces.vromfs.bin").write_bytes(b"")
+        self.assertTrue(game.is_steam_install(steam))
+        with mock.patch.object(game, "_open") as op:
+            self.assertEqual(game.launch(steam), "steam")
+        op.assert_called_once_with(f"steam://rungameid/{game.STEAM_APP_ID}")
+
+
 class OodleNames(unittest.TestCase):
     def test_windows(self):
         with mock.patch.object(sys, "platform", "win32"):

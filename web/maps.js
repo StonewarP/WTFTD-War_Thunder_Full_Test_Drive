@@ -1,0 +1,407 @@
+/* WTFTD — maps tab and the vehicle + map bar.
+   The mission is a vehicle and a map / scenario, picked in any order: the vehicle in its tab (its setup —
+   loadout, ammo, cheats… — stays in its panel), the map here or in the panel's first step.
+   S.pick = { vehicle, scenario, variant } (remembered); the open vehicle's setup follows S.pick.scenario.
+   Saved variants (S.variants, user/variants.json) = { id, name, sid, edits }: a scenario and its map edits. */
+'use strict';
+
+const MP = { kind: '', q: '', thumbs: new Map(), observer: null };
+// kind filters of the maps tab ('fit' = scenarios made for the picked vehicle)
+const MAP_KINDS = ['ground', 'air', 'heli', 'ship', 'boat'];
+
+function savePick() { store.set('pick', S.pick); }
+
+// the map's settings, for any vehicle (and kept in saved variants)
+const MAP_DEFAULTS = { targets: { mode: 'scenario', br: 5.0 }, environment: '', weather: '', enemies: '' };
+const mapDefaults = () => JSON.parse(JSON.stringify(MAP_DEFAULTS));
+S.map = Object.assign(mapDefaults(), store.get('mapset', {}));
+function saveMap() { store.set('mapset', S.map); }
+
+// a mission's own setup (My missions → Load) brings its map settings back
+function mapFromSetup(cfg) {
+  const ch = cfg.cheats || {};
+  S.map = {
+    targets: Object.assign(mapDefaults().targets, cfg.targets || {}), environment: cfg.environment || '', weather: cfg.weather || '',
+    enemies: ch.hostileEnemies ? 'hostile' : ch.passiveEnemies ? 'passive' : '',
+  };
+  saveMap();
+}
+
+const pickedVehicle = () => S.byId.get(S.pick.vehicle) || null;
+const pickedScenario = () => S.scenarios.find(s => s.id === S.pick.scenario) || null;
+const scenarioFits = (s, v) => !v || kindsFor(v.c).includes(s.kind);
+const scenarioName = s => (s.title ? t(s.title) : I18N.map(s.map));
+// a map's name; the hangar levels have none in the game's files: their scenarios' title then
+const mapName = (map, list) => (I18N.map(map) !== map ? I18N.map(map) : list?.[0]?.title ? t(list[0].title) : map);
+
+const clone = o => JSON.parse(JSON.stringify(o));
+const sameEdits = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
+const savedVariant = () => (S.variants || []).find(x => x.id === S.pick.variant) || null;
+const editsCount = e => (e ? Object.keys(e.units || {}).length + (e.add || []).length + (e.player ? 1 : 0) : 0);
+
+async function loadVariants() {
+  try { S.variants = await api('variants'); } catch { S.variants = []; }
+  if (S.pick.variant && !savedVariant()) { S.pick.variant = ''; savePick(); }
+}
+async function persistVariants() {
+  try { await api('variants', { variants: S.variants }); } catch (e) { toastErr(e); }
+}
+
+// the picked saved variant's edits into a setup of its scenario that has none of its own
+function applyPickedVariant(cfg) {
+  const sv = savedVariant();
+  if (cfg && sv && sv.sid === cfg.scenario && (!cfg.edits || cfg.edits.sid !== sv.sid)) cfg.edits = clone(sv.edits);
+}
+
+// the open vehicle's setup takes the picked scenario (and a saved variant's edits)
+function pickScenario(id, variantId = '') {
+  if (!S.scenarios.some(s => s.id === id)) return;
+  const was = S.pick.variant;
+  S.pick.scenario = id;
+  S.pick.variant = variantId || '';
+  savePick();
+  if (S.cfg) {
+    S.cfg.scenario = id;
+    const sv = savedVariant();
+    if (sv) S.cfg.edits = clone(sv.edits);
+    else if (was && S.cfg.edits?.sid === id) S.cfg.edits = null;  // back to the official variant: no edits
+  }
+  const sv = savedVariant();
+  if (sv) S.map = Object.assign(mapDefaults(), clone(sv.map || {}));
+  else if (was) S.map = mapDefaults();
+  saveMap();
+  if (S.sel) renderDrawer();
+  renderPickbar();
+  if (!$('#view-maps').classList.contains('hidden')) renderMaps();
+  if ($('#dlgMap').open) renderMapDialog();
+}
+
+function pickVehicle(id) {
+  S.pick.vehicle = id || '';
+  savePick();
+  renderPickbar();
+}
+
+// ------------------------------------------------------------------ the bar
+function renderPickbar() {
+  const bar = $('#pickbar');
+  if (!bar) return;
+  const v = pickedVehicle(), s = pickedScenario(), sv = savedVariant();
+  const mismatch = v && s && !scenarioFits(s, v);
+  const slot = (kind, filled, thumb, name, sub, emptyKey) => `
+    <div class="pk-slot${filled ? '' : ' empty'}" data-pk="${kind}" role="button" tabindex="0">
+      <span class="pk-thumb">${thumb}</span>
+      <span class="pk-txt"><small>${esc(t('pick.' + kind))}</small><b>${esc(filled ? name : t(emptyKey))}</b>${sub ? `<span>${sub}</span>` : ''}</span>
+      ${filled ? `<button class="icon-btn pk-clear" data-pk-clear="${kind}" title="${esc(t('pick.clear'))}">${icon('x', 'ic-sm')}</button>` : ''}
+    </div>`;
+  bar.innerHTML = `
+    ${slot('vehicle', !!v, v ? unitImgTag(v.id) : icon('all'), v ? I18N.unit(v.id) : '', v ? esc(className(v.k)) : '', 'pick.chooseVehicle')}
+    <span class="pk-plus">+</span>
+    ${slot('map', !!s, s ? `<span class="pk-map" data-level="${esc(s.map)}"></span>` : icon('map'), s ? (sv ? sv.name : scenarioName(s)) : '',
+      s ? esc(t('kind.' + s.kind)) + (sv ? ` · ${esc(scenarioName(s))}` : '') + (mismatch ? ` <span class="pk-warn">${esc(t('pick.mismatch'))}</span>` : '') : '', 'pick.chooseMap')}
+    <button class="btn btn-primary" data-pk-go ${v && s ? '' : 'disabled'}>${icon('play')}<span>${esc(t('action.generate'))}</span></button>`;
+  observeThumbs(bar);
+}
+
+async function createFromPick(btn) {
+  const v = pickedVehicle(), s = pickedScenario();
+  if (!v || !s) return;
+  if (!(await ensureVehicleCfg(v))) return;
+  S.cfg.scenario = s.id;
+  applyPickedVariant(S.cfg);
+  await generate(btn);
+}
+
+function onPickbarClick(e) {
+  const clear = e.target.closest('[data-pk-clear]');
+  if (clear) {
+    e.stopPropagation();
+    if (clear.dataset.pkClear === 'vehicle') { if (S.sel) closeDrawer(); pickVehicle(''); }
+    else { S.pick.scenario = ''; S.pick.variant = ''; savePick(); renderPickbar(); if (!$('#view-maps').classList.contains('hidden')) renderMaps(); }
+    return;
+  }
+  if (e.target.closest('[data-pk-go]')) return createFromPick(e.target.closest('[data-pk-go]'));
+  const slot = e.target.closest('[data-pk]');
+  if (!slot) return;
+  if (slot.dataset.pk === 'map') return showView('maps');
+  showView('vehicles');
+  if (S.pick.vehicle) openVehicle(S.pick.vehicle);
+  else $('#search').focus();
+}
+
+// ------------------------------------------------------------------ map thumbnails (the game's tactical map)
+async function thumbUrl(level) {
+  if (MP.thumbs.has(level)) return MP.thumbs.get(level);
+  const p = api('level-map/' + encodeURIComponent(level)).then(m => m?.layers?.[0]?.url || null).catch(() => null);
+  MP.thumbs.set(level, p);
+  return p;
+}
+
+function observeThumbs(root) {
+  const els = $$('[data-level]:not([data-thumb])', root);
+  if (!els.length) return;
+  if (!MP.observer) {
+    MP.observer = new IntersectionObserver(entries => {
+      for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        const el = en.target;
+        MP.observer.unobserve(el);
+        thumbUrl(el.dataset.level).then(url => {
+          if (url) el.style.backgroundImage = `url("${url}")`;
+          else el.classList.add('none');
+        });
+      }
+    }, { rootMargin: '200px' });
+  }
+  for (const el of els) { el.dataset.thumb = '1'; MP.observer.observe(el); }
+}
+
+// ------------------------------------------------------------------ maps tab
+function mapsShown() {
+  const v = pickedVehicle();
+  if (MP.kind === 'fit' && !v) MP.kind = '';
+  const q = norm(MP.q || '');
+  const shown = s => (MP.kind === 'fit' ? scenarioFits(s, v) : !MP.kind || s.kind === MP.kind || (MP.kind === 'heli' && s.kind === 'ucav'))
+    && (!q || norm(I18N.map(s.map) + ' ' + s.map + ' ' + scenarioName(s)).includes(q));
+  const byMap = new Map();
+  for (const s of S.scenarios) if (shown(s)) (byMap.get(s.map) || byMap.set(s.map, []).get(s.map)).push(s);
+  const fits = list => list.some(s => scenarioFits(s, v));
+  return [...byMap.entries()].sort((a, b) => (fits(b[1]) - fits(a[1])) || mapName(a[0], a[1]).localeCompare(mapName(b[0], b[1])));
+}
+
+const kindIcon = k => icon(CAT_ICON[k === 'ucav' ? 'heli' : k] || 'map', 'ic-sm');
+const editCount = sid => (S.cfg?.edits?.sid === sid ? Object.keys(S.cfg.edits.units || {}).length + (S.cfg.edits.add || []).length : 0);
+
+function renderMaps() {
+  const v = pickedVehicle();
+  const maps = mapsShown();
+  const kinds = [...(v ? ['fit'] : []), '', ...MAP_KINDS];
+  $('#mapKinds').innerHTML = kinds.map(k => `<button class="${MP.kind === k ? 'active' : ''}" data-mkind="${k}">${esc(k === 'fit' ? t('maps.fit', { vehicle: I18N.unit(v.id) }) : k ? t('kind.' + k) : t('maps.all'))}</button>`).join('');
+  $('#mapCount').textContent = t('maps.count', { n: maps.length });
+  // one tile per map: its variants (scenarios) open in a window
+  $('#mapGrid').innerHTML = maps.length ? maps.map(([map, list]) => {
+    const picked = list.find(s => s.id === S.pick.scenario);
+    const kinds = [...new Set(list.map(s => (s.kind === 'ucav' ? 'heli' : s.kind)))];
+    return `<button class="mp-tile${picked ? ' active' : ''}" data-mmap="${esc(map)}">
+      <span class="mp-thumb" data-level="${esc(map)}"><span class="mp-name">${esc(mapName(map, list))}</span></span>
+      <span class="mp-foot"><span class="mp-kinds">${kinds.map(k => `<span title="${esc(t('kind.' + k))}">${kindIcon(k)}</span>`).join('')}</span>
+        <span class="muted">${esc(list.length === 1 ? t('maps.variant') : t('maps.variants', { n: list.length }))}</span>
+        ${picked ? `<span class="chip">${icon('check', 'ic-sm')}${esc(t('kind.' + picked.kind))}</span>` : ''}</span>
+    </button>`;
+  }).join('') : `<div class="empty">${icon('search', 'ic-xl')}<p>${esc(t('results.empty'))}</p></div>`;
+  observeThumbs($('#mapGrid'));
+}
+
+function openMapDialog(map) {
+  MP.map = map;
+  renderMapDialog();
+  const dlg = $('#dlgMap');
+  if (!dlg.open) dlg.showModal();
+}
+
+function renderMapDialog() {
+  const map = MP.map;
+  if (!map) return;
+  const v = pickedVehicle();
+  const levels = new Set(S.status.levels || []);
+  const list = (mapsShown().find(([m]) => m === map)?.[1] || S.scenarios.filter(s => s.map === map))
+    .slice().sort((a, b) => scenarioFits(b, v) - scenarioFits(a, v));
+  $('#mapDlgName').textContent = mapName(map, list);
+  const row = s => {
+    const off = v && !scenarioFits(s, v);
+    const missing = levels.size && !levels.has(s.map);
+    const picked = S.pick.scenario === s.id && !S.pick.variant;
+    const edits = picked ? editCount(s.id) : 0;
+    const chips = [
+      ...s.tags.filter(x => x !== 'heli' && x !== 'ucav' && x !== 'destroyer').map(x => `<span class="chip info">${esc(I18N.tOr('tag.' + x, x))}</span>`),
+      s.nation ? `<span class="chip">${flagHTML(s.nation, 'flag')} ${esc(t('scenario.targets', { nation: nationName(s.nation) }))}</span>` : '',
+      `<span class="chip dim">${esc(t('scenario.start.' + s.start))}</span>`,
+      off ? `<span class="chip warn">${esc(t('pick.mismatch'))}</span>` : '',
+      missing ? `<span class="chip warn">${esc(t('scenario.notInstalled'))}</span>` : '',
+    ].join('');
+    return `<div class="mv-row${picked ? ' active' : ''}${off ? ' off' : ''}${missing ? ' disabled' : ''}" data-mpick="${esc(s.id)}">
+      <span class="mv-main"><span class="mp-kind">${kindIcon(s.kind)}${esc(t('kind.' + s.kind))}${s.title ? ` · ${esc(t(s.title))}` : ''}</span>
+        <span class="chips">${chips}</span></span>
+      <span class="mv-acts">
+        <button class="btn btn-sm${picked ? ' btn-primary' : ''}" data-mpick="${esc(s.id)}" ${missing ? 'disabled' : ''}>${picked ? icon('check', 'ic-sm') : ''}<span>${esc(t(picked ? 'maps.chosen' : 'maps.choose'))}</span></button>
+        <button class="btn btn-sm btn-ghost" data-medit="${esc(s.id)}" ${missing ? 'disabled' : ''}>${icon('map', 'ic-sm')}<span>${esc(t('maps.edit'))}</span>${edits ? `<span class="chip">${esc(t('editor.changes', { n: edits }))}</span>` : ''}</button>
+        ${picked && (edits || !sameEdits(S.map, mapDefaults())) ? `<button class="btn btn-sm" data-msave="${esc(s.id)}">${icon('save', 'ic-sm')}<span>${esc(t('variant.save'))}</span></button>` : ''}
+      </span></div>${(S.variants || []).filter(x => x.sid === s.id).map(x => savedRow(x, s, missing)).join('')}`;
+  };
+  const savedRow = (sv, s, missing) => {
+    const picked = S.pick.variant === sv.id;
+    const dirty = picked && (!sameEdits(S.cfg?.edits, sv.edits) || !sameEdits(S.map, Object.assign(mapDefaults(), sv.map || {})));
+    return `<div class="mv-row mv-saved${picked ? ' active' : ''}${missing ? ' disabled' : ''}" data-mvar="${esc(sv.id)}">
+      <span class="mv-main"><span class="mp-kind">${icon('star', 'ic-sm')}${esc(sv.name)}</span>
+        <span class="chips"><span class="chip dim">${esc(t('variant.of', { name: scenarioName(s) }))}</span><span class="chip">${esc(t('editor.changes', { n: editsCount(sv.edits) }))}</span>${dirty ? `<span class="chip warn">${esc(t('variant.modified'))}</span>` : ''}</span></span>
+      <span class="mv-acts">
+        <button class="btn btn-sm${picked ? ' btn-primary' : ''}" data-mvar="${esc(sv.id)}" ${missing ? 'disabled' : ''}>${picked ? icon('check', 'ic-sm') : ''}<span>${esc(t(picked ? 'maps.chosen' : 'maps.choose'))}</span></button>
+        <button class="btn btn-sm btn-ghost" data-mvedit="${esc(sv.id)}" ${missing ? 'disabled' : ''}>${icon('map', 'ic-sm')}<span>${esc(t('maps.edit'))}</span></button>
+        ${dirty ? `<button class="btn btn-sm" data-mvsave="${esc(sv.id)}">${icon('save', 'ic-sm')}<span>${esc(t('variant.update'))}</span></button>` : ''}
+        <button class="icon-btn" data-mvren="${esc(sv.id)}" title="${esc(t('variant.rename'))}">${icon('sliders', 'ic-sm')}</button>
+        <button class="icon-btn btn-danger" data-mvdel="${esc(sv.id)}" title="${esc(t('action.delete'))}">${icon('trash', 'ic-sm')}</button>
+      </span></div>`;
+  };
+  const chosen = list.find(s => s.id === S.pick.scenario);
+  $('#mapDlgBody').innerHTML = `<div class="mv-thumb" data-level="${esc(map)}"></div>
+    <p class="hint">${esc(t('maps.dialogHint'))}</p>
+    <div class="mv-list">${list.map(row).join('')}</div>
+    ${chosen ? mapSettingsHTML(chosen) : `<p class="hint">${esc(t('mapset.pickFirst'))}</p>`}`;
+  observeThumbs($('#mapDlgBody'));
+}
+
+// ------------------------------------------------------------------ map settings (time, weather, targets, enemies)
+function mapSettingsHTML(s) {
+  const m = S.map, v = pickedVehicle();
+  const kinds = Object.entries(s.en || {}).map(([b, n]) => `${n} ${t('targets.block.' + b)}`).join(' · ');
+  const seg = (key, values, cur, label) => `<div class="seg seg-wrap" data-mset="${key}">${values.map(x => `<button class="${cur === x ? 'active' : ''}" data-v="${x}">${esc(label(x))}</button>`).join('')}</div>`;
+  const targets = Object.keys(s.en || {}).length
+    ? `<p class="hint">${esc(t('targets.hint', { what: kinds }))}</p>
+      ${seg('targets', ['scenario', 'match', 'br'], m.targets.mode, x => (x === 'scenario' ? t('targets.scenario') : x === 'match' ? (v ? t('targets.match', { br: fmtBR(v.br?.[1]) }) : t('mapset.matchAny')) : t('targets.custom')))}
+      ${m.targets.mode === 'br' ? `<div class="slider-row" style="margin-top:10px"><input type="range" min="1" max="14.3" step="0.3" data-mset-br value="${m.targets.br}"><output>BR ${(+m.targets.br).toFixed(1)}</output></div>` : ''}`
+    : `<p class="hint">${esc(t('targets.fixed'))}</p>`;
+  return `<div class="mset">
+    <div class="opt-group-title">${icon('sliders', 'ic-sm')} ${esc(t('mapset.title', { name: savedVariant()?.name || scenarioName(s) }))}</div>
+    <p class="hint">${esc(t('mapset.hint'))}</p>
+    <div class="field"><label>${icon('target', 'ic-sm')} ${esc(t('targets.title'))}</label>${targets}</div>
+    <div class="field"><label>${esc(t('mapset.enemies'))}</label>${seg('enemies', ['', 'passive', 'hostile'], m.enemies, x => t('mapset.enemies.' + (x || 'scenario')))}</div>
+    <div class="field"><label>${esc(t('cond.time'))}</label>${seg('environment', ['', ...ENVS], m.environment, x => (x ? t('env.' + x) : t('cond.keep')))}</div>
+    <div class="field"><label>${esc(t('cond.weather'))}</label>
+      <select data-mset-weather><option value="">${esc(t('cond.keep'))}</option>${WEATHERS.map(w => `<option value="${w}"${m.weather === w ? ' selected' : ''}>${esc(t('weather.' + w))}</option>`).join('')}</select></div>
+  </div>`;
+}
+
+function onMapSettings(e) {
+  const b = e.target.closest('[data-mset] [data-v]');
+  if (!b) return false;
+  const key = b.closest('[data-mset]').dataset.mset;
+  if (key === 'targets') S.map.targets.mode = b.dataset.v;
+  else S.map[key] = b.dataset.v;
+  saveMap();
+  renderMapDialog();
+  return true;
+}
+
+// the setup the map editor works on: the picked vehicle's, else a bare one (its edits follow the vehicle picked next)
+async function setupForScenario(sid, variantId = '') {
+  const v = pickedVehicle();
+  const s = S.scenarios.find(x => x.id === sid);
+  if (v) {
+    if (!(await ensureVehicleCfg(v))) return false;
+  } else if (!S.cfg || S.cfg.vehicle) {
+    S.cfg = { vehicle: '', block: s?.block || 'armada', altitude: 1500, targets: { mode: 'scenario' }, scenario: sid, edits: S.cfg?.edits };
+  }
+  pickScenario(sid, variantId);
+  return true;
+}
+
+async function ensureVehicleCfg(v) {
+  if (S.cfg?.vehicle === v.id) return true;
+  let d = S.details.get(v.id);
+  if (!d) {
+    try { d = await api('vehicle/' + encodeURIComponent(v.id)); S.details.set(v.id, d); }
+    catch (e) { toastErr(e); return false; }
+  }
+  const edits = S.cfg?.edits;
+  S.cfg = defaultCfg(v, d);
+  if (edits) S.cfg.edits = edits;  // map edits belong to the map: kept (they apply while the scenario matches)
+  return true;
+}
+
+function openMapsView() {
+  const v = pickedVehicle();
+  if (MP.kind === '' && v && !MP.touched) MP.kind = 'fit';
+  renderMaps();
+}
+
+function bindMaps() {
+  if (!S.pick) S.pick = { vehicle: '', scenario: '' };
+  $('#pickbar').addEventListener('click', onPickbarClick);
+  $('#pickbar').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pk]')) onPickbarClick(e); });
+  $('#mapKinds').addEventListener('click', e => {
+    const b = e.target.closest('[data-mkind]');
+    if (!b) return;
+    MP.kind = b.dataset.mkind;
+    MP.touched = true;
+    renderMaps();
+  });
+  $('#mapSearch').addEventListener('input', debounce(e => { MP.q = e.target.value; renderMaps(); }, 150));
+  $('#mapGrid').addEventListener('click', e => {
+    const b = e.target.closest('[data-mmap]');
+    if (b) openMapDialog(b.dataset.mmap);
+  });
+  $('#mapDlgBody').addEventListener('click', async e => {
+    if (onMapSettings(e)) return;
+    if (await onVariantClick(e)) return;
+    const edit = e.target.closest('[data-medit]');
+    if (edit) {
+      if (edit.disabled || !(await setupForScenario(edit.dataset.medit))) return;
+      return openEditor();
+    }
+    const pick = e.target.closest('[data-mpick]');
+    if (pick && !pick.closest('.disabled')) await setupForScenario(pick.dataset.mpick);
+  });
+  $('#mapDlgBody').addEventListener('input', e => {
+    if (e.target.dataset.msetBr === undefined) return;
+    S.map.targets.br = +e.target.value;
+    e.target.nextElementSibling.textContent = `BR ${(+e.target.value).toFixed(1)}`;
+    saveMap();
+  });
+  $('#mapDlgBody').addEventListener('change', e => {
+    if (e.target.dataset.msetWeather !== undefined) { S.map.weather = e.target.value; saveMap(); renderMapDialog(); }
+    if (e.target.dataset.msetBr !== undefined) renderMapDialog();
+  });
+  // the map editor closes: show its changes here too
+  $('#dlgEditor').addEventListener('close', () => {
+    if ($('#dlgMap').open) renderMapDialog();
+    if (!$('#view-maps').classList.contains('hidden')) renderMaps();
+  });
+  loadVariants().then(() => { renderPickbar(); if ($('#dlgMap').open) renderMapDialog(); });
+  renderPickbar();
+}
+
+// saved variants: save the current edits under a name, choose, edit, update, rename, delete
+async function onVariantClick(e) {
+  const b = e.target.closest('[data-msave], [data-mvsave], [data-mvren], [data-mvdel], [data-mvedit], [data-mvar]');
+  if (!b || b.disabled || b.closest('.disabled')) return false;
+  const byId = id => (S.variants || []).find(x => x.id === id);
+  if (b.dataset.msave) {
+    const s = S.scenarios.find(x => x.id === b.dataset.msave);
+    const n = (S.variants || []).filter(x => x.sid === s.id).length + 1;
+    const name = await promptText(t('variant.saveTitle'), `${scenarioName(s)} ${n}`);
+    if (!name) return true;
+    const sv = { id: 'v' + Date.now().toString(36), name: name.slice(0, 80), sid: s.id, edits: clone(S.cfg?.edits || null), map: clone(S.map) };
+    (S.variants ||= []).push(sv);
+    await persistVariants();
+    pickScenario(s.id, sv.id);
+    toast({ title: t('variant.saved', { name: sv.name }) });
+    return true;
+  }
+  if (b.dataset.mvsave) {
+    const sv = byId(b.dataset.mvsave);
+    if (sv) { sv.edits = clone(S.cfg?.edits || null); sv.map = clone(S.map); await persistVariants(); renderMapDialog(); toast({ title: t('variant.saved', { name: sv.name }) }); }
+    return true;
+  }
+  if (b.dataset.mvren) {
+    const sv = byId(b.dataset.mvren);
+    const name = sv && await promptText(t('variant.rename'), sv.name);
+    if (name) { sv.name = name.slice(0, 80); await persistVariants(); renderMapDialog(); renderPickbar(); }
+    return true;
+  }
+  if (b.dataset.mvdel) {
+    const i = (S.variants || []).findIndex(x => x.id === b.dataset.mvdel);
+    if (i < 0) return true;
+    const [sv] = S.variants.splice(i, 1);
+    if (S.pick.variant === sv.id) { S.pick.variant = ''; savePick(); }
+    await persistVariants();
+    renderMapDialog(); renderPickbar();
+    toast({ title: t('variant.deleted', { name: sv.name }), actions: [{ label: t('variant.undo'), run: async () => {
+      S.variants.splice(i, 0, sv); await persistVariants(); renderMapDialog();
+    } }] });
+    return true;
+  }
+  const sv = byId(b.dataset.mvedit || b.dataset.mvar);
+  if (!sv || !(await setupForScenario(sv.sid, sv.id))) return true;
+  if (b.dataset.mvedit) openEditor();
+  return true;
+}

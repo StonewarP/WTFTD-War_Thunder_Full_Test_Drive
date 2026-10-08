@@ -25,9 +25,9 @@ async function openEditor() {
   const sid = S.cfg.scenario;
   try { ED.data = await api('scenario-units/' + encodeURIComponent(sid)); } catch (e) { toastErr(e); return; }
   edResolveStart(ED.data);
-  if (S.cfg.targets?.mode && S.cfg.targets.mode !== 'scenario') {
+  if (S.map.targets?.mode && S.map.targets.mode !== 'scenario') {  // the map's training targets (maps.js)
     try {
-      const swaps = await api('target-swaps', { vehicle: S.cfg.vehicle, scenario: sid, targets: S.cfg.targets });
+      const swaps = await api('target-swaps', { vehicle: S.cfg.vehicle, scenario: sid, targets: S.map.targets });
       for (const u of ED.data.units) if (swaps[u.name]) { u.scnCls = u.cls; u.cls = swaps[u.name]; }
     } catch { /* keep the scenario's vehicles */ }
   }

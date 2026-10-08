@@ -65,6 +65,7 @@
   </div>
   <nav class="tabs" role="tablist">
     <button class="tab active" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
+    <button class="tab" data-view="maps" role="tab"><span data-i18n="nav.maps"></span></button>
     <button class="tab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
     <button class="tab" data-view="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
     <button class="tab" data-view="setups" role="tab"><span data-i18n="nav.setups"></span><span class="tab-count" id="setupCount"></span></button>
@@ -152,6 +153,16 @@
       <div id="sentinel"></div>
     </div>
 
+    <div class="view hidden" id="view-maps">
+      <div class="page-head"><div><h2 data-i18n="maps.title"></h2><p class="muted" data-i18n="maps.hint"></p></div></div>
+      <div class="mp-bar">
+        <div class="seg" id="mapKinds"></div>
+        <label class="search mp-search"><svg class="ic"><use href="#i-search"/></svg><input id="mapSearch" type="search" autocomplete="off" spellcheck="false" data-i18n-ph="maps.search"></label>
+        <span class="muted" id="mapCount"></span>
+      </div>
+      <div class="mp-grid" id="mapGrid"></div>
+    </div>
+
     <div class="view hidden" id="view-weapons">
       <div class="page-head"><div><h2 data-i18n="arm.title"></h2><p class="muted" data-i18n="arm.hint"></p></div></div>
       <div class="ar-cats" id="arCats"></div>
@@ -182,6 +193,7 @@
     </div>
   </section>
 
+  <div class="pickbar" id="pickbar"></div>
   <aside class="drawer" id="drawer" aria-hidden="true"></aside>
   <div class="compare-tray hidden" id="compareTray"></div>
 </main>
@@ -276,6 +288,14 @@
     <div class="wp-grid" id="wpGrid"></div>
     <div class="wp-foot"><div class="wp-chosen" id="wpChosen"></div><span class="muted" id="wpCount"></span>
       <button class="btn btn-ghost btn-sm" id="wpClear" data-i18n="wpick.clear"></button><button class="btn btn-primary btn-sm" id="wpDone" data-i18n="editor.done"></button></div>
+  </div>
+</dialog>
+
+<dialog class="modal modal-map" id="dlgMap">
+  <div class="modal-inner">
+    <div class="modal-head"><h3><svg class="ic"><use href="#i-map"/></svg><span id="mapDlgName"></span></h3>
+      <button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body" id="mapDlgBody"></div>
   </div>
 </dialog>
 
@@ -377,5 +397,6 @@
 <script src="appinfo.js"></script>
 <script src="compare.js"></script>
 <script src="weapons.js"></script>
+<script src="maps.js"></script>
 </body>
 </html>

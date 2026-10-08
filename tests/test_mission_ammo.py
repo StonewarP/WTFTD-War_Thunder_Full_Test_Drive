@@ -70,5 +70,16 @@ class Cheats(unittest.TestCase):
         self.assertTrue(self.rules(air=False)["unitRestore"]["fullRestore"])
 
 
+    def test_targets_shoot(self):
+        def unit(name, army, attack):
+            return {"name": name, "props": {"army": army, "attack_type": attack}}
+        m = {"units": {"tankModels": [unit("aa", 2, "hold_fire"), unit("set_in_editor", 2, "hold_fire"),
+                                      unit("ally", 1, "hold_fire"), unit("tank", 2, "return_fire")]}}
+        changed = mission.make_hostile(m, {"units": {"set_in_editor": {"attack": "hold_fire"}}})
+        self.assertEqual(changed, ["aa"])
+        self.assertEqual([u["props"]["attack_type"] for u in m["units"]["tankModels"]],
+                         ["fire_at_will", "hold_fire", "hold_fire", "return_fire"])
+
+
 if __name__ == "__main__":
     unittest.main()

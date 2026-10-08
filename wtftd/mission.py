@@ -441,6 +441,24 @@ def _enemy_units(units: dict) -> list[str]:
     return names
 
 
+def make_hostile(m: dict, edits: dict) -> list[str]:
+    """"Targets shoot": the scenario's enemies set to hold fire (the test-drive targets) fire at will,
+    except units whose fire setting was chosen in the map editor. Returns the units changed."""
+    chosen = {n for n, e in (edits.get("units") or {}).items() if isinstance(e, dict) and e.get("attack")}
+    changed = []
+    for block, entries in (m.get("units") or {}).items():
+        if block not in EDITABLE_BLOCKS:
+            continue
+        for u in _as_list(entries):
+            if not isinstance(u, dict) or u.get("name") in chosen:
+                continue
+            props = u.get("props")
+            if isinstance(props, dict) and props.get("army") == 2 and props.get("attack_type") in ("hold_fire", "dont_aim"):
+                props["attack_type"] = "fire_at_will"
+                changed.append(u["name"])
+    return changed
+
+
 def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
     """Game-rule options, built only from actions the official missions use, and stacked so
     that one working mechanism is enough:
@@ -453,6 +471,7 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
       infFuel     mission isLimitedFuel:no
       repairEvery unitRestore full repair every N s
       passiveEnemies / ghost  unitSetProperties cannotShoot / ignoreCollisions
+      hostileEnemies  enemies on hold fire set to fire at will (make_hostile) + cannotShoot:no
     A hint shows the active options when the mission starts, to confirm the triggers run."""
     mission = m["mission_settings"]["mission"]
     if ch.get("infAmmo"):
@@ -469,7 +488,7 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
         props["ignoreCollisions"] = True
 
     active = [label for key, label in (("immortal", "invulnerable"), ("infAmmo", "unlimited ammo"), ("noReload", "no reload"),
-                                       ("infFuel", "unlimited fuel"), ("passiveEnemies", "passive targets"),
+                                       ("infFuel", "unlimited fuel"), ("passiveEnemies", "passive targets"), ("hostileEnemies", "targets shoot"),
                                        ("ghost", "no collisions")) if ch.get(key)]
     every = float(ch.get("repairEvery") or 0)
     if every > 0:
@@ -485,6 +504,8 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
         enemies = _enemy_units(m.get("units") or {})
         if enemies:
             init.setdefault("unitSetProperties", []).append({"object": enemies, "cannotShoot": True})
+    elif ch.get("_hostile"):  # undo a cannotShoot the scenario may set on them
+        init.setdefault("unitSetProperties", []).append({"object": ch["_hostile"], "cannotShoot": False})
     if "unitSetProperties" in init and len(init["unitSetProperties"]) == 1:
         init["unitSetProperties"] = init["unitSetProperties"][0]
     if active:
@@ -662,7 +683,12 @@ def build(cfg: dict) -> tuple[str, str]:
     if block == "armada" and isinstance(pl, dict) and float(unit["tm"][3][1]) > start_y + 50:
         # start placed in the air in the editor: give it flying speed
         unit.setdefault("props", {}).setdefault("speed", float(cfg.get("speed") or 450))
-    apply_cheats(m, wing, cfg.get("cheats") or {}, air=block == "armada")
+    cheats = dict(cfg.get("cheats") or {})
+    if cheats.get("hostileEnemies") and not cheats.get("passiveEnemies"):
+        cheats["_hostile"] = make_hostile(m, cfg.get("edits") or {})
+    else:
+        cheats.pop("hostileEnemies", None)
+    apply_cheats(m, wing, cheats, air=block == "armada")
 
     # ---- mission settings
     mtype = cfg.get("missionType") or "singleMission"

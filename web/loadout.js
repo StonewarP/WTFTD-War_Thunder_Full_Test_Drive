@@ -15,8 +15,12 @@ async function loadWeapons() {
   return LP.loading;
 }
 
-function slotsSorted(d) { return [...(d.sl || [])].sort((a, b) => (a.t ?? a.i) - (b.t ?? b.i)); }
-function slotOption(d, slotIdx, name) { return (d.sl || []).find(s => s.i === slotIdx)?.o.find(o => o.n === name); }
+// pylons: the game's WeaponSlots, else (fixed presets only) the attachment points their presets use
+const pylonsOf = d => (d.sl?.length ? d.sl : d.lp) || [];
+const presetPylons = p => p.s || p.ls || null;
+function slotsSorted(d) { return [...pylonsOf(d)].sort((a, b) => (a.t ?? a.i) - (b.t ?? b.i)); }
+function slotOption(d, slotIdx, name) { return pylonsOf(d).find(s => s.i === slotIdx)?.o.find(o => o.n === name); }
+const optionIcon = o => o.ic || weaponIconId(o.w[0]?.[0] || '');
 
 function needWarning(d, g) {
   if (!NEEDS[g]) return '';
@@ -28,7 +32,7 @@ function cellHTML(d, slot, val, editable, active) {
   let inner = '', title = t('ammo.empty'), warn = '';
   if (typeof val === 'string' && val) {
     const o = slotOption(d, slot.i, val);
-    if (o) { inner = ammoIcon(o.ic); title = o.w.map(([k, n]) => `${n}× ${I18N.weapon(k)}`).join(', '); }
+    if (o) { inner = ammoIcon(optionIcon(o)); title = o.w.map(([k, n]) => `${n}× ${I18N.weapon(k)}`).join(', '); }
   } else if (val && typeof val === 'object') {
     const w = LP.weapons?.[val.w];
     if (w) {
@@ -48,20 +52,95 @@ function loadoutGridHTML(v, d) {
   const c = S.cfg;
   const slots = slotsSorted(d);
   const custom = !!c.pylons;
-  const head = `<div class="lrow lhead"><span class="llabel"></span>${slots.map(s => `<span class="lcol">${s.i}</span>`).join('')}</div>`;
+  const head = `<div class="lrow lhead"><span class="llabel"></span>${slots.map(s => `<span class="lcol"${s.e && !d.sl?.length ? ` title="${esc(s.e)}"` : ''}>${s.i}</span>`).join('')}</div>`;
   const customRow = custom ? `<div class="lrow lcustom active"><span class="llabel">${icon('sliders', 'ic-sm')} ${esc(t('loadout.customRow'))}</span>
       ${slots.map(s => cellHTML(d, s, c.pylons[s.i], true, LP.slot === s.i)).join('')}</div>` : '';
-  const presetRows = d.pr.filter(p => p.s || !p.w.length).map(p => {
+  const presetRows = d.pr.filter(p => presetPylons(p) || !p.w.length).map(p => {
     const active = !custom && c.preset === p.id;
     return `<div class="lrow${active ? ' active' : ''}" data-lrow="${esc(p.id)}" title="${esc(custom ? t('loadout.copyPreset') : t('loadout.usePreset'))}">
       <span class="llabel">${esc(presetLabel(v, p))}</span>
-      ${slots.map(s => cellHTML(d, s, (p.s || {})[s.i], false, false)).join('')}</div>`;
+      ${slots.map(s => cellHTML(d, s, (presetPylons(p) || {})[s.i], false, false)).join('')}</div>`;
   }).join('');
   const grid = `<div class="lgrid" style="--lcols:${slots.length}">${head}${customRow}${presetRows}</div>`;
   const toggle = cdkOn()
     ? `<label class="switch" style="margin:2px 0 8px"><input type="checkbox" data-bind-cfg="customPylons" ${custom ? 'checked' : ''}><span class="sw"></span><span>${esc(t('loadout.custom'))}</span></label>`
     : `<p class="hint">${esc(t('loadout.note'))}</p>`;
   return toggle + `<div class="lgrid-wrap">${grid}</div>` + (custom && LP.slot != null ? pickerHTML(v, d) : '') + (custom ? summaryHTML(d) : `<p class="hint" style="margin-top:8px">${esc(t('loadout.gridHint'))}</p>`);
+}
+
+// ------------------------------------------------------------------ fixed presets (aircraft without WeaponSlots)
+// Laid out like the game does it (gui weaponryPresetsParams.nut getTiers): 13 columns, weapon groups in the
+// order bombs / rockets / guns / air-to-ground / air-to-air, the first one centred (an even count leaves the
+// middle empty), the next ones in symmetric pairs outwards; heaviest first inside a group.
+const LEGACY_COLS = 13;
+const LEGACY_GROUP = { bombs: 0, 'guided bombs': 0, torpedoes: 0, mines: 0, rockets: 1, atgm: 3, aam: 4 };
+
+function legacyGroup(k) {
+  const tt = LP.weapons?.[k]?.t;
+  if (!tt) return /^(cannon|gun)/i.test(k) ? 2 : -1;
+  return LEGACY_GROUP[tt] ?? -1;  // drop tanks, targeting pods: not in the grid
+}
+
+function legacyTiers(p) {
+  const W = LEGACY_COLS, mid = Math.ceil(W / 2) - 1, spare = [];
+  // guns count by their rounds: always more than the grid holds
+  const blocks = p.w.map(([k, n]) => ({ k, n, g: legacyGroup(k), m: LP.weapons?.[k]?.m || 0 }))
+    .filter(b => b.g >= 0).map(b => ({ ...b, ammo: b.g === 2 ? b.n * 100 : b.n }));
+  const byGroup = blocks.reduce((s, b) => s + b.ammo, 0) > W;
+  const tier = (b, items) => ({ k: b.k, n: items, ic: weaponIconId(b.k) });
+  const distribute = (b, central) => {
+    const even = b.n % 2 === 0;
+    if (byGroup) return !central && even ? [tier(b, b.n / 2), tier(b, b.n / 2)] : [tier(b, b.n)];
+    const out = [];
+    for (let i = 0; i < b.n; i++) {
+      if (central && even && i === b.n / 2) out.push({});
+      out.push(tier(b, 1));
+    }
+    return out;
+  };
+  const index = (tiers, count) => {
+    if (count === 0) {
+      const delta = Math.ceil(tiers.length / 2) - 1;
+      tiers.forEach((x, i) => { x.id = mid - (delta - i); });
+      return tiers;
+    }
+    if (tiers.length % 2) spare.push(tiers.pop());
+    const lim = tiers.length / 2, delta = Math.ceil(count / 2);
+    for (let i = 0; i < lim; i++) { tiers[i].id = mid + delta + i; tiers[i + lim].id = mid - delta - i; }
+    return tiers;
+  };
+  const res = [];
+  for (let gi = 0; gi < 5; gi++) {
+    for (const b of blocks.filter(x => x.g === gi).sort((a, c) => c.m - a.m || c.ammo - a.ammo)) {
+      res.push(...index(distribute(b, res.length === 0), res.length));
+    }
+  }
+  while (res.length > W) spare.push(res.shift(), res.pop());
+  res.push(...index(Array.from({ length: W - res.length }, () => ({})), res.length));
+  for (const x of res) {
+    if (x.k || !spare.length) continue;
+    const s = spare.pop();
+    if (s?.k) Object.assign(x, { k: s.k, n: s.n, ic: s.ic });
+  }
+  const cols = Array(W).fill(null);
+  for (const x of res) if (x.k && x.id >= 0 && x.id < W) cols[x.id] = x;
+  return cols;
+}
+
+function legacyGridHTML(v, d) {
+  if (!LP.weapons) loadWeapons().then(() => { if (S.sel) renderDrawer(); });
+  const rows = d.pr.map(p => {
+    const cell = x => (x
+      ? `<span class="lcell" title="${esc(`${x.n}× ${I18N.weapon(x.k)}`)}">${ammoIcon(x.ic)}${x.n > 1 ? `<span class="wcount">${x.n}</span>` : ''}</span>`
+      : '<span class="lcell"></span>');
+    return `<div class="lrow${S.cfg.preset === p.id ? ' active' : ''}" data-lrow="${esc(p.id)}" title="${esc(t('loadout.usePreset'))}">
+      <span class="llabel">${esc(presetLabel(v, p))}</span>${legacyTiers(p).map(cell).join('')}</div>`;
+  }).join('');
+  // custom loadout (custom vehicles): one weapon per attachment point, written as a preset of plain weapons
+  const toggle = cdkOn() && d.lp?.length
+    ? `<label class="switch" style="margin:2px 0 8px"><input type="checkbox" data-bind-cfg="customPylons"><span class="sw"></span><span>${esc(t('loadout.custom'))}</span></label>` : '';
+  return `${toggle}<div class="lgrid-wrap"><div class="lgrid fixed" style="--lcols:${LEGACY_COLS}">${rows}</div></div>
+    <p class="hint" style="margin-top:8px">${esc(t('loadout.legacyHint'))}</p>`;
 }
 
 function summaryHTML(d) {
@@ -71,7 +150,7 @@ function summaryHTML(d) {
     if (!val) continue;
     if (typeof val === 'string') {
       const o = slotOption(d, s.i, val);
-      if (o) rows.push(`<li><b>${s.i}</b>${ammoIcon(o.ic)}<span>${esc(o.w.map(([k, n]) => `${n}× ${I18N.weapon(k)}`).join(', '))}</span></li>`);
+      if (o) rows.push(`<li><b>${s.i}</b>${ammoIcon(optionIcon(o))}<span>${esc(o.w.map(([k, n]) => `${n}× ${I18N.weapon(k)}`).join(', '))}</span></li>`);
     } else {
       const w = LP.weapons?.[val.w];
       const warn = w ? needWarning(d, w.g) : '';
@@ -82,7 +161,7 @@ function summaryHTML(d) {
 }
 
 function pickerHTML(v, d) {
-  const slot = (d.sl || []).find(s => s.i === LP.slot);
+  const slot = pylonsOf(d).find(s => s.i === LP.slot);
   if (!slot) return '';
   const cur = S.cfg.pylons[slot.i];
   const cats = WCATS.filter(cat => slot.o.some(o => o.c === cat) || (LP.nonStd && LP.weapons && Object.values(LP.weapons).some(w => w.c === cat)));
@@ -112,7 +191,7 @@ function pickerListHTML(d, slot) {
     if (LP.cat && cat !== LP.cat) continue;
     const label = o.w.map(([k, n]) => `${n}× ${I18N.weapon(k)}`).join(', ');
     if (q && !norm(label + ' ' + o.n).includes(q)) continue;
-    (groups[cat] ||= { std: [], ext: [] }).std.push(`<button class="lp-item${cur === o.n ? ' active' : ''}" data-lpick="${esc(o.n)}">${ammoIcon(o.ic)}<span>${esc(label)}</span><i class="chip info">${esc(t('loadout.standard'))}</i></button>`);
+    (groups[cat] ||= { std: [], ext: [] }).std.push(`<button class="lp-item${cur === o.n ? ' active' : ''}" data-lpick="${esc(o.n)}">${ammoIcon(optionIcon(o))}<span>${esc(label)}</span><i class="chip info">${esc(t('loadout.standard'))}</i></button>`);
   }
   // any weapon of the game
   if (LP.nonStd && LP.weapons) {
@@ -154,7 +233,7 @@ function loadoutClick(b, v, d) {
 function loadoutRowClick(row, v, d) {
   const c = S.cfg, p = d.pr.find(x => x.id === row.dataset.lrow);
   if (!p) return;
-  if (c.pylons) c.pylons = Object.fromEntries(Object.entries(p.s || {}).map(([k, val]) => [+k, val]));  // copy into custom
+  if (c.pylons) c.pylons = Object.fromEntries(Object.entries(presetPylons(p) || {}).map(([k, val]) => [+k, val]));  // copy into custom
   else c.preset = p.id;
 }
 
@@ -173,7 +252,7 @@ function loadoutInput(el) {
   if (el.dataset.lsearch === undefined) return false;
   LP.q = el.value;
   const d = S.details.get(S.sel.id);
-  const slot = (d.sl || []).find(s => s.i === LP.slot);
+  const slot = pylonsOf(d).find(s => s.i === LP.slot);
   if (slot) $('#lpList').innerHTML = pickerListHTML(d, slot);
   return true;
 }

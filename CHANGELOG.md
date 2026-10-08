@@ -6,8 +6,18 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- **Vehicle + map**: a new **Maps** tab shows every map (the game's own tactical map as picture). Click one:
+  a window lists its variants (scenarios), to choose one or edit it on the map (move, add, remove units) as
+  in the vehicle panel, even before picking a vehicle. A bar at the bottom holds the vehicle and the map of
+  the mission, picked in any order, and creates it. Edited variants can be **saved** under a name (Save…), then
+  chosen again with any vehicle, edited, updated, renamed or deleted (`user/variants.json`).
+- The map's settings moved from the vehicle panel to the map window: training targets (scenario / my BR /
+  chosen BR), enemy units (as in the scenario / don't shoot back / shoot), time of day and weather. They go
+  with any vehicle and are kept in saved variants. The vehicle panel no longer has a Map & scenario step;
+  **Save setup** keeps the vehicle's own setup (loadout, ammo, modifications, cheats, start) for any map. The picked map and its edits follow from one vehicle to
+  the next when it suits it; a vehicle opened again keeps its setup.
 - **Ammunition icons**: shells, aircraft / helicopter / ship belts and flares / chaff show the game's own
-  icons (from its icon table, so they follow game updates). The game data rebuilds itself once (schema 8).
+  icons (from its icon table, so they follow game updates). The game data rebuilds itself once at first launch.
 - **Flares / chaff split**: for countermeasure launchers that take both, choose how many of each (the sum is
   the launcher's capacity). Checked in game on the F-14B, MiG-29SMT and Su-25.
 - Fix: aircraft ammo slots are written the way the game spawns aircraft (each tagged with its weapon),
@@ -16,6 +26,14 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - Fix: with "Invulnerable" on, some aircraft (MiG-29SMT) could not take off: the repair applied every second
   restarted their engines. Aircraft and helicopters now stay invulnerable without it. Re-create older
   aircraft missions to get the fix.
+- **Targets shoot** (map settings): the scenario's enemies that hold their fire (test-drive targets) fire at
+  will, to test invulnerability and countermeasures. Units set in the map editor keep their setting.
+- Loadout: aircraft with fixed presets only (most low-BR aircraft) show them as a grid laid out like the
+  game's hangar (13 columns, heaviest weapons in the middle), with the weapons' icons. Preset names read
+  like the game's ("SC50 ×4"). (Weapon masses added to the game data.)
+- **Custom loadout for fixed-preset aircraft** (custom vehicles): the grid switches to one column per
+  attachment point found in the aircraft's presets; mix the official weapons or put any weapon of the game on
+  a point. Written as a preset of plain weapons, like the game's own. Beta, see `docs/ingame-checklist.md`.
 - First launch: the language picker no longer overlaps the logo; the progress bar shows a translated step
   instead of the English log (the log appears only on error).
 - Opening a vehicle: every setup step starts closed.
