@@ -1,0 +1,5 @@
+# Line endings: scripts keep the ones their shell needs, whatever the contributor's OS / Git settings
+* text=auto
+*.sh text eol=lf
+*.command text eol=lf
+*.bat text eol=crlf
