@@ -1,5 +1,11 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Question or help
+    url: https://github.com/StonewarP/WTFTD/discussions
+    about: How do I…? Is it safe? Ask in Discussions — issues are for bugs and ideas.
   - name: Translation fix
-    url: https://github.com/StonewarP/WTFTD/tree/main/web/locales
-    about: UI texts are in web/locales/<language>.json — open a pull request, or a Suggestion issue with the correct wording.
+    url: https://github.com/StonewarP/WTFTD/blob/main/CONTRIBUTING.md#translations
+    about: UI texts are in web/locales/<language>.json — see how to suggest a correction.
+  - name: Security problem
+    url: https://github.com/StonewarP/WTFTD/blob/main/SECURITY.md
+    about: Please don't open a public issue: see how to report it privately.

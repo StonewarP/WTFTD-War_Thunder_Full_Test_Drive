@@ -1,0 +1,50 @@
+name: Build the exe
+
+# Publishing a release builds WTFTD.exe from the tagged code on GitHub's servers and attaches it to
+# the release with its SHA-256, so anyone can check that the download comes from this source code.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and attach the exe to (e.g. v0.15.0-beta)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: python -m unittest discover -s tests -t .
+      - name: Version matches the tag
+        shell: pwsh
+        run: |
+          $v = python -c "import wtftd; print(wtftd.__version__)"
+          if ($env:TAG -notlike "v$v*") { throw "Tag $env:TAG does not match wtftd.__version__ $v" }
+      - name: Build WTFTD.exe
+        shell: cmd
+        run: build_exe.bat < NUL
+      - name: Attach the exe and its SHA-256 to the release
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist\WTFTD.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  WTFTD.exe" | Out-File -Encoding ascii dist\WTFTD.exe.sha256
+          gh release upload $env:TAG dist\WTFTD.exe dist\WTFTD.exe.sha256 --clobber
+          $body = gh release view $env:TAG --json body -q .body
+          if ($body -notmatch "SHA-256") {
+            $note = "`n`n**SHA-256** of WTFTD.exe (built by GitHub Actions from this tag): ``$hash```nCheck it in PowerShell: ``Get-FileHash WTFTD.exe``"
+            gh release edit $env:TAG --notes "$body$note"
+          }

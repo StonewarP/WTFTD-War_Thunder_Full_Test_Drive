@@ -197,6 +197,11 @@ def loads(text: str) -> dict:
             m2 = _re.compile(r"[^\n;}]*").match(text, i)
             raw = m2.group(0)
             j = m2.end()
+            # a comment after the value ends it
+            m4 = _re.search(r"\s*(//|/\*)", raw)
+            if m4:
+                raw = raw[:m4.start()]
+                j = i + m4.start()
             # stop before a following "key:type=" on the same line
             m3 = _re.search(r"\s+[A-Za-z_][\w.\-]*\s*(?::[a-z0-9]+\s*=|\{)", raw)
             if m3:

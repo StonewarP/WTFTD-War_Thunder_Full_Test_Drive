@@ -3,6 +3,9 @@
 > **Beta** — it works, but some features are still untested in game (see *Known limits*). Feedback and bug
 > reports are welcome in the issues.
 
+[![Latest release](https://img.shields.io/github/v/release/StonewarP/WTFTD?include_prereleases&label=download)](https://github.com/StonewarP/WTFTD/releases)
+[![Tests](https://github.com/StonewarP/WTFTD/actions/workflows/tests.yml/badge.svg)](https://github.com/StonewarP/WTFTD/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Support on Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/stonewarp)
 
 Test drive **any** War Thunder vehicle — ground, aircraft, helicopters, boats, ships — with the
@@ -12,7 +15,7 @@ WTFTD takes an **official Test Drive / Test Flight mission** from the game files
 triggers and respawn logic), puts your vehicle and setup in it, and writes it to
 `War Thunder/UserMissions/`. In game: **Single missions → User missions**.
 
-![Vehicle browser](docs/screenshots/01-browse.png)
+![WTFTD in 13 seconds: search a vehicle, its stats, a B61 on a pylon, the Weapons page](docs/demo.gif)
 
 ## Download
 
@@ -25,7 +28,9 @@ nothing to install: double-click it, the app opens in its own window and finds y
   database on your PC. No game data is shipped with WTFTD. If Git isn't installed, the official portable
   MinGit (git-for-windows) is fetched automatically. The data then updates itself after each game patch.
 - Your settings, missions and the game database live in `%LOCALAPPDATA%\WTFTD`.
-- The exe is not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**.
+- The exe is not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**. It is built by
+  GitHub Actions from the released source code, and each release lists its **SHA-256**: check your download with
+  `Get-FileHash WTFTD.exe` in PowerShell.
 - When a new version is released, the app tells you (a *New version* button at the top) — download the new exe
   and replace the old one; your settings and missions are kept.
 
@@ -35,6 +40,8 @@ nothing to install: double-click it, the app opens in its own window and finds y
    fighter, bomber… —, nation, rank, BR…).
 2. **Set it up** step by step: map & scenario, loadout, ammunition, modifications, cheats, conditions.
 3. **Create mission**, start War Thunder (button in the app), open *Single missions → User missions*.
+
+![Vehicle browser](docs/screenshots/01-browse.png)
 
 | Stats: tanks over 60 km/h, best turret armor first | Carrying the AIM-9L, fastest first, vehicle stats |
 |---|---|
@@ -135,6 +142,41 @@ Ground heights come the same way from the level's heightmap (`levels/<map>.bin`,
 older air maps have no heightmap and heights are estimated there. Without Oodle, a scenario's map is
 captured from the game (localhost:8111) the first time you play it with WTFTD open.
 
+## FAQ
+
+**Can I get banned for this?**
+User missions are a normal feature of the game (*Single missions → User missions*), and WTFTD only uses
+the game's own files and mechanisms. Custom vehicles add files to the game's `content` folder (the CDK
+`userVehicles` mechanism modders use) — never replacing a game file, and only used by your offline missions.
+There are no known bans for it, but it isn't endorsed by Gaijin: use it at your own risk, and remove the
+custom vehicle files (**Settings → Remove custom vehicle files**) before playing online if you want a clean install.
+
+**Can I play my mission online or with friends?**
+No: user missions are single-player. Send your friends the setup instead (**Share** → a code or a `.wtftd`
+file); they import it and play the same mission on their PC.
+
+**Why does Windows / my antivirus warn me about the exe?**
+The exe isn't code-signed yet, so SmartScreen shows *Windows protected your PC* (**More info → Run anyway**).
+Apps packaged with PyInstaller are also sometimes flagged by mistake by antivirus software. The exe is built
+by GitHub Actions from the public source code and its SHA-256 is listed in each release; you can also
+[run WTFTD from source](#run-from-source).
+
+**Do I need to own the vehicle?**
+No, with custom vehicles on (default). Without them, the game only opens user missions with vehicles you own.
+
+**The game was updated, did WTFTD break?**
+The game data rebuilds itself after each patch (checked every 3 hours and at start-up), or by hand with
+**Settings → Update game data**. If a mission stops working, [report it](https://github.com/StonewarP/WTFTD/issues/new/choose)
+with your setup's share code.
+
+**Where are my files? How do I uninstall?**
+Settings, setups and the game database: `%LOCALAPPDATA%\WTFTD`. Missions: `War Thunder\UserMissions\`.
+To uninstall: **Settings → Remove custom vehicle files**, then delete the exe and the `%LOCALAPPDATA%\WTFTD` folder.
+
+**Does WTFTD collect anything?**
+No: no account, no telemetry. It downloads the datamine, wiki images and this repository's release list,
+and sends nothing. See [SECURITY.md](SECURITY.md).
+
 ## Run from source
 
 Needs Python 3.10+ (no extra packages). Double-click **`start.bat`**, or:
@@ -158,8 +200,7 @@ game data**, or `python -m wtftd.builder`.
 ## Translations
 
 UI text lives in `web/locales/<code>.json`. The non-English files were machine-assisted: native speakers'
-corrections are very welcome (pull request or issue). To add a language: copy `en.json`, translate the
-values (keep the keys and `{placeholders}`), and add it to `web/locales/index.json`.
+corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translations).
 
 ## Known limits
 
@@ -184,9 +225,11 @@ wtftd/                      Python backend (stdlib only)
   cdk.py                    custom vehicle files (userVehicles + @override modifications)
   maptex.py / terrain.py    tactical maps and heightmaps from the game files
   builder.py                datamine -> data/*.json
+  armament.py               Weapons page data (missiles, bombs, rockets, torpedoes)
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search
 data/                       game database, generated on first launch (not versioned)
+tests/                      automated tests (python -m unittest discover -s tests -t .)
 docs/screenshots/           README images
 ```
 
@@ -194,7 +237,10 @@ docs/screenshots/           README images
 
 Found a bug or have an idea? **Settings → Report a bug / Suggest an idea**, or open an
 [issue](https://github.com/StonewarP/WTFTD/issues/new/choose). For bugs, paste your setup's **share code** — it lets
-us rebuild your exact setup.
+us rebuild your exact setup. Questions: [Discussions](https://github.com/StonewarP/WTFTD/discussions).
+
+Want to help (code, translations)? See [CONTRIBUTING.md](CONTRIBUTING.md). What changed in each version:
+[CHANGELOG.md](CHANGELOG.md). Security problem: [SECURITY.md](SECURITY.md).
 
 ## Support
 
