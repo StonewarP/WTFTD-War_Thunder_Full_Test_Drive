@@ -413,5 +413,6 @@
   "editor.tpStart": "任务开始时场景会把该单位移到这里。",
   "editor.tpStartMoved": "已移动：场景开始时不再传送它。",
   "editor.tpLater": "被摧毁后，会在圆圈标记处重生。",
-  "settings.languageHint": "除英语外的翻译由 AI 辅助完成，可能存在错误——欢迎在 GitHub 上提交修正。"
+  "settings.languageHint": "除英语外的翻译由 AI 辅助完成，可能存在错误——欢迎在 GitHub 上提交修正。",
+  "onboard.left": "剩余 {t}"
 }

@@ -232,11 +232,17 @@ AUTO_CHECK_EVERY = 3 * 3600  # seconds
 def run_update():
     st = STATE.update
     before = read_json(DATA / "meta.json", {})
-    st.update(running=True, log=[], error=None, done=False, before=before.get("version"), after=None)
+    st.update(running=True, log=[], error=None, done=False, before=before.get("version"), after=None, progress=0.0)
 
-    def progress(msg):
-        st["log"].append(msg)
-        st["log"] = st["log"][-200:]
+    class Progress:
+        def __call__(self, msg):
+            st["log"].append(msg)
+            st["log"] = st["log"][-200:]
+
+        def set_frac(self, frac):
+            st["progress"] = max(st.get("progress") or 0.0, frac)  # never goes backwards
+
+    progress = Progress()
 
     try:
         meta = builder.build(pull=True, progress=progress)

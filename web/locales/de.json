@@ -413,5 +413,6 @@
   "editor.tpStart": "Das Szenario versetzt diese Einheit beim Missionsstart hierhin.",
   "editor.tpStartMoved": "Verschoben: Das Szenario teleportiert sie beim Start nicht mehr.",
   "editor.tpLater": "Nach der Zerstörung erscheint sie am eingekreisten Punkt erneut.",
-  "settings.languageHint": "Die Übersetzungen außer Englisch wurden KI-gestützt erstellt und können Fehler enthalten — Korrekturen sind auf GitHub willkommen."
+  "settings.languageHint": "Die Übersetzungen außer Englisch wurden KI-gestützt erstellt und können Fehler enthalten — Korrekturen sind auf GitHub willkommen.",
+  "onboard.left": "noch {t}"
 }

@@ -413,5 +413,6 @@
   "editor.tpStart": "O cenário move esta unidade para cá no início da missão.",
   "editor.tpStartMoved": "Movida: o cenário não a teletransporta mais no início.",
   "editor.tpLater": "Quando destruída, ela ressurge no ponto circulado.",
-  "settings.languageHint": "As traduções além do inglês foram feitas com ajuda de IA e podem conter erros — correções são bem-vindas no GitHub."
+  "settings.languageHint": "As traduções além do inglês foram feitas com ajuda de IA e podem conter erros — correções são bem-vindas no GitHub.",
+  "onboard.left": "faltam {t}"
 }

@@ -413,5 +413,6 @@
   "editor.tpStart": "ミッション開始時、シナリオはこのユニットをここへ移動します。",
   "editor.tpStartMoved": "移動済み: 開始時にシナリオがテレポートしなくなります。",
   "editor.tpLater": "撃破されると、円で示した地点に再出現します。",
-  "settings.languageHint": "英語以外の翻訳は AI の支援で作成されており、誤りを含む可能性があります — GitHub での修正を歓迎します。"
+  "settings.languageHint": "英語以外の翻訳は AI の支援で作成されており、誤りを含む可能性があります — GitHub での修正を歓迎します。",
+  "onboard.left": "残り {t}"
 }

@@ -413,5 +413,6 @@
   "editor.tpStart": "Scénář tuto jednotku na začátku mise přesune sem.",
   "editor.tpStartMoved": "Přesunuto: scénář ji na startu už neteleportuje.",
   "editor.tpLater": "Po zničení se znovu objeví v zakroužkovaném bodě.",
-  "settings.languageHint": "Překlady kromě angličtiny vznikly s pomocí AI a mohou obsahovat chyby — opravy jsou na GitHubu vítány."
+  "settings.languageHint": "Překlady kromě angličtiny vznikly s pomocí AI a mohou obsahovat chyby — opravy jsou na GitHubu vítány.",
+  "onboard.left": "zbývá {t}"
 }

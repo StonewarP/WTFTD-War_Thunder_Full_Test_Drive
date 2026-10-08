@@ -413,5 +413,6 @@
   "editor.tpStart": "El escenario mueve esta unidad aquí al empezar la misión.",
   "editor.tpStartMoved": "Movida: el escenario ya no la teletransporta al inicio.",
   "editor.tpLater": "Al ser destruida, reaparece en el punto marcado con un círculo.",
-  "settings.languageHint": "Las traducciones distintas del inglés se hicieron con ayuda de IA y pueden contener errores: las correcciones son bienvenidas en GitHub."
+  "settings.languageHint": "Las traducciones distintas del inglés se hicieron con ayuda de IA y pueden contener errores: las correcciones son bienvenidas en GitHub.",
+  "onboard.left": "faltan {t}"
 }

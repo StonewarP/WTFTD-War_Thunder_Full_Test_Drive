@@ -24,6 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 import zipfile
@@ -63,6 +64,33 @@ def log(msg: str, progress=None):
     print(msg, flush=True)
     if progress:
         progress(msg)
+
+
+def report(progress, frac: float):
+    """Overall progress of an update, 0..1 (for the UI's progress bar)."""
+    if progress is not None and hasattr(progress, "set_frac"):
+        progress.set_frac(max(0.0, min(1.0, frac)))
+
+
+DM_BYTES = 1.2e9  # size of the checked-out datamine folders, to show the first download's progress
+
+
+def _watch_size(folder: Path, progress, lo: float, hi: float, stop: threading.Event):
+    """First download: git first fetches the repository index (nothing written for ~40 s, shown as a slow
+    time-based advance up to 'mid'), then writes the files (progress = size on disk)."""
+    mid = lo + (hi - lo) * 0.3
+    t0 = time.time()
+    while not stop.wait(1.5):
+        total = 0
+        for root, _, files in os.walk(folder):
+            for name in files:
+                try:
+                    total += os.path.getsize(os.path.join(root, name))
+                except OSError:
+                    pass
+        by_time = lo + (mid - lo) * (1 - math.exp(-(time.time() - t0) / 25))
+        by_size = mid + (hi - mid) * min(total / DM_BYTES, 1.0) if total > 5e7 else 0.0
+        report(progress, max(by_time, by_size))
 
 
 # --------------------------------------------------------------------------- helpers
@@ -172,15 +200,23 @@ def fetch_datamine(progress=None):
     if not (DM / ".git").exists():
         shutil.rmtree(DM, ignore_errors=True)  # leftover of an interrupted first download
         log("Downloading the War Thunder datamine (community, ~1 GB, first run takes a few minutes)...", progress)
-        git("clone", "--filter=blob:none", "--no-checkout", "--depth", "1", REPO, str(DM))
-        git("sparse-checkout", "init", "--cone", cwd=DM)
-        git("sparse-checkout", "set", *SPARSE, cwd=DM)
-        git("checkout", "master", cwd=DM)
+        report(progress, 0.03)
+        stop = threading.Event()
+        threading.Thread(target=_watch_size, args=(DM, progress, 0.04, 0.45, stop), daemon=True).start()
+        try:
+            git("clone", "--filter=blob:none", "--no-checkout", "--depth", "1", REPO, str(DM))
+            git("sparse-checkout", "init", "--cone", cwd=DM)
+            git("sparse-checkout", "set", *SPARSE, cwd=DM)
+            git("checkout", "master", cwd=DM)
+        finally:
+            stop.set()
     else:
         log("Updating the War Thunder datamine...", progress)
+        report(progress, 0.05)
         git("sparse-checkout", "set", *SPARSE, cwd=DM)
         git("fetch", "--depth", "1", "origin", "master", cwd=DM)
         git("reset", "--hard", "origin/master", cwd=DM)
+    report(progress, 0.45)
 
 
 # --------------------------------------------------------------------------- languages
@@ -631,6 +667,7 @@ def guess_nation(vid: str) -> str:
 
 def build_vehicles(lang: Lang, progress=None):
     log("Reading vehicle economy table (wpcost)...", progress)
+    report(progress, 0.49)
     wp = load(DM / "char.vromfs.bin_u" / "config" / "wpcost.blkx") or {}
     wc = WeaponCache(lang)
     vehicles, details = [], {}
@@ -665,6 +702,8 @@ def build_vehicles(lang: Lang, progress=None):
     for i, (vid, cat, v, hidden) in enumerate(entries):
         if i % 500 == 0 and i:
             log(f"  {i}/{len(entries)}", progress)
+        if i % 40 == 0:
+            report(progress, 0.56 + 0.30 * i / max(1, len(entries)))
         udata = load(unit_file(vid, cat))
         if udata is None:
             continue
@@ -797,6 +836,7 @@ def classify_weapon(d: dict, folder: str):
 def build_weapon_catalog(wc: "WeaponCache", progress=None) -> dict:
     """Every air-launched weapon of the game: {key: {"p": blk path, "c": category, "g": guidance, "t": trigger}}."""
     log("Building the air weapons catalog...", progress)
+    report(progress, 0.50)
     base = DM / "aces.vromfs.bin_u" / "gamedata" / "weapons"
     out = {}
     for folder in CATALOG_FOLDERS:
@@ -862,6 +902,7 @@ def build_trees(lang: Lang, known: set, progress=None):
     Columns keep the game's order, so premium / event lines sit on the right like in game.
     """
     log("Reading research trees...", progress)
+    report(progress, 0.94)
     shop = load(DM / "char.vromfs.bin_u" / "config" / "shop.blkx") or {}
 
     def unit(uid, v):
@@ -1067,6 +1108,7 @@ def build_levels(progress=None) -> dict:
 
 def build_scenarios(lang: Lang, progress=None):
     log("Collecting official test drive / test flight missions...", progress)
+    report(progress, 0.87)
     root = DM / "mis.vromfs.bin_u" / "gamedata" / "missions"
     src = root / "training" / "testflight"
     out_dir = DATA / "scenarios"
@@ -1154,11 +1196,13 @@ def build(pull: bool = True, progress=None):
         raise RuntimeError("Datamine not found. Run without --no-pull first.")
     DATA.mkdir(exist_ok=True)
     log("Loading game localization...", progress)
+    report(progress, 0.46)
     lang = Lang()
     vehicles, details = build_vehicles(lang, progress)
     scenarios = build_scenarios(lang, progress)
     trees = build_trees(lang, {v["id"] for v in vehicles}, progress)
     log("Writing database...", progress)
+    report(progress, 0.97)
     with open(DATA / "vehicles.json", "w", encoding="utf-8") as f:
         json.dump(vehicles, f, separators=(",", ":"))
     with open(DATA / "details.json", "w", encoding="utf-8") as f:
@@ -1174,6 +1218,7 @@ def build(pull: bool = True, progress=None):
     meta = {"version": version, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}
     with open(DATA / "meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=1)
+    report(progress, 1.0)
     log(f"Done: {len(vehicles)} vehicles, {len(scenarios)} scenarios, game v{version} ({time.time() - t0:.0f}s)", progress)
     return meta
 

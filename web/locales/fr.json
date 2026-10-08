@@ -413,5 +413,6 @@
   "editor.tpStart": "Le scénario déplace cette unité ici au début de la mission.",
   "editor.tpStartMoved": "Déplacée : le scénario ne la téléporte plus au départ.",
   "editor.tpLater": "Une fois détruite, elle réapparaît au point entouré.",
-  "settings.languageHint": "Les traductions autres que l'anglais ont été faites avec l'aide d'une IA et peuvent contenir des erreurs — les corrections sont les bienvenues sur GitHub."
+  "settings.languageHint": "Les traductions autres que l'anglais ont été faites avec l'aide d'une IA et peuvent contenir des erreurs — les corrections sont les bienvenues sur GitHub.",
+  "onboard.left": "encore {t}"
 }

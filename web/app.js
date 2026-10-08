@@ -1302,15 +1302,24 @@ async function saveSettings() {
   } catch (e) { toastErr(e); }
 }
 
-async function startUpdate(logEl, btn) {
+async function startUpdate(logEl, btn, barEl = null) {
   try {
     await api('update', {});
     logEl.classList.remove('hidden');
     if (btn) btn.disabled = true;
+    const t0 = Date.now();
     const poll = async () => {
       const st = await api('update');
       logEl.textContent = st.log.join('\n');
       logEl.scrollTop = logEl.scrollHeight;
+      if (barEl) {  // progress bar: percent, current step, time left
+        const f = Math.max(0, Math.min(1, st.progress || 0)), s = (Date.now() - t0) / 1000;
+        barEl.classList.remove('hidden');
+        barEl.querySelector('i').style.width = (f * 100).toFixed(1) + '%';
+        const left = f > 0.08 && f < 1 ? Math.max(5, Math.round(s / f - s)) : null;
+        barEl.querySelector('span').textContent = (st.log[st.log.length - 1] || '').trim();
+        barEl.querySelector('b').textContent = `${Math.round(f * 100)} %` + (left ? ` · ${t('onboard.left', { t: left > 90 ? Math.round(left / 60) + ' min' : left + ' s' })}` : '');
+      }
       if (st.running) return setTimeout(poll, 700);
       if (btn) btn.disabled = false;
       if (st.error) toastErr(new Error(st.error));
@@ -1322,10 +1331,11 @@ async function startUpdate(logEl, btn) {
 
 function showOnboarding() {
   $('#onboard').classList.remove('hidden');
-  $('#btnOnboard').addEventListener('click', () => startUpdate($('#onboardLog'), $('#btnOnboard')));
+  $('#btnOnboard').addEventListener('click', () => startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar')));
   $('#btnSettings').addEventListener('click', openSettings);
   $('#btnSaveSettings').addEventListener('click', saveSettings);
-  startUpdate($('#onboardLog'), $('#btnOnboard'));  // first launch: get the game data right away
+  $('#btnOnboard').classList.add('hidden');
+  startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar'));  // first launch: get the game data right away
 }
 
 boot().catch(e => { console.error(e); toastErr(e); });
