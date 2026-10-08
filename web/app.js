@@ -775,7 +775,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
       ${cdkOn() ? stepHTML('mods', 3, t('step.mods'), esc(countMods(c.mods) ? t('mods.count', { n: countMods(c.mods) }) : t('mods.stockShort')), () => modsBody(v, d)) : ''}
       ${stepHTML('cheats', cdkOn() ? 4 : 3, t('step.cheats'), esc(cheatsSummary()), () => cheatsBody())}
       ${isFlyer ? stepHTML('conditions', cdkOn() ? 5 : 4, t('step.start'), esc(condSum), () => conditionsBody(isFlyer)) : ''}
-      ${stepHTML('advanced', cdkOn() ? (isFlyer ? 6 : 5) : (isFlyer ? 5 : 4), t('step.advanced'), esc(t('adv.missionType.' + c.missionType).split(' (')[0]), () => advancedBody())}
+      ${stepHTML('advanced', cdkOn() ? (isFlyer ? 6 : 5) : (isFlyer ? 5 : 4), t('step.advanced'), esc(t(c.allMods ? 'adv.allModsOn' : 'adv.allModsOff')), () => advancedBody())}
     </div>
     ${S.lastGen?.vid === v.id ? `<div class="gen-done">${icon('check', 'ic-sm')}
       <div><b>${esc(t('toast.generated', { file: S.lastGen.file }))}</b><span>${esc(t('toast.generatedHint', { title: S.lastGen.title }))}</span></div>
@@ -903,14 +903,7 @@ function fuelLabel(pct) {
 
 function advancedBody() {
   const c = S.cfg;
-  return `<div class="field"><label>${esc(t('adv.missionType'))}</label>
-      <select data-field="missionType">${['singleMission', 'testFlight'].map(m => `<option value="${m}"${c.missionType === m ? ' selected' : ''}>${esc(t('adv.missionType.' + m))}</option>`).join('')}</select></div>
-    <label class="switch"><input type="checkbox" data-check="allMods" ${c.allMods ? 'checked' : ''}><span class="sw"></span><span>${esc(t('adv.allMods'))}</span></label>
-    <div class="field-row" style="margin-top:12px">
-      <div class="field"><label>${esc(t('adv.heading'))}</label><input type="number" min="0" max="359" data-field="heading" value="${esc(c.heading)}" placeholder="${esc(t('adv.headingAuto'))}"></div>
-      <div class="field"><label>${esc(t('adv.fileName'))}</label><input type="text" data-field="fileName" value="${esc(c.fileName)}" placeholder="wtftd_${esc(c.vehicle)}"></div>
-    </div>
-    <div class="field"><label>${esc(t('adv.title'))}</label><input type="text" data-field="title" value="${esc(c.title)}" placeholder="${esc(autoTitle())}"></div>`;
+  return `<label class="switch"><input type="checkbox" data-check="allMods" ${c.allMods ? 'checked' : ''}><span class="sw"></span><span>${esc(t('adv.allMods'))}</span></label>`;
 }
 
 function autoTitleFor(c) {
@@ -992,7 +985,7 @@ function bindDrawer() {
     }
     if (el.dataset.belt !== undefined) { const i = +el.dataset.belt; c.ammo[i] = Object.assign(c.ammo[i] || {}, { id: el.value }); return renderDrawer(); }
     if (el.dataset.field) { c[el.dataset.field] = el.value; if (el.dataset.field === 'missionType') { renderDrawer(); } return; }
-    if (el.dataset.check) { c[el.dataset.check] = el.checked; return; }
+    if (el.dataset.check) { c[el.dataset.check] = el.checked; return renderDrawer(); }
     if (el.dataset.cheat) {
       c.cheats[el.dataset.cheat] = el.checked;
       return renderDrawer();
@@ -1047,9 +1040,9 @@ function missionPayload() {
       return a && a.id !== null ? { id: a.id || '', count: +a.count || 0 } : { id: '', count: 0 };
     }),
     environment: S.map.environment, weather: S.map.weather, start: c.start, altitude: c.altitude, speed: c.speed,
-    heading: c.heading === '' ? null : +c.heading, missionType: c.missionType, allMods: c.allMods,
+    heading: S.map.heading === '' || S.map.heading == null ? null : +S.map.heading, missionType: missionOpts().missionType, allMods: c.allMods,
     fuel: (c.block === 'armada' && c.fuel) || null,
-    title: c.title || autoTitle(), fileName: c.fileName || `wtftd_${c.vehicle}`,
+    title: missionOpts().title || autoTitle(), fileName: missionOpts().fileName || `wtftd_${c.vehicle}`,
     mods: cdkOn() ? Object.assign(modsPayload(c.mods), c.cheats.noReload ? { noReload: true } : {}) : undefined,
     pylons: cdkOn() && c.pylons ? c.pylons : undefined, targets: S.map.targets,
     cheats: { ...c.cheats, passiveEnemies: S.map.enemies === 'passive', hostileEnemies: S.map.enemies === 'hostile' },
@@ -1104,7 +1097,7 @@ async function saveSetup() {
   const p = S.details.get(c.vehicle)?.pr.find(x => x.id === c.preset);
   const name = await promptText(t('setups.namePrompt'), `${I18N.unit(c.vehicle)}${c.pylons ? ' · ' + t('loadout.customRow') : p && p.w.length ? ' · ' + presetLabel(S.byId.get(c.vehicle), p) : ''}`);
   if (!name) return;
-  const { _autoTitle, scenario, edits, targets, environment, weather, title, fileName, ...cfg } = c;
+  const { _autoTitle, scenario, edits, targets, environment, weather, heading, title, fileName, missionType, ...cfg } = c;
   cfg.cheats = { ...c.cheats };
   delete cfg.cheats.passiveEnemies;
   delete cfg.cheats.hostileEnemies;

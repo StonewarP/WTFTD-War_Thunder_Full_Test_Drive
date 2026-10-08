@@ -12,10 +12,20 @@ const MAP_KINDS = ['ground', 'air', 'heli', 'ship', 'boat'];
 function savePick() { store.set('pick', S.pick); }
 
 // the map's settings, for any vehicle (and kept in saved variants)
-const MAP_DEFAULTS = { targets: { mode: 'scenario', br: 5.0 }, environment: '', weather: '', enemies: '' };
+const MAP_DEFAULTS = { targets: { mode: 'scenario', br: 5.0 }, environment: '', weather: '', enemies: '', heading: '' };
 const mapDefaults = () => JSON.parse(JSON.stringify(MAP_DEFAULTS));
 S.map = Object.assign(mapDefaults(), store.get('mapset', {}));
 function saveMap() { store.set('mapset', S.map); }
+
+// the mission's own options: type, and a title / file name kept for the vehicle + map they were written for
+function missionKey() { return [S.cfg?.vehicle || S.pick.vehicle, S.pick.scenario, S.pick.variant || ''].join('|'); }
+S.mission = Object.assign({ missionType: '', title: '', fileName: '', key: '' }, store.get('mission', {}));
+function missionOpts() {
+  const own = S.mission.key === missionKey();
+  return { missionType: S.mission.missionType || S.status.settings?.missionType || 'singleMission',
+    title: own ? S.mission.title : '', fileName: own ? S.mission.fileName : '' };
+}
+function saveMission() { store.set('mission', S.mission); }
 
 // a mission's own setup (My missions → Load) brings its map settings back
 function mapFromSetup(cfg) {
@@ -23,8 +33,11 @@ function mapFromSetup(cfg) {
   S.map = {
     targets: Object.assign(mapDefaults().targets, cfg.targets || {}), environment: cfg.environment || '', weather: cfg.weather || '',
     enemies: ch.hostileEnemies ? 'hostile' : ch.passiveEnemies ? 'passive' : '',
+    heading: cfg.heading == null ? '' : cfg.heading,
   };
   saveMap();
+  S.mission = { missionType: cfg.missionType || '', title: cfg.title || '', fileName: cfg.fileName || '', key: '' };
+  setTimeout(() => { S.mission.key = missionKey(); saveMission(); });  // once the pick holds the mission's vehicle and map
 }
 
 const pickedVehicle = () => S.byId.get(S.pick.vehicle) || null;
@@ -99,6 +112,7 @@ function renderPickbar() {
     <span class="pk-plus">+</span>
     ${slot('map', !!s, s ? `<span class="pk-map" data-level="${esc(s.map)}"></span>` : icon('map'), s ? (sv ? sv.name : scenarioName(s)) : '',
       s ? esc(t('kind.' + s.kind)) + (sv ? ` · ${esc(scenarioName(s))}` : '') + (mismatch ? ` <span class="pk-warn">${esc(t('pick.mismatch'))}</span>` : '') : '', 'pick.chooseMap')}
+    <button class="icon-btn pk-mission" data-pk-mission title="${esc(t('mission.title'))}">${icon('gear')}</button>
     <button class="btn btn-primary" data-pk-go ${v && s ? '' : 'disabled'}>${icon('play')}<span>${esc(t('action.generate'))}</span></button>`;
   observeThumbs(bar);
 }
@@ -121,12 +135,35 @@ function onPickbarClick(e) {
     return;
   }
   if (e.target.closest('[data-pk-go]')) return createFromPick(e.target.closest('[data-pk-go]'));
+  if (e.target.closest('[data-pk-mission]')) return openMissionDialog();
   const slot = e.target.closest('[data-pk]');
   if (!slot) return;
   if (slot.dataset.pk === 'map') return showView('maps');
   showView('vehicles');
   if (S.pick.vehicle) openVehicle(S.pick.vehicle);
   else $('#search').focus();
+}
+
+// ------------------------------------------------------------------ mission window (type, title, file name)
+function openMissionDialog() {
+  const v = pickedVehicle(), o = missionOpts();
+  const vid = v?.id || S.cfg?.vehicle || '';
+  const auto = vid && S.cfg?.vehicle === vid ? autoTitle() : `Test Drive: ${v ? I18N.unit(v.id) : '…'}`;
+  $('#missionDlgBody').innerHTML = `<p class="hint">${esc(t('mission.hint'))}</p>
+    <div class="field"><label>${esc(t('adv.missionType'))}</label>
+      <select data-mo="missionType">${['singleMission', 'testFlight'].map(m => `<option value="${m}"${o.missionType === m ? ' selected' : ''}>${esc(t('adv.missionType.' + m))}</option>`).join('')}</select></div>
+    <div class="field"><label>${esc(t('adv.title'))}</label><input type="text" data-mo="title" value="${esc(o.title)}" placeholder="${esc(auto)}"></div>
+    <div class="field"><label>${esc(t('adv.fileName'))}</label><input type="text" data-mo="fileName" value="${esc(o.fileName)}" placeholder="wtftd_${esc(vid || '…')}"></div>`;
+  $('#dlgMission').showModal();
+}
+
+function onMissionInput(e) {
+  const key = e.target.dataset.mo;
+  if (!key) return;
+  if (S.mission.key !== missionKey()) Object.assign(S.mission, { title: '', fileName: '', key: missionKey() });
+  S.mission[key] = e.target.value.trim();
+  if (key === 'fileName') S.mission.fileName = S.mission.fileName.replace(/[^A-Za-z0-9_\-]+/g, '_');
+  saveMission();
 }
 
 // ------------------------------------------------------------------ map thumbnails (the game's tactical map)
@@ -266,6 +303,8 @@ function mapSettingsHTML(s) {
     <div class="field"><label>${icon('target', 'ic-sm')} ${esc(t('targets.title'))}</label>${targets}</div>
     <div class="field"><label>${esc(t('mapset.enemies'))}</label>${seg('enemies', ['', 'passive', 'hostile'], m.enemies, x => t('mapset.enemies.' + (x || 'scenario')))}</div>
     <div class="field"><label>${esc(t('cond.time'))}</label>${seg('environment', ['', ...ENVS], m.environment, x => (x ? t('env.' + x) : t('cond.keep')))}</div>
+    <div class="field"><label>${esc(t('adv.heading'))}</label>
+      <input type="number" min="0" max="359" data-mset-heading value="${esc(m.heading ?? '')}" placeholder="${esc(t('adv.headingAuto'))}"></div>
     <div class="field"><label>${esc(t('cond.weather'))}</label>
       <select data-mset-weather><option value="">${esc(t('cond.keep'))}</option>${WEATHERS.map(w => `<option value="${w}"${m.weather === w ? ' selected' : ''}>${esc(t('weather.' + w))}</option>`).join('')}</select></div>
   </div>`;
@@ -318,6 +357,8 @@ function bindMaps() {
   if (!S.pick) S.pick = { vehicle: '', scenario: '' };
   $('#pickbar').addEventListener('click', onPickbarClick);
   $('#pickbar').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pk]')) onPickbarClick(e); });
+  $('#missionDlgBody').addEventListener('change', onMissionInput);
+  $('#missionDlgBody').addEventListener('input', e => { if (e.target.dataset.mo !== 'missionType') onMissionInput(e); });
   $('#mapKinds').addEventListener('click', e => {
     const b = e.target.closest('[data-mkind]');
     if (!b) return;
@@ -349,6 +390,11 @@ function bindMaps() {
   });
   $('#mapDlgBody').addEventListener('change', e => {
     if (e.target.dataset.msetWeather !== undefined) { S.map.weather = e.target.value; saveMap(); renderMapDialog(); }
+    if (e.target.dataset.msetHeading !== undefined) {
+      const h = e.target.value.trim();
+      S.map.heading = h === '' ? '' : String(((Math.round(+h) % 360) + 360) % 360);
+      saveMap(); renderMapDialog();
+    }
     if (e.target.dataset.msetBr !== undefined) renderMapDialog();
   });
   // the map editor closes: show its changes here too

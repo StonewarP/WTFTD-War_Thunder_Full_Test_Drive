@@ -12,9 +12,13 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   the mission, picked in any order, and creates it. Edited variants can be **saved** under a name (Save…), then
   chosen again with any vehicle, edited, updated, renamed or deleted (`user/variants.json`).
 - The map's settings moved from the vehicle panel to the map window: training targets (scenario / my BR /
-  chosen BR), enemy units (as in the scenario / don't shoot back / shoot), time of day and weather. They go
+  chosen BR), enemy units (as in the scenario / don't shoot back / shoot), time of day, weather and start
+  heading. They go
   with any vehicle and are kept in saved variants. The vehicle panel no longer has a Map & scenario step;
-  **Save setup** keeps the vehicle's own setup (loadout, ammo, modifications, cheats, start) for any map. The picked map and its edits follow from one vehicle to
+  **Save setup** keeps the vehicle's own setup (loadout, ammo, modifications, cheats, start) for any map.
+- Mission type, title and file name moved to a **Mission** window (gear of the bottom bar): they belong to
+  the vehicle + map. Title and file name stay automatic until changed, and a custom one only applies to the
+  vehicle and map it was written for. The picked map and its edits follow from one vehicle to
   the next when it suits it; a vehicle opened again keeps its setup.
 - **Ammunition icons**: shells, aircraft / helicopter / ship belts and flares / chaff show the game's own
   icons (from its icon table, so they follow game updates). The game data rebuilds itself once at first launch.
