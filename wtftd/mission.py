@@ -441,11 +441,13 @@ def _enemy_units(units: dict) -> list[str]:
     return names
 
 
-def apply_cheats(m: dict, wing: str, ch: dict):
+def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
     """Game-rule options, built only from actions the official missions use, and stacked so
     that one working mechanism is enough:
       immortal    unitSetProperties isImmortal + invulnerabilityTimer (re-applied every 1 s)
-                  + unitRestore full repair / resurrect every 1 s as a fallback
+                  + unitRestore full repair / resurrect every 1 s as a fallback (not for aircraft /
+                  helicopters: the repair restarts the engines, the MiG-29SMT's never got going; checked
+                  in game 2026-10-08. Custom aircraft also get raised hit points.)
       infAmmo     mission isLimitedAmmo:no + unitRestore ammoRestore every 1 s
       noReload    unitForceRearmSpeed x1000 + ammo restore every 1 s (+ gun shotFreq in custom vehicles)
       infFuel     mission isLimitedFuel:no
@@ -499,7 +501,7 @@ def apply_cheats(m: dict, wing: str, ch: dict):
     # every second: keep the player immortal / topped up
     fast: dict = {}
     restore = {}
-    if ch.get("immortal"):
+    if ch.get("immortal") and not air:
         restore.update({"fullRestore": True, "ressurectIfDead": True, "partRestore": True})
     if ch.get("infAmmo") or ch.get("noReload"):
         restore["ammoRestore"] = True
@@ -520,25 +522,61 @@ def safe_name(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_\-]+", "_", s).strip("_")[:80] or "mission"
 
 
-def write_bullets(unit: dict, ammo: list):
-    """The player's 4 bullet slots: belt / shell set id and count per slot."""
-    for i in range(4):
-        a = ammo[i] if i < len(ammo) and isinstance(ammo[i], dict) else {}
-        unit[f"bullets{i}"] = str(a.get("id", "") or "")
-        unit[f"bulletsCount{i}"] = max(0, min(int(a.get("count", 0) or 0), 100000))
-    # countermeasures mixing flares and chaff: the game splits one launcher between two linked bullet
-    # sets (flares = its default set, chaff = its chaff set), as in its own training missions
-    # (15 flares + 15 chaff). The chaff part goes to the first slot no gun uses. TO VALIDATE IN GAME.
-    free = [j for j in range(len(ammo), 4)]
-    for a in ammo[:4]:
-        ch = a.get("chaff") if isinstance(a, dict) else None
-        if not isinstance(ch, dict) or not free:
+def _count(v) -> int:
+    try:
+        return max(0, min(int(v or 0), 100000))
+    except (TypeError, ValueError):
+        return 0
+
+
+def write_bullets(unit: dict, ammo: list, groups: list | None = None):
+    """The player's bullet slots: belt / shell set id and count per slot.
+
+    groups: the vehicle's ammo groups (details.json "am", same order as ammo). For aircraft and
+    helicopters, slots are written the way the game itself spawns them (respawn.nut): one after the other,
+    each tagged with its weapon (bulletsWeapon<i> = weapon blk name), a countermeasure launcher as two sets
+    (flares, then chaff), counts per launcher. Without the weapon tag the game binds slots in an order of its
+    own that differs between aircraft (checked in game, 2026-10-08).
+    Without groups (tanks, ships): 4 slots, slot = ammo index, chaff in the first slot no weapon uses."""
+    groups = [g if isinstance(g, dict) else {} for g in groups or []]
+    tagged = any(g.get("p") for g in groups)
+    for i in range(6 if tagged else 4):
+        unit[f"bullets{i}"] = ""
+        unit[f"bulletsCount{i}"] = 0
+        if tagged:
+            unit[f"bulletsWeapon{i}"] = ""
+    sets = []  # (slot index or None, id, count, weapon)
+    for i, a in enumerate(ammo):
+        a = a if isinstance(a, dict) else {}
+        g = groups[i] if i < len(groups) else {}
+        # countermeasures: the mission gives each launcher its count (n launchers share the total)
+        n = max(1, int(g.get("n", 1) or 1)) if g.get("trig") == "countermeasures" else 1
+        weapon = re.sub(r"\.blk$", "", str(g.get("p", "")).rsplit("/", 1)[-1], flags=re.I)
+        count = _count(a.get("count"))
+        ch = a.get("chaff")
+        cid = str(ch.get("id", "")) if isinstance(ch, dict) else ""
+        if not re.fullmatch(r"[A-Za-z0-9_\-]+", cid):
+            sets.append((i, str(a.get("id", "") or ""), -(-count // n), weapon))
             continue
-        cid = str(ch.get("id", ""))
-        if re.fullmatch(r"[A-Za-z0-9_\-]+", cid):
-            j = free.pop(0)
-            unit[f"bullets{j}"] = cid
-            unit[f"bulletsCount{j}"] = max(0, min(int(ch.get("count", 0) or 0), 100000))
+        # flares + chaff on one launcher: two linked sets; a set left at 0 is not written (as the game does)
+        if count:
+            sets.append((i if not tagged else None, "", count // n, weapon))
+        sets.append((None, cid, _count(ch.get("count")) // n, weapon))
+    if tagged:
+        for s, (_, sid, cnt, weapon) in enumerate(sets[:6]):
+            unit[f"bullets{s}"] = sid
+            unit[f"bulletsCount{s}"] = cnt
+            unit[f"bulletsWeapon{s}"] = weapon
+        return
+    free = list(range(len(ammo), 4))
+    for slot, sid, cnt, _ in sets:
+        if slot is None:
+            if not free:
+                continue
+            slot = free.pop(0)
+        if slot < 4:
+            unit[f"bullets{slot}"] = sid
+            unit[f"bulletsCount{slot}"] = cnt
 
 
 def build(cfg: dict) -> tuple[str, str]:
@@ -579,7 +617,7 @@ def build(cfg: dict) -> tuple[str, str]:
         raise MissionError("Invalid unit class")
     unit["unit_class"] = unit_class
     unit["weapons"] = cfg.get("preset", "") or ""
-    write_bullets(unit, cfg.get("ammo") or [])
+    write_bullets(unit, cfg.get("ammo") or [], cfg.get("_ammoGroups"))
     unit["applyAllMods"] = bool(cfg.get("allMods", True))
     ch = cfg.get("cheats") or {}
     crew = ch.get("crew") or ("expert" if ch.get("expertCrew") else "")
@@ -624,7 +662,7 @@ def build(cfg: dict) -> tuple[str, str]:
     if block == "armada" and isinstance(pl, dict) and float(unit["tm"][3][1]) > start_y + 50:
         # start placed in the air in the editor: give it flying speed
         unit.setdefault("props", {}).setdefault("speed", float(cfg.get("speed") or 450))
-    apply_cheats(m, wing, cfg.get("cheats") or {})
+    apply_cheats(m, wing, cfg.get("cheats") or {}, air=block == "armada")
 
     # ---- mission settings
     mtype = cfg.get("missionType") or "singleMission"

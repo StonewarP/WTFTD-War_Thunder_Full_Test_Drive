@@ -9,10 +9,20 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Ammunition icons**: shells, aircraft / helicopter / ship belts and flares / chaff show the game's own
   icons (from its icon table, so they follow game updates). The game data rebuilds itself once (schema 8).
 - **Flares / chaff split**: for countermeasure launchers that take both, choose how many of each (the sum is
-  the launcher's capacity). Beta: not yet checked in game, see `docs/ingame-checklist.md`.
+  the launcher's capacity). Checked in game on the F-14B, MiG-29SMT and Su-25.
+- Fix: aircraft ammo slots are written the way the game spawns aircraft (each tagged with its weapon),
+  with countermeasure counts per launcher: flares / chaff were ignored on some aircraft (F-14B, Su-25).
+  Reloading a mission with mixed flares / chaff no longer shows empty counts.
+- Fix: with "Invulnerable" on, some aircraft (MiG-29SMT) could not take off: the repair applied every second
+  restarted their engines. Aircraft and helicopters now stay invulnerable without it. Re-create older
+  aircraft missions to get the fix.
 - First launch: the language picker no longer overlaps the logo; the progress bar shows a translated step
   instead of the English log (the log appears only on error).
 - Opening a vehicle: every setup step starts closed.
+- Fix: the app could start half-broken (comparison and weapons page not wired up) when the local server
+  answered faster than the browser loaded its last scripts.
+- The app window no longer offers to translate the page (Edge ignored the old setting).
+- Fix: My missions shows the right vehicle (picture, name, Load) for missions saved under a custom file name.
 
 ## 0.15.0 — 2026-10-08
 

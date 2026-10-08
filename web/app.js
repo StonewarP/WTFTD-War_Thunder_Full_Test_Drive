@@ -826,15 +826,20 @@ function beltIcons(o, once = false) {
 const cmFlare = g => g.trig === 'countermeasures' && g.opts.length === 2 ? g.opts.find(o => o.t?.[0] === 'flr') : null;
 const cmChaff = g => cmFlare(g) ? g.opts.find(o => o.t?.[0] === 'chff') : null;
 const cmTotal = g => (g.cap || 0) * (g.n || 1);
-// chaff count of a split launcher's setting (older setups: the chaff belt = all chaff)
-const cmChaffCount = (g, a) => Math.max(0, Math.min(cmTotal(g), a?.chaff ?? (a?.id && a.id === cmChaff(g)?.id ? cmTotal(g) : 0)));
+// the game sets countermeasures per launcher: totals move by the number of launchers
+const cmStep = (g, n) => Math.round(n / (g.n || 1)) * (g.n || 1);
+// chaff count of a split launcher's setting (saved missions: {chaff: {id, count}}; older setups: the chaff belt = all chaff)
+const cmChaffCount = (g, a) => {
+  const raw = a?.chaff && typeof a.chaff === 'object' ? +a.chaff.count || 0 : a?.chaff;
+  return cmStep(g, Math.max(0, Math.min(cmTotal(g), raw ?? (a?.id && a.id === cmChaff(g)?.id ? cmTotal(g) : 0))));
+};
 
 function cmBody(g, i, a) {
-  const total = cmTotal(g), ch = cmChaffCount(g, a), fl = total - ch;
+  const total = cmTotal(g), ch = cmChaffCount(g, a), fl = total - ch, step = g.n || 1;
   const row = (o, n, key) => `<div class="cm-row">${shellImg(o.t[0])}<span>${esc(I18N.btype(o.t[0]))}</span>
-      <input type="number" min="0" max="${total}" data-cm="${i}" data-cm-key="${key}" value="${n}"></div>`;
+      <input type="number" min="0" max="${total}" step="${step}" data-cm="${i}" data-cm-key="${key}" value="${n}"></div>`;
   return `${row(cmFlare(g), fl, 'flares')}${row(cmChaff(g), ch, 'chaff')}
-    <input type="range" class="cm-range" min="0" max="${total}" step="1" data-cm="${i}" data-cm-key="chaff" value="${ch}">
+    <input type="range" class="cm-range" min="0" max="${total}" step="${step}" data-cm="${i}" data-cm-key="chaff" value="${ch}">
     <small class="muted">${esc(t('ammo.cmSplit', { n: total }))}</small>`;
 }
 
@@ -982,7 +987,7 @@ function bindDrawer() {
     if (el.dataset.count !== undefined) { c.ammo[+el.dataset.count].count = Math.max(0, parseInt(el.value, 10) || 0); return renderDrawer(); }
     if (el.dataset.cm !== undefined) {
       const i = +el.dataset.cm, g = S.details.get(S.sel.id).am[i], total = cmTotal(g);
-      const n = Math.max(0, Math.min(total, parseInt(el.value, 10) || 0));
+      const n = cmStep(g, Math.max(0, Math.min(total, parseInt(el.value, 10) || 0)));
       c.ammo[i] = Object.assign(c.ammo[i] || {}, { id: '', count: total, chaff: el.dataset.cmKey === 'chaff' ? n : total - n });
       return renderDrawer();
     }
@@ -1154,7 +1159,7 @@ async function refreshMissions() {
   const el = $('#missionList');
   if (!S.missions.length) { el.innerHTML = `<div class="empty">${icon('file', 'ic-xl')}<p>${esc(t('missions.empty'))}</p></div>`; return; }
   el.innerHTML = S.missions.map(m => {
-    const vid = m.file.replace(/^wtftd_/, '').replace(/\.blk$/, '');
+    const vid = m.vehicle || m.file.replace(/^wtftd_/, '').replace(/\.blk$/, '');
     const v = S.byId.get(vid);
     return `<div class="list-item">${listThumb(vid)}
       <div class="list-main"><div class="list-title">${v ? flagHTML(v.n) : ''}${esc(v ? I18N.unit(v.id) : vid)}</div>
@@ -1465,6 +1470,7 @@ function showOnboarding() {
   startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar'));  // first launch: get the game data right away
 }
 
-boot().catch(e => { console.error(e); toastErr(e); });
+// after every script of the page has run: boot() calls functions of the scripts loaded after this one
+document.addEventListener('DOMContentLoaded', () => boot().catch(e => { console.error(e); toastErr(e); }));
 // app window: tells the local server the page is gone (macOS keeps the browser running, WTFTD quits with the window)
 addEventListener('pagehide', () => navigator.sendBeacon('/api/bye'));

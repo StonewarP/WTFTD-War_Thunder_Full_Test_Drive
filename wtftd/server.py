@@ -267,7 +267,11 @@ def list_generated():
     out = []
     if um.exists():
         for p in sorted(um.glob("wtftd_*.blk"), key=lambda p: -p.stat().st_mtime):
-            out.append({"file": p.name, "mtime": int(p.stat().st_mtime), "size": p.stat().st_size})
+            # the vehicle comes from the saved setup: the file name may have been changed in Advanced
+            setup = read_json(MISSION_SETUPS / f"{p.stem}.json", None)
+            vid = setup.get("vehicle") if isinstance(setup, dict) else None
+            out.append({"file": p.name, "mtime": int(p.stat().st_mtime), "size": p.stat().st_size,
+                        "vehicle": vid if isinstance(vid, str) else None})
     return out
 
 
@@ -646,6 +650,11 @@ def _target_pool(body: dict) -> dict:
 def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     """Custom-vehicle mode: writes nothing, returns (mission cfg, files to write under pkg_local)."""
     body = dict(body, _targetPool=_target_pool(body))
+    # aircraft / helicopters: bullet slots tagged with their weapon, per-launcher countermeasure counts
+    det0 = STATE.get_details().get(str(body.get("vehicle", ""))) or {}
+    keys = ("p", "n", "trig") if det0.get("b") == "armada" else ("n", "trig")
+    body["_ammoGroups"] = [{k: g[k] for k in keys if k in g}
+                           for g in det0.get("am") or [] if isinstance(g, dict)]
     veh0 = STATE.get_vehicles().get(str(body.get("vehicle", "")))
     if veh0 and veh0.get("n") not in (None, "", "other"):
         crew_units = {f"country_{veh0['n']}": [veh0["id"]]}

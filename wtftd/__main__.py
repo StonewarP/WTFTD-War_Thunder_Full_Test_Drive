@@ -5,6 +5,7 @@ server when that window is closed. --browser uses the default browser instead.
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -58,6 +59,26 @@ def window_args() -> list[str]:
     return [f"--window-size={w},{h}"]
 
 
+def no_translate(profile: Path):
+    """Turns off "Translate this page?" in our app-window profile (Edge ignores --disable-features=Translate)."""
+    prefs_file = profile / "Default" / "Preferences"
+    try:
+        prefs = json.loads(prefs_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        prefs = {}
+    if not isinstance(prefs, dict):
+        prefs = {}
+    tr = prefs.get("translate") if isinstance(prefs.get("translate"), dict) else {}
+    if tr.get("enabled") is False:
+        return
+    prefs["translate"] = dict(tr, enabled=False)
+    try:
+        prefs_file.parent.mkdir(parents=True, exist_ok=True)
+        prefs_file.write_text(json.dumps(prefs), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def main():
     if sys.stdout is None or (FROZEN and sys.platform == "darwin"):  # packaged app without a console: keep a log instead
         CACHE.mkdir(parents=True, exist_ok=True)
@@ -80,6 +101,7 @@ def main():
                     (profile / "Default" / name).unlink()
                 except OSError:
                     pass
+            no_translate(profile)
             proc = subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", *window_args(),
                                      "--no-first-run", "--no-default-browser-check", "--disable-features=Translate"])
             if sys.platform == "darwin":
