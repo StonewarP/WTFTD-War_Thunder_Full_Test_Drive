@@ -546,6 +546,8 @@
   "pick.chooseVehicle": "选择载具",
   "pick.chooseMap": "选择地图",
   "pick.clear": "移除",
+  "pick.select": "选择此载具",
+  "pick.selected": "已选择载具",
   "pick.mismatch": "不适用于该载具",
   "pick.switched": "{map} 不适合该载具：已改为 {other}。",
   "arm.title": "武器",

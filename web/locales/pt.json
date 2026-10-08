@@ -546,6 +546,8 @@
   "pick.chooseVehicle": "Escolher um veículo",
   "pick.chooseMap": "Escolher um mapa",
   "pick.clear": "Remover",
+  "pick.select": "Escolher veículo",
+  "pick.selected": "Veículo escolhido",
   "pick.mismatch": "Não pensado para este veículo",
   "pick.switched": "{map} não serve para este veículo: {other} escolhido no lugar.",
   "arm.title": "Armamento",

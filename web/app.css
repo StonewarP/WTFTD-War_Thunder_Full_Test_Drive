@@ -1000,8 +1000,6 @@ body.pick-on #view-vehicles { padding-bottom: 80px; }
 .lgrid.fixed .lcell { width: 24px; height: 34px; }
 .lgrid.fixed .llabel { min-height: 34px; }
 .lgrid.fixed .wicon { width: 22px; height: 22px; }
-/* the open panel has its own Create mission button */
-.layout.drawer-open .pickbar [data-pk-go] { display: none; }
 .mv-saved { margin-left: 22px; border-style: dashed; }
 .mv-saved.active { border-style: solid; }
 .mset { border-top: 1px solid var(--line); padding: 14px 0 6px; }

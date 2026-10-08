@@ -546,6 +546,8 @@
   "pick.chooseVehicle": "Выберите технику",
   "pick.chooseMap": "Выберите карту",
   "pick.clear": "Убрать",
+  "pick.select": "Выбрать технику",
+  "pick.selected": "Техника выбрана",
   "pick.mismatch": "Не предназначено для этой техники",
   "pick.switched": "{map} не подходит этой технике: вместо неё выбрано {other}.",
   "arm.title": "Вооружение",

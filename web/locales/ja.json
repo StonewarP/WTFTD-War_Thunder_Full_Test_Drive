@@ -546,6 +546,8 @@
   "pick.chooseVehicle": "車両を選択",
   "pick.chooseMap": "マップを選択",
   "pick.clear": "外す",
+  "pick.select": "この車両を選択",
+  "pick.selected": "選択中の車両",
   "pick.mismatch": "この車両向けではありません",
   "pick.switched": "{map} はこの車両に合わないため {other} を選びました。",
   "arm.title": "兵装",

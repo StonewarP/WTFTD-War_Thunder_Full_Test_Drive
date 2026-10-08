@@ -546,6 +546,8 @@
   "pick.chooseVehicle": "Vyber vozidlo",
   "pick.chooseMap": "Vyber mapu",
   "pick.clear": "Odebrat",
+  "pick.select": "Vybrat vozidlo",
+  "pick.selected": "Vozidlo vybráno",
   "pick.mismatch": "Není určeno pro toto vozidlo",
   "pick.switched": "{map} se k tomuto vozidlu nehodí: místo toho vybráno {other}.",
   "arm.title": "Zbraně",

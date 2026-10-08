@@ -16,6 +16,9 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   heading. They go
   with any vehicle and are kept in saved variants. The vehicle panel no longer has a Map & scenario step;
   **Save setup** keeps the vehicle's own setup (loadout, ammo, modifications, cheats, start) for any map.
+- The vehicle panel's main button is **Select vehicle** (puts it in the bottom bar); **Create mission** is in the
+  bar only. Opening panels just browses: each vehicle keeps its own setup, and the mission uses the selected
+  vehicle's. Loading a saved setup or a mission selects its vehicle.
 - Mission type, title and file name moved to a **Mission** window (gear of the bottom bar): they belong to
   the vehicle + map. Title and file name stay automatic until changed, and a custom one only applies to the
   vehicle and map it was written for. The picked map and its edits follow from one vehicle to

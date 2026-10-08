@@ -34,7 +34,8 @@ const S = {
   filtered: [],
   rendered: 0,
   sel: null,      // selected vehicle record
-  cfg: null,      // current setup for the selected vehicle
+  cfg: null,      // current setup: the open panel's vehicle
+  cfgs: new Map(),  // every vehicle's setup, kept while browsing (vehicle id -> setup)
   openStep: '',  // setup steps all start closed
   showAllScen: false,
   pick: Object.assign({ vehicle: '', scenario: '' }, store.get('pick', {})),  // vehicle + map of the mission (maps.js)
@@ -562,7 +563,8 @@ function showView(name) {
 }
 
 // ------------------------------------------------------------------ vehicle drawer
-async function openVehicle(id, cfg = null) {
+// opens a vehicle's panel; a loaded setup / mission (cfg) also selects it for the mission
+async function openVehicle(id, cfg = null, { select = !!cfg } = {}) {
   const v = S.byId.get(id);
   if (!v) return;
   S.sel = v;
@@ -574,23 +576,20 @@ async function openVehicle(id, cfg = null) {
     catch (e) { toastErr(e); return; }
   }
   if (S.sel !== v) return;
-  // the same vehicle opened again keeps its setup; map edits follow from one vehicle to the next
-  const prevEdits = S.cfg?.edits;
-  S.cfg = cfg ? normalizeCfg(v, d, cfg) : S.cfg?.vehicle === id ? S.cfg : defaultCfg(v, d);
-  if (!cfg && prevEdits && !S.cfg.edits) S.cfg.edits = prevEdits;
-  // the picked map follows the vehicle when it suits it (or was picked for this very vehicle)
+  // every vehicle keeps its setup while browsing; map edits follow from one vehicle to the next
+  const hadCfg = !!S.cfg, prevEdits = S.cfg?.edits;
+  if (S.cfg?.vehicle) S.cfgs.set(S.cfg.vehicle, S.cfg);
+  S.cfg = cfg ? normalizeCfg(v, d, cfg) : S.cfgs.get(id) || defaultCfg(v, d);
+  S.cfgs.set(id, S.cfg);
+  if (!cfg && hadCfg) S.cfg.edits = prevEdits;
+  // the picked map goes to the panel when it suits the vehicle (or was picked with this very vehicle)
   const ps = pickedScenario();
   const ownMap = !!cfg?.scenario;  // a mission's setup: its map, settings and edits come back with it
   if (ownMap) mapFromSetup(cfg);
-  if (!ownMap && ps && (scenarioFits(ps, v) || S.pick.vehicle === id)) S.cfg.scenario = ps.id;
-  else if (!ownMap && ps && ps.id !== S.cfg.scenario) {
-    const now = S.scenarios.find(s => s.id === S.cfg.scenario);
-    if (now) toast({ title: t('pick.switched', { map: scenarioName(ps), other: scenarioName(now) }), ms: 6000 });
-  }
-  S.pick = { vehicle: id, scenario: S.cfg.scenario, variant: !ownMap && S.cfg.scenario === S.pick.scenario ? S.pick.variant || '' : '' };
+  else if (ps && (scenarioFits(ps, v) || S.pick.vehicle === id)) S.cfg.scenario = ps.id;
   applyPickedVariant(S.cfg);
-  savePick();
-  renderPickbar();
+  if (select) selectVehicle(id, { ownMap });
+  else renderPickbar();
   S.openStep = '';
   if (typeof LP !== 'undefined') LP.slot = null;
   renderDrawer({ keepScroll: false });
@@ -784,7 +783,9 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
       <button class="icon-btn" data-act="save" title="${esc(t('action.save'))}">${icon('save')}</button>
       <button class="icon-btn" data-act="share" title="${esc(t('share.button'))}">${icon('share')}</button>
       <button class="btn btn-ghost" data-act="preview">${icon('file')}<span>${esc(t('action.preview'))}</span></button>
-      <button class="btn btn-primary btn-lg" data-act="generate">${icon('play')}<span>${esc(t('action.generate'))}</span></button>
+      ${S.pick.vehicle === v.id
+        ? `<button class="btn btn-ghost btn-lg" data-act="select">${icon('check')}<span>${esc(t('pick.selected'))}</span></button>`
+        : `<button class="btn btn-primary btn-lg" data-act="select">${icon('play')}<span>${esc(t('pick.select'))}</span></button>`}
     </div>`;
   bindDrawer();
   const sc = $('#drawer .dr-scroll');
@@ -940,7 +941,7 @@ function bindDrawer() {
       case 'close': return closeDrawer();
       case 'fav': return toggleFav(v.id);
       case 'compare': return toggleCompare(v.id);
-      case 'generate': return generate();
+      case 'select': return selectVehicle(v.id);
       case 'preview': return preview();
       case 'save': return saveSetup();
       case 'share': return openShare();
@@ -1050,13 +1051,13 @@ function missionPayload() {
   };
 }
 
-async function generate(btn = $('[data-act="generate"]')) {
+async function generate(btn) {
   btn.disabled = true;
   btn.querySelector('span').textContent = t('action.generating');
   try {
     const r = await api('generate', missionPayload());
     S.lastGen = { vid: S.cfg.vehicle, file: r.file, title: missionPayload().title };  // stays shown above the button
-    if (S.sel) renderDrawer();
+    if (S.sel && S.sel.id === S.cfg.vehicle) renderDrawer();
     toast({
       title: t('toast.generated', { file: r.file }),
       sub: t('toast.generatedHint', { title: missionPayload().title }) + (r.cdkFiles?.length ? ' ' + t('toast.cdkHint', { n: r.cdkFiles.length }) : ''), ms: 12000,
@@ -1173,7 +1174,7 @@ async function onMissionListClick(e) {
     let cfg = null;
     try { cfg = await api('mission-setup/' + encodeURIComponent(b.dataset.file.replace(/\.blk$/, ''))); } catch { /* older mission */ }
     showView('vehicles');
-    openVehicle(b.dataset.open, cfg && cfg.vehicle === b.dataset.open ? cfg : null);
+    openVehicle(b.dataset.open, cfg && cfg.vehicle === b.dataset.open ? cfg : null, { select: true });
   }
   else if (b.dataset.delm) {
     try { S.missions = await api('delete-mission', { file: b.dataset.delm }); } catch (err) { toastErr(err); }

@@ -18,7 +18,7 @@ S.map = Object.assign(mapDefaults(), store.get('mapset', {}));
 function saveMap() { store.set('mapset', S.map); }
 
 // the mission's own options: type, and a title / file name kept for the vehicle + map they were written for
-function missionKey() { return [S.cfg?.vehicle || S.pick.vehicle, S.pick.scenario, S.pick.variant || ''].join('|'); }
+function missionKey() { return [S.pick.vehicle || S.cfg?.vehicle, S.pick.scenario, S.pick.variant || ''].join('|'); }
 S.mission = Object.assign({ missionType: '', title: '', fileName: '', key: '' }, store.get('mission', {}));
 function missionOpts() {
   const own = S.mission.key === missionKey();
@@ -73,7 +73,9 @@ function pickScenario(id, variantId = '') {
   S.pick.scenario = id;
   S.pick.variant = variantId || '';
   savePick();
-  if (S.cfg) {
+  // the open panel takes it when it suits its vehicle, or when that vehicle is the mission's (or there is none)
+  const pv = S.byId.get(S.cfg?.vehicle);
+  if (S.cfg && (!pv || pv.id === S.pick.vehicle || scenarioFits(S.scenarios.find(s => s.id === id), pv))) {
     S.cfg.scenario = id;
     const sv = savedVariant();
     if (sv) S.cfg.edits = clone(sv.edits);
@@ -93,6 +95,43 @@ function pickVehicle(id) {
   S.pick.vehicle = id || '';
   savePick();
   renderPickbar();
+  if (S.sel) renderDrawer();
+}
+
+// the open panel's vehicle becomes the mission's; the map changes only when the picked one doesn't suit it
+function selectVehicle(id, { ownMap = false } = {}) {
+  const v = S.byId.get(id);
+  if (!v) return;
+  const ps = pickedScenario();
+  let own = S.cfg?.vehicle === id ? S.cfg.scenario : '';
+  const ownScen = S.scenarios.find(s => s.id === own);
+  if (!ownMap && (!ownScen || !scenarioFits(ownScen, v))) own = (scenariosFor(v, false)[0] || S.scenarios[0])?.id || '';
+  if (own && (ownMap || !ps || !scenarioFits(ps, v))) {
+    if (ps && !ownMap && own !== ps.id) toast({ title: t('pick.switched', { map: scenarioName(ps), other: scenarioName(S.scenarios.find(s => s.id === own)) }), ms: 6000 });
+    if (own !== S.pick.scenario) { S.pick.scenario = own; S.pick.variant = ''; }
+  }
+  S.pick.vehicle = id;
+  if (S.cfg?.vehicle === id && S.pick.scenario) S.cfg.scenario = S.pick.scenario;
+  savePick();
+  renderPickbar();
+  if (S.sel) renderDrawer();
+}
+
+// the picked vehicle's setup, without changing the open panel's
+async function pickedCfg(v) {
+  if (S.cfg?.vehicle === v.id) return S.cfg;
+  let c = S.cfgs.get(v.id);
+  if (!c) {
+    let d = S.details.get(v.id);
+    if (!d) {
+      try { d = await api('vehicle/' + encodeURIComponent(v.id)); S.details.set(v.id, d); }
+      catch (e) { toastErr(e); return null; }
+    }
+    c = defaultCfg(v, d);
+    S.cfgs.set(v.id, c);
+  }
+  c.edits = S.cfg ? S.cfg.edits : c.edits;  // the map's latest edits
+  return c;
 }
 
 // ------------------------------------------------------------------ the bar
@@ -120,17 +159,20 @@ function renderPickbar() {
 async function createFromPick(btn) {
   const v = pickedVehicle(), s = pickedScenario();
   if (!v || !s) return;
-  if (!(await ensureVehicleCfg(v))) return;
-  S.cfg.scenario = s.id;
-  applyPickedVariant(S.cfg);
-  await generate(btn);
+  const c = await pickedCfg(v);
+  if (!c) return;
+  c.scenario = s.id;
+  applyPickedVariant(c);
+  const open = S.cfg;
+  S.cfg = c;  // the mission is the picked vehicle's setup on the picked map
+  try { await generate(btn); } finally { S.cfg = open || c; }
 }
 
 function onPickbarClick(e) {
   const clear = e.target.closest('[data-pk-clear]');
   if (clear) {
     e.stopPropagation();
-    if (clear.dataset.pkClear === 'vehicle') { if (S.sel) closeDrawer(); pickVehicle(''); }
+    if (clear.dataset.pkClear === 'vehicle') pickVehicle('');
     else { S.pick.scenario = ''; S.pick.variant = ''; savePick(); renderPickbar(); if (!$('#view-maps').classList.contains('hidden')) renderMaps(); }
     return;
   }
@@ -325,25 +367,15 @@ function onMapSettings(e) {
 async function setupForScenario(sid, variantId = '') {
   const v = pickedVehicle();
   const s = S.scenarios.find(x => x.id === sid);
-  if (v) {
-    if (!(await ensureVehicleCfg(v))) return false;
-  } else if (!S.cfg || S.cfg.vehicle) {
+  if (S.cfg) {
+    // keep it
+  } else if (v) {
+    S.cfg = await pickedCfg(v);
+    if (!S.cfg) return false;
+  } else {
     S.cfg = { vehicle: '', block: s?.block || 'armada', altitude: 1500, targets: { mode: 'scenario' }, scenario: sid, edits: S.cfg?.edits };
   }
   pickScenario(sid, variantId);
-  return true;
-}
-
-async function ensureVehicleCfg(v) {
-  if (S.cfg?.vehicle === v.id) return true;
-  let d = S.details.get(v.id);
-  if (!d) {
-    try { d = await api('vehicle/' + encodeURIComponent(v.id)); S.details.set(v.id, d); }
-    catch (e) { toastErr(e); return false; }
-  }
-  const edits = S.cfg?.edits;
-  S.cfg = defaultCfg(v, d);
-  if (edits) S.cfg.edits = edits;  // map edits belong to the map: kept (they apply while the scenario matches)
   return true;
 }
 
