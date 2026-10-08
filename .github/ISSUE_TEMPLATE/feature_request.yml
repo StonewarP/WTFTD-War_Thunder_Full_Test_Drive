@@ -1,0 +1,30 @@
+name: Suggestion
+description: An idea to make WTFTD better
+title: "[Idea] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What would you like WTFTD to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why / example
+      description: What would you use it for? An example situation helps a lot.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of the app
+      options:
+        - Vehicle list, filters, stats
+        - Loadout / pylons
+        - Ammunition / modifications / cheats
+        - Scenario editor (map, units)
+        - Maps & scenarios
+        - Sharing / saved setups
+        - Translations
+        - Other

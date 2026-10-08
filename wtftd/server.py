@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import builder, cdk, game, maptex, mission, terrain
+from . import REPO, __version__, builder, cdk, game, maptex, mission, terrain
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -190,6 +190,37 @@ def api_status():
                 "airMethod": STATE.settings().get("airMethod") or "custom",
                 **cdk.status(gd, USER)},
     }
+
+
+# --------------------------------------------------------------------------- new app version (GitHub releases)
+_release = {"checked": 0.0, "latest": None}
+RELEASE_CHECK_EVERY = 6 * 3600
+
+
+def _version_tuple(tag: str) -> tuple:
+    m = re.match(r"v?(\d+)\.(\d+)(?:\.(\d+))?", tag or "")
+    return tuple(int(x or 0) for x in m.groups()) if m else (0, 0, 0)
+
+
+def app_version() -> dict:
+    """This WTFTD's version and the latest published release (checked at most every 6 h)."""
+    if time.time() - _release["checked"] > RELEASE_CHECK_EVERY:
+        _release["checked"] = time.time()
+        try:
+            req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases?per_page=10",
+                                         headers={"User-Agent": UA, "Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                releases = [x for x in json.load(r) if isinstance(x, dict) and not x.get("draft")]
+            top = max(releases, key=lambda x: _version_tuple(x.get("tag_name", "")), default=None)
+            if top:
+                exe = next((a.get("browser_download_url") for a in top.get("assets", []) if str(a.get("name", "")).lower().endswith(".exe")), None)
+                _release["latest"] = {"tag": top.get("tag_name"), "name": top.get("name"), "url": top.get("html_url"), "exe": exe,
+                                      "notes": (top.get("body") or "")[:2000]}
+        except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+            pass  # offline / private repository: no alert
+    latest = _release["latest"]
+    newer = bool(latest and _version_tuple(latest["tag"]) > _version_tuple(__version__))
+    return {"version": __version__, "repo": f"https://github.com/{REPO}", "latest": latest, "newer": newer}
 
 
 _oodle_memo: dict = {}
@@ -411,6 +442,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"available": False, "reason": "no heightmap"})
             return self.send_json({**meta, "available": True,
                                    "url": f"/img/terrain/{level}.bin?v={int(terrain.grid_path(level).stat().st_mtime)}"})
+        if route == "app-version":
+            return self.send_json(app_version())
         if route.startswith("level-map/"):
             meta = level_map(route.split("/", 1)[1])
             return self.send_json(meta) if meta else self.send_json({"error": "no map"}, 404)
@@ -489,6 +522,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "launch":
             how = game.launch(STATE.game_dir())
             return self.send_json({"ok": True, "via": how})
+        if route == "open-url":  # release page / issue forms of this project only
+            url = str(body.get("url", ""))
+            if url.startswith(f"https://github.com/{REPO}/"):
+                import webbrowser
+                webbrowser.open(url)
+                return self.send_json({"ok": True})
+            return self.send_json({"error": "forbidden"}, 403)
         if route == "open-folder":
             gd = STATE.game_dir()
             if gd:

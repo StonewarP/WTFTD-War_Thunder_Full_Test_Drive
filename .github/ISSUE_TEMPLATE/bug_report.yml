@@ -1,0 +1,62 @@
+name: Bug report
+description: Something doesn't work in WTFTD or in the mission it created
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The more precise, the faster it gets fixed.
+        Tip: in WTFTD click **Share** next to *Create mission* and paste the code below — it lets us rebuild your exact setup.
+  - type: input
+    id: version
+    attributes:
+      label: WTFTD version
+      description: Settings → bottom of the window (e.g. 0.13.0)
+      placeholder: "0.13.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      options:
+        - In WTFTD (the app)
+        - In game, in the mission WTFTD created
+        - First launch / game data download
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what you got instead. Screenshots welcome.
+      placeholder: |
+        1. Picked the F-16C, put a B61 on pylon 5, Midway scenario
+        2. Created the mission and launched it in game
+        3. The bomb isn't on the aircraft
+    validations:
+      required: true
+  - type: textarea
+    id: share
+    attributes:
+      label: Setup share code
+      description: WTFTD → Share → Copy code (starts with WTFTD1.)
+      render: text
+  - type: input
+    id: vehicle
+    attributes:
+      label: Vehicle and scenario
+      placeholder: "F-16C Block 52 — Test flight Britain (jet)"
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: 'For crashes or data download problems: the content of %LOCALAPPDATA%\WTFTD\.cache\wtftd.log'
+      render: text
+  - type: input
+    id: game
+    attributes:
+      label: War Thunder version / install
+      placeholder: "2.59.0.57, Steam"

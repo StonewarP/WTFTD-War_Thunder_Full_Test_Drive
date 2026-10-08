@@ -158,6 +158,7 @@
   </section>
 
   <aside class="drawer" id="drawer" aria-hidden="true"></aside>
+  <div class="compare-tray hidden" id="compareTray"></div>
 </main>
 
 <div class="onboard hidden" id="onboard">
@@ -215,6 +216,13 @@
         <label data-i18n="settings.howto"></label>
         <p class="muted" data-i18n="settings.howtoText"></p>
       </div>
+      <div class="field">
+        <label data-i18n="app.feedback"></label>
+        <small class="muted" data-i18n="app.feedbackHint"></small>
+        <div class="row gap"><button type="button" class="btn btn-ghost btn-sm" id="btnReportBug"><svg class="ic-sm"><use href="#i-x"/></svg><span data-i18n="app.reportBug"></span></button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnSuggest"><svg class="ic-sm"><use href="#i-star"/></svg><span data-i18n="app.suggest"></span></button>
+          <small class="muted" id="appVersion"></small></div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" value="cancel" data-i18n="action.cancel"></button>
@@ -270,6 +278,14 @@
   </div>
 </dialog>
 
+<dialog class="modal modal-compare" id="dlgCompare">
+  <div class="modal-inner">
+    <div class="modal-head"><h3><svg class="ic"><use href="#i-sliders"/></svg><span data-i18n="compare.title"></span></h3>
+      <button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="cmp-scroll" id="cmpTable"></div>
+  </div>
+</dialog>
+
 <dialog class="modal" id="dlgPrompt">
   <form method="dialog" class="modal-inner">
     <div class="modal-head"><h3 id="promptTitle"></h3></div>
@@ -322,5 +338,7 @@
 <script src="editor.js"></script>
 <script src="stats.js"></script>
 <script src="share.js"></script>
+<script src="appinfo.js"></script>
+<script src="compare.js"></script>
 </body>
 </html>

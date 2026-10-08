@@ -164,6 +164,8 @@ async function boot() {
   edBind();
   bindStatFilters();
   bindShare();
+  bindAppInfo();
+  bindCompare();
 }
 
 function renderStatus() {
@@ -176,6 +178,7 @@ function renderStatus() {
     : `<span class="pill bad"><span class="dot"></span>${esc(t('status.noData'))}</span>`;
   $('#status').innerHTML = game + data;
   $('#pillGame')?.addEventListener('click', openSettings);
+  if (typeof renderAppVersion === 'function' && APP.info) renderAppVersion();
 }
 
 // ------------------------------------------------------------------ sidebar & filters
@@ -652,6 +655,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
             ${v.h ? `<span class="tagx hid">${esc(t('badge.hidden'))}</span>` : v.p ? `<span class="tagx prem">${esc(t('badge.premium'))}</span>` : ''}</div>
           <div class="hero-actions">
             <button class="icon-btn${fav ? ' on' : ''}" data-act="fav" title="${esc(t(fav ? 'drawer.unfavorite' : 'drawer.favorite'))}">${icon('star')}</button>
+            ${compareButtonHTML(v)}
             <a class="icon-btn" href="https://wiki.warthunder.com/unit/${encodeURIComponent(v.id)}" target="_blank" rel="noopener" title="${esc(t('drawer.wiki'))}">${icon('ext')}</a>
             <button class="icon-btn" data-act="close" title="${esc(t('drawer.close'))}">${icon('x')}</button>
           </div>
@@ -855,6 +859,7 @@ function bindDrawer() {
     switch (b.dataset.act) {
       case 'close': return closeDrawer();
       case 'fav': return toggleFav(v.id);
+      case 'compare': return toggleCompare(v.id);
       case 'generate': return generate();
       case 'preview': return preview();
       case 'save': return saveSetup();

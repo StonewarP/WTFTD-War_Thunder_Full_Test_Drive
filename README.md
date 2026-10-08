@@ -24,6 +24,8 @@ nothing to install: double-click it, the app opens in its own window and finds y
   MinGit (git-for-windows) is fetched automatically. The data then updates itself after each game patch.
 - Your settings, missions and the game database live in `%LOCALAPPDATA%\WTFTD`.
 - The exe is not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**.
+- When a new version is released, the app tells you (a *New version* button at the top) — download the new exe
+  and replace the old one; your settings and missions are kept.
 
 ## How it works
 
@@ -36,6 +38,8 @@ nothing to install: double-click it, the app opens in its own window and finds y
 | ![Stats filters](docs/screenshots/07-stats.png) | ![Weapon search and stats](docs/screenshots/08-stats-drawer.png) |
 
 ![Weapon picker](docs/screenshots/09-weapon-picker.png)
+
+![Vehicle comparison](docs/screenshots/10-compare.png)
 
 | Research trees | Pylon editor — here a B61 nuclear bomb on pylon 5 |
 |---|---|
@@ -57,6 +61,8 @@ nothing to install: double-click it, the app opens in its own window and finds y
   (fastest, best turning, best armored…) and **filterable with min / max** values. **Weapon picker**: pick carried
   weapons by their game icon (missiles, bombs, rockets, nuclear, guns, shells — or a shell type like “any
   APFSDS”), with how many vehicles carry each; vehicles must carry all the picked weapons
+- **Compare up to 5 vehicles side by side** (button next to the favorite star): BR, every stat with the best
+  value highlighted, guns with their caliber, shell types, pylon weapons
 - **100+ official scenarios**: firing range, Fulda, naval range, airfields, heli ranges, carriers,
   seaplane bases… plus the **hangar maps** (regular, winter, Halloween, Lunar New Year, anniversary)
 - **Loadout**: every official preset, or a **pylon editor** laid out like the game's (presets as rows,
@@ -165,6 +171,12 @@ web/                        UI (HTML/CSS/JS, no build step), web/locales = trans
 data/                       game database, generated on first launch (not versioned)
 docs/screenshots/           README images
 ```
+
+## Feedback
+
+Found a bug or have an idea? **Settings → Report a bug / Suggest an idea**, or open an
+[issue](https://github.com/StonewarP/WTFTD/issues/new/choose). For bugs, paste your setup's **share code** — it lets
+us rebuild your exact setup.
 
 ## License
 

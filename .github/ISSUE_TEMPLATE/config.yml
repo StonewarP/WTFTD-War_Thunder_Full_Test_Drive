@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Translation fix
+    url: https://github.com/StonewarP/WTFTD/tree/main/web/locales
+    about: UI texts are in web/locales/<language>.json — open a pull request, or a Suggestion issue with the correct wording.
