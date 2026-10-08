@@ -1,6 +1,7 @@
 # Changelog
 
-What changed in each version of WTFTD. Downloads: [Releases](https://github.com/StonewarP/WTFTD/releases).
+What changed in each version of WTFTD. Downloads: [Releases](https://github.com/StonewarP/WTFTD/releases)
+(only the latest version is kept there; each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## 0.15.0 — 2026-10-08
@@ -12,6 +13,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - Releases also ship `WTFTD-macOS.zip` (WTFTD.app, Apple silicon), built by GitHub Actions with its SHA-256;
   `build_app.sh` / `start.command` build / run it locally.
 - Tests run on Linux, Windows and macOS.
+- Fix: release notes lost their line breaks when GitHub Actions added the exe's SHA-256, so the whole text
+  showed as one big heading. The macOS zip's SHA-256 is now always added too.
 
 ## 0.14.4 — 2026-10-08
 
