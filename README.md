@@ -19,19 +19,24 @@ triggers and respawn logic), puts your vehicle and setup in it, and writes it to
 
 ## Download
 
-**[⬇ Download WTFTD.exe](https://github.com/StonewarP/WTFTD/releases)** (Windows 10/11) —
-nothing to install: double-click it, the app opens in its own window and finds your game by itself
-(Steam or standalone). Close the window to quit.
+**[⬇ Download WTFTD.exe](https://github.com/StonewarP/WTFTD/releases)** (Windows 10/11) or
+**WTFTD-macOS.zip** (macOS, Apple silicon) — nothing to install: double-click it, the app opens in its own
+window and finds your game by itself (Steam or standalone). Close the window to quit.
 
 - **First launch**: WTFTD downloads the game data once (≈1 GB from the community
   [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine), 2–5 minutes) and builds its
   database on your PC. No game data is shipped with WTFTD. If Git isn't installed, the official portable
   MinGit (git-for-windows) is fetched automatically. The data then updates itself after each game patch.
-- Your settings, missions and the game database live in `%LOCALAPPDATA%\WTFTD`.
-- The exe is not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**. It is built by
-  GitHub Actions from the released source code, and each release lists its **SHA-256**: check your download with
-  `Get-FileHash WTFTD.exe` in PowerShell.
-- When a new version is released, the app tells you (a *New version* button at the top) — download the new exe
+- Your settings, missions and the game database live in `%LOCALAPPDATA%\WTFTD` (Windows) or
+  `~/Library/Application Support/WTFTD` (macOS).
+- The apps are not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**. On macOS,
+  unzip `WTFTD-macOS.zip`, move `WTFTD.app` to *Applications*, open it once, then allow it in **System Settings →
+  Privacy & Security → Open Anyway**. Both are built by GitHub Actions from the released source code, and each
+  release lists their **SHA-256**: check your download with `Get-FileHash WTFTD.exe` in PowerShell or
+  `shasum -a 256 WTFTD-macOS.zip` in Terminal.
+- The app window uses Edge or Chrome (on macOS: Chrome, Edge, Brave or Chromium) in app mode; without one,
+  WTFTD opens in your default browser.
+- When a new version is released, the app tells you (a *New version* button at the top) — download the new version
   and replace the old one; your settings and missions are kept.
 
 ## How it works
@@ -136,8 +141,10 @@ create defines it. This is not endorsed by Gaijin — use at your own risk.
 
 The editor draws the level's tactical maps (full map + detailed ground-battle map) straight from the
 game's texture packs (`content/base/res/*.dxp.bin`). They are Oodle-compressed: WTFTD uses the official
-Oodle runtime (`oo2core_<n>_win64.dll`, version 6+) that many other games ship (Battlefield, Call of Duty,
-Cyberpunk…) — it is found automatically in your Steam / Epic / game folders, or set it in **Settings**.
+Oodle runtime (`oo2core_<n>_win64.dll` on Windows, `liboo2core*.dylib` on macOS, version 6+) that many other
+games ship (Battlefield, Call of Duty, Cyberpunk…) — it is found automatically in your Steam / Epic / game
+folders, or set it in **Settings**. On macOS few games ship one, so map backgrounds usually come from the
+capture described below.
 Ground heights come the same way from the level's heightmap (`levels/<map>.bin`, ground-battle maps);
 older air maps have no heightmap and heights are estimated there. Without Oodle, a scenario's map is
 captured from the game (localhost:8111) the first time you play it with WTFTD open.
@@ -155,11 +162,12 @@ custom vehicle files (**Settings → Remove custom vehicle files**) before playi
 No: user missions are single-player. Send your friends the setup instead (**Share** → a code or a `.wtftd`
 file); they import it and play the same mission on their PC.
 
-**Why does Windows / my antivirus warn me about the exe?**
+**Why does Windows / macOS / my antivirus warn me about the app?**
 The exe isn't code-signed yet, so SmartScreen shows *Windows protected your PC* (**More info → Run anyway**).
 Apps packaged with PyInstaller are also sometimes flagged by mistake by antivirus software. The exe is built
 by GitHub Actions from the public source code and its SHA-256 is listed in each release; you can also
-[run WTFTD from source](#run-from-source).
+[run WTFTD from source](#run-from-source). On macOS, Gatekeeper blocks unsigned apps the first time: open
+**System Settings → Privacy & Security** and click **Open Anyway** next to WTFTD.
 
 **Do I need to own the vehicle?**
 No, with custom vehicles on (default). Without them, the game only opens user missions with vehicles you own.
@@ -170,8 +178,10 @@ The game data rebuilds itself after each patch (checked every 3 hours and at sta
 with your setup's share code.
 
 **Where are my files? How do I uninstall?**
-Settings, setups and the game database: `%LOCALAPPDATA%\WTFTD`. Missions: `War Thunder\UserMissions\`.
-To uninstall: **Settings → Remove custom vehicle files**, then delete the exe and the `%LOCALAPPDATA%\WTFTD` folder.
+Settings, setups and the game database: `%LOCALAPPDATA%\WTFTD` (Windows) or `~/Library/Application Support/WTFTD`
+(macOS). Missions: `UserMissions` in the game folder (on macOS inside
+`WarThunderLauncher.app/Contents/WarThunder.app/Contents/Resources/game`; **Open folder** in the app shows it).
+To uninstall: **Settings → Remove custom vehicle files**, then delete the app and its data folder.
 
 **Does WTFTD collect anything?**
 No: no account, no telemetry. It downloads the datamine, wiki images and this repository's release list,
@@ -179,7 +189,7 @@ and sends nothing. See [SECURITY.md](SECURITY.md).
 
 ## Run from source
 
-Needs Python 3.10+ (no extra packages). Double-click **`start.bat`**, or:
+Needs Python 3.10+ (no extra packages). Double-click **`start.bat`** (Windows) or **`start.command`** (macOS), or:
 
 ```bash
 python -m wtftd
@@ -187,13 +197,15 @@ python -m wtftd
 
 `python -m wtftd --browser` uses your default browser instead of an app window.
 
-To build `dist\WTFTD.exe` yourself, run **`build_exe.bat`** (installs PyInstaller in `.cache\build-venv`).
+To build `dist\WTFTD.exe` yourself, run **`build_exe.bat`** on Windows; for `dist/WTFTD.app` (and
+`dist/WTFTD-macOS.zip`), run **`./build_app.sh`** on a Mac. Both install PyInstaller in `.cache/build-venv`.
 
 ## Game data & automatic updates
 
 The game database (`data/`, not in this repository) is generated on your PC from the community datamine
 ([gszabi99/War-Thunder-Datamine](https://github.com/gszabi99/War-Thunder-Datamine)): first download ≈1 GB
-into `.cache/datamine`, with your Git or an automatically fetched MinGit. Every 3 hours (and at start-up)
+into `.cache/datamine`, with your Git or an automatically fetched MinGit (Windows). On macOS, WTFTD uses
+Homebrew's Git or Apple's, and offers to install Apple's Command Line Tools if there is none. Every 3 hours (and at start-up)
 WTFTD checks the datamine's game version and rebuilds after a patch. Manual update: **Settings → Update
 game data**, or `python -m wtftd.builder`.
 
@@ -213,12 +225,15 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
 - Missions and custom vehicles are local: they can't be played together online (custom battles / co-op use
   Gaijin's servers and the official vehicle files). Share the setup instead.
 - "Non-playable units" come from the game files (AI, removed, unreleased) and may not load or behave oddly.
+- macOS support is new and less tested than Windows. The packaged app is built for Apple silicon; on an Intel
+  Mac, [run from source](#run-from-source).
 
 ## Layout
 
 ```
-start.bat / build_exe.bat   run from source / build WTFTD.exe
-wtftd_app.py                entry point of the exe
+start.bat / build_exe.bat   run from source / build WTFTD.exe (Windows)
+start.command / build_app.sh run from source / build WTFTD.app (macOS)
+wtftd_app.py                entry point of the packaged app
 wtftd/                      Python backend (stdlib only)
   server.py                 local HTTP server + API (127.0.0.1 only)
   mission.py                official scenario + your setup -> .blk mission

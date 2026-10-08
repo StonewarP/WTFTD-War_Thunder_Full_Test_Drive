@@ -7,6 +7,7 @@ import re
 import shutil
 import socket
 import struct
+import sys
 import threading
 import time
 import urllib.error
@@ -59,8 +60,8 @@ class State:
     def game_dir(self) -> Path | None:
         custom = self.settings().get("gameDir")
         if custom:
-            p = Path(custom)
-            return p if p.exists() else None
+            p = Path(custom).expanduser()
+            return (game.resolve_game_dir(p) or p) if p.exists() else None
         return game.detect_game_dir()
 
     def get_details(self) -> dict:
@@ -170,6 +171,16 @@ def image_urls(kind: str, ident: str) -> list[str]:
     return urls
 
 
+# --------------------------------------------------------------------------- app window presence
+# macOS keeps the browser running when its last window is closed: the page says "bye" when it goes
+# away, and any API call after that (a reload) cancels it. __main__ uses this to quit with the window.
+PAGE = {"seen": 0.0, "bye": 0.0}
+
+
+def page_closed(grace: float = 3.0) -> bool:
+    return PAGE["bye"] > PAGE["seen"] and time.time() - PAGE["bye"] > grace
+
+
 # --------------------------------------------------------------------------- API
 
 def api_status():
@@ -177,6 +188,7 @@ def api_status():
     meta = read_json(DATA / "meta.json", {})
     um = game.user_missions_dir(gd) if gd else None
     return {
+        "platform": sys.platform,
         "gameDir": str(gd) if gd else None,
         "gameFound": bool(gd),
         "steam": bool(gd and game.is_steam_install(gd)),
@@ -195,6 +207,7 @@ def api_status():
 # --------------------------------------------------------------------------- new app version (GitHub releases)
 _release = {"checked": 0.0, "latest": None}
 RELEASE_CHECK_EVERY = 6 * 3600
+APP_ASSET = {"win32": ".exe", "darwin": "-macos.zip"}  # release download of this platform
 
 
 def _version_tuple(tag: str) -> tuple:
@@ -213,7 +226,8 @@ def app_version() -> dict:
                 releases = [x for x in json.load(r) if isinstance(x, dict) and not x.get("draft")]
             top = max(releases, key=lambda x: _version_tuple(x.get("tag_name", "")), default=None)
             if top:
-                exe = next((a.get("browser_download_url") for a in top.get("assets", []) if str(a.get("name", "")).lower().endswith(".exe")), None)
+                ext = APP_ASSET.get(sys.platform, ".exe")
+                exe = next((a.get("browser_download_url") for a in top.get("assets", []) if str(a.get("name", "")).lower().endswith(ext)), None)
                 _release["latest"] = {"tag": top.get("tag_name"), "name": top.get("name"), "url": top.get("html_url"), "exe": exe,
                                       "notes": (top.get("body") or "")[:2000]}
         except (urllib.error.URLError, OSError, ValueError, TimeoutError):
@@ -230,6 +244,7 @@ def oodle_dll(gd: Path | None) -> str | None:
     """Oodle runtime used to read the game's map textures: the one set in Settings, else auto-detected (once)."""
     custom = STATE.settings().get("oodleDll")
     if custom:
+        custom = str(Path(custom).expanduser())
         return custom if Path(custom).is_file() else None
     key = str(gd)
     if key not in _oodle_memo:
@@ -381,6 +396,7 @@ class Handler(BaseHTTPRequestHandler):
             # reads expose settings, setups and paths: only for this app's own page (blocks DNS rebinding)
             if not self.local_origin():
                 return self.send_json({"error": "forbidden"}, 403)
+            PAGE["seen"] = time.time()
             return self.get_api(path[5:])
         if path.startswith("/img/levelmap/"):
             meta = captured_map(path.rsplit("/", 1)[-1])
@@ -469,6 +485,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self.local_origin():
             return self.send_json({"error": "forbidden"}, 403)
         route = urlparse(self.path).path[5:] if self.path.startswith("/api/") else ""
+        if route == "bye":  # the app page is closing (navigator.sendBeacon)
+            PAGE["bye"] = time.time()
+            return self.send_json({"ok": True})
+        PAGE["seen"] = time.time()
         try:
             body = self.read_body()
         except ValueError as e:
@@ -544,10 +564,10 @@ class Handler(BaseHTTPRequestHandler):
             for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll"):
                 if k in body:
                     s[k] = body[k]
-            if s.get("gameDir") and not game.is_game_dir(Path(s["gameDir"])):
+            if s.get("gameDir") and not game.resolve_game_dir(Path(s["gameDir"]).expanduser()):
                 return self.send_json({"error": "This folder does not look like a War Thunder install."}, 400)
-            if s.get("oodleDll") and not maptex.OODLE_DLL.match(Path(s["oodleDll"]).name):
-                return self.send_json({"error": "Pick an oo2core_<version>_win64.dll file."}, 400)
+            if s.get("oodleDll") and maptex.oodle_version(Path(s["oodleDll"]).name) is None:
+                return self.send_json({"error": "Pick an Oodle runtime file: oo2core_<version>_win64.dll (Windows) or liboo2core*.dylib (macOS)."}, 400)
             STATE.save_settings(s)
             return self.send_json(api_status())
         if route == "setups":

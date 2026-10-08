@@ -53,7 +53,7 @@ body:
     id: log
     attributes:
       label: Log
-      description: 'For crashes or data download problems: the content of %LOCALAPPDATA%\WTFTD\.cache\wtftd.log'
+      description: 'For crashes or data download problems: the content of %LOCALAPPDATA%\WTFTD\.cache\wtftd.log (Windows) or ~/Library/Application Support/WTFTD/.cache/wtftd.log (macOS)'
       render: text
   - type: input
     id: game

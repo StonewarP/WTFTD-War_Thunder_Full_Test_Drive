@@ -2,9 +2,10 @@
 
 The maps are DDSx textures (DXT1 / DXT5) inside the game's texture packs
 (content/base/res/*.dxp.bin, "DxP2" format), compressed with Oodle. Python has no Oodle
-decoder, so we call the official Oodle runtime (oo2core_<n>_win64.dll) that many games ship
-(Battlefield, Call of Duty, Cyberpunk, Warframe...): it is looked up in the Steam libraries
-and game folders of this PC, or set by hand in Settings. Decoded maps are cached as PNG
+decoder, so we call the official Oodle runtime (oo2core_<n>_win64.dll on Windows,
+liboo2core*.dylib on macOS) that many games ship (Battlefield, Call of Duty, Cyberpunk,
+Warframe...): it is looked up in the Steam libraries and game folders of this PC, or set by
+hand in Settings. Decoded maps are cached as PNG
 in .cache/maps/tex/.
 """
 from __future__ import annotations
@@ -26,6 +27,7 @@ CACHE = APP_CACHE / "maps" / "tex"
 OODLE_CACHE = APP_CACHE / "oodle.json"
 MAP_NAME = re.compile(r"_(tank|infantry)?map$")
 OODLE_DLL = re.compile(r"^oo2core_(\d+)_win64\.dll$", re.I)
+OODLE_DYLIB = re.compile(r"^liboo2core(?:mac)?(?:64)?((?:[._]\d+)*)\.dylib$", re.I)  # liboo2coremac64.2.9.dylib
 FLG_REV_MIP_ORDER = 0x40000
 FLG_COMPR_MASK = 0xE0000000
 FLG_OODLE = 0x60000000
@@ -81,6 +83,20 @@ def texture_index(game_dir: Path) -> dict:
 
 # --------------------------------------------------------------------------- Oodle runtime
 
+def oodle_version(name: str) -> int | None:
+    """Oodle major version from a runtime file name of this platform (None: not an Oodle runtime)."""
+    if sys.platform == "darwin":
+        m = OODLE_DYLIB.match(name)
+        if not m:
+            return None
+        nums = [int(x) for x in re.findall(r"\d+", m.group(1))]
+        if len(nums) >= 2 and nums[0] == 2:  # 2.<major>.<minor>
+            return nums[1]
+        return nums[0] if nums else 9  # unversioned name: try it
+    m = OODLE_DLL.match(name)
+    return int(m.group(1)) if m else None
+
+
 def _search_roots(game_dir: Path | None) -> list[Path]:
     roots = []
     if game_dir:
@@ -102,6 +118,9 @@ def _search_roots(game_dir: Path | None) -> list[Path]:
                 roots.append(Path(m.group(1).replace("\\\\", "\\")) / "steamapps" / "common")
         except OSError:
             pass
+    if sys.platform == "darwin":
+        steam.append(Path.home() / "Library" / "Application Support" / "Steam")
+        roots += [Path("/Applications"), Path.home() / "Applications", Path("/Users/Shared/Epic Games")]
     for d in string.ascii_uppercase if sys.platform == "win32" else "":
         drive = Path(f"{d}:/")
         if not drive.exists():
@@ -129,9 +148,9 @@ def _scan(root: Path, depth: int, found: list, budget: list):
             return
         try:
             if e.is_file():
-                m = OODLE_DLL.match(e.name)
-                if m:
-                    found.append((int(m.group(1)), e.path))
+                v = oodle_version(e.name)
+                if v is not None:
+                    found.append((v, e.path))
             elif depth > 0 and e.is_dir(follow_symlinks=False):
                 _scan(Path(e.path), depth - 1, found, budget)
         except OSError:
@@ -147,25 +166,37 @@ def find_oodle(game_dir: Path | None) -> str | None:
     except (OSError, ValueError, AttributeError):
         pass
     found: list = []
+    depth = 7 if sys.platform == "darwin" else 3  # macOS: inside app bundles (X.app/Contents/Frameworks)
     for root in _search_roots(game_dir):
-        _scan(root, 3, found, [40000])
-    found = [f for f in found if f[0] >= 6]
-    if not found:
+        _scan(root, depth, found, [40000])
+    path = next((p for v, p in sorted(found, reverse=True) if v >= 6 and _loadable(p)), None)
+    if not path:
         return None
-    path = max(found)[1]
     OODLE_CACHE.parent.mkdir(parents=True, exist_ok=True)
     OODLE_CACHE.write_text(json.dumps({"path": path}), encoding="utf-8")
     return path
+
+
+def _load(path: str):
+    return ctypes.WinDLL(path) if sys.platform == "win32" else ctypes.CDLL(path)
+
+
+def _loadable(path: str) -> bool:
+    """Windows: trusted as before. macOS: the dylib must load in this process (Apple silicon / Intel build)."""
+    if sys.platform == "win32":
+        return True
+    try:
+        return bool(_load(path).OodleLZ_Decompress)
+    except (OSError, AttributeError):
+        return False
 
 
 def _decompressor(dll_path: str):
     global _oodle
     if _oodle and _oodle[0] == dll_path:
         return _oodle[1]
-    if sys.platform != "win32":
-        raise MapTexError("Oodle runtime only supported on Windows")
     try:
-        fn = ctypes.WinDLL(dll_path).OodleLZ_Decompress
+        fn = _load(dll_path).OodleLZ_Decompress
     except (OSError, AttributeError) as e:
         raise MapTexError(f"Cannot load {dll_path}: {e}")
     fn.restype = ctypes.c_ssize_t
@@ -267,7 +298,7 @@ def png_path(game_dir: Path | None, name: str, dll_path: str | None) -> Path:
     if compr == FLG_OODLE:
         dll = dll_path or find_oodle(game_dir)
         if not dll:
-            raise MapTexError("No Oodle runtime (oo2core_*_win64.dll) found on this PC")
+            raise MapTexError("No Oodle runtime (oo2core_*_win64.dll / liboo2core*.dylib) found on this PC")
         dst = ctypes.create_string_buffer(mem)
         with _lock:
             n = _decompressor(dll)(src, len(src), dst, mem, 1, 0, 0, None, 0, None, None, None, 0, 3)

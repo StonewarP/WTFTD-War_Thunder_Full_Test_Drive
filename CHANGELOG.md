@@ -3,6 +3,16 @@
 What changed in each version of WTFTD. Downloads: [Releases](https://github.com/StonewarP/WTFTD/releases).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## Unreleased
+
+- **macOS**: WTFTD runs on macOS too. It finds War Thunder (Steam or standalone, inside
+  `WarThunderLauncher.app`), launches it, and opens the UI in a Chrome / Edge / Brave app window. It quits
+  when the window closes. Data lives in `~/Library/Application Support/WTFTD`. Git comes from Homebrew or
+  Apple's Command Line Tools. Oodle runtimes are `liboo2core*.dylib`.
+- Releases also ship `WTFTD-macOS.zip` (WTFTD.app, Apple silicon), built by GitHub Actions with its SHA-256;
+  `build_app.sh` / `start.command` build / run it locally.
+- Tests run on Linux, Windows and macOS.
+
 ## 0.14.4 — 2026-10-08
 
 - The exe is built by GitHub Actions from the released code and published with its SHA-256, so anyone can

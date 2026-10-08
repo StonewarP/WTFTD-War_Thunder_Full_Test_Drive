@@ -10,14 +10,25 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 from pathlib import Path
 
-from .paths import CACHE, prepare
-from .server import ROOT, serve
+from .paths import CACHE, FROZEN, prepare
+from .server import ROOT, page_closed, serve
+
+# macOS: Chromium browsers that support app windows (--app), executable inside the bundle
+MAC_BROWSERS = ("Google Chrome.app/Contents/MacOS/Google Chrome", "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+                "Chromium.app/Contents/MacOS/Chromium", "Brave Browser.app/Contents/MacOS/Brave Browser")
 
 
 def find_app_browser() -> str | None:
+    if sys.platform == "darwin":
+        for apps in (Path("/Applications"), Path.home() / "Applications"):
+            for rel in MAC_BROWSERS:
+                if (apps / rel).is_file():
+                    return str(apps / rel)
+        return None
     pf = [os.environ.get(k) for k in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA")]
     candidates = []
     for base in filter(None, pf):
@@ -48,7 +59,7 @@ def window_args() -> list[str]:
 
 
 def main():
-    if sys.stdout is None:  # packaged app without a console: keep a log instead
+    if sys.stdout is None or (FROZEN and sys.platform == "darwin"):  # packaged app without a console: keep a log instead
         CACHE.mkdir(parents=True, exist_ok=True)
         sys.stdout = sys.stderr = open(CACHE / "wtftd.log", "w", encoding="utf-8", buffering=1)
     prepare()
@@ -71,11 +82,22 @@ def main():
                     pass
             proc = subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", *window_args(),
                                      "--no-first-run", "--no-default-browser-check", "--disable-features=Translate"])
-            proc.wait()  # window closed -> quit
+            if sys.platform == "darwin":
+                # the browser outlives its closed window on macOS: quit when the page says bye
+                while proc.poll() is None and not page_closed():
+                    time.sleep(1)
+                if proc.poll() is None:
+                    proc.terminate()
+            else:
+                proc.wait()  # window closed -> quit
         else:
             if "--no-window" not in sys.argv:
                 webbrowser.open(url)
-            threading.Event().wait()
+            if FROZEN and sys.platform == "darwin" and "--no-window" not in sys.argv:
+                while not page_closed():  # WTFTD.app has no Dock icon: quit with the browser tab
+                    time.sleep(1)
+            else:
+                threading.Event().wait()
     except KeyboardInterrupt:
         pass
     finally:

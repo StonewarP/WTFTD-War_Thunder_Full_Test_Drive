@@ -1,14 +1,15 @@
-name: Build the exe
+name: Build the apps
 
-# Publishing a release builds WTFTD.exe from the tagged code on GitHub's servers and attaches it to
-# the release with its SHA-256, so anyone can check that the download comes from this source code.
+# Publishing a release builds WTFTD.exe (Windows) and WTFTD-macOS.zip (WTFTD.app, Apple silicon) from
+# the tagged code on GitHub's servers and attaches them to the release with their SHA-256, so anyone
+# can check that the download comes from this source code.
 on:
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to build and attach the exe to (e.g. v0.15.0-beta)
+        description: Release tag to build and attach the apps to (e.g. v0.15.0-beta)
         required: true
 
 permissions:
@@ -48,3 +49,35 @@ jobs:
             $note = "`n`n**SHA-256** of WTFTD.exe (built by GitHub Actions from this tag): ``$hash```nCheck it in PowerShell: ``Get-FileHash WTFTD.exe``"
             gh release edit $env:TAG --notes "$body$note"
           }
+
+  build-macos:
+    needs: build  # one job at a time edits the release notes
+    runs-on: macos-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: python -m unittest discover -s tests -t .
+      - name: Build WTFTD.app
+        run: ./build_app.sh
+      - name: Attach the app and its SHA-256 to the release
+        run: |
+          cd dist
+          hash=$(shasum -a 256 WTFTD-macOS.zip | cut -d' ' -f1)
+          echo "$hash  WTFTD-macOS.zip" > WTFTD-macOS.zip.sha256
+          gh release upload "$TAG" WTFTD-macOS.zip WTFTD-macOS.zip.sha256 --clobber
+          body=$(gh release view "$TAG" --json body -q .body)
+          case "$body" in
+            *"WTFTD-macOS.zip"*) ;;
+            *) gh release edit "$TAG" --notes "$body
+
+          **SHA-256** of WTFTD-macOS.zip (built by GitHub Actions from this tag): \`$hash\`
+          Check it in Terminal: \`shasum -a 256 WTFTD-macOS.zip\`" ;;
+          esac

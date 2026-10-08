@@ -150,7 +150,7 @@ def terrain(game_dir: Path | None, level: str, dll: str | None) -> dict | None:
             meta_path.write_text(json.dumps({"w": 0}), encoding="utf-8")  # remember: no heightmap
             return None
         if not dll:
-            raise TerrainError("No Oodle runtime (oo2core_*_win64.dll) found on this PC")
+            raise TerrainError("No Oodle runtime (oo2core_*_win64.dll / liboo2core*.dylib) found on this PC")
         ofs, size = chunks[b"\0HM2"]
         with open(path, "rb") as f:
             f.seek(ofs)

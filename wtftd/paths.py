@@ -1,9 +1,10 @@
 """Where WTFTD reads and writes its files.
 
 From the source tree everything lives next to the code (web/, data/, user/, .cache/).
-In the packaged Windows app (WTFTD.exe, PyInstaller) the program files are read-only and
-unpacked to a temp folder, so the writable folders go to %LOCALAPPDATA%\\WTFTD and the game
-data shipped in the exe is copied there on first run (and when a newer app brings newer data).
+In the packaged app (WTFTD.exe on Windows, WTFTD.app on macOS, PyInstaller) the program files are
+read-only, so the writable folders go to %LOCALAPPDATA%\\WTFTD (Windows) or
+~/Library/Application Support/WTFTD (macOS) and the game data shipped in the app is copied there
+on first run (and when a newer app brings newer data).
 """
 from __future__ import annotations
 
@@ -15,7 +16,15 @@ from pathlib import Path
 
 FROZEN = bool(getattr(sys, "frozen", False))
 BUNDLE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))  # read-only app files
-HOME = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "WTFTD" if FROZEN else BUNDLE  # writable
+
+
+def _app_home() -> Path:
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "WTFTD"
+    return Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "WTFTD"
+
+
+HOME = _app_home() if FROZEN else BUNDLE  # writable
 
 WEB = BUNDLE / "web"
 DATA = HOME / "data"

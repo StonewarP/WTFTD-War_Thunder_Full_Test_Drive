@@ -9,7 +9,7 @@ Thanks for helping! Bug reports, ideas, translation fixes and code are all welco
 
 ## Run from source
 
-Windows 10/11, Python 3.10+ — no extra package needed (standard library only).
+Windows 10/11 or macOS, Python 3.10+ — no extra package needed (standard library only).
 
 ```bash
 git clone https://github.com/StonewarP/WTFTD.git
@@ -72,4 +72,5 @@ from the game's own translations and don't need translating.
 
 1. Bump `__version__` in `wtftd/__init__.py` and add the version to `CHANGELOG.md`.
 2. Commit, push, then publish a release with the tag `v<version>-beta` (notes = the changelog entry).
-3. GitHub Actions builds `WTFTD.exe` from that tag and attaches it to the release with its SHA-256.
+3. GitHub Actions builds `WTFTD.exe` and `WTFTD-macOS.zip` from that tag and attaches them to the release with
+   their SHA-256.

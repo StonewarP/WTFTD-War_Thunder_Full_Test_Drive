@@ -1,4 +1,4 @@
-"""War Thunder install detection and launching."""
+"""War Thunder install detection and launching (Windows and macOS)."""
 from __future__ import annotations
 
 import os
@@ -8,11 +8,14 @@ import sys
 from pathlib import Path
 
 STEAM_APP_ID = "236390"
+# macOS: the game files live inside the launcher's app bundle (Steam and standalone installs)
+MAC_GAME = Path("WarThunderLauncher.app/Contents/WarThunder.app/Contents/Resources/game")
+MAC_APPS = (Path("/Applications"), Path.home() / "Applications")
 
 
 def _steam_roots() -> list[Path]:
     roots = []
-    try:
+    if sys.platform == "win32":
         import winreg
         for hive, key in ((winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam"),
                           (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam")):
@@ -25,9 +28,11 @@ def _steam_roots() -> list[Path]:
                             pass
             except OSError:
                 pass
-    except ImportError:
-        pass
-    roots.append(Path(r"C:\Program Files (x86)\Steam"))
+        roots.append(Path(r"C:\Program Files (x86)\Steam"))
+    elif sys.platform == "darwin":
+        roots.append(Path.home() / "Library" / "Application Support" / "Steam")
+    else:
+        roots += [Path.home() / ".steam" / "steam", Path.home() / ".local" / "share" / "Steam"]
     libs = []
     for r in roots:
         vdf = r / "steamapps" / "libraryfolders.vdf"
@@ -48,20 +53,71 @@ def is_game_dir(p: Path) -> bool:
     return (p / "aces.vromfs.bin").exists() or (p / "launcher.exe").exists() and (p / "levels").exists()
 
 
+def _find_inside(p: Path, depth: int, budget: list) -> Path | None:
+    """Game folder somewhere under p (macOS app bundles), breadth-limited."""
+    if is_game_dir(p):
+        return p
+    if depth <= 0:
+        return None
+    try:
+        subs = sorted(e.path for e in os.scandir(p) if e.is_dir(follow_symlinks=False))
+    except OSError:
+        return None
+    for sub in subs:
+        budget[0] -= 1
+        if budget[0] <= 0:
+            return None
+        found = _find_inside(Path(sub), depth - 1, budget)
+        if found:
+            return found
+    return None
+
+
+def resolve_game_dir(p: Path) -> Path | None:
+    """The folder holding the game files, from the game folder itself or (macOS) the install folder /
+    WarThunderLauncher.app / WarThunder.app that contains it."""
+    try:
+        if is_game_dir(p):
+            return p
+        for sub in (MAC_GAME, Path("Contents/WarThunder.app/Contents/Resources/game"), Path("Contents/Resources/game")):
+            if is_game_dir(p / sub):
+                return p / sub
+        if sys.platform == "darwin" and p.is_dir():
+            return _find_inside(p, 6, [3000])
+    except OSError:
+        pass
+    return None
+
+
+def _spotlight() -> list[Path]:
+    """macOS: game folders Spotlight knows about (installs outside the usual places)."""
+    try:
+        out = subprocess.run(["mdfind", 'kMDItemFSName == "aces.vromfs.bin"'], capture_output=True, text=True,
+                             timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [Path(line).parent for line in out.splitlines() if line.strip()]
+
+
 def detect_game_dir() -> Path | None:
     candidates = [lib / "steamapps" / "common" / "War Thunder" for lib in _steam_roots()]
-    local = os.environ.get("LOCALAPPDATA")
-    if local:
-        candidates.append(Path(local) / "WarThunder")
-    for drive in "CDEFG":
-        for sub in ("WarThunder", "Games/WarThunder", "Program Files/WarThunder", "Program Files (x86)/WarThunder"):
-            candidates.append(Path(f"{drive}:/") / sub)
+    if sys.platform == "darwin":
+        for apps in MAC_APPS:
+            candidates += [apps / "WarThunderLauncher.app", apps / "WarThunder.app", apps / "WarThunder", apps / "War Thunder"]
+        candidates.append(Path.home() / "WarThunder")
+    else:
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            candidates.append(Path(local) / "WarThunder")
+        for drive in "CDEFG":
+            for sub in ("WarThunder", "Games/WarThunder", "Program Files/WarThunder", "Program Files (x86)/WarThunder"):
+                candidates.append(Path(f"{drive}:/") / sub)
     for c in candidates:
-        try:
-            if is_game_dir(c):
-                return c
-        except OSError:
-            pass
+        found = resolve_game_dir(c) if c.exists() else None
+        if found:
+            return found
+    if sys.platform == "darwin":
+        return next((p for p in _spotlight() if is_game_dir(p)), None)
     return None
 
 
@@ -83,19 +139,33 @@ def user_missions_dir(game_dir: Path) -> Path:
     return game_dir / "UserMissions"
 
 
-def launch(game_dir: Path | None) -> str:
-    if game_dir and not is_steam_install(game_dir) and (game_dir / "launcher.exe").exists():
-        subprocess.Popen([str(game_dir / "launcher.exe")], cwd=str(game_dir))
-        return "launcher"
+def _mac_app(game_dir: Path) -> Path | None:
+    """macOS: the outermost app bundle around the game files (WarThunderLauncher.app)."""
+    apps = [p for p in game_dir.parents if p.suffix.lower() == ".app"]
+    return apps[-1] if apps else None
+
+
+def _open(target: str):
     if sys.platform == "win32":
-        os.startfile(f"steam://rungameid/{STEAM_APP_ID}")  # noqa: S606 - Steam URI
-        return "steam"
-    subprocess.Popen(["xdg-open", f"steam://rungameid/{STEAM_APP_ID}"])
+        os.startfile(target)  # noqa: S606
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", target])
+    else:
+        subprocess.Popen(["xdg-open", target])
+
+
+def launch(game_dir: Path | None) -> str:
+    if game_dir and not is_steam_install(game_dir):
+        if (game_dir / "launcher.exe").exists():
+            subprocess.Popen([str(game_dir / "launcher.exe")], cwd=str(game_dir))
+            return "launcher"
+        app = _mac_app(game_dir) if sys.platform == "darwin" else None
+        if app:
+            subprocess.Popen(["open", str(app)])
+            return "launcher"
+    _open(f"steam://rungameid/{STEAM_APP_ID}")
     return "steam"
 
 
 def open_folder(path: Path):
-    if sys.platform == "win32":
-        os.startfile(str(path))  # noqa: S606
-    else:
-        subprocess.Popen(["xdg-open", str(path)])
+    _open(str(path))

@@ -158,6 +158,8 @@ def find_git(progress=None) -> str:
     global _git_exe
     if _git_exe:
         return _git_exe
+    if sys.platform == "darwin":
+        return _mac_git()
     found = shutil.which("git")
     for cand in ([found] if found else []) + [str(MINGIT / "cmd" / "git.exe"),
                                               r"C:\Program Files\Git\cmd\git.exe"]:
@@ -187,6 +189,23 @@ def find_git(progress=None) -> str:
     tmp.unlink()
     _git_exe = str(MINGIT / "cmd" / "git.exe")
     return _git_exe
+
+
+def _mac_git() -> str:
+    """macOS: Homebrew / MacPorts Git, else Apple's (/usr/bin/git, from the Command Line Tools).
+    An app opened from the Finder has a minimal PATH, hence the fixed locations."""
+    global _git_exe
+    for cand in ("/opt/homebrew/bin/git", "/usr/local/bin/git", "/opt/local/bin/git", shutil.which("git")):
+        if cand and cand != "/usr/bin/git" and Path(cand).is_file():
+            _git_exe = cand
+            return cand
+    # /usr/bin/git is only a stub until the Command Line Tools are installed
+    if subprocess.run(["xcode-select", "-p"], capture_output=True).returncode == 0:
+        _git_exe = "/usr/bin/git"
+        return _git_exe
+    subprocess.run(["xcode-select", "--install"], capture_output=True)  # opens Apple's installer dialog
+    raise RuntimeError("Git is required: accept the Command Line Tools install macOS just offered "
+                       "(or run xcode-select --install in Terminal), then retry.")
 
 
 def git(*args, cwd=None):

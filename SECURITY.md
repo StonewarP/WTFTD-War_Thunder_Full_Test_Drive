@@ -14,7 +14,8 @@ Only the latest release is supported: fixes ship in a new version.
 - **Local server only.** The app runs a small web server on `127.0.0.1` (never reachable from the network).
   It only answers WTFTD's own page: requests from other websites are refused.
 - **Files it writes:**
-  - `%LOCALAPPDATA%\WTFTD` (or the source folder): settings, saved setups, game database, image cache;
+  - `%LOCALAPPDATA%\WTFTD` on Windows, `~/Library/Application Support/WTFTD` on macOS (or the source folder):
+    settings, saved setups, game database, image cache;
   - `War Thunder\UserMissions\`: the missions you create;
   - with custom vehicles on: new files under `War Thunder\content\pkg_local` and `content\pkg_user` only —
     never a path that replaces a game file. Every file is listed in `user\cdk_manifest.json` and
@@ -23,5 +24,7 @@ Only the latest release is supported: fixes ship in a new version.
   (with your Git, or the official portable MinGit from git-for-windows), vehicle images from the
   [War Thunder wiki](https://wiki.warthunder.com/), and the release list of this repository (new version alert).
 - **What it sends:** nothing. No account, no telemetry, no analytics.
-- **The exe** is built by GitHub Actions from the released source code; each release lists its SHA-256
-  (check with `Get-FileHash WTFTD.exe` in PowerShell). It isn't code-signed yet, hence the SmartScreen warning.
+- **The apps** (WTFTD.exe, WTFTD-macOS.zip) are built by GitHub Actions from the released source code; each
+  release lists their SHA-256 (check with `Get-FileHash WTFTD.exe` in PowerShell or
+  `shasum -a 256 WTFTD-macOS.zip` in Terminal). They aren't code-signed yet, hence the SmartScreen / Gatekeeper
+  warnings.

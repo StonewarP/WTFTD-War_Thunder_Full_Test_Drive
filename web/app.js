@@ -136,7 +136,7 @@ matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { i
 // ------------------------------------------------------------------ boot
 let LOCALES = [{ code: 'en', name: 'English' }];
 
-// first launch: the Windows / browser language when the app has it, else English
+// first launch: the system / browser language when the app has it, else English
 function systemLang() {
   const codes = LOCALES.map(l => l.code);
   for (const tag of navigator.languages || [navigator.language || '']) {
@@ -1336,6 +1336,9 @@ async function openSettings() {
   try { locales = await (await fetch('locales/index.json')).json(); } catch { /* keep default */ }
   $('#setLang').innerHTML = locales.map(l => `<option value="${esc(l.code)}"${l.code === I18N.code ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
   $('#setGameDir').value = st.settings?.gameDir || '';
+  const mac = st.platform === 'darwin';
+  $('#setGameDir').placeholder = mac ? '~/Library/Application Support/Steam/steamapps/common/War Thunder' : 'D:\\SteamLibrary\\steamapps\\common\\War Thunder';
+  $('#setOodle').placeholder = mac ? '…/liboo2coremac64.2.9.dylib' : '…\\oo2core_9_win64.dll';
   $('#setGameDirHint').textContent = st.gameDir ? t('settings.detected', { path: st.gameDir }) : t('settings.gameDirHint');
   $('#setOodle').value = st.settings?.oodleDll || '';
   $('#setOodleFound').textContent = st.oodle ? t('settings.oodleFound', { path: st.oodle }) : t('settings.oodleNone');
@@ -1417,3 +1420,5 @@ function showOnboarding() {
 }
 
 boot().catch(e => { console.error(e); toastErr(e); });
+// app window: tells the local server the page is gone (macOS keeps the browser running, WTFTD quits with the window)
+addEventListener('pagehide', () => navigator.sendBeacon('/api/bye'));
