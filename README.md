@@ -102,7 +102,8 @@ window and finds your game by itself (Steam or standalone). Close the window to 
   weapons on any pylon — missiles, bombs, rockets, torpedoes, pods, and **nuclear bombs** (RN-28, RN-40,
   B61, AN-52, KB-1, RDS-4, RDS-37) — with a warning when the aircraft lacks the radar / laser designator /
   guidance the weapon needs
-- **Ammunition**: 4 shell slots with round counts for tanks; belts per gun for aircraft, helicopters and ships
+- **Ammunition**: 4 shell slots with round counts for tanks; belts per gun for aircraft, helicopters and ships; the
+  game's own shell and belt icons; **flares / chaff split** for countermeasure launchers (beta, see *Known limits*)
 - **Modifications** (custom vehicles): engine power, mass, top speed, brakes, turret speed, thrust,
   reload, ammo capacity, shell velocity / mass / explosive / penetration…
 - **Scenario editor** on the level's real tactical map, read from the game files:
@@ -228,6 +229,7 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
 - Missions and custom vehicles are local: they can't be played together online (custom battles / co-op use
   Gaijin's servers and the official vehicle files). Share the setup instead.
 - "Non-playable units" come from the game files (AI, removed, unreleased) and may not load or behave oddly.
+- The flares / chaff split is new and not yet checked in game ([checklist](docs/ingame-checklist.md)).
 - macOS support is new and less tested than Windows. The packaged app is built for Apple silicon; on an Intel
   Mac, [run from source](#run-from-source).
 
@@ -249,6 +251,7 @@ web/                        UI (HTML/CSS/JS, no build step), web/locales = trans
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)
 docs/screenshots/           README images
+docs/ingame-checklist.md    what still needs checking in game
 ```
 
 ## Feedback

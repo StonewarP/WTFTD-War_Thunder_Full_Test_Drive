@@ -4,6 +4,16 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## Unreleased
+
+- **Ammunition icons**: shells, aircraft / helicopter / ship belts and flares / chaff show the game's own
+  icons (from its icon table, so they follow game updates). The game data rebuilds itself once (schema 8).
+- **Flares / chaff split**: for countermeasure launchers that take both, choose how many of each (the sum is
+  the launcher's capacity). Beta: not yet checked in game, see `docs/ingame-checklist.md`.
+- First launch: the language picker no longer overlaps the logo; the progress bar shows a translated step
+  instead of the English log (the log appears only on error).
+- Opening a vehicle: every setup step starts closed.
+
 ## 0.15.0 — 2026-10-08
 
 - **macOS**: WTFTD runs on macOS too. It finds War Thunder (Steam or standalone, inside

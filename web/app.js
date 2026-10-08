@@ -35,7 +35,7 @@ const S = {
   rendered: 0,
   sel: null,      // selected vehicle record
   cfg: null,      // current setup for the selected vehicle
-  openStep: 'scenario',
+  openStep: '',  // setup steps all start closed
   showAllScen: false,
   showUnofficial: false,
   f: Object.assign({ cat: 'all', nations: [], ranks: [], brMode: 1, brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', sort: 'br', view: 'tree', stats: {}, wsel: [] }, store.get('filters', {})),
@@ -161,7 +161,8 @@ async function boot() {
   renderStatus();
 
   if (!S.status.dataReady) { showOnboarding(); return; }
-  const [vehicles, scenarios, trees] = await Promise.all([getData('vehicles.json'), getData('scenarios.json'), getData('trees.json').catch(() => ({}))]);
+  const [vehicles, scenarios, trees, bulletIcons] = await Promise.all([getData('vehicles.json'), getData('scenarios.json'), getData('trees.json').catch(() => ({})), getData('bullet_icons.json').catch(() => ({}))]);
+  S.bulletIcons = bulletIcons;
   S.trees = trees;
   S.vehicles = vehicles;
   S.scenarios = scenarios;
@@ -568,7 +569,7 @@ async function openVehicle(id, cfg = null) {
   }
   if (S.sel !== v) return;
   S.cfg = cfg ? normalizeCfg(v, d, cfg) : defaultCfg(v, d);
-  S.openStep = 'scenario';
+  S.openStep = '';
   if (typeof LP !== 'undefined') LP.slot = null;
   renderDrawer({ keepScroll: false });
   $('.layout').classList.add('drawer-open');
@@ -809,6 +810,34 @@ function loadoutBody(v, d) {
   return `<div class="opt-list">${items}</div>${d.b === 'armada' ? `<p class="hint" style="margin-top:12px">${esc(t('loadout.note'))}</p>` : ''}`;
 }
 
+// shell / belt icons from the game's own table (data/bullet_icons.json): a belt is drawn like the hangar
+// draws it, its bullets in order repeated up to 4 (a countermeasure: once)
+const shellImg = tp => {
+  const ic = S.bulletIcons?.icons || {}, id = ic[String(tp || '').split('@')[0]] || ic.default_shell;
+  return id ? `<img class="shell" src="/img/ammo/${encodeURIComponent(id)}.png" alt="" loading="lazy" onerror="this.remove()">` : '';
+};
+function beltIcons(o, once = false) {
+  const types = o?.t || [];
+  const n = once ? types.length : types.length * Math.max(1, Math.floor(4 / types.length));
+  return types.length ? `<span class="belt">${Array.from({ length: n }, (_, i) => shellImg(types[i % types.length])).join('')}</span>` : '';
+}
+
+// countermeasure launcher whose capacity the game splits between flares and chaff
+const cmFlare = g => g.trig === 'countermeasures' && g.opts.length === 2 ? g.opts.find(o => o.t?.[0] === 'flr') : null;
+const cmChaff = g => cmFlare(g) ? g.opts.find(o => o.t?.[0] === 'chff') : null;
+const cmTotal = g => (g.cap || 0) * (g.n || 1);
+// chaff count of a split launcher's setting (older setups: the chaff belt = all chaff)
+const cmChaffCount = (g, a) => Math.max(0, Math.min(cmTotal(g), a?.chaff ?? (a?.id && a.id === cmChaff(g)?.id ? cmTotal(g) : 0)));
+
+function cmBody(g, i, a) {
+  const total = cmTotal(g), ch = cmChaffCount(g, a), fl = total - ch;
+  const row = (o, n, key) => `<div class="cm-row">${shellImg(o.t[0])}<span>${esc(I18N.btype(o.t[0]))}</span>
+      <input type="number" min="0" max="${total}" data-cm="${i}" data-cm-key="${key}" value="${n}"></div>`;
+  return `${row(cmFlare(g), fl, 'flares')}${row(cmChaff(g), ch, 'chaff')}
+    <input type="range" class="cm-range" min="0" max="${total}" step="1" data-cm="${i}" data-cm-key="chaff" value="${ch}">
+    <small class="muted">${esc(t('ammo.cmSplit', { n: total }))}</small>`;
+}
+
 function ammoOptions(g, selected, belt) {
   const opts = g.opts.filter(o => S.showUnofficial || !o.x || o.id === selected);
   return opts.map(o => `<option value="${esc(o.id)}"${o.id === selected ? ' selected' : ''}>${esc(ammoLabel(o, belt))}${o.x ? ' ⚠' : ''}</option>`).join('');
@@ -825,6 +854,7 @@ function ammoBody(v, d) {
     const over = g.cap && used > g.cap;
     const slots = c.ammo.map((a, i) => `<div class="slot">
         <span class="slot-n" style="color:${a.id !== null ? AMMO_COLORS[i] : ''}">${i + 1}</span>
+        <span class="slot-ic">${a.id !== null ? shellImg(g.opts.find(o => o.id === a.id)?.t?.[0]) : ''}</span>
         <select data-ammo="${i}"><option value="__empty"${a.id === null ? ' selected' : ''}>— ${esc(t('ammo.empty'))} —</option>${ammoOptions(g, a.id, false)}</select>
         <div class="stepper"><button data-step-ammo="${i}" data-d="-1">−</button><input type="number" min="0" data-count="${i}" value="${a.id === null ? 0 : a.count}" ${a.id === null ? 'disabled' : ''}><button data-step-ammo="${i}" data-d="1">+</button></div>
       </div>`).join('');
@@ -838,7 +868,8 @@ function ammoBody(v, d) {
   if (!d.am.length) return `<p class="hint">${esc(t('ammo.none'))}</p>`;
   const guns = d.am.map((g, i) => `<div class="gun"><div class="gun-head">${icon('ammo', 'ic-sm')}<span class="gun-name">${esc(I18N.weapon(g.w))}</span>
       ${g.n > 1 ? `<span class="chip">${esc(t('ammo.guns', { n: g.n }))}</span>` : ''}</div>
-      <select data-belt="${i}" style="width:100%">${ammoOptions(g, c.ammo[i]?.id ?? '', true)}</select></div>`).join('');
+      ${cmChaff(g) && i < 4 ? cmBody(g, i, c.ammo[i]) + '</div>' : `<div class="belt-row">${beltIcons(g.opts.find(o => o.id === (c.ammo[i]?.id ?? '')), g.trig === 'countermeasures')}
+        <select data-belt="${i}">${ammoOptions(g, c.ammo[i]?.id ?? '', true)}</select></div></div>`}`).join('');
   return `<p class="hint">${esc(t('ammo.beltNote'))}</p>${guns}${unofficialToggle}`;
 }
 
@@ -949,7 +980,13 @@ function bindDrawer() {
       return renderDrawer();
     }
     if (el.dataset.count !== undefined) { c.ammo[+el.dataset.count].count = Math.max(0, parseInt(el.value, 10) || 0); return renderDrawer(); }
-    if (el.dataset.belt !== undefined) { const i = +el.dataset.belt; c.ammo[i] = Object.assign(c.ammo[i] || {}, { id: el.value }); return; }
+    if (el.dataset.cm !== undefined) {
+      const i = +el.dataset.cm, g = S.details.get(S.sel.id).am[i], total = cmTotal(g);
+      const n = Math.max(0, Math.min(total, parseInt(el.value, 10) || 0));
+      c.ammo[i] = Object.assign(c.ammo[i] || {}, { id: '', count: total, chaff: el.dataset.cmKey === 'chaff' ? n : total - n });
+      return renderDrawer();
+    }
+    if (el.dataset.belt !== undefined) { const i = +el.dataset.belt; c.ammo[i] = Object.assign(c.ammo[i] || {}, { id: el.value }); return renderDrawer(); }
     if (el.dataset.field) { c[el.dataset.field] = el.value; if (el.dataset.field === 'missionType') { renderDrawer(); } return; }
     if (el.dataset.check) { c[el.dataset.check] = el.checked; return; }
     if (el.dataset.cheat) { c.cheats[el.dataset.cheat] = el.checked; return renderDrawer(); }
@@ -993,7 +1030,16 @@ function missionPayload() {
   const c = S.cfg;
   return {
     scenario: c.scenario, vehicle: c.vehicle, block: c.block, preset: c.preset,
-    ammo: c.ammo.map(a => a && a.id !== null ? { id: a.id || '', count: +a.count || 0 } : { id: '', count: 0 }),
+    ammo: c.ammo.map((a, i) => {
+      const g = c.block === 'armada' ? S.details.get(c.vehicle)?.am[i] : null;
+      if (g && cmChaff(g)) {  // split countermeasure launcher
+        const total = cmTotal(g), ch = cmChaffCount(g, a);
+        if (ch === 0) return { id: '', count: total };
+        if (ch === total) return { id: cmChaff(g).id, count: total };
+        return { id: '', count: total - ch, chaff: { id: cmChaff(g).id, count: ch } };
+      }
+      return a && a.id !== null ? { id: a.id || '', count: +a.count || 0 } : { id: '', count: 0 };
+    }),
     environment: c.environment, weather: c.weather, start: c.start, altitude: c.altitude, speed: c.speed,
     heading: c.heading === '' ? null : +c.heading, missionType: c.missionType, allMods: c.allMods,
     fuel: (c.block === 'armada' && c.fuel) || null,
@@ -1377,7 +1423,7 @@ async function saveSettings() {
 async function startUpdate(logEl, btn, barEl = null) {
   try {
     await api('update', {});
-    logEl.classList.remove('hidden');
+    if (!barEl) logEl.classList.remove('hidden');  // onboarding: translated step under the bar, raw log only on error
     if (btn) btn.disabled = true;
     const t0 = Date.now();
     const poll = async () => {
@@ -1389,12 +1435,12 @@ async function startUpdate(logEl, btn, barEl = null) {
         barEl.classList.remove('hidden');
         barEl.querySelector('i').style.width = (f * 100).toFixed(1) + '%';
         const left = f > 0.08 && f < 1 ? Math.max(5, Math.round(s / f - s)) : null;
-        barEl.querySelector('span').textContent = (st.log[st.log.length - 1] || '').trim();
+        barEl.querySelector('span').textContent = t(f < 0.45 ? 'onboard.stepDownload' : 'onboard.stepBuild');
         barEl.querySelector('b').textContent = `${Math.round(f * 100)} %` + (left ? ` · ${t('onboard.left', { t: left > 90 ? Math.round(left / 60) + ' min' : left + ' s' })}` : '');
       }
       if (st.running) return setTimeout(poll, 700);
       if (btn) btn.disabled = false;
-      if (st.error) toastErr(new Error(st.error));
+      if (st.error) { logEl.classList.remove('hidden'); toastErr(new Error(st.error)); }
       else if (st.done) { toast({ title: t('settings.updated') }); setTimeout(() => location.reload(), 800); }
     };
     poll();

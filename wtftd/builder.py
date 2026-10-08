@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 7  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 8  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -109,6 +109,14 @@ def load(path: Path):
             return json.load(f)
     except (OSError, ValueError):
         return None
+
+
+def build_bullet_icons() -> dict:
+    """The game's own bullet type -> icon table (config/gui.blk), so shells, belts and countermeasures
+    get the hangar's icons: {"icons": {"apds_fs_long_tank": "apdsfs_tank", "flr": "bullet_flare", ...}}."""
+    gui = load(DM / "aces.vromfs.bin_u" / "config" / "gui.blkx") or {}
+    icons = gui.get("bullet_icons") if isinstance(gui, dict) else None
+    return {"icons": {k: v for k, v in (icons or {}).items() if isinstance(v, str)}}
 
 
 def first_str(v) -> str:
@@ -1497,6 +1505,8 @@ def build(pull: bool = True, progress=None):
         json.dump(trees, f, separators=(",", ":"))
     with open(DATA / "scenarios.json", "w", encoding="utf-8") as f:
         json.dump(scenarios, f, separators=(",", ":"))
+    with open(DATA / "bullet_icons.json", "w", encoding="utf-8") as f:
+        json.dump(build_bullet_icons(), f, separators=(",", ":"))
     codes = lang.write()
     version = (DM / "version").read_text().strip() if (DM / "version").exists() else "?"
     meta = {"version": version, "schema": SCHEMA, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}

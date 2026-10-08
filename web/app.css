@@ -356,7 +356,15 @@ option { background: var(--surface); }
 .gun { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 12px; margin-bottom: 10px; }
 .gun-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .gun-name { font-weight: 650; font-size: 13.5px; }
-.slot { display: grid; grid-template-columns: 22px 1fr 108px; gap: 8px; align-items: center; margin-bottom: 7px; }
+.slot { display: grid; grid-template-columns: 22px 22px 1fr 108px; gap: 8px; align-items: center; margin-bottom: 7px; }
+.slot-ic { height: 34px; display: grid; place-items: center; }
+.shell { height: 34px; width: auto; max-width: 34px; object-fit: contain; flex: none; }
+.belt { display: flex; gap: 1px; flex: none; }
+.belt-row { display: flex; align-items: center; gap: 10px; }
+.belt-row select { flex: 1; min-width: 0; }
+.cm-row { display: grid; grid-template-columns: 22px 1fr 96px; gap: 10px; align-items: center; margin-bottom: 6px; }
+.cm-row input { width: 100%; }
+.cm-range { width: 100%; margin: 4px 0 6px; }
 .slot-n { width: 22px; height: 22px; border-radius: 6px; background: var(--surface-3); display: grid; place-items: center; font: 700 11px var(--font-display); color: var(--muted); }
 .slot select { width: 100%; height: 34px; }
 .stepper { display: flex; align-items: center; height: 34px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface); overflow: hidden; }
@@ -421,7 +429,7 @@ option { background: var(--surface); }
 .onboard-card h2 { font: 750 22px var(--font-display); margin: 8px 0; }
 .onboard-card .log { text-align: left; }
 .onboard-card { position: relative; }
-.onboard-lang { position: absolute; top: 14px; right: 14px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.onboard-lang { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin: -14px -14px 6px 0; font-size: 12px; color: var(--muted); }
 .onboard-lang select { height: 28px; font-size: 12.5px; }
 
 /* ------------------------------------------------------------------ toasts */

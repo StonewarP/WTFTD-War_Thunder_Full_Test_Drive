@@ -520,6 +520,27 @@ def safe_name(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_\-]+", "_", s).strip("_")[:80] or "mission"
 
 
+def write_bullets(unit: dict, ammo: list):
+    """The player's 4 bullet slots: belt / shell set id and count per slot."""
+    for i in range(4):
+        a = ammo[i] if i < len(ammo) and isinstance(ammo[i], dict) else {}
+        unit[f"bullets{i}"] = str(a.get("id", "") or "")
+        unit[f"bulletsCount{i}"] = max(0, min(int(a.get("count", 0) or 0), 100000))
+    # countermeasures mixing flares and chaff: the game splits one launcher between two linked bullet
+    # sets (flares = its default set, chaff = its chaff set), as in its own training missions
+    # (15 flares + 15 chaff). The chaff part goes to the first slot no gun uses. TO VALIDATE IN GAME.
+    free = [j for j in range(len(ammo), 4)]
+    for a in ammo[:4]:
+        ch = a.get("chaff") if isinstance(a, dict) else None
+        if not isinstance(ch, dict) or not free:
+            continue
+        cid = str(ch.get("id", ""))
+        if re.fullmatch(r"[A-Za-z0-9_\-]+", cid):
+            j = free.pop(0)
+            unit[f"bullets{j}"] = cid
+            unit[f"bulletsCount{j}"] = max(0, min(int(ch.get("count", 0) or 0), 100000))
+
+
 def build(cfg: dict) -> tuple[str, str]:
     """Returns (file_name, blk_text)."""
     sid = cfg.get("scenario", "")
@@ -558,11 +579,7 @@ def build(cfg: dict) -> tuple[str, str]:
         raise MissionError("Invalid unit class")
     unit["unit_class"] = unit_class
     unit["weapons"] = cfg.get("preset", "") or ""
-    ammo = cfg.get("ammo") or []
-    for i in range(4):
-        a = ammo[i] if i < len(ammo) and isinstance(ammo[i], dict) else {}
-        unit[f"bullets{i}"] = str(a.get("id", "") or "")
-        unit[f"bulletsCount{i}"] = max(0, min(int(a.get("count", 0) or 0), 100000))
+    write_bullets(unit, cfg.get("ammo") or [])
     unit["applyAllMods"] = bool(cfg.get("allMods", True))
     ch = cfg.get("cheats") or {}
     crew = ch.get("crew") or ("expert" if ch.get("expertCrew") else "")
