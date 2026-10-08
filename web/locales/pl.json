@@ -444,5 +444,15 @@
   "stat.disp": "Wyporność",
   "stat.crew": "Załoga",
   "stat.pwProp": "Moc/masa (śmigłowe)",
-  "stat.twJet": "Ciąg/masa (odrzutowe)"
+  "stat.twJet": "Ciąg/masa (odrzutowe)",
+  "wpick.title": "Wybierz uzbrojenie",
+  "wpick.search": "Szukaj broni lub pocisku…",
+  "wpick.clear": "Wyczyść",
+  "wpick.button": "Wybierz uzbrojenie…",
+  "wpick.hint": "Kliknij broń, aby ją wybrać: pojazdy muszą przenosić wszystkie wybrane.",
+  "wpick.anyType": "Dowolny {type}",
+  "wpick.count": "Pojazdy: {n}",
+  "wpick.more": "Jeszcze {n} — zawęź wyszukiwanie",
+  "wcat.gun": "Działka i karabiny",
+  "wcat.ammo": "Pociski i amunicja"
 }

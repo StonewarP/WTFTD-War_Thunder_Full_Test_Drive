@@ -444,5 +444,15 @@
   "stat.disp": "Déplacement",
   "stat.crew": "Équipage",
   "stat.pwProp": "Puissance/poids (hélice)",
-  "stat.twJet": "Poussée/poids (jet)"
+  "stat.twJet": "Poussée/poids (jet)",
+  "wpick.title": "Choisir des armes",
+  "wpick.search": "Rechercher une arme ou un obus…",
+  "wpick.clear": "Effacer",
+  "wpick.button": "Choisir des armes…",
+  "wpick.hint": "Cliquez sur les armes pour les sélectionner : les véhicules doivent toutes les emporter.",
+  "wpick.anyType": "Tout {type}",
+  "wpick.count": "{n} véhicules",
+  "wpick.more": "{n} de plus — affinez la recherche",
+  "wcat.gun": "Canons & mitrailleuses",
+  "wcat.ammo": "Obus & munitions"
 }

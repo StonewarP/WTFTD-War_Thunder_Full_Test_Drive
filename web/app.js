@@ -38,7 +38,7 @@ const S = {
   openStep: 'scenario',
   showAllScen: false,
   showUnofficial: false,
-  f: Object.assign({ cat: 'all', nations: [], ranks: [], brMode: 1, brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', sort: 'br', view: 'tree', stats: {}, wq: '' }, store.get('filters', {})),
+  f: Object.assign({ cat: 'all', nations: [], ranks: [], brMode: 1, brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', sort: 'br', view: 'tree', stats: {}, wsel: [] }, store.get('filters', {})),
   trees: {},
   openGroups: new Set(),
 };
@@ -466,7 +466,7 @@ function bindUI() {
   $('#optPrem').addEventListener('change', e => setFilter({ prem: e.target.checked }));
   $('#optHidden').addEventListener('change', e => setFilter({ hidden: e.target.checked }));
   $('#sort').addEventListener('change', e => setFilter({ sort: e.target.value }));
-  $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', stats: {}, wq: '' }));
+  $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', stats: {}, wsel: [] }));
   $('#search').addEventListener('input', debounce(e => { S.f.q = e.target.value; applyFilters(); }, 90));
 
   $$('.tab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));

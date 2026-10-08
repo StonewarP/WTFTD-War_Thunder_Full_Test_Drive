@@ -31,6 +31,22 @@ def find_app_browser() -> str | None:
     return shutil.which("msedge") or shutil.which("chrome") or shutil.which("chromium")
 
 
+def window_args() -> list[str]:
+    """1500x920 app window, or maximized when the screen's work area is smaller (laptops, 1366x768...)."""
+    w, h = 1500, 920
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            area = wintypes.RECT()
+            ctypes.windll.user32.SystemParametersInfoW(0x30, 0, ctypes.byref(area), 0)  # SPI_GETWORKAREA
+            if area.right - area.left < w + 40 or area.bottom - area.top < h + 40:
+                return ["--start-maximized"]
+        except (OSError, AttributeError):
+            pass
+    return [f"--window-size={w},{h}"]
+
+
 def main():
     if sys.stdout is None:  # packaged app without a console: keep a log instead
         CACHE.mkdir(parents=True, exist_ok=True)
@@ -53,7 +69,7 @@ def main():
                     (profile / "Default" / name).unlink()
                 except OSError:
                     pass
-            proc = subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", "--window-size=1500,920",
+            proc = subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", *window_args(),
                                      "--no-first-run", "--no-default-browser-check", "--disable-features=Translate"])
             proc.wait()  # window closed -> quit
         else:

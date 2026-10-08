@@ -444,5 +444,15 @@
   "stat.disp": "Desplazamiento",
   "stat.crew": "Tripulación",
   "stat.pwProp": "Potencia/peso (hélice)",
-  "stat.twJet": "Empuje/peso (reactor)"
+  "stat.twJet": "Empuje/peso (reactor)",
+  "wpick.title": "Elegir armas",
+  "wpick.search": "Buscar un arma o proyectil…",
+  "wpick.clear": "Borrar",
+  "wpick.button": "Elegir armas…",
+  "wpick.hint": "Haz clic en las armas para seleccionarlas: los vehículos deben llevarlas todas.",
+  "wpick.anyType": "Cualquier {type}",
+  "wpick.count": "{n} vehículos",
+  "wpick.more": "{n} más: afina la búsqueda",
+  "wcat.gun": "Cañones y ametralladoras",
+  "wcat.ammo": "Proyectiles y munición"
 }

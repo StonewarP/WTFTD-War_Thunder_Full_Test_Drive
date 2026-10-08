@@ -229,6 +229,18 @@
   </form>
 </dialog>
 
+<dialog class="modal modal-weapons" id="dlgWeapons">
+  <div class="modal-inner">
+    <div class="modal-head"><h3><svg class="ic"><use href="#i-ammo"/></svg><span data-i18n="wpick.title"></span></h3>
+      <label class="search wp-search"><svg class="ic-sm"><use href="#i-search"/></svg><input type="search" id="wpSearch" data-i18n-ph="wpick.search" autocomplete="off"></label>
+      <button class="icon-btn" id="wpClose"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="wp-cats lp-cats" id="wpCats"></div>
+    <div class="wp-grid" id="wpGrid"></div>
+    <div class="wp-foot"><div class="wp-chosen" id="wpChosen"></div><span class="muted" id="wpCount"></span>
+      <button class="btn btn-ghost btn-sm" id="wpClear" data-i18n="wpick.clear"></button><button class="btn btn-primary btn-sm" id="wpDone" data-i18n="editor.done"></button></div>
+  </div>
+</dialog>
+
 <dialog class="modal" id="dlgPrompt">
   <form method="dialog" class="modal-inner">
     <div class="modal-head"><h3 id="promptTitle"></h3></div>

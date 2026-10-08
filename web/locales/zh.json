@@ -444,5 +444,15 @@
   "stat.disp": "排水量",
   "stat.crew": "乘员",
   "stat.pwProp": "功重比（螺旋桨）",
-  "stat.twJet": "推重比（喷气）"
+  "stat.twJet": "推重比（喷气）",
+  "wpick.title": "选择武器",
+  "wpick.search": "搜索武器或弹药…",
+  "wpick.clear": "清除",
+  "wpick.button": "选择武器…",
+  "wpick.hint": "点击武器进行选择：载具必须携带所有所选武器。",
+  "wpick.anyType": "任意 {type}",
+  "wpick.count": "{n} 辆载具",
+  "wpick.more": "还有 {n} 项——请细化搜索",
+  "wcat.gun": "火炮与机枪",
+  "wcat.ammo": "炮弹与弹药"
 }

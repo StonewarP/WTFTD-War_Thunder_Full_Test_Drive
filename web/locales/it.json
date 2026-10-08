@@ -444,5 +444,15 @@
   "stat.disp": "Dislocamento",
   "stat.crew": "Equipaggio",
   "stat.pwProp": "Potenza/peso (elica)",
-  "stat.twJet": "Spinta/peso (jet)"
+  "stat.twJet": "Spinta/peso (jet)",
+  "wpick.title": "Scegli le armi",
+  "wpick.search": "Cerca un'arma o un proiettile…",
+  "wpick.clear": "Svuota",
+  "wpick.button": "Scegli le armi…",
+  "wpick.hint": "Clicca sulle armi per selezionarle: i veicoli devono averle tutte.",
+  "wpick.anyType": "Qualsiasi {type}",
+  "wpick.count": "{n} veicoli",
+  "wpick.more": "Altre {n} — affina la ricerca",
+  "wcat.gun": "Cannoni e mitragliatrici",
+  "wcat.ammo": "Proiettili e munizioni"
 }

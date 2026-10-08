@@ -31,9 +31,11 @@ nothing to install: double-click it, the app opens in its own window and finds y
 2. **Set it up** step by step: map & scenario, loadout, ammunition, modifications, cheats, conditions.
 3. **Create mission**, start War Thunder (button in the app), open *Single missions → User missions*.
 
-| Stats: tanks over 60 km/h, best turret armor first | Search by weapon (AIM-9L), fastest first, vehicle stats |
+| Stats: tanks over 60 km/h, best turret armor first | Carrying the AIM-9L, fastest first, vehicle stats |
 |---|---|
 | ![Stats filters](docs/screenshots/07-stats.png) | ![Weapon search and stats](docs/screenshots/08-stats-drawer.png) |
+
+![Weapon picker](docs/screenshots/09-weapon-picker.png)
 
 | Research trees | Pylon editor — here a B61 nuclear bomb on pylon 5 |
 |---|---|
@@ -52,8 +54,9 @@ nothing to install: double-click it, the app opens in its own window and finds y
 - **Stats & fine search**: each vehicle's performance — top / reverse speed, power-to-weight, engine power,
   turret / hull armor, turret traverse, gun caliber, HEAT penetration, reload; for aircraft turn time, roll rate,
   climb rate, ceiling, thrust-to-weight, wing loading; for ships displacement — shown on its card, **sortable**
-  (fastest, best turning, best armored…) and **filterable with min / max** values. **Search by carried weapon or
-  ammunition** (e.g. `AIM-9L`, `DM53`, `B61`; several terms with `,`)
+  (fastest, best turning, best armored…) and **filterable with min / max** values. **Weapon picker**: pick carried
+  weapons by their game icon (missiles, bombs, rockets, nuclear, guns, shells — or a shell type like “any
+  APFSDS”), with how many vehicles carry each; vehicles must carry all the picked weapons
 - **100+ official scenarios**: firing range, Fulda, naval range, airfields, heli ranges, carriers,
   seaplane bases… plus the **hangar maps** (regular, winter, Halloween, Lunar New Year, anniversary)
 - **Loadout**: every official preset, or a **pylon editor** laid out like the game's (presets as rows,

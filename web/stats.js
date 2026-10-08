@@ -53,17 +53,124 @@ function statsMatch(v) {
   return true;
 }
 
-function weaponIndex(v) {
-  if (v._w == null) v._w = norm((v.wp || []).map(k => `${I18N.weapon(k)} ${I18N.bullet(k)} ${k}`).join(' | '));
-  return v._w;
+// ------------------------------------------------------------------ weapon picker
+// S.f.wsel = ["<weapon / ammo key>" | "T:<ammo type>"]: the vehicle must carry all of them.
+const WP = { arsenal: null, cat: '', q: '' };
+const WP_CATS = ['aam_ir', 'aam_radar', 'agm', 'atgm', 'rockets', 'bombs', 'guided_bombs', 'nuke', 'torpedoes', 'mines', 'pods', 'fuel', 'gun', 'ammo'];
+
+function ammoType(tp) {
+  const x = (tp || '').toLowerCase();
+  for (const [re, lab] of [[/^atgm/, 'ATGM'], [/^sam/, 'SAM'], [/^apds_fs/, 'APFSDS'], [/^apds/, 'APDS'], [/^apcr/, 'APCR'],
+    [/^heat_fs/, 'HEATFS'], [/^heat/, 'HEAT'], [/^hesh/, 'HESH'], [/^aphe/, 'APHE'], [/^apcbc/, 'APCBC'], [/^sap/, 'SAP'],
+    [/^ap/, 'AP'], [/^smoke/, 'Smoke'], [/^shrapnel/, 'Shrapnel'], [/^(he|frag)/, 'HE'], [/^rocket/, 'Rocket']]) if (re.test(x)) return lab;
+  return x.split('_')[0].toUpperCase();
 }
 
+const NOT_WEAPON = /countermeasure|flare|chaff/i, NOT_TYPES = new Set(['FLR', 'CHFF']);
+const carried = v => (v._carry ||= new Set([...(v.wg || []), ...(v.wp || []), ...(v.wa || [])].filter(k => !NOT_WEAPON.test(k))));
+function ammoTypes(v) {
+  if (!v._types) v._types = new Set((v.wa || []).map(k => WP.arsenal?.[k]?.t).filter(Boolean).map(ammoType).filter(x => !NOT_TYPES.has(x)));
+  return v._types;
+}
+const wpName = k => k.startsWith('T:') ? t('wpick.anyType', { type: k.slice(2) }) : (WP.arsenal?.[k]?.c === 'ammo' ? I18N.bullet(k) : I18N.weapon(k));
+// several game files can hold the same weapon (variants, containers): one entry per displayed name
+const carriedNames = v => (v._names ||= new Set([...carried(v)].map(wpName)));
+
 function weaponMatch(v) {
-  const q = (S.f.wq || '').trim();
-  if (!q) return true;
-  if (!v.wp) return false;
-  const idx = weaponIndex(v);
-  return q.split(/[,+]/).map(s => norm(s.trim())).filter(Boolean).every(term => idx.includes(term));
+  const sel = S.f.wsel || [];
+  if (!sel.length) return true;
+  return sel.every(k => k.startsWith('T:') ? ammoTypes(v).has(k.slice(2)) : carriedNames(v).has(wpName(k)));
+}
+
+function wpIcon(k) {
+  const a = WP.arsenal?.[k];
+  if (k.startsWith('T:')) return `<span class="wp-badge">${esc(k.slice(2))}</span>`;
+  if (a?.ic) return ammoIcon(a.ic);
+  if (a?.c === 'gun') return `<span class="wp-badge gun">${a.cal ? esc(Math.round(a.cal)) + '<i>mm</i>' : icon('ammo', 'ic-sm')}</span>`;
+  if (a?.c === 'ammo') return `<span class="wp-badge">${esc(ammoType(a.t))}</span>`;
+  return '<span class="wicon-ph"></span>';
+}
+
+async function openWeaponPicker() {
+  if (!WP.arsenal) {
+    try { WP.arsenal = await getData('arsenal.json'); } catch { WP.arsenal = {}; }
+    for (const v of S.vehicles) delete v._types;
+  }
+  WP.q = '';
+  $('#wpSearch').value = '';
+  renderWeaponPicker();
+  $('#dlgWeapons').showModal();
+  $('#wpSearch').focus();
+}
+
+function renderWeaponPicker() {
+  const sel = new Set(S.f.wsel || []);
+  // what the vehicles of the current type carry, and how many of them
+  const byName = new Map(), types = new Map();  // name -> {k: representative key, n: vehicles}
+  for (const v of S.vehicles) {
+    if ((v.h && !S.f.hidden) || (S.f.cat !== 'all' && v.c !== S.f.cat)) continue;
+    const seen = new Set();
+    for (const k of carried(v)) {
+      const name = wpName(k);
+      let e = byName.get(name);
+      if (!e) byName.set(name, e = { k, n: 0 });
+      else if (!WP.arsenal[e.k]?.ic && WP.arsenal[k]?.ic) e.k = k;  // prefer a key with a game icon
+      if (!seen.has(name)) { seen.add(name); e.n++; }
+    }
+    for (const tp of ammoTypes(v)) types.set(tp, (types.get(tp) || 0) + 1);
+  }
+  const counts = new Map([...byName.values()].map(e => [e.k, e.n]));
+  const catOf = k => WP.arsenal[k]?.c || 'other';
+  const present = WP_CATS.filter(c => [...counts.keys()].some(k => catOf(k) === c));
+  if (WP.cat && !present.includes(WP.cat)) WP.cat = '';
+  $('#wpCats').innerHTML = `<button class="chipbtn${!WP.cat ? ' active' : ''}" data-wpcat="">${esc(t('cat.all'))}</button>`
+    + present.map(c => `<button class="chipbtn${WP.cat === c ? ' active' : ''}" data-wpcat="${c}">${esc(t('wcat.' + c))}</button>`).join('');
+  const q = norm(WP.q);
+  let items = [...counts.entries()].filter(([k]) => (!WP.cat || catOf(k) === WP.cat) && (!q || norm(wpName(k) + ' ' + k).includes(q)));
+  // shell types ("any APFSDS") first in the ammunition category
+  if (!WP.cat || WP.cat === 'ammo') {
+    const typeItems = [...types.entries()].map(([tp, n]) => ['T:' + tp, n]).filter(([k]) => !q || norm(k.slice(2)).includes(q));
+    items = WP.cat === 'ammo' ? [...typeItems, ...items] : [...items, ...typeItems];
+  }
+  const typesFirst = WP.cat === 'ammo' ? 1 : -1;
+  items.sort((a, b) => (b[0].startsWith('T:') - a[0].startsWith('T:')) * typesFirst || b[1] - a[1] || wpName(a[0]).localeCompare(wpName(b[0])));
+  const max = 360;
+  $('#wpGrid').innerHTML = items.slice(0, max).map(([k, n]) => `<button class="wp-tile${sel.has(k) ? ' active' : ''}" data-wpk="${esc(k)}" title="${esc(wpName(k))}">
+      ${wpIcon(k)}<span class="wp-name">${esc(wpName(k))}</span><span class="wp-n">${esc(t('wpick.count', { n: I18N.num(n) }))}</span></button>`).join('')
+    + (items.length > max ? `<p class="hint wp-more">${esc(t('wpick.more', { n: items.length - max }))}</p>` : '')
+    + (!items.length ? `<p class="hint">${esc(t('results.empty'))}</p>` : '');
+  renderWeaponChosen();
+}
+
+function renderWeaponChosen() {
+  const sel = S.f.wsel || [];
+  const chips = sel.map(k => `<span class="wp-chip">${wpIcon(k)}<span>${esc(wpName(k))}</span><button data-wprm="${esc(k)}" title="${esc(t('action.delete'))}">${icon('x', 'ic-sm')}</button></span>`).join('');
+  $('#wpChosen').innerHTML = chips || `<span class="hint">${esc(t('wpick.hint'))}</span>`;
+  $('#wpSelSide').innerHTML = chips;
+  $('#wpCount').textContent = sel.length ? t('results.count', { n: I18N.num(S.filtered?.length || 0) }) : '';
+}
+
+function bindWeaponPicker() {
+  const toggle = k => {
+    const sel = new Set(S.f.wsel || []);
+    sel.has(k) ? sel.delete(k) : sel.add(k);
+    S.f.wsel = [...sel];
+    applyFilters();
+  };
+  $('#dlgWeapons').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.wpcat !== undefined) { WP.cat = b.dataset.wpcat; return renderWeaponPicker(); }
+    if (b.dataset.wpk) { toggle(b.dataset.wpk); return renderWeaponPicker(); }
+    if (b.dataset.wprm) { toggle(b.dataset.wprm); return renderWeaponPicker(); }
+    if (b.id === 'wpClear') { S.f.wsel = []; applyFilters(); return renderWeaponPicker(); }
+    if (b.id === 'wpDone' || b.id === 'wpClose') $('#dlgWeapons').close();
+  });
+  $('#wpSearch').addEventListener('input', debounce(e => { WP.q = e.target.value; renderWeaponPicker(); }, 100));
+  $('#statFilters').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'btnWeapons') openWeaponPicker();
+    if (b.dataset.wprm) { toggle(b.dataset.wprm); renderWeaponChosen(); }
+  });
 }
 
 // ------------------------------------------------------------------ sorting
@@ -94,8 +201,9 @@ function renderStatFilters() {
   if (!box) return;
   const f = S.f.stats || {};
   const keys = statKeys(S.f.cat);
-  box.innerHTML = `<label class="wsearch"><span>${esc(t('filters.weapon'))}</span>
-      <input type="search" id="weaponSearch" value="${esc(S.f.wq || '')}" placeholder="${esc(t('filters.weaponPh'))}" autocomplete="off"></label>
+  box.innerHTML = `<div class="wsearch"><span>${esc(t('filters.weapon'))}</span>
+      <button type="button" class="btn btn-sm btn-block" id="btnWeapons">${icon('ammo', 'ic-sm')}<span>${esc(t('wpick.button'))}</span></button>
+      <div class="wp-side" id="wpSelSide"></div></div>
     ${S.f.cat === 'all' ? `<p class="hint">${esc(t('filters.statsPickType'))}</p>` : ''}
     <div class="stat-rows">${keys.map(k => {
       const [lo, hi] = f[k] || [];
@@ -104,6 +212,8 @@ function renderStatFilters() {
         <input type="number" step="any" data-stat="${k}" data-b="0" value="${lo ?? ''}" placeholder="${esc(t('filters.min'))}">
         <input type="number" step="any" data-stat="${k}" data-b="1" value="${hi ?? ''}" placeholder="${esc(t('filters.max'))}"></div>`;
     }).join('')}</div>`;
+  if ((S.f.wsel || []).length) (WP.arsenal ? Promise.resolve() : getData('arsenal.json').then(a => { WP.arsenal = a; }).catch(() => {}))
+    .then(() => { if ($('#wpSelSide')) $('#wpSelSide').innerHTML = (S.f.wsel || []).map(k => `<span class="wp-chip">${wpIcon(k)}<span>${esc(wpName(k))}</span><button data-wprm="${esc(k)}">${icon('x', 'ic-sm')}</button></span>`).join(''); });
 }
 
 function bindStatFilters() {
@@ -118,11 +228,7 @@ function bindStatFilters() {
     el.closest('.stat-row').classList.toggle('on', cur[0] != null || cur[1] != null);
     applyFilters();
   });
-  box.addEventListener('input', debounce(e => {
-    if (e.target.id !== 'weaponSearch') return;
-    S.f.wq = e.target.value;
-    applyFilters();
-  }, 120));
+  bindWeaponPicker();
 }
 
 // ------------------------------------------------------------------ vehicle card / drawer

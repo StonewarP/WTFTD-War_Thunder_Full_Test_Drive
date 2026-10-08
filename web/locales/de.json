@@ -444,5 +444,15 @@
   "stat.disp": "Verdrängung",
   "stat.crew": "Besatzung",
   "stat.pwProp": "Leistungsgewicht (Propeller)",
-  "stat.twJet": "Schub/Gewicht (Jet)"
+  "stat.twJet": "Schub/Gewicht (Jet)",
+  "wpick.title": "Waffen wählen",
+  "wpick.search": "Waffe oder Granate suchen…",
+  "wpick.clear": "Leeren",
+  "wpick.button": "Waffen wählen…",
+  "wpick.hint": "Waffen anklicken, um sie auszuwählen: Fahrzeuge müssen alle mitführen.",
+  "wpick.anyType": "Beliebige {type}",
+  "wpick.count": "{n} Fahrzeuge",
+  "wpick.more": "{n} weitere — Suche verfeinern",
+  "wcat.gun": "Kanonen & MGs",
+  "wcat.ammo": "Granaten & Munition"
 }

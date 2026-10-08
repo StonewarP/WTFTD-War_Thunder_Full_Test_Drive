@@ -444,5 +444,15 @@
   "stat.disp": "Výtlak",
   "stat.crew": "Posádka",
   "stat.pwProp": "Výkon/hmotnost (vrtulová)",
-  "stat.twJet": "Tah/hmotnost (proudová)"
+  "stat.twJet": "Tah/hmotnost (proudová)",
+  "wpick.title": "Vybrat zbraně",
+  "wpick.search": "Hledat zbraň nebo náboj…",
+  "wpick.clear": "Vymazat",
+  "wpick.button": "Vybrat zbraně…",
+  "wpick.hint": "Klikáním vyberte zbraně: vozidla musí nést všechny vybrané.",
+  "wpick.anyType": "Jakýkoli {type}",
+  "wpick.count": "Vozidel: {n}",
+  "wpick.more": "Dalších {n} — zpřesněte hledání",
+  "wcat.gun": "Kanóny a kulomety",
+  "wcat.ammo": "Náboje a munice"
 }

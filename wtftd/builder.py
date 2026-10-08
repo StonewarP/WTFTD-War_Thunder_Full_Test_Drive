@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 2  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 3  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -518,12 +518,19 @@ def _r1(x, nd=1):
     return round(float(x), nd) if isinstance(x, (int, float)) and not isinstance(x, bool) else None
 
 
+_CAL_CACHE: dict = {}
+
+
 def _caliber_mm(blk: str) -> float | None:
+    if blk in _CAL_CACHE:
+        return _CAL_CACHE[blk]
+    _CAL_CACHE[blk] = None
     d = load(blk_to_path(blk)) if blk else None
     for b in aslist((d or {}).get("bullet")):
         if isinstance(b, dict) and isinstance(b.get("caliber"), (int, float)):
-            return round(b["caliber"] * 1000, 1)
-    return None
+            _CAL_CACHE[blk] = round(b["caliber"] * 1000, 1)
+            break
+    return _CAL_CACHE[blk]
 
 
 def ground_speeds(udata: dict) -> tuple[float | None, float | None]:
@@ -755,6 +762,7 @@ def build_vehicles(lang: Lang, progress=None):
     report(progress, 0.49)
     wp = load(DM / "char.vromfs.bin_u" / "config" / "wpcost.blkx") or {}
     unittags = load(DM / "char.vromfs.bin_u" / "config" / "unittags.blkx") or {}
+    arsenal: dict = {}  # every weapon / ammo carried by a vehicle: category + icon / caliber / shell type
     wc = WeaponCache(lang)
     vehicles, details = [], {}
 
@@ -864,19 +872,42 @@ def build_vehicles(lang: Lang, progress=None):
         stats = vehicle_stats(cat, udata, v, unittags.get(vid) or {}, details[vid]["st"], details[vid]["am"])
         if stats:
             rec["s"] = stats
-        # what it carries, for "search by weapon": guns, presets, pylon options, then ammunition
-        weapons = [g["w"] for g in details[vid]["am"] if g.get("w")]
-        weapons += [k for p in presets for k, _ in p["w"]]
-        weapons += [k for sl_ in details[vid].get("sl", []) for o in sl_["o"] for k, _ in o["w"]]
-        ammo_names = [b for g in details[vid]["am"] for o in g.get("opts", []) if not o.get("x") for b in o.get("b", [])]
-        if weapons or ammo_names:
-            rec["wp"] = list(dict.fromkeys(weapons + ammo_names))
+        # what it carries, for "search by weapon": guns, presets / pylon weapons, ammunition
+        guns, carried, ammo_names = [], [], []
+        for g in details[vid]["am"]:
+            if g.get("w"):
+                guns.append(g["w"])
+                if g["w"] not in arsenal:
+                    arsenal[g["w"]] = {"c": "gun", "cal": _caliber_mm(g.get("p", ""))}
+            for o in g.get("opts", []):
+                if o.get("x"):
+                    continue
+                for b in o.get("b", []):
+                    ammo_names.append(b)
+                    if b not in arsenal and o.get("t"):
+                        arsenal[b] = {"c": "ammo", "t": o["t"][0]}
+        carried += [k for p in presets for k, _ in p["w"]]
+        carried += [k for sl_ in details[vid].get("sl", []) for o in sl_["o"] for k, _ in o["w"]]
+        for key, lst in (("wg", guns), ("wp", carried), ("wa", ammo_names)):
+            if lst:
+                rec[key] = list(dict.fromkeys(lst))
         vehicles.append(rec)
     for key, entry in catalog.items():
         votes = ICON_VOTES.get(key)
         entry["ic"] = max(votes, key=votes.get) if votes else CATEGORY_ICONS.get(entry["c"], "bombs_middle")
     with open(DATA / "weapons.json", "w", encoding="utf-8") as fw:
         json.dump(catalog, fw, separators=(",", ":"))
+    # pylon / preset weapons: category and game icon from the catalog (variants like "<key>_default" too)
+    for v in vehicles:
+        for k in v.get("wp", []):
+            if k in arsenal:
+                continue
+            base = catalog.get(k) or catalog.get(re.sub(r"(_default|_\d+)$", "", k))
+            votes = ICON_VOTES.get(k)
+            arsenal[k] = {"c": (base or {}).get("c", "other"),
+                          "ic": max(votes, key=votes.get) if votes else (base or {}).get("ic", "")}
+    with open(DATA / "arsenal.json", "w", encoding="utf-8") as fw:
+        json.dump(arsenal, fw, separators=(",", ":"))
     return vehicles, details
 
 

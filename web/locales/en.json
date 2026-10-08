@@ -444,5 +444,15 @@
   "stat.disp": "Displacement",
   "stat.crew": "Crew",
   "stat.pwProp": "Power/weight (propeller)",
-  "stat.twJet": "Thrust/weight (jet)"
+  "stat.twJet": "Thrust/weight (jet)",
+  "wpick.title": "Choose weapons",
+  "wpick.search": "Search a weapon or shell…",
+  "wpick.clear": "Clear",
+  "wpick.button": "Choose weapons…",
+  "wpick.hint": "Click weapons to select them: vehicles must carry all of them.",
+  "wpick.anyType": "Any {type}",
+  "wpick.count": "{n} vehicles",
+  "wpick.more": "{n} more — refine the search",
+  "wcat.gun": "Guns & cannons",
+  "wcat.ammo": "Shells & ammo"
 }

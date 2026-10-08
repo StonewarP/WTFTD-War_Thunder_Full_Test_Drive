@@ -444,5 +444,15 @@
   "stat.disp": "排水量",
   "stat.crew": "乗員",
   "stat.pwProp": "出力重量比（プロペラ機）",
-  "stat.twJet": "推力重量比（ジェット機）"
+  "stat.twJet": "推力重量比（ジェット機）",
+  "wpick.title": "武装を選択",
+  "wpick.search": "武装・砲弾を検索…",
+  "wpick.clear": "クリア",
+  "wpick.button": "武装を選択…",
+  "wpick.hint": "クリックで武装を選択: 選んだすべてを搭載する兵器が表示されます。",
+  "wpick.anyType": "任意の {type}",
+  "wpick.count": "{n} 両",
+  "wpick.more": "他 {n} 件 — 検索を絞り込んでください",
+  "wcat.gun": "機関砲・機関銃",
+  "wcat.ammo": "砲弾・弾薬"
 }
