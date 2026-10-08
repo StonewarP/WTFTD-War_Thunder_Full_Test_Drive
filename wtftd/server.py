@@ -378,6 +378,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = unquote(urlparse(self.path).path)
         if path.startswith("/api/"):
+            # reads expose settings, setups and paths: only for this app's own page (blocks DNS rebinding)
+            if not self.local_origin():
+                return self.send_json({"error": "forbidden"}, 403)
             return self.get_api(path[5:])
         if path.startswith("/img/levelmap/"):
             meta = captured_map(path.rsplit("/", 1)[-1])
