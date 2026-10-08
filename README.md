@@ -2,6 +2,9 @@
 
 > **Beta** — it works, but some features are still untested in game (see *Known limits*). Feedback and bug
 > reports are welcome in the issues.
+>
+> **Disclaimer** — I'm not a professional developer: WTFTD is a hobby project, built with the help of AI
+> tools. The code is open and tested, but expect rough edges, and check it yourself if in doubt.
 
 [![Latest release](https://img.shields.io/github/v/release/StonewarP/WTFTD?include_prereleases&label=download)](https://github.com/StonewarP/WTFTD/releases)
 [![Tests](https://github.com/StonewarP/WTFTD/actions/workflows/tests.yml/badge.svg)](https://github.com/StonewarP/WTFTD/actions/workflows/tests.yml)
