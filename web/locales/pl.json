@@ -685,5 +685,8 @@
   "arm.note.us_mk13_torpedo": "Późna Mk.13: łatwo ją zrzucić przy dość dużej prędkości i wysokości. Wczesne wersje wymagają wolnego, niskiego podejścia.",
   "arm.notesHint": "Streszczone z oficjalnego forum, wiki i dyskusji na Steamie (październik 2026); łatki mogą je zdezaktualizować.",
   "arm.col.acc": "Przyspieszenie",
-  "arm.colh.acc": "Przyspieszenie po odpaleniu (ciąg pierwszego stopnia / masa startowa): jak szybko nabiera prędkości – kluczowe na krótkim dystansie"
+  "arm.colh.acc": "Przyspieszenie po odpaleniu (ciąg pierwszego stopnia / masa startowa): jak szybko nabiera prędkości – kluczowe na krótkim dystansie",
+  "arm.fh.ccm_r": "IRCCM: głowica wstrzymuje się, gdy widzi flary, potem szuka ponownie — flary i skręt, by ją zgubić",
+  "arm.fh.ccm_g": "IRCCM: wąska bramka śledzenia ignoruje flary poza osią celu — flary działają jeszcze z przodu lub z tyłu",
+  "arm.fh.ccm_rg": "IRCCM: odrzucanie flar + wąska bramka śledzenia — najtrudniejsza do zmylenia"
 }

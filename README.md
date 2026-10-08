@@ -44,6 +44,10 @@ nothing to install: double-click it, the app opens in its own window and finds y
 
 ![Vehicle comparison](docs/screenshots/10-compare.png)
 
+| Weapons page: IR missiles ranked for dogfight, R-73 details and community view | Comparing weapons side by side |
+|---|---|
+| ![Weapons page](docs/screenshots/11-weapons.png) | ![Weapon comparison](docs/screenshots/12-weapons-compare.png) |
+
 | Research trees | Pylon editor — here a B61 nuclear bomb on pylon 5 |
 |---|---|
 | ![Research tree](docs/screenshots/02-tree.png) | ![Pylon editor](docs/screenshots/03-pylons.png) |

@@ -6,7 +6,7 @@ data/armament.json = {"items": [...], "carriers": {id: [vehicle ids]}}. Item fie
   acc launch acceleration G,
   gl max G, burn motor burn s, pen penetration mm, pf proximity fuse radius m,
   IR seeker: lk lock range (rear) m, aa all-aspect lock range m, ob off-boresight lock angle deg,
-             trk tracking rate deg/s, ccm flare rejection (IRCCM),
+             trk tracking rate deg/s, ccm flare rejection (IRCCM) 0..1, ccmt its type,
   radar: act active seeker (fire & forget), ins inertial guidance, dl datalink, loft, sr seeker range m,
   ff fire-and-forget, wire wire-guided, beam beam rider.
 """
@@ -205,8 +205,13 @@ def _stats(cat: str, g: str, p: dict, tnt_eq: dict) -> dict:
         put("aa", _n(os_.get("rangeBand1")), 0)
         put("ob", _n(os_.get("lockAngleMax")), 0)
         put("trk", _n(os_.get("rateMax")), 0)
-        if os_.get("bandMaskToReject") is not None or os_.get("signalRelRejectedTreshold") is not None:
-            s["ccm"] = 1
+        # IRCCM: "reject" = the seeker pauses on flares (AIM-9M), "gate" = narrow tracking gate that ignores
+        # what is off the target's axis (R-73, Magic 2); both together are the hardest to flare
+        rej = os_.get("bandMaskToReject") is not None or os_.get("signalRelRejectedTreshold") is not None
+        gate = os_.get("gateWidth") is not None
+        if rej or gate:
+            s["ccm"] = 1.0 if rej and gate else (0.8 if rej else 0.5)
+            s["ccmt"] = "rg" if rej and gate else ("r" if rej else "g")
     if rs is not None:
         rcv = rs.get("receiver") if isinstance(rs.get("receiver"), dict) else {}
         put("sr", _n(rcv.get("range")) or _n(gd.get("lockDistance")), 0)

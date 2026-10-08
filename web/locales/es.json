@@ -685,5 +685,8 @@
   "arm.note.us_mk13_torpedo": "Mk.13 tardío: fácil de soltar a velocidad y altitud bastante altas. Las primeras versiones necesitan una aproximación lenta y baja.",
   "arm.notesHint": "Resumido del foro oficial, la wiki y las discusiones de Steam (octubre de 2026); los parches pueden dejarlo desactualizado.",
   "arm.col.acc": "Aceleración",
-  "arm.colh.acc": "Aceleración al lanzamiento (empuje de la 1.ª etapa / masa al lanzar): lo rápido que gana velocidad, clave a corta distancia"
+  "arm.colh.acc": "Aceleración al lanzamiento (empuje de la 1.ª etapa / masa al lanzar): lo rápido que gana velocidad, clave a corta distancia",
+  "arm.fh.ccm_r": "IRCCM: el buscador se detiene al ver bengalas y luego vuelve a buscar — lanza bengalas y gira para esquivarlo",
+  "arm.fh.ccm_g": "IRCCM: ventana de seguimiento estrecha que ignora las bengalas fuera del eje del objetivo — las bengalas aún funcionan de frente o por detrás",
+  "arm.fh.ccm_rg": "IRCCM: rechazo de bengalas + ventana de seguimiento estrecha — el más difícil de engañar"
 }

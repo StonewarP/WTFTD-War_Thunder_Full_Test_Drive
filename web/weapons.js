@@ -42,7 +42,7 @@ const AR_FLAGS = ['ccm', 'act', 'ins', 'dl', 'loft', 'ff', 'wire', 'nk'];
 
 const arName = it => I18N.arm(it.id);
 const arVal = (it, k) => k === 'eff' ? (it.tnt && it.m ? it.tnt / it.m : null) : k === 'ff2' ? (it.g === 'ir' || it.g === 'arh' ? 1 : 0)
-  : AR_FLAGS.includes(k) ? (it[k] ? 1 : 0) : (typeof it[k] === 'number' ? it[k] : null);
+  : k === 'ccm' ? (it.ccm || 0) : AR_FLAGS.includes(k) ? (it[k] ? 1 : 0) : (typeof it[k] === 'number' ? it[k] : null);
 
 function arFmt(k, x, c) {
   if (x == null) return '—';
@@ -83,6 +83,8 @@ function arScore(it, use) {
   return s;
 }
 
+const arBest = (c, u) => ((AR.best ||= {})[c + u] ??= Math.max(0.0001, ...AR.data.items.filter(it => it.c === c).map(it => arScore(it, u))));
+
 function arItems() {
   const q = norm(AR.q);
   let list = AR.data.items.filter(it => it.c === AR.cat && (!AR.g || it.g === AR.g) && (!AR.nat || it.nat?.includes(AR.nat))
@@ -101,7 +103,7 @@ function arItems() {
 }
 
 const arTags = it => `${it.g ? `<span class="ar-tag g">${esc(t('arm.g.' + it.g))}</span>` : ''}${AR_FLAGS.filter(f => it[f] && f !== 'act')
-  .map(f => `<span class="ar-tag${f === 'nk' ? ' nk' : ''}" title="${esc(t('arm.fh.' + f))}">${esc(t('arm.f.' + f))}</span>`).join('')}`;
+  .map(f => `<span class="ar-tag${f === 'nk' ? ' nk' : ''}" title="${esc(t(f === 'ccm' && it.ccmt ? 'arm.fh.ccm_' + it.ccmt : 'arm.fh.' + f))}">${esc(t('arm.f.' + f))}</span>`).join('')}`;
 const arFlags = it => (it.nat || []).slice(0, 4).map(n => flagHTML(n)).join('') + (it.nat?.length > 4 ? `<span class="muted">+${it.nat.length - 4}</span>` : '');
 
 function renderWeapons() {
@@ -142,7 +144,7 @@ function renderWeaponTable() {
   const list = arItems();
   const cols = AR_CATS[AR.cat].cols.filter(k => list.some(it => it[k] != null));
   const th = (k, label, title = '') => `<th class="sortable${AR.sort === k ? ' sorted' : ''}" data-arsort="${k}" title="${esc(title)}">${esc(label)}${AR.sort === k ? (AR.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
-  const max = AR.use ? Math.max(...list.map(it => arScore(it, AR.use)), 0.0001) : 1;
+  const max = AR.use ? arBest(AR.cat, AR.use) : 1;  // 100 = best of the category, whatever the filters
   $('#arCount').textContent = t('arm.count', { n: I18N.num(list.length) });
   $('#arTable').innerHTML = list.length ? `<table class="ar-table"><thead><tr><th></th>${th('name', t('arm.col.name'))}<th>${esc(t('arm.col.type'))}</th>
       ${AR.use ? th('score', t('arm.col.score'), t('arm.useh.' + AR.use)) : ''}
@@ -210,10 +212,10 @@ function renderWeaponCompare() {
     return row(t('arm.col.' + k), list.map(it => `<td class="${b != null && it[k] === b ? 'best' : ''}">${esc(arFmt(k, it[k], it.c))}</td>`));
   };
   const uses = [...new Set(list.flatMap(it => Object.keys(AR_CATS[it.c].uses)))];
-  const useRow = u => {
-    const sc = list.map(it => AR_CATS[it.c].uses[u] ? arScore(it, u) : null);
+  const useRow = u => {  // same 0-100 scale as the table: the best weapon of the category = 100
+    const sc = list.map(it => AR_CATS[it.c].uses[u] ? Math.round(arScore(it, u) / arBest(it.c, u) * 100) : null);
     const b = Math.max(...sc.filter(x => x != null));
-    return row(t('arm.bestFor') + ' · ' + t('arm.use.' + u), sc.map(x => `<td class="${x != null && x === b && list.length > 1 ? 'best' : ''}">${x == null ? '—' : Math.round(x * 100)}</td>`));
+    return row(t('arm.bestFor') + ' · ' + t('arm.use.' + u), sc.map(x => `<td class="${x != null && x === b && list.length > 1 ? 'best' : ''}">${x == null ? '—' : x}</td>`));
   };
   $('#wcmpTable').innerHTML = `<table class="cmp"><thead><tr><th></th>${list.map(it => `<th><div class="cmp-head">
       <button class="icon-btn cmp-rm" data-arcmprm="${esc(it.id)}" title="${esc(t('compare.remove'))}">${icon('x', 'ic-sm')}</button>

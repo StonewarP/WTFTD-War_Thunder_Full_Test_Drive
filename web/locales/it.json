@@ -685,5 +685,8 @@
   "arm.note.us_mk13_torpedo": "Mk.13 tardo: facile da sganciare a velocità e quota piuttosto elevate. Le prime versioni richiedono un avvicinamento lento e basso.",
   "arm.notesHint": "Riassunto dal forum ufficiale, dalla wiki e dalle discussioni su Steam (ottobre 2026); le patch possono renderlo superato.",
   "arm.col.acc": "Accelerazione",
-  "arm.colh.acc": "Accelerazione al lancio (spinta del 1° stadio / massa al lancio): quanto in fretta prende velocità, fondamentale a corto raggio"
+  "arm.colh.acc": "Accelerazione al lancio (spinta del 1° stadio / massa al lancio): quanto in fretta prende velocità, fondamentale a corto raggio",
+  "arm.fh.ccm_r": "IRCCM: il sensore si ferma quando vede i flare, poi cerca di nuovo — flare e virata per evitarlo",
+  "arm.fh.ccm_g": "IRCCM: finestra di inseguimento stretta che ignora i flare fuori dall'asse del bersaglio — i flare funzionano ancora di fronte o da dietro",
+  "arm.fh.ccm_rg": "IRCCM: rifiuto dei flare + finestra di inseguimento stretta — il più difficile da ingannare"
 }

@@ -685,5 +685,8 @@
   "arm.note.jp_type91mod2_torpedo": "La torpille aérienne la plus tolérante : largable vite et d'assez haut.",
   "arm.note.us_mk13_torpedo": "Mk.13 tardive : facile à larguer à vitesse et altitude assez élevées. Les premières versions demandent une approche lente et basse.",
   "arm.col.acc": "Accélération",
-  "arm.colh.acc": "Accélération au départ (poussée du 1er étage / masse au tir) : à quelle vitesse il prend de la vitesse, clé à courte portée"
+  "arm.colh.acc": "Accélération au départ (poussée du 1er étage / masse au tir) : à quelle vitesse il prend de la vitesse, clé à courte portée",
+  "arm.fh.ccm_r": "IRCCM : le capteur se fige quand il voit des leurres puis cherche à nouveau — leurre ET tourne pour l'esquiver",
+  "arm.fh.ccm_g": "IRCCM : fenêtre de suivi étroite qui ignore les leurres hors de l'axe de la cible — les leurres marchent encore de face ou de dos",
+  "arm.fh.ccm_rg": "IRCCM : rejet des leurres + fenêtre de suivi étroite — le plus dur à leurrer"
 }

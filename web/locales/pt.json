@@ -685,5 +685,8 @@
   "arm.note.us_mk13_torpedo": "Mk.13 tardio: fácil de lançar em velocidade e altitude razoavelmente altas. As primeiras versões exigem uma aproximação lenta e baixa.",
   "arm.notesHint": "Resumido do fórum oficial, da wiki e de discussões na Steam (outubro de 2026); patches podem deixar estas notas desatualizadas.",
   "arm.col.acc": "Aceleração",
-  "arm.colh.acc": "Aceleração no lançamento (empuxo do 1º estágio / massa no lançamento): quão rápido ganha velocidade, essencial a curta distância"
+  "arm.colh.acc": "Aceleração no lançamento (empuxo do 1º estágio / massa no lançamento): quão rápido ganha velocidade, essencial a curta distância",
+  "arm.fh.ccm_r": "IRCCM: o buscador pausa ao ver flares e depois procura de novo — solte flares e curve para escapar",
+  "arm.fh.ccm_g": "IRCCM: janela de rastreio estreita que ignora flares fora do eixo do alvo — flares ainda funcionam de frente ou por trás",
+  "arm.fh.ccm_rg": "IRCCM: rejeição de flares + janela de rastreio estreita — o mais difícil de enganar"
 }

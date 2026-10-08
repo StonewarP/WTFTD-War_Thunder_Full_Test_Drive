@@ -685,5 +685,8 @@
   "arm.note.us_mk13_torpedo": "Late Mk.13: easy to drop at fairly high speed and altitude. Early versions need a slow, low approach.",
   "arm.notesHint": "Summarized from the official forum, wiki and Steam discussions (October 2026); patches can make them outdated.",
   "arm.col.acc": "Acceleration",
-  "arm.colh.acc": "Acceleration off the rail (first-stage thrust / launch mass): how fast it gets up to speed, key at close range"
+  "arm.colh.acc": "Acceleration off the rail (first-stage thrust / launch mass): how fast it gets up to speed, key at close range",
+  "arm.fh.ccm_r": "IRCCM: the seeker pauses when it sees flares, then looks again — flare and turn to beat it",
+  "arm.fh.ccm_g": "IRCCM: narrow tracking gate that ignores flares off the target's axis — flares still work head-on or from behind",
+  "arm.fh.ccm_rg": "IRCCM: flare rejection + narrow tracking gate — the hardest to flare"
 }

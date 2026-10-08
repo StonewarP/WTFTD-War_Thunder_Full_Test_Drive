@@ -685,5 +685,8 @@
   "arm.note.us_mk13_torpedo": "Pozdní Mk.13: snadno se shazuje při poměrně vysoké rychlosti a výšce. Rané verze vyžadují pomalý a nízký nálet.",
   "arm.notesHint": "Shrnuto z oficiálního fóra, wiki a diskusí na Steamu (říjen 2026); patche je mohou učinit zastaralými.",
   "arm.col.acc": "Zrychlení",
-  "arm.colh.acc": "Zrychlení po odpálení (tah prvního stupně / startovní hmotnost): jak rychle nabere rychlost, klíčové na krátkou vzdálenost"
+  "arm.colh.acc": "Zrychlení po odpálení (tah prvního stupně / startovní hmotnost): jak rychle nabere rychlost, klíčové na krátkou vzdálenost",
+  "arm.fh.ccm_r": "IRCCM: hlavice se při spatření klamných cílů zastaví a pak hledá znovu — vypusťte klamné cíle a zatočte",
+  "arm.fh.ccm_g": "IRCCM: úzké sledovací okno ignoruje klamné cíle mimo osu cíle — zepředu nebo zezadu klamné cíle stále fungují",
+  "arm.fh.ccm_rg": "IRCCM: odmítání klamných cílů + úzké sledovací okno — nejhůře se klame"
 }

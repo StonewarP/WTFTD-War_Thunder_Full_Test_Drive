@@ -685,5 +685,8 @@
   "arm.note.us_mk13_torpedo": "Späte Mk.13: leicht bei recht hoher Geschwindigkeit und Höhe abzuwerfen. Frühe Versionen brauchen einen langsamen, tiefen Anflug.",
   "arm.notesHint": "Zusammengefasst aus dem offiziellen Forum, dem Wiki und Steam-Diskussionen (Oktober 2026); Patches können sie veralten lassen.",
   "arm.col.acc": "Beschleunigung",
-  "arm.colh.acc": "Beschleunigung beim Start (Schub der ersten Stufe / Startmasse): wie schnell sie Fahrt aufnimmt – entscheidend auf kurze Distanz"
+  "arm.colh.acc": "Beschleunigung beim Start (Schub der ersten Stufe / Startmasse): wie schnell sie Fahrt aufnimmt – entscheidend auf kurze Distanz",
+  "arm.fh.ccm_r": "IRCCM: Der Suchkopf pausiert bei Flares und sucht dann erneut — Flares und Kurve, um ihn abzuschütteln",
+  "arm.fh.ccm_g": "IRCCM: enges Verfolgungsfenster, das Flares abseits der Zielachse ignoriert — Flares wirken noch von vorne oder hinten",
+  "arm.fh.ccm_rg": "IRCCM: Flare-Unterdrückung + enges Verfolgungsfenster — am schwersten abzulenken"
 }
