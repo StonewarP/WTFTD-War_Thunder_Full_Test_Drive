@@ -59,5 +59,7 @@ const I18N = (() => {
     btype: k => g('btypes', k, k.toUpperCase()),
     mod: k => g('mods', k, ''),
     map: k => g('maps', k, k),
+    role: k => g('roles', k, k.replace(/_/g, ' ')),
+    arm: k => g('arm', k, g('weapons', k, k)),
   };
 })();

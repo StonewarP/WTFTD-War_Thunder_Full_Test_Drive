@@ -30,8 +30,36 @@ const STATS = {
 // aircraft: propeller planes have a power-to-weight ratio, jets a thrust-to-weight ratio (not comparable)
 const statLabel = (k, cat) => t(cat === 'air' && k === 'pw' ? 'stat.pwProp' : cat === 'air' && k === 'tw' ? 'stat.twJet' : 'stat.' + k);
 const statKeys = cat => Object.keys(STATS).filter(k => cat === 'all' ? ['spd', 'crew'].includes(k) : STATS[k].cats.includes(cat));
+// Stats shown stock (false) or with all modules researched (true). v.s = fully upgraded, v.su = stock values
+S.upg = store.get('upg', 1) !== 0;
+function statAt(v, k) {
+  const x = v.s?.[k];
+  if (Array.isArray(x)) return x;
+  if (typeof x !== 'number') return null;
+  const su = v.su?.[k];
+  return !S.upg && typeof su === 'number' ? su : x;
+}
 // one comparable number per stat (armor: the front plate)
-const statVal = (v, k) => { const x = v.s?.[k]; return Array.isArray(x) ? x[0] : (typeof x === 'number' ? x : null); };
+const statVal = (v, k) => { const x = statAt(v, k); return Array.isArray(x) ? x[0] : x; };
+
+function upgSwitchHTML(estimated) {
+  return `<div class="upg" title="${esc(estimated ? t('upg.estimated') : '')}">
+    <div class="seg seg-sm" role="group" aria-label="${esc(t('upg.label'))}">
+      <button type="button" class="${S.upg ? '' : 'active'}" data-upgset="0">${esc(t('upg.stock'))}</button>
+      <button type="button" class="${S.upg ? 'active' : ''}" data-upgset="1">${esc(t('upg.full'))}</button>
+    </div>
+  </div>`;
+}
+
+function setUpgrade(on) {
+  if (S.upg === on) return;
+  S.upg = on;
+  store.set('upg', on ? 1 : 0);
+  if (S.sel && $('#vstatsWrap')) $('#vstatsWrap').outerHTML = statsBlockHTML(S.sel);
+  if ($('#dlgCompare')?.open) renderCompareTable();
+  if (S.f.sort?.startsWith('s:') || Object.keys(S.f.stats || {}).length) applyFilters();
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-upgset]'); if (b) setUpgrade(b.dataset.upgset === '1'); });
 
 function fmtStat(k, x) {
   if (x == null) return '—';
@@ -190,7 +218,7 @@ function updateSortOptions() {
   if (!sel) return;
   const keys = statKeys(S.f.cat);
   if (S.f.sort?.startsWith('s:') && !keys.includes(S.f.sort.slice(2))) S.f.sort = 'br';
-  const base = ['br', 'rank', 'name', 'nation'].map(k => `<option value="${k}">${esc(t('sort.' + k))}</option>`).join('');
+  const base = ['br', 'rank', 'name', 'nation', 'rarity'].map(k => `<option value="${k}">${esc(t('sort.' + k))}</option>`).join('');
   sel.innerHTML = base + `<optgroup label="${esc(t('stats.title'))}">${keys.map(k => `<option value="s:${k}">${esc(statLabel(k, S.f.cat))}${STATS[k].better ? (STATS[k].better > 0 ? ' ↓' : ' ↑') : ''}</option>`).join('')}</optgroup>`;
   sel.value = S.f.sort;
 }
@@ -235,12 +263,17 @@ function bindStatFilters() {
 function cardStatHTML(v) {
   const k = S.f.sort?.startsWith('s:') ? S.f.sort.slice(2) : null;
   if (!k || !STATS[k]) return '';
-  return `<span class="card-stat" title="${esc(statLabel(k, v.c))}">${esc(fmtStat(k, v.s?.[k]))}</span>`;
+  return `<span class="card-stat" title="${esc(statLabel(k, v.c))}">${esc(fmtStat(k, statAt(v, k)))}</span>`;
 }
 
 function statsBlockHTML(v) {
   const keys = statKeys(v.c).filter(k => v.s?.[k] != null);
-  if (!keys.length) return '';
-  return `<div class="vstats">${keys.map(k => `<div class="vstat" title="${esc(STATS[k].triple ? t('stat.armHint') : '')}">
-      <span>${esc(statLabel(k, v.c))}</span><b>${esc(fmtStat(k, v.s[k]))}</b></div>`).join('')}</div>`;
+  if (!keys.length) return '<div id="vstatsWrap"></div>';
+  const hasUpg = v.su && Object.keys(v.su).length;
+  const estimated = hasUpg && ['air', 'heli'].includes(v.c);
+  return `<div id="vstatsWrap">${hasUpg ? upgSwitchHTML(estimated) : ''}<div class="vstats">${keys.map(k => {
+    const chg = v.su?.[k] != null;
+    const tip = STATS[k].triple ? t('stat.armHint') : chg ? `${t('upg.stock')}: ${fmtStat(k, v.su[k])} → ${t('upg.full')}: ${fmtStat(k, v.s[k])}` : '';
+    return `<div class="vstat${chg ? ' upg-chg' : ''}" title="${esc(tip)}"><span>${esc(statLabel(k, v.c))}</span><b>${esc(fmtStat(k, statAt(v, k)))}</b></div>`;
+  }).join('')}</div></div>`;
 }

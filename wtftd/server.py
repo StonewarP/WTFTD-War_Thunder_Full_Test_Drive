@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import REPO, __version__, builder, cdk, game, maptex, mission, terrain
+from . import DONATE, REPO, __version__, builder, cdk, game, maptex, mission, terrain
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -522,9 +522,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == "launch":
             how = game.launch(STATE.game_dir())
             return self.send_json({"ok": True, "via": how})
-        if route == "open-url":  # release page / issue forms of this project only
+        if route == "open-url":  # release page / issue forms / donation page of this project only
             url = str(body.get("url", ""))
-            if url.startswith(f"https://github.com/{REPO}/"):
+            if url.startswith(f"https://github.com/{REPO}/") or url == DONATE:
                 import webbrowser
                 webbrowser.open(url)
                 return self.send_json({"ok": True})

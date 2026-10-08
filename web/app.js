@@ -88,7 +88,7 @@ const flagImg = n => `/img/flag/${n}.svg`;
 const brOf = (v, mode = S.f.brMode) => v.br?.[mode] ?? null;
 const fmtBR = b => (b == null ? '—' : b.toFixed(1));
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[\s\-_.()'"/]+/g, '');
-const className = k => I18N.tOr('class.' + k, k ? k.replace(/_/g, ' ') : t('class.'));
+const className = k => I18N.tOr('class.' + k, k ? I18N.role(k.toLowerCase()) : t('class.'));  // game's own name for unlisted classes
 const nationName = n => I18N.tOr('nation.' + n, n);
 const kindsFor = cat => SCENARIO_KINDS[cat] || [cat];
 const blockFor = cat => ({ ground: 'tankModels', air: 'armada', heli: 'armada', boat: 'ships', ship: 'ships' }[cat]);
@@ -134,9 +134,22 @@ function applyTheme(pref = themePref()) {
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (themePref() === 'system') applyTheme('system'); });
 
 // ------------------------------------------------------------------ boot
+let LOCALES = [{ code: 'en', name: 'English' }];
+
+// first launch: the Windows / browser language when the app has it, else English
+function systemLang() {
+  const codes = LOCALES.map(l => l.code);
+  for (const tag of navigator.languages || [navigator.language || '']) {
+    const c = String(tag).toLowerCase().split('-')[0];
+    if (codes.includes(c)) return c;
+  }
+  return 'en';
+}
+
 async function boot() {
   S.status = await api('status');
-  const lang = S.status.settings?.lang || store.get('lang', 'en');
+  try { LOCALES = await (await fetch('locales/index.json')).json(); } catch { /* English only */ }
+  const lang = S.status.settings?.lang || store.get('lang', '') || systemLang();
   await I18N.init(lang, S.status.data?.langs || ['en']);
   I18N.apply();
   applyTheme(S.status.settings?.theme || themePref());
@@ -166,6 +179,7 @@ async function boot() {
   bindShare();
   bindAppInfo();
   bindCompare();
+  bindWeapons();
 }
 
 function renderStatus() {
@@ -182,7 +196,35 @@ function renderStatus() {
 }
 
 // ------------------------------------------------------------------ sidebar & filters
+// rarity badge: 6 non-playable, 5 removed, 4 event, 3 pack, 2 squadron, 1 premium
+function rarityTag(v) {
+  const ra = v.ra || 0;
+  const [cls, key] = v.h || ra === 6 ? ['hid', 'badge.hidden'] : ra === 5 ? ['hid', 'badge.removed'] : ra === 4 || v.g ? ['ev', 'badge.event']
+    : ra === 3 ? ['ev', 'badge.pack'] : ra === 2 ? ['sq', 'badge.squadron'] : ra === 1 || v.p ? ['prem', 'badge.premium'] : [];
+  return key ? `<span class="tagx ${cls}">${esc(t(key))}</span>` : '';
+}
+
+const ROLE_ORDER = ['light_tank', 'medium_tank', 'heavy_tank', 'tank_destroyer', 'spaa', 'missile_tank',
+  'fighter', 'jet_fighter', 'interceptor', 'aa_fighter', 'assault', 'strike_aircraft', 'bomber', 'dive_bomber', 'light_bomber',
+  'frontline_bomber', 'longrange_bomber', 'jet_bomber', 'torpedo', 'naval_aircraft', 'hydroplane', 'strike_ucav',
+  'attack_helicopter', 'utility_helicopter', 'boat', 'torpedo_boat', 'gun_boat', 'torpedo_gun_boat', 'heavy_boat',
+  'heavy_gun_boat', 'armored_boat', 'submarine_chaser', 'minelayer', 'barge', 'frigate', 'destroyer', 'light_cruiser',
+  'heavy_cruiser', 'battlecruiser', 'battleship'];
+
+function renderRoles() {
+  const box = $('#roles'), sec = $('#roleSection');
+  if (!box || !sec) return;
+  sec.classList.toggle('hidden', S.f.cat === 'all');
+  if (S.f.cat === 'all') { box.innerHTML = ''; return; }
+  const counts = {};
+  for (const v of S.vehicles) if (v.c === S.f.cat && (!v.h || S.f.hidden)) for (const r of v.ro || []) counts[r] = (counts[r] || 0) + 1;
+  const sel = S.f.roles || [];
+  box.innerHTML = ROLE_ORDER.filter(r => counts[r]).map(r => `<button class="role-chip${sel.includes(r) ? ' active' : ''}" data-role="${r}">
+      <span>${esc(I18N.role(r))}</span><i>${I18N.num(counts[r])}</i></button>`).join('');
+}
+
 function buildSidebar() {
+  renderRoles();
   const counts = { all: 0 };
   for (const v of S.vehicles) if (!v.h || S.f.hidden) { counts.all++; counts[v.c] = (counts[v.c] || 0) + 1; }
   $('#cats').innerHTML = CATS.map(c => `<button class="cat${S.f.cat === c ? ' active' : ''}" data-cat="${c}">
@@ -222,6 +264,7 @@ function matcher() {
   const fullBR = f.brMin <= BR_MIN && f.brMax >= BR_MAX;
   return v => {
     if (f.ranks.length && !f.ranks.includes(v.r)) return false;
+    if (f.roles?.length && !(v.ro || []).some(r => f.roles.includes(r))) return false;
     if (!fullBR) { const b = brOf(v); if (b == null || b < f.brMin - 0.01 || b > f.brMax + 0.01) return false; }
     if (f.fav && !S.favs.has(v.id)) return false;
     if (f.prem && !v.p && !v.g) return false;
@@ -254,6 +297,7 @@ function applyFilters() {
     rank: (a, b) => (a.r || 99) - (b.r || 99) || (brOf(a) ?? 99) - (brOf(b) ?? 99),
     name: (a, b) => name(a).localeCompare(name(b), I18N.code, { numeric: true }),
     nation: (a, b) => NATIONS.indexOf(a.n) - NATIONS.indexOf(b.n) || (brOf(a) ?? 99) - (brOf(b) ?? 99),
+    rarity: (a, b) => (b.ra || 0) - (a.ra || 0) || (brOf(a) ?? 99) - (brOf(b) ?? 99),
   }[f.sort] || statCmp(f.sort) || (() => 0);
   list.sort(cmp);
   S.filtered = list;
@@ -268,7 +312,7 @@ function applyFilters() {
 function cardHTML(v) {
   const br = brOf(v);
   const cls = ['card', v.p ? 'prem' : '', v.h ? 'hid' : '', S.sel?.id === v.id ? 'selected' : ''].join(' ');
-  const tag = v.h ? `<span class="tagx hid">${esc(t('badge.hidden'))}</span>` : v.p ? `<span class="tagx prem">${esc(t('badge.premium'))}</span>` : v.g ? `<span class="tagx ev">${esc(t('badge.event'))}</span>` : '';
+  const tag = rarityTag(v);
   return `<button class="${cls}" data-id="${esc(v.id)}" style="--tint:${NATION_TINT[v.n] || NATION_TINT.other}">
     <div class="card-img">
       ${unitImgTag(v.id)}
@@ -447,7 +491,13 @@ function bindUI() {
   });
   window.addEventListener('resize', fillGrid);
 
-  $('#cats').addEventListener('click', e => { const b = e.target.closest('.cat'); if (b) setFilter({ cat: b.dataset.cat }); });
+  $('#cats').addEventListener('click', e => { const b = e.target.closest('.cat'); if (b) setFilter({ cat: b.dataset.cat, roles: [] }); });
+  $('#roles').addEventListener('click', e => {
+    const b = e.target.closest('[data-role]'); if (!b) return;
+    const cur = new Set(S.f.roles || []);
+    cur.has(b.dataset.role) ? cur.delete(b.dataset.role) : cur.add(b.dataset.role);
+    setFilter({ roles: [...cur] });
+  });
   $('#nations').addEventListener('click', e => {
     const b = e.target.closest('.nation'); if (!b) return;
     const n = b.dataset.n, cur = new Set(S.f.nations);
@@ -470,7 +520,7 @@ function bindUI() {
   $('#optPrem').addEventListener('change', e => setFilter({ prem: e.target.checked }));
   $('#optHidden').addEventListener('change', e => setFilter({ hidden: e.target.checked }));
   $('#sort').addEventListener('change', e => setFilter({ sort: e.target.value }));
-  $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', stats: {}, wsel: [] }));
+  $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', stats: {}, wsel: [], roles: [] }));
   $('#search').addEventListener('input', debounce(e => { S.f.q = e.target.value; applyFilters(); }, 90));
 
   $$('.tab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -498,6 +548,8 @@ function bindUI() {
 function showView(name) {
   $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
+  document.body.classList.toggle('view-weapons', name === 'weapons');
+  if (name === 'weapons') { if (S.sel) closeDrawer(); openWeaponsView(); }
   if (name === 'missions') refreshMissions();
   if (name === 'setups') renderSetups();
 }
@@ -1348,6 +1400,15 @@ async function startUpdate(logEl, btn, barEl = null) {
 
 function showOnboarding() {
   $('#onboard').classList.remove('hidden');
+  const sel = $('#onboardLang');
+  sel.innerHTML = LOCALES.map(l => `<option value="${esc(l.code)}"${l.code === I18N.code ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
+  sel.addEventListener('change', async () => {  // switch language in place: the download keeps running
+    store.set('lang', sel.value);
+    api('settings', { lang: sel.value }).then(st => { S.status = st; }).catch(() => {});
+    await I18N.init(sel.value, S.status.data?.langs || ['en']);
+    I18N.apply();
+    renderStatus();
+  });
   $('#btnOnboard').addEventListener('click', () => startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar')));
   $('#btnSettings').addEventListener('click', openSettings);
   $('#btnSaveSettings').addEventListener('click', saveSettings);

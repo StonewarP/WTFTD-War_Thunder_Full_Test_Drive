@@ -53,7 +53,7 @@ function renderCompareTable() {
   };
   const cell = (v, k, b) => {
     const x = statVal(v, k);
-    return `<td class="${b != null && x === b ? 'best' : ''}">${v.s?.[k] != null ? esc(fmtStat(k, v.s[k])) : '<span class="muted">—</span>'}</td>`;
+    return `<td class="${b != null && x === b ? 'best' : ''}${v.su?.[k] != null ? ' upg-chg' : ''}">${v.s?.[k] != null ? esc(fmtStat(k, statAt(v, k))) : '<span class="muted">—</span>'}</td>`;
   };
   const guns = v => (v.wg || []).filter(k => !NOT_WEAPON.test(k)).slice(0, 4).map(k => {
     const a = WP.arsenal[k];
@@ -79,7 +79,8 @@ function renderCompareTable() {
     const label = statLabel(k, list.every(v => v.c === list[0].c) ? list[0].c : 'all');
     return `<tr><th>${esc(label)}${STATS[k].triple ? `<small>${esc(t('stat.armHint'))}</small>` : ''}</th>${list.map(v => cell(v, k, b)).join('')}</tr>`;
   }).join('');
-  $('#cmpTable').innerHTML = `<table class="cmp"><thead><tr><th></th>${head}</tr></thead><tbody>
+  const upg = list.some(v => v.su && Object.keys(v.su).length) ? upgSwitchHTML(list.some(v => v.su && ['air', 'heli'].includes(v.c))) : '';
+  $('#cmpTable').innerHTML = `${upg}<table class="cmp"><thead><tr><th></th>${head}</tr></thead><tbody>
     ${brRows}${statRows}
     <tr><th>${esc(t('compare.guns'))}</th>${list.map(v => `<td class="cmp-wrap">${guns(v)}</td>`).join('')}</tr>
     <tr><th>${esc(t('compare.shells'))}</th>${list.map(v => `<td class="cmp-wrap">${shells(v)}</td>`).join('')}</tr>

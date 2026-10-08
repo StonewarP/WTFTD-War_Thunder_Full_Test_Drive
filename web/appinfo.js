@@ -3,6 +3,7 @@
 
 const APP = { info: null };
 const ISSUE_FORMS = { bug: 'bug_report.yml', idea: 'feature_request.yml' };
+const DONATE_URL = 'https://ko-fi.com/stonewarp';
 
 const openUrl = url => api('open-url', { url }).catch(toastErr);
 
@@ -33,6 +34,7 @@ function renderAppVersion() {
 function bindAppInfo() {
   $('#btnReportBug').addEventListener('click', () => openUrl(`${APP.info?.repo || 'https://github.com/StonewarP/WTFTD'}/issues/new?template=${ISSUE_FORMS.bug}`));
   $('#btnSuggest').addEventListener('click', () => openUrl(`${APP.info?.repo || 'https://github.com/StonewarP/WTFTD'}/issues/new?template=${ISSUE_FORMS.idea}`));
+  ['#btnSupport', '#btnSupport2'].forEach(s => $(s).addEventListener('click', () => openUrl(DONATE_URL)));
   setTimeout(checkAppVersion, 2500);
   setInterval(checkAppVersion, 6 * 3600 * 1000);
 }

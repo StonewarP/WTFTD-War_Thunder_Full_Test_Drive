@@ -51,6 +51,8 @@
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></symbol>
     <symbol id="i-tree" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="4.5" rx="1"/><rect x="3" y="16.5" width="6" height="4.5" rx="1"/><rect x="15" y="16.5" width="6" height="4.5" rx="1"/><path d="M12 7.5V12M6 16.5V12h12v4.5"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="m8.2 10.8 7.6-4.1M8.2 13.2l7.6 4.1"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.3S3.5 15 3.5 9.2A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 8.5 1.9C20.5 15 12 20.3 12 20.3z"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 3.6 5.4 3.6 8.5s-1.2 5.9-3.6 8.5c-2.4-2.6-3.6-5.4-3.6-8.5s1.2-5.9 3.6-8.5z"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
   </defs>
 </svg>
@@ -62,6 +64,7 @@
   </div>
   <nav class="tabs" role="tablist">
     <button class="tab active" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
+    <button class="tab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
     <button class="tab" data-view="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
     <button class="tab" data-view="setups" role="tab"><span data-i18n="nav.setups"></span><span class="tab-count" id="setupCount"></span></button>
   </nav>
@@ -73,6 +76,7 @@
   <div class="top-actions">
     <div class="status" id="status"></div>
     <button class="btn btn-ghost" id="btnLaunchTop"><svg class="ic"><use href="#i-play"/></svg><span data-i18n="action.launch"></span></button>
+    <button class="icon-btn heart" id="btnSupport" data-i18n-title="app.support"><svg class="ic"><use href="#i-heart"/></svg></button>
     <button class="icon-btn" id="btnTheme" data-i18n-title="theme.toggle"><svg class="ic"><use href="#i-sun"/></svg></button>
     <button class="icon-btn" id="btnSettings" data-i18n-title="settings.title"><svg class="ic"><use href="#i-gear"/></svg></button>
   </div>
@@ -105,6 +109,10 @@
       </div>
       <div class="range-labels"><span id="brMinLabel"></span><span id="brMaxLabel"></span></div>
     </div>
+    <div class="side-section hidden" id="roleSection">
+      <div class="side-title" data-i18n="filters.type"></div>
+      <div class="roles" id="roles"></div>
+    </div>
     <div class="side-section">
       <div class="side-title" data-i18n="filters.stats"></div>
       <div id="statFilters"></div>
@@ -132,6 +140,7 @@
             <option value="rank" data-i18n="sort.rank"></option>
             <option value="name" data-i18n="sort.name"></option>
             <option value="nation" data-i18n="sort.nation"></option>
+            <option value="rarity" data-i18n="sort.rarity"></option>
           </select>
         </label>
         </div>
@@ -140,6 +149,21 @@
       <div class="grid" id="grid"></div>
       <div class="empty hidden" id="gridEmpty"><svg class="ic-xl"><use href="#i-search"/></svg><p data-i18n="results.empty"></p></div>
       <div id="sentinel"></div>
+    </div>
+
+    <div class="view hidden" id="view-weapons">
+      <div class="page-head"><div><h2 data-i18n="arm.title"></h2><p class="muted" data-i18n="arm.hint"></p></div></div>
+      <div class="ar-cats" id="arCats"></div>
+      <div class="ar-guide" id="arGuide"></div>
+      <div class="ar-bar">
+        <label class="search ar-search"><svg class="ic"><use href="#i-search"/></svg><input id="arSearch" type="search" autocomplete="off" spellcheck="false" data-i18n-ph="arm.search"></label>
+        <select id="arNat"></select>
+        <div class="ar-chips" id="arGuid"></div>
+        <span class="muted ar-count" id="arCount"></span>
+      </div>
+      <div class="ar-chips ar-uses" id="arUses"></div>
+      <div class="ar-scroll" id="arTable"></div>
+      <div class="compare-tray ar-tray hidden" id="arTray"></div>
     </div>
 
     <div class="view hidden" id="view-missions">
@@ -163,6 +187,8 @@
 
 <div class="onboard hidden" id="onboard">
   <div class="onboard-card">
+    <label class="onboard-lang"><svg class="ic-sm"><use href="#i-globe"/></svg><span data-i18n="settings.language"></span>
+      <select id="onboardLang"></select></label>
     <img class="brand-logo big" src="logo.svg?v=3" alt="">
     <h2 data-i18n="onboard.title"></h2>
     <p class="muted" data-i18n="onboard.text"></p>
@@ -221,6 +247,7 @@
         <small class="muted" data-i18n="app.feedbackHint"></small>
         <div class="row gap"><button type="button" class="btn btn-ghost btn-sm" id="btnReportBug"><svg class="ic-sm"><use href="#i-x"/></svg><span data-i18n="app.reportBug"></span></button>
           <button type="button" class="btn btn-ghost btn-sm" id="btnSuggest"><svg class="ic-sm"><use href="#i-star"/></svg><span data-i18n="app.suggest"></span></button>
+          <button type="button" class="btn btn-ghost btn-sm heart" id="btnSupport2" data-i18n-title="app.supportHint"><svg class="ic-sm"><use href="#i-heart"/></svg><span data-i18n="app.support"></span></button>
           <small class="muted" id="appVersion"></small></div>
       </div>
     </div>
@@ -286,6 +313,14 @@
   </div>
 </dialog>
 
+<dialog class="modal modal-compare" id="dlgWcmp">
+  <div class="modal-inner">
+    <div class="modal-head"><h3><svg class="ic"><use href="#i-sliders"/></svg><span data-i18n="arm.compareTitle"></span></h3>
+      <button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="cmp-scroll" id="wcmpTable"></div>
+  </div>
+</dialog>
+
 <dialog class="modal" id="dlgPrompt">
   <form method="dialog" class="modal-inner">
     <div class="modal-head"><h3 id="promptTitle"></h3></div>
@@ -340,5 +375,6 @@
 <script src="share.js"></script>
 <script src="appinfo.js"></script>
 <script src="compare.js"></script>
+<script src="weapons.js"></script>
 </body>
 </html>

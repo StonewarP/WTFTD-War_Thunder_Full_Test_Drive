@@ -3,6 +3,8 @@
 > **Beta** — it works, but some features are still untested in game (see *Known limits*). Feedback and bug
 > reports are welcome in the issues.
 
+[![Support on Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/stonewarp)
+
 Test drive **any** War Thunder vehicle — ground, aircraft, helicopters, boats, ships — with the
 loadout, ammunition, map, targets and conditions you choose, even vehicles you don't own.
 
@@ -29,7 +31,8 @@ nothing to install: double-click it, the app opens in its own window and finds y
 
 ## How it works
 
-1. **Pick a vehicle** in the list or in the research trees (filters by type, nation, rank, BR…).
+1. **Pick a vehicle** in the list or in the research trees (filters by category, type — light / heavy tank,
+   fighter, bomber… —, nation, rank, BR…).
 2. **Set it up** step by step: map & scenario, loadout, ammunition, modifications, cheats, conditions.
 3. **Create mission**, start War Thunder (button in the app), open *Single missions → User missions*.
 
@@ -54,13 +57,22 @@ nothing to install: double-click it, the app opens in its own window and finds y
 ## Features
 
 - **3,500+ vehicles** with images from the [War Thunder wiki](https://wiki.warthunder.com/), grid or
-  research-tree view, filters (type, nation, rank, BR in AB/RB/SB, favorites, premium/event, non-playable units)
+  research-tree view, filters (category, **vehicle type** — light / medium / heavy tank, tank destroyer, SPAA,
+  fighter, bomber, attacker, helicopter, destroyer… with the game's own names —, nation, rank, BR in AB/RB/SB,
+  favorites, premium/event, non-playable units), **sort by rarity** with badges (premium, squadron, pack, event,
+  removed, hidden)
 - **Stats & fine search**: each vehicle's performance — top / reverse speed, power-to-weight, engine power,
   turret / hull armor, turret traverse, gun caliber, HEAT penetration, reload; for aircraft turn time, roll rate,
-  climb rate, ceiling, thrust-to-weight, wing loading; for ships displacement — shown on its card, **sortable**
+  climb rate, ceiling, thrust-to-weight, wing loading; for ships displacement — shown on its card, with a
+  **Stock / All upgrades** switch (stock values from the modules' penalties, estimated for aircraft), **sortable**
   (fastest, best turning, best armored…) and **filterable with min / max** values. **Weapon picker**: pick carried
   weapons by their game icon (missiles, bombs, rockets, nuclear, guns, shells — or a shell type like “any
   APFSDS”), with how many vehicles carry each; vehicles must carry all the picked weapons
+- **Weapons page**: every missile, bomb, rocket and torpedo (~860) by category — IR / radar air-to-air,
+  surface-to-air, ATGM, air-to-surface, guided bombs, bombs, rockets, torpedoes — with stats from the game files
+  (motor speed, max G, lock angle, IRCCM, seeker range, penetration, TNT equivalent…), **"best for" rankings**
+  (dogfight, head-on, flare resistance, beyond visual range, killing tanks, stand-off…), a short guide per
+  category, community notes on well-known weapons, side-by-side comparison and the vehicles that carry each one
 - **Compare up to 5 vehicles side by side** (button next to the favorite star): BR, every stat with the best
   value highlighted, guns with their caliber, shell types, pylon weapons
 - **100+ official scenarios**: firing range, Fulda, naval range, airfields, heli ranges, carriers,
@@ -84,7 +96,8 @@ nothing to install: double-click it, the app opens in its own window and finds y
 - **Cheats**: invulnerable, unlimited ammo, no reload, unlimited fuel, auto repair / rearm, passive
   targets, no collisions, expert / ace crew
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
-  简体中文, 日本語 — vehicle, weapon and map names follow the game's own translations. UI translations
+  简体中文, 日本語 — picked from your Windows language on first launch (or on the welcome screen), vehicle,
+  weapon and map names follow the game's own translations. UI translations
   other than English were machine-assisted and may contain mistakes: corrections are welcome
 - **Share a setup** with a friend: a short code to paste, or a `.wtftd` file — they import it (Saved setups →
   Import, or drop the file on the window) and get the same mission: vehicle, loadout, ammo, map, editor
@@ -177,6 +190,11 @@ docs/screenshots/           README images
 Found a bug or have an idea? **Settings → Report a bug / Suggest an idea**, or open an
 [issue](https://github.com/StonewarP/WTFTD/issues/new/choose). For bugs, paste your setup's **share code** — it lets
 us rebuild your exact setup.
+
+## Support
+
+WTFTD is free and always will be. If you enjoy it, you can support its development on
+**[Ko-fi](https://ko-fi.com/stonewarp)** ❤ (also the heart button in the app).
 
 ## License
 

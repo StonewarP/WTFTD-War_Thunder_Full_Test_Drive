@@ -33,13 +33,14 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 3  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 4  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
     "aces.vromfs.bin_u/gamedata/units/tankmodels",
     "aces.vromfs.bin_u/gamedata/units/ships",
     "aces.vromfs.bin_u/gamedata/weapons",
+    "aces.vromfs.bin_u/gamedata/damage_model",
     "char.vromfs.bin_u/config",
     "lang.vromfs.bin_u/lang",
     "mis.vromfs.bin_u/gamedata/missions",
@@ -309,7 +310,7 @@ def br_from(er):
 
 
 def categorize(move_type: str, unit_class: str) -> str:
-    if move_type == "tank":
+    if move_type in ("tank", "heavy_tank", "wheeled_vehicle"):
         return "ground"
     if move_type == "helicopter":
         return "heli"
@@ -317,7 +318,7 @@ def categorize(move_type: str, unit_class: str) -> str:
         return "air"
     if move_type == "fast_ship":
         return "boat"
-    if move_type == "ship":
+    if move_type in ("ship", "slow_ship"):
         return "ship"
     return "other"
 
@@ -757,6 +758,29 @@ def guess_nation(vid: str) -> str:
     return PREFIX_NATION.get(vid.lower().split("_", 1)[0], "")
 
 
+# vehicle roles for the "type" filter, from unittags (localized by the game: menu.csv mainmenu/type_<role>)
+ROLES = ("light_tank", "medium_tank", "heavy_tank", "tank_destroyer", "spaa", "missile_tank",
+         "fighter", "jet_fighter", "interceptor", "aa_fighter", "assault", "strike_aircraft", "bomber",
+         "dive_bomber", "light_bomber", "frontline_bomber", "longrange_bomber", "jet_bomber", "torpedo",
+         "naval_aircraft", "hydroplane", "strike_ucav", "attack_helicopter", "utility_helicopter",
+         "boat", "torpedo_boat", "gun_boat", "torpedo_gun_boat", "heavy_boat", "heavy_gun_boat", "armored_boat",
+         "submarine_chaser", "minelayer", "barge", "frigate", "destroyer", "light_cruiser", "heavy_cruiser",
+         "battlecruiser", "battleship")
+CLASS_ROLES = {"tank_destroyer": "tank_destroyer", "SPAA": "spaa", "fighter": "fighter", "assault": "assault",
+               "bomber": "bomber", "torpedo_boat": "torpedo_boat", "gun_boat": "gun_boat",
+               "torpedo_gun_boat": "torpedo_gun_boat", "submarine_chaser": "submarine_chaser", "destroyer": "destroyer"}
+
+
+def vehicle_roles(tags: dict, unit_class: str, lang: "Lang") -> list:
+    tg = (tags or {}).get("tags") or {}
+    roles = [k[5:] for k, on in tg.items() if on is True and k.startswith("type_") and k[5:] in ROLES]
+    if not roles and CLASS_ROLES.get(unit_class):
+        roles = [CLASS_ROLES[unit_class]]
+    for r in roles:
+        lang.put("roles", r, f"mainmenu/type_{r}", fallback=humanize(r))
+    return sorted(roles, key=ROLES.index)
+
+
 def build_vehicles(lang: Lang, progress=None):
     log("Reading vehicle economy table (wpcost)...", progress)
     report(progress, 0.49)
@@ -869,9 +893,15 @@ def build_vehicles(lang: Lang, progress=None):
             caps = aircraft_caps(udata, catalog, keys)
             if caps:
                 details[vid]["cap"] = caps
+        roles = vehicle_roles(unittags.get(vid) or {}, rec["k"], lang)
+        if roles:
+            rec["ro"] = roles
         stats = vehicle_stats(cat, udata, v, unittags.get(vid) or {}, details[vid]["st"], details[vid]["am"])
         if stats:
             rec["s"] = stats
+            su = stock_stats(cat, stats, stock_factors(udata, mods))
+            if su:
+                rec["su"] = su  # stock values (rec["s"] = fully upgraded)
         # what it carries, for "search by weapon": guns, presets / pylon weapons, ammunition
         guns, carried, ammo_names = [], [], []
         for g in details[vid]["am"]:
@@ -1313,6 +1343,111 @@ def tm_pos(tm):
         return None
 
 
+# --------------------------------------------------------------------------- stock vs fully upgraded
+# Vehicle files describe the fully upgraded vehicle: performance modules carry invertEnableLogic, i.e.
+# their effects (power x0.9, traverse x0.85, mass x1.025...) apply while the module is NOT researched.
+# Stock values = upgraded values with all those penalties. Exact for engine power / traverse; aircraft
+# speed, climb and turn are estimated with simple physics (the game runs a flight model for those).
+
+_GLOBAL_MODS: dict | None = None
+
+
+def _global_mods() -> dict:
+    global _GLOBAL_MODS
+    if _GLOBAL_MODS is None:
+        d = load(DM / "char.vromfs.bin_u" / "config" / "modifications.blkx") or {}
+        _GLOBAL_MODS = d.get("modifications") if isinstance(d.get("modifications"), dict) else {}
+    return _GLOBAL_MODS
+
+
+def stock_factors(udata: dict, mod_names) -> dict:
+    """Product of the penalty multipliers a stock vehicle carries (all 1.0 when nothing applies)."""
+    f = {"P": 1.0, "M": 1.0, "D": 1.0, "Y": 1.0, "T": 1.0}
+    local = udata.get("modifications") if isinstance(udata.get("modifications"), dict) else {}
+    for name in mod_names:
+        g = _global_mods().get(name)
+        lo = local.get(name)
+        g = g if isinstance(g, dict) else {}
+        lo = lo if isinstance(lo, dict) else {}
+        if not (lo.get("invertEnableLogic", g.get("invertEnableLogic"))):
+            continue
+        eff = lo.get("effects") if isinstance(lo.get("effects"), dict) else g.get("effects")
+        if not isinstance(eff, dict):
+            continue
+
+        def mul(key):
+            x = _numval(eff.get(key))
+            return x if x and 0.2 < x < 5 else 1.0
+
+        f["P"] *= mul("mulHorsePowers") * mul("thrustMult")
+        f["M"] *= mul("mulMass")
+        f["D"] *= mul("mulCdmin")
+        f["Y"] *= mul("mulSpeedYaw")
+        f["T"] *= mul("mulTransmissionEfficiency")
+    return f
+
+
+def stock_stats(cat: str, s: dict, f: dict) -> dict:
+    """Stock value of each stat that modules change (only those that differ)."""
+    out = {}
+    P, M, D, Y = f["P"], f["M"], f["D"], f["Y"]
+
+    def put(k, val, digits=1):
+        if k in s and isinstance(s[k], (int, float)) and val is not None:
+            v = round(val, digits) if digits else round(val)
+            if abs(v - s[k]) > (10 ** -digits if digits else 0.5):
+                out[k] = v
+
+    if cat == "ground":
+        put("hp", s.get("hp", 0) * P, 0)
+        put("pw", s.get("pw", 0) * P / M)
+        put("trav", s.get("trav", 0) * Y)
+    elif cat in ("air", "heli"):
+        jet = "tw" in s
+        put("spd", s.get("spd", 0) * ((P / D) ** (0.5 if jet else 1 / 3)), 0)
+        put("climb", s.get("climb", 0) * P / M)
+        put("turn", s.get("turn", 0) * (M ** 0.5))
+        put("tw", s.get("tw", 0) * P / M, 2)
+        put("pw", s.get("pw", 0) * P / M)
+        put("wl", s.get("wl", 0) * M, 0)
+    return out
+
+
+RARITY = {"tree": 0, "premium": 1, "squadron": 2, "pack": 3, "event": 4, "removed": 5, "hidden": 6}
+
+
+def apply_rarity(vehicles: list, trees: dict):
+    """ra = 0 tech tree, 1 premium (Golden Eagles), 2 squadron, 3 pack / gift, 4 event / marketplace,
+    5 removed / no longer obtainable, 6 not playable (AI, unreleased)."""
+    flags: dict = {}
+    for nation in trees.values():
+        for cols in nation.values():
+            for col in cols:
+                for it in col:
+                    for u in (it.get("u") or [it]):
+                        flags.setdefault(u["id"], set()).update(u.get("f") or [])
+    for v in vehicles:
+        fl = flags.get(v["id"], set())
+        if v.get("h"):
+            ra = 6
+        elif "removed" in fl or "hidden" in fl:
+            ra = 5
+        elif "event" in fl or "market" in fl:
+            ra = 4
+        elif "gift" in fl and not v.get("p"):
+            ra = 3
+        elif "clan" in fl:
+            ra = 2
+        elif v.get("p") or "gift" in fl:
+            ra = 1
+        elif v["id"] not in flags:
+            ra = 5  # not in any research tree: no longer obtainable
+        else:
+            ra = 0
+        if ra:
+            v["ra"] = ra
+
+
 # --------------------------------------------------------------------------- main
 
 def build(pull: bool = True, progress=None):
@@ -1328,6 +1463,9 @@ def build(pull: bool = True, progress=None):
     vehicles, details = build_vehicles(lang, progress)
     scenarios = build_scenarios(lang, progress)
     trees = build_trees(lang, {v["id"] for v in vehicles}, progress)
+    apply_rarity(vehicles, trees)
+    from .armament import build_armament
+    build_armament(lang, vehicles, progress)
     log("Writing database...", progress)
     report(progress, 0.97)
     with open(DATA / "vehicles.json", "w", encoding="utf-8") as f:

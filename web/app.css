@@ -100,6 +100,8 @@ svg.ic-xl { width: 42px; height: 42px; fill: none; stroke: currentColor; stroke-
 .icon-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--line); }
 .icon-btn.on { color: var(--accent); }
 .icon-btn.on svg { fill: currentColor; }
+.heart:hover { color: #e5484d; }
+.heart:hover svg { fill: currentColor; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ------------------------------------------------------------------ topbar */
@@ -418,6 +420,9 @@ option { background: var(--surface); }
 .onboard-card { width: min(460px, 92vw); text-align: center; padding: 30px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
 .onboard-card h2 { font: 750 22px var(--font-display); margin: 8px 0; }
 .onboard-card .log { text-align: left; }
+.onboard-card { position: relative; }
+.onboard-lang { position: absolute; top: 14px; right: 14px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.onboard-lang select { height: 28px; font-size: 12.5px; }
 
 /* ------------------------------------------------------------------ toasts */
 .toasts { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 100; align-items: center; pointer-events: none; }
@@ -845,3 +850,86 @@ table.cmp tbody tr:hover td.best { background: var(--accent-soft); }
 .cmp-wrap { white-space: normal; }
 .cmp-chip { display: inline-block; margin: 0 4px 3px 0; padding: 2px 6px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); font-size: 11.5px; }
 .cmp-chip b { color: var(--accent-2); }
+
+/* ------------------------------------------------------------------ vehicle type filter */
+.roles { display: flex; flex-wrap: wrap; gap: 5px; }
+.role-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 13px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text-2); font-size: 12px; font-weight: 600; transition: all .15s; }
+.role-chip i { font-style: normal; font-size: 10.5px; color: var(--muted); font-weight: 500; }
+.role-chip:hover { border-color: var(--line-hover); color: var(--text); }
+.role-chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-2); }
+.role-chip.active i { color: var(--accent); }
+.tagx.sq { background: rgba(95,207,138,.14); color: var(--ok); }
+
+/* ------------------------------------------------------------------ stock <-> upgraded slider */
+.upg { display: flex; margin: 12px 0 8px; }
+.upg .seg button { height: 24px; font-size: 12px; }
+.vstat.upg-chg b, td.upg-chg { color: var(--accent-2); }
+#cmpTable .upg { margin: 0 0 12px; }
+
+/* ------------------------------------------------------------------ weapons page */
+body.view-weapons .sidebar, body.view-weapons #compareTray { display: none; }
+.ar-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.ar-cats .chipbtn { height: 30px; padding: 0 12px; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
+.ar-cats .chipbtn .n { font-size: 10.5px; color: var(--muted); font-weight: 600; }
+.ar-guide { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-bottom: 12px; }
+.ar-guide-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; background: none; border: 0; color: var(--text); font-size: 13px; text-align: left; }
+.ar-guide-head svg { transition: transform .15s; transform: rotate(90deg); }
+.ar-guide.closed .ar-guide-head svg { transform: none; }
+.ar-guide-body { padding: 0 16px 12px; }
+.ar-tips { margin: 0 0 10px; padding-left: 18px; color: var(--text-2); font-size: 13px; line-height: 1.55; }
+.ar-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 16px; margin-bottom: 6px; }
+.ar-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.ar-pick .ar-lbl { width: 100%; }
+.ar-pick-it { border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text); border-radius: 7px; padding: 3px 8px; font-size: 12px; display: inline-flex; gap: 5px; align-items: center; }
+.ar-pick-it i { font-style: normal; color: var(--accent-2); font-weight: 700; }
+.ar-pick-it:hover { border-color: var(--accent); }
+.ar-lbl { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ar-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ar-search { width: 240px; flex: none; }
+.ar-bar select { height: 32px; }
+.ar-chips { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.ar-uses { margin-bottom: 10px; }
+.ar-uses .ar-lbl { margin-right: 4px; }
+.ar-count { margin-left: auto; font-size: 12px; }
+.ar-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table.ar-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.ar-table th, .ar-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.ar-table thead th { position: sticky; top: 0; background: var(--surface); font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: .03em; z-index: 1; }
+.ar-table th.sortable { cursor: pointer; user-select: none; }
+.ar-table th.sortable:hover, .ar-table th.sorted { color: var(--text); }
+.ar-table tbody tr[data-arrow] { cursor: pointer; }
+.ar-table tbody tr[data-arrow]:hover td, .ar-table tr.open td { background: var(--surface-2); }
+.ar-name { display: flex; align-items: center; gap: 8px; min-width: 200px; }
+.ar-name .wicon, .ar-name .wicon-ph { width: 34px; height: 34px; flex: none; }
+.ar-name > span { display: flex; flex-direction: column; gap: 2px; }
+.ar-nat { display: flex; gap: 3px; align-items: center; font-size: 10.5px; }
+.ar-nat .flag { width: 16px; height: 11px; }
+.ar-tags { white-space: normal !important; min-width: 120px; }
+.ar-tag { display: inline-block; margin: 1px 3px 1px 0; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line-2); font-size: 10.5px; font-weight: 600; color: var(--text-2); }
+.ar-tag.g { background: var(--accent-soft); border-color: transparent; color: var(--accent-2); }
+.ar-tag.nk { color: #e5484d; border-color: #e5484d66; }
+.ar-score { min-width: 110px; }
+.ar-score .bar { display: inline-block; width: 60px; height: 6px; border-radius: 3px; background: var(--surface-3); vertical-align: middle; margin-right: 6px; overflow: hidden; }
+.ar-score .bar i { display: block; height: 100%; background: var(--accent); }
+.ar-detail td { background: var(--bg) !important; white-space: normal; cursor: default; }
+.ar-det { display: flex; flex-direction: column; gap: 10px; padding: 6px 2px; }
+.ar-det-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.ar-det-uses { display: flex; flex-wrap: wrap; gap: 6px; }
+.ar-rank { font-size: 12px; padding: 3px 8px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); }
+.ar-rank b { color: var(--accent-2); }
+.ar-rank small { color: var(--muted); }
+.ar-note { font-size: 13px; line-height: 1.5; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 8px 8px 0; color: var(--text-2); }
+.ar-note b { color: var(--text); margin-right: 4px; }
+.ar-carriers { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.ar-carriers .ar-lbl { width: 100%; }
+.ar-veh { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text); border-radius: 7px; padding: 2px 7px; font-size: 11.5px; }
+.ar-veh .flag { width: 16px; height: 11px; }
+.ar-veh small { color: var(--muted); }
+.ar-veh:hover { border-color: var(--accent); }
+.ar-tray { position: sticky; bottom: 12px; left: auto; right: auto; margin-top: 12px; max-width: none !important; }
+.ar-tray .wicon, .ar-tray .wicon-ph { width: 22px; height: 22px; }
+.ar-cmp-ic .wicon, .ar-cmp-ic .wicon-ph { width: 56px; height: 56px; }
+.ar-cmp-note { font-size: 12px; min-width: 200px; }
+@media (max-width: 760px) { .ar-search { width: 100%; } .ar-count { margin-left: 0; } }
+.ar-note small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
