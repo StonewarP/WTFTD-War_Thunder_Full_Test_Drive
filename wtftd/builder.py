@@ -33,6 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
+SCHEMA = 2  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -513,6 +514,90 @@ def pylon_emitters(udata: dict) -> list:
     return out[:3]
 
 
+def _r1(x, nd=1):
+    return round(float(x), nd) if isinstance(x, (int, float)) and not isinstance(x, bool) else None
+
+
+def _caliber_mm(blk: str) -> float | None:
+    d = load(blk_to_path(blk)) if blk else None
+    for b in aslist((d or {}).get("bullet")):
+        if isinstance(b, dict) and isinstance(b.get("caliber"), (int, float)):
+            return round(b["caliber"] * 1000, 1)
+    return None
+
+
+def ground_speeds(udata: dict) -> tuple[float | None, float | None]:
+    """Top forward / reverse speed (km/h) from the gearbox: max RPM through the highest gear."""
+    try:
+        m = udata["VehiclePhys"]["mechanics"]
+        rpm = float(udata["VehiclePhys"]["engine"]["maxRPM"])
+        gears = [float(g) for g in aslist((m.get("gearRatios") or {}).get("ratio")) if isinstance(g, (int, float))]
+        k = rpm * 2 * math.pi * float(m["driveGearRadius"]) * 60 / 1000 / (float(m["mainGearRatio"]) * float(m.get("sideGearRatio", 1)))
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        return None, None
+    fwd = [g for g in gears if g > 0]
+    rev = [-g for g in gears if g < 0]
+    return (round(k / min(fwd)) if fwd else None), (round(k / min(rev)) if rev else None)
+
+
+def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: list) -> dict:
+    """Comparable stats of a vehicle for the list (sort / filter) and the vehicle card. Units: km/h, m,
+    m/s, s, deg/s, mm, t, hp/t. Air values are the game's own stat card (unittags Shop block)."""
+    shop = (tags or {}).get("Shop") or {}
+    out = {}
+    if cat in ("air", "heli"):
+        if shop.get("maxSpeed"):
+            out["spd"] = round(shop["maxSpeed"] * 3.6)
+        for key, src in (("alt", "maxSpeedAlt"), ("ceil", "maxAltitude"), ("turn", "turnTime"), ("roll", "rollRate"),
+                         ("climb", "climbSpeed"), ("wl", "wingLoading")):
+            if isinstance(shop.get(src), (int, float)) and shop[src] > 0.05:
+                out[key] = _r1(shop[src])
+        if shop.get("thrustToWeightRatio"):
+            out["tw"] = _r1(shop["thrustToWeightRatio"], 2)
+        elif shop.get("powerToWeightRatio"):
+            out["pw"] = _r1(shop["powerToWeightRatio"] * 1000)  # hp / t
+    elif cat == "ground":
+        fwd, rev = ground_speeds(udata)
+        if fwd:
+            out["spd"] = fwd
+        if rev:
+            out["rev"] = rev
+        if st.get("hp"):
+            out["hp"] = round(st["hp"])
+        if st.get("mass"):
+            out["t"] = _r1(st["mass"] / 1000)
+            if st.get("hp"):
+                out["pw"] = _r1(st["hp"] / (st["mass"] / 1000))
+        for key, src in (("armT", "armorThicknessTurret"), ("armH", "armorThicknessHull")):
+            if isinstance(shop.get(src), list) and shop[src]:
+                out[key] = [round(x) for x in shop[src][:3]]
+        ts = wp.get("turretSpeed")
+        if isinstance(ts, list) and ts and isinstance(ts[0], (int, float)) and ts[0] > 0:
+            out["trav"] = _r1(ts[0])
+        main = next((g for g in ammo if g.get("trig") == "gunner0" or g.get("wi") == 1), ammo[0] if ammo else None)
+        if main:
+            cal = _caliber_mm(main.get("p", ""))
+            if cal:
+                out["cal"] = cal
+            heat = max((o.get("s", {}).get("h") or 0 for o in main.get("opts", [])), default=0)
+            if heat:
+                out["heat"] = round(heat)
+        if isinstance(wp.get("reloadTime_cannon"), (int, float)):
+            out["rel"] = _r1(wp["reloadTime_cannon"])
+    else:  # boats and ships
+        if shop.get("maxSpeed"):
+            out["spd"] = round(shop["maxSpeed"] * 3.6)
+        if shop.get("displacement"):
+            out["disp"] = round(shop["displacement"] / 1000)
+        main = ammo[0] if ammo else None
+        cal = _caliber_mm(main.get("p", "")) if main else None
+        if cal:
+            out["cal"] = cal
+    if isinstance(wp.get("crewTotalCount"), (int, float)) and wp["crewTotalCount"] > 0:
+        out["crew"] = int(wp["crewTotalCount"])
+    return out
+
+
 def base_stats(udata: dict, cat: str) -> dict:
     """Editable vehicle values with their stock value (used by the Modifications step)."""
     st = {}
@@ -669,6 +754,7 @@ def build_vehicles(lang: Lang, progress=None):
     log("Reading vehicle economy table (wpcost)...", progress)
     report(progress, 0.49)
     wp = load(DM / "char.vromfs.bin_u" / "config" / "wpcost.blkx") or {}
+    unittags = load(DM / "char.vromfs.bin_u" / "config" / "unittags.blkx") or {}
     wc = WeaponCache(lang)
     vehicles, details = [], {}
 
@@ -775,6 +861,16 @@ def build_vehicles(lang: Lang, progress=None):
             caps = aircraft_caps(udata, catalog, keys)
             if caps:
                 details[vid]["cap"] = caps
+        stats = vehicle_stats(cat, udata, v, unittags.get(vid) or {}, details[vid]["st"], details[vid]["am"])
+        if stats:
+            rec["s"] = stats
+        # what it carries, for "search by weapon": guns, presets, pylon options, then ammunition
+        weapons = [g["w"] for g in details[vid]["am"] if g.get("w")]
+        weapons += [k for p in presets for k, _ in p["w"]]
+        weapons += [k for sl_ in details[vid].get("sl", []) for o in sl_["o"] for k, _ in o["w"]]
+        ammo_names = [b for g in details[vid]["am"] for o in g.get("opts", []) if not o.get("x") for b in o.get("b", [])]
+        if weapons or ammo_names:
+            rec["wp"] = list(dict.fromkeys(weapons + ammo_names))
         vehicles.append(rec)
     for key, entry in catalog.items():
         votes = ICON_VOTES.get(key)
@@ -1215,7 +1311,7 @@ def build(pull: bool = True, progress=None):
         json.dump(scenarios, f, separators=(",", ":"))
     codes = lang.write()
     version = (DM / "version").read_text().strip() if (DM / "version").exists() else "?"
-    meta = {"version": version, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}
+    meta = {"version": version, "schema": SCHEMA, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}
     with open(DATA / "meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=1)
     report(progress, 1.0)

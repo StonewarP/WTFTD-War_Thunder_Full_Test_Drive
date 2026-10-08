@@ -38,7 +38,7 @@ const S = {
   openStep: 'scenario',
   showAllScen: false,
   showUnofficial: false,
-  f: Object.assign({ cat: 'all', nations: [], ranks: [], brMode: 1, brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', sort: 'br', view: 'tree' }, store.get('filters', {})),
+  f: Object.assign({ cat: 'all', nations: [], ranks: [], brMode: 1, brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', sort: 'br', view: 'tree', stats: {}, wq: '' }, store.get('filters', {})),
   trees: {},
   openGroups: new Set(),
 };
@@ -162,6 +162,7 @@ async function boot() {
   refreshMissions();
   watchUpdates();
   edBind();
+  bindStatFilters();
 }
 
 function renderStatus() {
@@ -195,7 +196,8 @@ function buildSidebar() {
   $('#brMin').value = S.f.brMin; $('#brMax').value = S.f.brMax;
   updateBrRange();
   $('#optFav').checked = S.f.fav; $('#optPrem').checked = S.f.prem; $('#optHidden').checked = S.f.hidden;
-  $('#sort').value = S.f.sort;
+  updateSortOptions();
+  renderStatFilters();
   $('#search').value = S.f.q;
 }
 
@@ -220,6 +222,7 @@ function matcher() {
     if (f.fav && !S.favs.has(v.id)) return false;
     if (f.prem && !v.p && !v.g) return false;
     if (q && !v._s.includes(q)) return false;
+    if (!statsMatch(v) || !weaponMatch(v)) return false;
     return true;
   };
 }
@@ -247,7 +250,7 @@ function applyFilters() {
     rank: (a, b) => (a.r || 99) - (b.r || 99) || (brOf(a) ?? 99) - (brOf(b) ?? 99),
     name: (a, b) => name(a).localeCompare(name(b), I18N.code, { numeric: true }),
     nation: (a, b) => NATIONS.indexOf(a.n) - NATIONS.indexOf(b.n) || (brOf(a) ?? 99) - (brOf(b) ?? 99),
-  }[f.sort] || (() => 0);
+  }[f.sort] || statCmp(f.sort) || (() => 0);
   list.sort(cmp);
   S.filtered = list;
   S.rendered = 0;
@@ -268,6 +271,7 @@ function cardHTML(v) {
       <svg class="ph"><use href="#i-${CAT_ICON[v.c]}"/></svg>
       ${v.r ? `<span class="card-rank">${ROMAN[v.r] || v.r}</span>` : ''}
       ${br != null ? `<span class="card-br">${fmtBR(br)}</span>` : ''}
+      ${cardStatHTML(v)}
       ${S.favs.has(v.id) ? `<svg class="card-fav"><use href="#i-star"/></svg>` : ''}
     </div>
     <div class="card-body">${flagHTML(v.n)}
@@ -462,7 +466,7 @@ function bindUI() {
   $('#optPrem').addEventListener('change', e => setFilter({ prem: e.target.checked }));
   $('#optHidden').addEventListener('change', e => setFilter({ hidden: e.target.checked }));
   $('#sort').addEventListener('change', e => setFilter({ sort: e.target.value }));
-  $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '' }));
+  $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', stats: {}, wq: '' }));
   $('#search').addEventListener('input', debounce(e => { S.f.q = e.target.value; applyFilters(); }, 90));
 
   $$('.tab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -655,6 +659,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
         <div class="hero-name">${flagHTML(v.n)}<h2>${esc(I18N.unit(v.id))}</h2></div>
         <div class="hero-full">${esc(I18N.unitFull(v.id))} · <code>${esc(v.id)}</code></div>
         <div class="hero-stats">${brs}</div>
+        ${statsBlockHTML(v)}
       </div>
       ${stepHTML('scenario', 1, t('step.scenario'), esc(scen ? I18N.map(scen.map) : ''), () => scenarioBody(v))}
       ${stepHTML('loadout', 2, t('step.loadout'), esc(c.pylons ? t('loadout.customShort', { n: Object.keys(c.pylons).length }) : preset ? presetLabel(v, preset) : t('loadout.default')), () => loadoutBody(v, d))}

@@ -31,6 +31,10 @@ nothing to install: double-click it, the app opens in its own window and finds y
 2. **Set it up** step by step: map & scenario, loadout, ammunition, modifications, cheats, conditions.
 3. **Create mission**, start War Thunder (button in the app), open *Single missions → User missions*.
 
+| Stats: tanks over 60 km/h, best turret armor first | Search by weapon (AIM-9L), fastest first, vehicle stats |
+|---|---|
+| ![Stats filters](docs/screenshots/07-stats.png) | ![Weapon search and stats](docs/screenshots/08-stats-drawer.png) |
+
 | Research trees | Pylon editor — here a B61 nuclear bomb on pylon 5 |
 |---|---|
 | ![Research tree](docs/screenshots/02-tree.png) | ![Pylon editor](docs/screenshots/03-pylons.png) |
@@ -45,6 +49,11 @@ nothing to install: double-click it, the app opens in its own window and finds y
 
 - **3,500+ vehicles** with images from the [War Thunder wiki](https://wiki.warthunder.com/), grid or
   research-tree view, filters (type, nation, rank, BR in AB/RB/SB, favorites, premium/event, non-playable units)
+- **Stats & fine search**: each vehicle's performance — top / reverse speed, power-to-weight, engine power,
+  turret / hull armor, turret traverse, gun caliber, HEAT penetration, reload; for aircraft turn time, roll rate,
+  climb rate, ceiling, thrust-to-weight, wing loading; for ships displacement — shown on its card, **sortable**
+  (fastest, best turning, best armored…) and **filterable with min / max** values. **Search by carried weapon or
+  ammunition** (e.g. `AIM-9L`, `DM53`, `B61`; several terms with `,`)
 - **100+ official scenarios**: firing range, Fulda, naval range, airfields, heli ranges, carriers,
   seaplane bases… plus the **hangar maps** (regular, winter, Halloween, Lunar New Year, anniversary)
 - **Loadout**: every official preset, or a **pylon editor** laid out like the game's (presets as rows,
@@ -124,6 +133,8 @@ values (keep the keys and `{placeholders}`), and add it to `web/locales/index.js
 
 ## Known limits
 
+- Stats come from the game's own stat cards (aircraft, armor) or are computed from the vehicle files (tank top
+  speed from the gearbox, ±10 %). Kinetic (AP / APFSDS) penetration isn't stored in the game files and isn't shown.
 - Without custom vehicles, aircraft use the official presets and the vehicle must be owned.
 - For aircraft and ships, belts are matched to gun groups in order (best effort).
 - A few scenarios pick their spawn / enemies from your vehicle's nation (Mozdok heli / UCAV, Denmark
@@ -142,7 +153,12 @@ wtftd/                      Python backend (stdlib only)
   maptex.py / terrain.py    tactical maps and heightmaps from the game files
   builder.py                datamine -> data/*.json
   blk.py, game.py, paths.py BLK writer, install detection, file locations
-web/                        UI (HTML/CSS/JS, no build step), web/locales = translations
+web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search
 data/                       game database, generated on first launch (not versioned)
 docs/screenshots/           README images
 ```
+
+## License
+
+[MIT](LICENSE) — free to use, modify and share, keeping the copyright notice. War Thunder and its data belong
+to Gaijin Entertainment; WTFTD is a fan-made tool, not affiliated with or endorsed by Gaijin.

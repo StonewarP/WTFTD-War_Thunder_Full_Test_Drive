@@ -277,8 +277,10 @@ def check_for_update(start: bool = True) -> dict:
     st = STATE.update
     remote = remote_version()
     st["remote"], st["checked"] = remote, int(time.time())
-    local = read_json(DATA / "meta.json", {}).get("version")
-    st["available"] = bool(remote and remote != local)
+    meta = read_json(DATA / "meta.json", {})
+    local = meta.get("version")
+    # newer game patch, or data built by an older WTFTD that lacks fields this version needs
+    st["available"] = bool(remote and remote != local) or (bool(meta) and meta.get("schema", 1) < builder.SCHEMA)
     if start and st["available"] and not st["running"]:
         threading.Thread(target=run_update, daemon=True).start()
     return st
