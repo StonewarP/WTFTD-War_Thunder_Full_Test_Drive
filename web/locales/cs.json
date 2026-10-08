@@ -454,5 +454,20 @@
   "wpick.count": "Vozidel: {n}",
   "wpick.more": "Dalších {n} — zpřesněte hledání",
   "wcat.gun": "Kanóny a kulomety",
-  "wcat.ammo": "Náboje a munice"
+  "wcat.ammo": "Náboje a munice",
+  "share.button": "Sdílet",
+  "share.title": "Sdílet tuto sestavu",
+  "share.text": "Pošlete tento kód kamarádovi: ve WTFTD klikne na Uložené sestavy → Importovat a vloží ho (nebo mu pošlete soubor .wtftd). Pak každý hraje stejnou misi na svém PC.",
+  "share.copy": "Kopírovat kód",
+  "share.file": "Uložit jako soubor",
+  "share.fileSaved": "Uloženo do Stažených souborů: {file}",
+  "share.import": "Importovat",
+  "share.importTitle": "Importovat sestavu",
+  "share.importText": "Vložte kód od kamaráda nebo otevřete soubor .wtftd (můžete ho také přetáhnout na okno).",
+  "share.openFile": "Otevřít soubor…",
+  "share.invalid": "Toto není kód sestavy WTFTD.",
+  "share.unknownVehicle": "Toto vozidlo není ve vašich herních datech ({id}): aktualizujte data v Nastavení.",
+  "share.imported": "Sestava importována: {name}",
+  "share.importedHint": "Zkontrolujte ji a pak Vytvořit misi.",
+  "share.setupsHint": "Vaše sestavy a ty, které vám sdíleli kamarádi (Importovat)."
 }

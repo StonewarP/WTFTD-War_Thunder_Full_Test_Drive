@@ -454,5 +454,20 @@
   "wpick.count": "{n} Fahrzeuge",
   "wpick.more": "{n} weitere — Suche verfeinern",
   "wcat.gun": "Kanonen & MGs",
-  "wcat.ammo": "Granaten & Munition"
+  "wcat.ammo": "Granaten & Munition",
+  "share.button": "Teilen",
+  "share.title": "Dieses Setup teilen",
+  "share.text": "Schick diesen Code einem Freund: In WTFTD klickt er auf Gespeicherte Setups → Importieren und fügt ihn ein (oder schick die .wtftd-Datei). Dann spielt jeder dieselbe Mission auf seinem PC.",
+  "share.copy": "Code kopieren",
+  "share.file": "Als Datei speichern",
+  "share.fileSaved": "In deinen Downloads gespeichert: {file}",
+  "share.import": "Importieren",
+  "share.importTitle": "Setup importieren",
+  "share.importText": "Füge den Code ein, den dir ein Freund geschickt hat, oder öffne eine .wtftd-Datei (du kannst sie auch auf das Fenster ziehen).",
+  "share.openFile": "Datei öffnen…",
+  "share.invalid": "Das ist kein WTFTD-Setup-Code.",
+  "share.unknownVehicle": "Dieses Fahrzeug ist nicht in deinen Spieldaten ({id}): Aktualisiere die Spieldaten in den Einstellungen.",
+  "share.imported": "Setup importiert: {name}",
+  "share.importedHint": "Prüfe es, dann Mission erstellen.",
+  "share.setupsHint": "Deine Setups und die von Freunden geteilten (Importieren)."
 }

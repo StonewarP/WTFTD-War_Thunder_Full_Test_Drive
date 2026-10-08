@@ -454,5 +454,20 @@
   "wpick.count": "{n} veículos",
   "wpick.more": "Mais {n} — refine a busca",
   "wcat.gun": "Canhões e metralhadoras",
-  "wcat.ammo": "Projéteis e munição"
+  "wcat.ammo": "Projéteis e munição",
+  "share.button": "Compartilhar",
+  "share.title": "Compartilhar esta configuração",
+  "share.text": "Envie este código a um amigo: no WTFTD ele clica em Configurações salvas → Importar e cola (ou envie o arquivo .wtftd). Depois cada um joga a mesma missão no seu PC.",
+  "share.copy": "Copiar código",
+  "share.file": "Salvar como arquivo",
+  "share.fileSaved": "Salvo em Downloads: {file}",
+  "share.import": "Importar",
+  "share.importTitle": "Importar uma configuração",
+  "share.importText": "Cole o código que um amigo enviou ou abra um arquivo .wtftd (você também pode soltá-lo na janela).",
+  "share.openFile": "Abrir um arquivo…",
+  "share.invalid": "Isto não é um código de configuração do WTFTD.",
+  "share.unknownVehicle": "Este veículo não está nos seus dados do jogo ({id}): atualize os dados nas Configurações.",
+  "share.imported": "Configuração importada: {name}",
+  "share.importedHint": "Confira e depois Criar missão.",
+  "share.setupsHint": "Suas configurações e as compartilhadas por amigos (Importar)."
 }

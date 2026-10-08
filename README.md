@@ -80,6 +80,9 @@ nothing to install: double-click it, the app opens in its own window and finds y
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
   简体中文, 日本語 — vehicle, weapon and map names follow the game's own translations. UI translations
   other than English were machine-assisted and may contain mistakes: corrections are welcome
+- **Share a setup** with a friend: a short code to paste, or a `.wtftd` file — they import it (Saved setups →
+  Import, or drop the file on the window) and get the same mission: vehicle, loadout, ammo, map, editor
+  changes, cheats. User missions are single-player, so each of you plays it on your own PC
 - Dark / light theme, saved setups, list of generated missions, `.blk` preview, launch War Thunder
 
 ## Custom vehicles (on by default)
@@ -142,6 +145,8 @@ values (keep the keys and `{placeholders}`), and add it to `web/locales/index.js
 - For aircraft and ships, belts are matched to gun groups in order (best effort).
 - A few scenarios pick their spawn / enemies from your vehicle's nation (Mozdok heli / UCAV, Denmark
   hydrobase); the editor shows their default branch.
+- Missions and custom vehicles are local: they can't be played together online (custom battles / co-op use
+  Gaijin's servers and the official vehicle files). Share the setup instead.
 - "Non-playable units" come from the game files (AI, removed, unreleased) and may not load or behave oddly.
 
 ## Layout

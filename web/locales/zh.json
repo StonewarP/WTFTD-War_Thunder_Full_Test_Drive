@@ -454,5 +454,20 @@
   "wpick.count": "{n} 辆载具",
   "wpick.more": "还有 {n} 项——请细化搜索",
   "wcat.gun": "火炮与机枪",
-  "wcat.ammo": "炮弹与弹药"
+  "wcat.ammo": "炮弹与弹药",
+  "share.button": "分享",
+  "share.title": "分享此配置",
+  "share.text": "把这段代码发给朋友：他在 WTFTD 中点击 已保存配置 → 导入 并粘贴（或发送 .wtftd 文件）。然后你们各自在自己的电脑上玩同一个任务。",
+  "share.copy": "复制代码",
+  "share.file": "保存为文件",
+  "share.fileSaved": "已保存到下载文件夹：{file}",
+  "share.import": "导入",
+  "share.importTitle": "导入配置",
+  "share.importText": "粘贴朋友发来的代码，或打开 .wtftd 文件（也可以直接拖到窗口上）。",
+  "share.openFile": "打开文件…",
+  "share.invalid": "这不是 WTFTD 配置代码。",
+  "share.unknownVehicle": "你的游戏数据中没有此载具（{id}）：请在设置中更新游戏数据。",
+  "share.imported": "已导入配置：{name}",
+  "share.importedHint": "检查后点击 创建任务。",
+  "share.setupsHint": "你的配置以及朋友分享的配置（导入）。"
 }

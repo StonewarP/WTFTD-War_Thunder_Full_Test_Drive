@@ -454,5 +454,20 @@
   "wpick.count": "{n} vehicles",
   "wpick.more": "{n} more — refine the search",
   "wcat.gun": "Guns & cannons",
-  "wcat.ammo": "Shells & ammo"
+  "wcat.ammo": "Shells & ammo",
+  "share.button": "Share",
+  "share.title": "Share this setup",
+  "share.text": "Send this code to a friend: in WTFTD, they click Saved setups → Import and paste it (or send the .wtftd file). Each of you then plays the same mission on your own PC.",
+  "share.copy": "Copy code",
+  "share.file": "Save as file",
+  "share.fileSaved": "Saved to your Downloads: {file}",
+  "share.import": "Import",
+  "share.importTitle": "Import a setup",
+  "share.importText": "Paste the code a friend sent you, or open a .wtftd file (you can also drop it on the window).",
+  "share.openFile": "Open a file…",
+  "share.invalid": "This is not a WTFTD setup code.",
+  "share.unknownVehicle": "This vehicle isn't in your game data ({id}): update the game data in Settings.",
+  "share.imported": "Setup imported: {name}",
+  "share.importedHint": "Check it, then Create mission.",
+  "share.setupsHint": "Saved setups and the ones friends shared with you (Import)."
 }

@@ -163,6 +163,7 @@ async function boot() {
   watchUpdates();
   edBind();
   bindStatFilters();
+  bindShare();
 }
 
 function renderStatus() {
@@ -674,6 +675,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
       <button class="icon-btn" data-act="genDone" title="${esc(t('action.close'))}">${icon('x', 'ic-sm')}</button></div>` : ''}
     <div class="dr-foot">
       <button class="icon-btn" data-act="save" title="${esc(t('action.save'))}">${icon('save')}</button>
+      <button class="icon-btn" data-act="share" title="${esc(t('share.button'))}">${icon('share')}</button>
       <button class="btn btn-ghost" data-act="preview">${icon('file')}<span>${esc(t('action.preview'))}</span></button>
       <button class="btn btn-primary btn-lg" data-act="generate">${icon('play')}<span>${esc(t('action.generate'))}</span></button>
     </div>`;
@@ -856,6 +858,7 @@ function bindDrawer() {
       case 'generate': return generate();
       case 'preview': return preview();
       case 'save': return saveSetup();
+      case 'share': return openShare();
       case 'reset-mods': c.mods = {}; return renderDrawer();
       case 'editor': return openEditor();
       case 'genDone': S.lastGen = null; return renderDrawer();
@@ -1023,6 +1026,7 @@ function renderSetups() {
       <div class="list-main"><div class="list-title">${v ? flagHTML(v.n) : ''}${esc(s.name)}</div>
         <div class="list-sub">${esc(v ? I18N.unit(v.id) : s.vehicle)}${scen ? ' · ' + esc(I18N.map(scen.map)) : ''} · ${new Date(s.created).toLocaleDateString(I18N.code)}</div></div>
       <div class="list-actions"><button class="btn btn-sm" data-load="${esc(s.id)}">${esc(t('action.load'))}</button>
+        <button class="icon-btn" data-share="${esc(s.id)}" title="${esc(t('share.button'))}">${icon('share')}</button>
         <button class="icon-btn btn-danger" data-del="${esc(s.id)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`;
   }).join('');
 }
@@ -1032,6 +1036,9 @@ function onSetupListClick(e) {
   if (b.dataset.load) {
     const s = S.setups.find(x => x.id === b.dataset.load);
     if (s) { showView('vehicles'); openVehicle(s.vehicle, s.cfg); }
+  } else if (b.dataset.share) {
+    const s = S.setups.find(x => x.id === b.dataset.share);
+    if (s) openShare({ ...s.cfg, vehicle: s.vehicle, title: s.cfg.title || s.name });
   } else if (b.dataset.del) {
     S.setups = S.setups.filter(x => x.id !== b.dataset.del);
     persistSetups();

@@ -806,3 +806,9 @@ body.resizing .drawer, body.resizing .content { transition: none; }
   .hero-img { height: 120px; }
   .hero-img img { max-height: 120px; }
 }
+/* share / import a setup */
+.share-body { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+.share-body p { margin: 0; font-size: 13px; }
+.share-body textarea { width: 100%; resize: vertical; font: 12px/1.45 var(--mono); padding: 10px; border-radius: 8px;
+  border: 1px solid var(--line-2); background: var(--bg); color: var(--text); word-break: break-all; }
+.share-body label.btn { cursor: pointer; }

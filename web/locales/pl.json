@@ -454,5 +454,20 @@
   "wpick.count": "Pojazdy: {n}",
   "wpick.more": "Jeszcze {n} — zawęź wyszukiwanie",
   "wcat.gun": "Działka i karabiny",
-  "wcat.ammo": "Pociski i amunicja"
+  "wcat.ammo": "Pociski i amunicja",
+  "share.button": "Udostępnij",
+  "share.title": "Udostępnij ten zestaw",
+  "share.text": "Wyślij ten kod znajomemu: w WTFTD klika Zapisane zestawy → Importuj i wkleja go (albo wyślij plik .wtftd). Potem każdy gra tę samą misję na swoim PC.",
+  "share.copy": "Kopiuj kod",
+  "share.file": "Zapisz jako plik",
+  "share.fileSaved": "Zapisano w Pobranych: {file}",
+  "share.import": "Importuj",
+  "share.importTitle": "Importuj zestaw",
+  "share.importText": "Wklej kod od znajomego albo otwórz plik .wtftd (możesz też upuścić go na okno).",
+  "share.openFile": "Otwórz plik…",
+  "share.invalid": "To nie jest kod zestawu WTFTD.",
+  "share.unknownVehicle": "Tego pojazdu nie ma w Twoich danych gry ({id}): zaktualizuj dane w Ustawieniach.",
+  "share.imported": "Zaimportowano zestaw: {name}",
+  "share.importedHint": "Sprawdź go, potem Utwórz misję.",
+  "share.setupsHint": "Twoje zestawy i te udostępnione przez znajomych (Importuj)."
 }

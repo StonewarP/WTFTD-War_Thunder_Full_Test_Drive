@@ -454,5 +454,20 @@
   "wpick.count": "{n} 両",
   "wpick.more": "他 {n} 件 — 検索を絞り込んでください",
   "wcat.gun": "機関砲・機関銃",
-  "wcat.ammo": "砲弾・弾薬"
+  "wcat.ammo": "砲弾・弾薬",
+  "share.button": "共有",
+  "share.title": "この設定を共有",
+  "share.text": "このコードを友達に送ってください: WTFTD で 保存した設定 → インポート を開いて貼り付けます（.wtftd ファイルを送っても OK）。その後、各自の PC で同じミッションをプレイできます。",
+  "share.copy": "コードをコピー",
+  "share.file": "ファイルとして保存",
+  "share.fileSaved": "ダウンロードに保存しました: {file}",
+  "share.import": "インポート",
+  "share.importTitle": "設定をインポート",
+  "share.importText": "友達から届いたコードを貼り付けるか、.wtftd ファイルを開いてください（ウィンドウにドロップも可）。",
+  "share.openFile": "ファイルを開く…",
+  "share.invalid": "WTFTD の設定コードではありません。",
+  "share.unknownVehicle": "この兵器はゲームデータにありません（{id}）: 設定でゲームデータを更新してください。",
+  "share.imported": "設定をインポートしました: {name}",
+  "share.importedHint": "確認してから ミッション作成 を押してください。",
+  "share.setupsHint": "あなたの設定と友達から共有された設定（インポート）。"
 }
