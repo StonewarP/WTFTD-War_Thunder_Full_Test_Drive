@@ -3,7 +3,7 @@
 What changed in each version of WTFTD. Downloads: [Releases](https://github.com/StonewarP/WTFTD/releases).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Unreleased
+## 0.15.0 — 2026-10-08
 
 - **macOS**: WTFTD runs on macOS too. It finds War Thunder (Steam or standalone, inside
   `WarThunderLauncher.app`), launches it, and opens the UI in a Chrome / Edge / Brave app window. It quits
