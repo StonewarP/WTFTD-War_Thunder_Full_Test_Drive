@@ -78,7 +78,8 @@ def _category(kind: str, p: dict, folder: str, stem: str):
             return "sam"
         return "aam_ir" if gt == "optical" else "aam_radar"
     if bt.startswith("atgm"):
-        return "atgm"
+        # heavy air- / ship-launched ones (Maverick, RB 75, GROM...) are air-to-surface missiles
+        return "agm" if folder != "groundmodels_weapons" and (_n(p.get("mass")) or 0) >= 150 else "atgm"
     if guided:
         return "agm"
     if bt.startswith(("rocket", "heat", "he", "ap", "frag")) or not bt:
@@ -171,14 +172,17 @@ def _stats(cat: str, g: str, p: dict, tnt_eq: dict) -> dict:
         return s
     if cat in ("bomb",):
         return s
-    mach = _n(p.get("machMax"))
-    vend = _n(p.get("endSpeed"))
-    dv = _motor_dv(p) if cat in ("aam_ir", "aam_radar", "sam", "agm") else 0
-    if dv:  # missiles: what the motor gives (machMax is only a cap)
-        put("v", min(dv, mach * 340) if mach else dv, 0)
+    # speed: what the motor gives on top of the launch speed, capped by the file's limits
+    # (maxSpeed, machMax; endSpeed is often a 2000 m/s placeholder)
+    mach, vend = _n(p.get("machMax")), _n(p.get("endSpeed"))
+    caps = [x for x in (_n(p.get("maxSpeed")), mach * 340 if mach else None, vend if vend and vend < 1500 else None) if x]
+    dv = _motor_dv(p)
+    v = dv + (_n(p.get("startSpeed")) or 0) if dv else None
+    if caps:
+        v = min(v, min(caps)) if v else min(caps)
+    put("v", v, 0)
+    if dv and cat in ("aam_ir", "aam_radar", "sam", "agm"):
         put("acc", _launch_accel(p), 1)
-    else:  # ATGMs, rockets: cruise / end speed
-        put("v", vend if vend and vend < 1500 else (mach * 340 if mach else None), 0)
     rng = _n(p.get("maxDistance")) or _n(p.get("rangeMax"))
     put("rng", rng if rng and rng < 400000 else None, 0)
     gd = p.get("guidance") if isinstance(p.get("guidance"), dict) else {}
@@ -186,9 +190,11 @@ def _stats(cat: str, g: str, p: dict, tnt_eq: dict) -> dict:
     put("gl", _n(p.get("loadFactorMax")) or _n(ap.get("reqAccelMax")), 0)
     burn = (_n(p.get("timeFire")) or 0) + (_n(p.get("timeFire1")) or 0)
     put("burn", burn, 1)
+    # penetration: HEAT jet, or kinetic for AP / KE rounds only (HE warheads would show their fragments)
     cd = p.get("cumulativeDamage") if isinstance(p.get("cumulativeDamage"), dict) else {}
     pen = _n(cd.get("armorPower"))
-    if not pen:
+    bt = first_str(p.get("bulletType")).lower()
+    if not pen and (bt.startswith(("ap", "atgm_ke", "ke")) or "_ke_" in bt):
         apw = p.get("armorpower") if isinstance(p.get("armorpower"), dict) else {}
         pen = _n(apw.get("ArmorPower0m"))
     if cat in ("atgm", "agm", "rocket"):
