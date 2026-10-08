@@ -75,7 +75,7 @@ jobs:
           gh release upload "$TAG" WTFTD-macOS.zip WTFTD-macOS.zip.sha256 --clobber
           body=$(gh release view "$TAG" --json body -q .body)
           case "$body" in
-            *"WTFTD-macOS.zip"*) ;;
+            *"SHA-256** of WTFTD-macOS.zip"*) ;;  # the notes may name the zip: look for this very line
             *) gh release edit "$TAG" --notes "$body
 
           **SHA-256** of WTFTD-macOS.zip (built by GitHub Actions from this tag): \`$hash\`
