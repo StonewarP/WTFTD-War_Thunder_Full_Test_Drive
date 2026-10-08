@@ -3,7 +3,7 @@
 What changed in each version of WTFTD. Downloads: [Releases](https://github.com/StonewarP/WTFTD/releases).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Unreleased
+## 0.14.4 — 2026-10-08
 
 - The exe is built by GitHub Actions from the released code and published with its SHA-256, so anyone can
   check that a download matches the source.
