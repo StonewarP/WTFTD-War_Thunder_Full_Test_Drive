@@ -2,9 +2,9 @@
 
 Thanks for helping! Bug reports, ideas, translation fixes and code are all welcome.
 
-- **Bugs and ideas**: open an [issue](https://github.com/StonewarP/WTFTD/issues/new/choose) (use the forms).
+- **Bugs and ideas**: open an [issue](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/new/choose) (use the forms).
   For a bug, paste your setup's **share code** (Saved setups → Share): it lets us rebuild your exact setup.
-- **Questions**: ask in [Discussions](https://github.com/StonewarP/WTFTD/discussions).
+- **Questions**: ask in [Discussions](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/discussions).
 - **Security problems**: don't open a public issue, see [SECURITY.md](SECURITY.md).
 
 ## Run from source
@@ -12,8 +12,8 @@ Thanks for helping! Bug reports, ideas, translation fixes and code are all welco
 Windows 10/11 or macOS, Python 3.10+ — no extra package needed (standard library only).
 
 ```bash
-git clone https://github.com/StonewarP/WTFTD.git
-cd WTFTD
+git clone https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive.git
+cd WTFTD-War_Thunder_Full_Test_Drive
 python -m wtftd
 ```
 

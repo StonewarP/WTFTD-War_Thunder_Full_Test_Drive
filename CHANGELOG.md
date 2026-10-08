@@ -1,6 +1,6 @@
 # Changelog
 
-What changed in each version of WTFTD. Downloads: [Releases](https://github.com/StonewarP/WTFTD/releases)
+What changed in each version of WTFTD. Downloads: [Releases](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/releases)
 (only the latest version is kept there; each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 

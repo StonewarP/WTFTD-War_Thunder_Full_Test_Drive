@@ -32,8 +32,8 @@ function renderAppVersion() {
 }
 
 function bindAppInfo() {
-  $('#btnReportBug').addEventListener('click', () => openUrl(`${APP.info?.repo || 'https://github.com/StonewarP/WTFTD'}/issues/new?template=${ISSUE_FORMS.bug}`));
-  $('#btnSuggest').addEventListener('click', () => openUrl(`${APP.info?.repo || 'https://github.com/StonewarP/WTFTD'}/issues/new?template=${ISSUE_FORMS.idea}`));
+  $('#btnReportBug').addEventListener('click', () => openUrl(`${APP.info?.repo || 'https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive'}/issues/new?template=${ISSUE_FORMS.bug}`));
+  $('#btnSuggest').addEventListener('click', () => openUrl(`${APP.info?.repo || 'https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive'}/issues/new?template=${ISSUE_FORMS.idea}`));
   ['#btnSupport', '#btnSupport2'].forEach(s => $(s).addEventListener('click', () => openUrl(DONATE_URL)));
   setTimeout(checkAppVersion, 2500);
   setInterval(checkAppVersion, 6 * 3600 * 1000);

@@ -6,8 +6,8 @@
 > **Disclaimer** — I'm not a professional developer: WTFTD is a hobby project, built with the help of AI
 > tools. The code is open and tested, but expect rough edges, and check it yourself if in doubt.
 
-[![Latest release](https://img.shields.io/github/v/release/StonewarP/WTFTD?include_prereleases&label=download)](https://github.com/StonewarP/WTFTD/releases)
-[![Tests](https://github.com/StonewarP/WTFTD/actions/workflows/tests.yml/badge.svg)](https://github.com/StonewarP/WTFTD/actions/workflows/tests.yml)
+[![Latest release](https://img.shields.io/github/v/release/StonewarP/WTFTD-War_Thunder_Full_Test_Drive?include_prereleases&label=download)](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/releases)
+[![Tests](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/actions/workflows/tests.yml/badge.svg)](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Support on Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/stonewarp)
 
@@ -22,7 +22,7 @@ triggers and respawn logic), puts your vehicle and setup in it, and writes it to
 
 ## Download
 
-**[⬇ Download WTFTD.exe](https://github.com/StonewarP/WTFTD/releases)** (Windows 10/11) or
+**[⬇ Download WTFTD.exe](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/releases)** (Windows 10/11) or
 **WTFTD-macOS.zip** (macOS, Apple silicon) — nothing to install: double-click it, the app opens in its own
 window and finds your game by itself (Steam or standalone). Close the window to quit.
 
@@ -177,7 +177,7 @@ No, with custom vehicles on (default). Without them, the game only opens user mi
 
 **The game was updated, did WTFTD break?**
 The game data rebuilds itself after each patch (checked every 3 hours and at start-up), or by hand with
-**Settings → Update game data**. If a mission stops working, [report it](https://github.com/StonewarP/WTFTD/issues/new/choose)
+**Settings → Update game data**. If a mission stops working, [report it](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/new/choose)
 with your setup's share code.
 
 **Where are my files? How do I uninstall?**
@@ -254,8 +254,8 @@ docs/screenshots/           README images
 ## Feedback
 
 Found a bug or have an idea? **Settings → Report a bug / Suggest an idea**, or open an
-[issue](https://github.com/StonewarP/WTFTD/issues/new/choose). For bugs, paste your setup's **share code** — it lets
-us rebuild your exact setup. Questions: [Discussions](https://github.com/StonewarP/WTFTD/discussions).
+[issue](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/new/choose). For bugs, paste your setup's **share code** — it lets
+us rebuild your exact setup. Questions: [Discussions](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/discussions).
 
 Want to help (code, translations)? See [CONTRIBUTING.md](CONTRIBUTING.md). What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). Security problem: [SECURITY.md](SECURITY.md).
