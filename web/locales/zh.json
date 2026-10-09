@@ -364,6 +364,8 @@
   "editor.block.ships": "海军",
   "editor.vehicle": "载具",
   "editor.searchVehicle": "搜索载具…",
+  "editor.filtersClear": "清除筛选",
+  "editor.vehiclesCount": "{n} 个载具",
   "editor.count": "数量",
   "editor.fire": "开火",
   "editor.fire.aggressive": "主动攻击",

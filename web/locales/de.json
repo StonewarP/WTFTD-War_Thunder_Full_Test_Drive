@@ -364,6 +364,8 @@
   "editor.block.ships": "Marine",
   "editor.vehicle": "Fahrzeug",
   "editor.searchVehicle": "Fahrzeug suchen…",
+  "editor.filtersClear": "Filter löschen",
+  "editor.vehiclesCount": "{n} Fahrzeuge",
   "editor.count": "Anzahl",
   "editor.fire": "Feuer",
   "editor.fire.aggressive": "Greift an",

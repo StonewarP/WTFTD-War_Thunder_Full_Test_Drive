@@ -13,7 +13,9 @@ const ED = {
   data: null, sel: null, multi: [], mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true,
   view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', resTab: 'all', layers: [],
   labels: [], clip: null, mouse: null, byName: new Map(), configuring: false,
-  auto: { src: 'me', br: 5.0, nations: [], who: 'enemy', fire: '' },  // "Vehicles by BR"
+  auto: { src: 'me', br: 5.0, nations: [], who: 'enemy', fire: '' },
+  vf: { nations: [], kinds: [], brMin: 1, brMax: 14.3 },  // the vehicle picker's filters
+  hidden: [],  // dialogs closed while a unit's loadout is configured (the map window): back when the editor closes  // "Vehicles by BR"
 };
 
 function edEdits() {
@@ -220,6 +222,7 @@ function edDrawArrow(dpr) {
 
 async function openEditor() {
   const sid = S.cfg.scenario;
+  ED.configuring = false;  // a unit's loadout left unfinished (another vehicle opened meanwhile)
   ED.before = S.cfg.edits ? JSON.stringify(S.cfg.edits) : null;  // Cancel puts these back
   try { ED.data = await api('scenario-units/' + encodeURIComponent(sid)); } catch (e) { toastErr(e); return; }
   edResolveStart(ED.data);
@@ -249,6 +252,10 @@ async function openEditor() {
   edFit();
   edRenderPanel();
   edDraw();
+}
+// the editor done: the dialogs closed while a unit's loadout was configured (the map window), back as they were
+function edRestoreHidden() {
+  for (const d of ED.hidden.splice(0)) if (!d.open) d.showModal();
 }
 // back to the editor as it was (after configuring a unit's loadout in the vehicle panel)
 function edResume() {
@@ -846,6 +853,10 @@ function edBind() {
   $('#edPanel').addEventListener('toggle', ev => { if (ev.target.classList?.contains('ed-auto')) ED.auto.open = ev.target.open; }, true);
   $('#edPanel').addEventListener('input', ev => {
     if (ev.target.id === 'edSearch') { ED.search = ev.target.value; edRenderResults(); }
+    if (ev.target.dataset.edvfn) {  // BR range
+      const v = parseFloat(ev.target.value);
+      if (Number.isFinite(v)) { ED.vf[ev.target.dataset.edvfn] = Math.max(1, Math.min(14.3, v)); edRenderResults(); }
+    }
     if (ev.target.dataset.edautof === 'br') ev.target.nextElementSibling.textContent = `BR ${(+ev.target.value).toFixed(1)}`;
     if (ev.target.dataset.edf === 'pyaw') {  // the arrow turns with the slider
       edSetStart({ yaw: edYaw(+ev.target.value) });
@@ -866,11 +877,12 @@ function edBind() {
     if (b.dataset.edact === 'paste') edPlacing(true);
     edRenderPanel(); edDraw();
   });
-  $('#edDone').addEventListener('click', () => $('#dlgEditor').close());
+  $('#edDone').addEventListener('click', () => { $('#dlgEditor').close(); edRestoreHidden(); });
   $('#edCancel').addEventListener('click', () => {  // the map as it was when the editor opened
     if (ED.before) S.cfg.edits = JSON.parse(ED.before); else delete S.cfg.edits;
     edPlacing(false);
     $('#dlgEditor').close();
+    edRestoreHidden();
   });
   $('#dlgEditor').addEventListener('keydown', ev => {
     if (ev.target.closest('input, select, textarea')) return;
@@ -891,7 +903,11 @@ function edBind() {
     ev.preventDefault();
     edRenderPanel(); edDraw();
   });
-  $('#dlgEditor').addEventListener('close', () => { if (S.sel && !ED.configuring) renderDrawer(); });
+  $('#dlgEditor').addEventListener('close', () => {
+    if (ED.configuring) return;
+    if (S.sel) renderDrawer();
+    edRestoreHidden();
+  });
 }
 
 // ------------------------------------------------------------------ right click: what can be done right there
@@ -1291,8 +1307,24 @@ function edVehicleField(cats) {
   return `<div class="field"><label>${esc(t('editor.vehicle'))}</label>
     <div class="seg ed-restabs"><button class="${ED.resTab === 'all' ? 'active' : ''}" data-edtab="all">${esc(t('editor.allVehicles'))}</button>
       <button class="${ED.resTab === 'mine' ? 'active' : ''}" data-edtab="mine">${esc(t('editor.myVehicles'))}${mine ? ` <span class="muted">${mine}</span>` : ''}</button></div>
-    ${ED.resTab === 'all' ? `<input id="edSearch" type="search" placeholder="${esc(t('editor.searchVehicle'))}" value="${esc(ED.search)}" autocomplete="off">` : ''}
+    ${ED.resTab === 'all' ? `<input id="edSearch" type="search" placeholder="${esc(t('editor.searchVehicle'))}" value="${esc(ED.search)}" autocomplete="off">
+    ${edFilterHTML(cats)}` : ''}
+    <div class="ed-count muted" id="edCount"></div>
     <div class="ed-results" id="edResults" data-cats="${cats.join(',')}"></div></div>`;
+}
+// the picker's filters: nations (none: all), kinds of vehicle, BR range
+function edFilterHTML(cats) {
+  const f = ED.vf;
+  const kinds = [...new Set(S.vehicles.filter(v => cats.includes(v.c) && !v.h && v.k).map(v => v.k))];
+  return `<div class="ed-filters">
+    <div class="nations ed-nations${f.nations.length ? ' has-active' : ''}">${NATIONS.map(x => `<button class="nation${f.nations.includes(x) ? ' active' : ''}" data-edvf="nat:${x}" title="${esc(nationName(x))}">
+      <img src="${flagImg(x)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'fallback',textContent:'${x.slice(0, 3).toUpperCase()}'}))"></button>`).join('')}</div>
+    ${kinds.length > 1 ? `<div class="ed-kinds">${kinds.map(k => `<button class="chip${f.kinds.includes(k) ? ' on' : ''}" data-edvf="kind:${esc(k)}">${esc(className(k))}</button>`).join('')}</div>` : ''}
+    <div class="ed-br"><label>BR</label>
+      <input type="number" min="1" max="14.3" step="0.3" data-edvfn="brMin" value="${f.brMin}">
+      <span>–</span><input type="number" min="1" max="14.3" step="0.3" data-edvfn="brMax" value="${f.brMax}">
+      ${f.nations.length || f.kinds.length || f.brMin > 1 || f.brMax < 14.3 ? `<button class="btn btn-ghost btn-sm" data-edvf="clear">${esc(t('editor.filtersClear'))}</button>` : ''}</div>
+  </div>`;
 }
 function edLoadoutSummary(st) {
   const lo = st.loadout;
@@ -1374,13 +1406,14 @@ function edRenderResults() {
       || `<p class="hint">${esc(t('editor.noMine'))}</p>`;
     return;
   }
-  const q = norm(ED.search);
-  let list = S.vehicles.filter(v => cats.includes(v.c) && !v.h && (!q || v._s.includes(q)));
-  if (!q) {
-    const ref = S.byId.get(cur)?.br?.[1] ?? 5;
-    list.sort((a, b) => Math.abs((a.br[1] ?? 99) - ref) - Math.abs((b.br[1] ?? 99) - ref));
-  }
-  list = list.slice(0, 40);
+  const q = norm(ED.search), f = ED.vf;
+  // every vehicle of that kind that the filters keep, by BR
+  const list = S.vehicles.filter(v => cats.includes(v.c) && !v.h && (!q || v._s.includes(q))
+    && (!f.nations.length || f.nations.includes(v.n)) && (!f.kinds.length || f.kinds.includes(v.k))
+    && (v.br?.[1] ?? 0) >= f.brMin - 0.01 && (v.br?.[1] ?? 0) <= f.brMax + 0.01);
+  list.sort((a, b) => (a.br?.[1] ?? 99) - (b.br?.[1] ?? 99) || I18N.unit(a.id).localeCompare(I18N.unit(b.id)));
+  const count = $('#edCount');
+  if (count) count.textContent = t('editor.vehiclesCount', { n: list.length });
   box.innerHTML = list.map(v => `<button class="ed-vc${v.id === cur ? ' active' : ''}" data-edcls="${esc(v.id)}" title="${esc(I18N.unitFull(v.id))}">
       <div class="ed-vc-img">${unitImgTag(v.id)}<span class="ed-vc-br">${fmtBR(v.br?.[1])}</span></div>
       <span class="ed-vc-name">${flagHTML(v.n)}${esc(I18N.unit(v.id))}</span></button>`).join('')
@@ -1413,12 +1446,15 @@ async function edConfigure(key) {
   const u = edUnitByKey(key);
   if (!u) return;
   const st = edUnitState(u);
+  // until back in the editor: its "close" event (fired a moment later) must not end the editing session
   ED.configuring = true;
   $('#dlgEditor').close();
-  ED.configuring = false;
+  // the map window (the editor opened from it) would stay over the vehicle panel: closed meanwhile
+  for (const d of $$('dialog[open]')) { if (!ED.hidden.includes(d)) ED.hidden.push(d); d.close(); }
   await openUnitLoadout(st.cls, st.loadout, { name: I18N.unit(st.cls) }, res => {
     const cur = edUnitByKey(key);
     if (res && cur) edSet(cur, { loadout: { ...res, vehicle: st.cls } });
+    ED.configuring = false;
     edResume();
   });
 }
@@ -1446,6 +1482,14 @@ function edPanelClick(ev) {
     return;
   }
   if (b.dataset.edtab) { ED.resTab = b.dataset.edtab; edRenderPanel(); return; }
+  if (b.dataset.edvf) {  // the vehicle picker's filters
+    const [k, x] = b.dataset.edvf.split(/:(.*)/s), f = ED.vf;
+    if (k === 'clear') ED.vf = { nations: [], kinds: [], brMin: 1, brMax: 14.3 };
+    else if (k === 'nat') f.nations = f.nations.includes(x) ? f.nations.filter(y => y !== x) : [...f.nations, x];
+    else if (k === 'kind') f.kinds = f.kinds.includes(x) ? f.kinds.filter(y => y !== x) : [...f.kinds, x];
+    edRenderPanel();
+    return;
+  }
   if (edAutoClick(b)) return;
   if (b.dataset.edsetup) { edUseSetup(b.dataset.edsetup); return; }
   switch (b.dataset.edact) {

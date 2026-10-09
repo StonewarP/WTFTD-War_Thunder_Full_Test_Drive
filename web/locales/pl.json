@@ -364,6 +364,8 @@
   "editor.block.ships": "Morska",
   "editor.vehicle": "Pojazd",
   "editor.searchVehicle": "Szukaj pojazdu…",
+  "editor.filtersClear": "Wyczyść filtry",
+  "editor.vehiclesCount": "Pojazdy: {n}",
   "editor.count": "Liczba",
   "editor.fire": "Ogień",
   "editor.fire.aggressive": "Atakuje",

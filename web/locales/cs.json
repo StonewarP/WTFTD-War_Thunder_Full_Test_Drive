@@ -364,6 +364,8 @@
   "editor.block.ships": "Námořní",
   "editor.vehicle": "Vozidlo",
   "editor.searchVehicle": "Hledat vozidlo…",
+  "editor.filtersClear": "Zrušit filtry",
+  "editor.vehiclesCount": "Vozidla: {n}",
   "editor.count": "Počet",
   "editor.fire": "Palba",
   "editor.fire.aggressive": "Útočí",

@@ -364,6 +364,8 @@
   "editor.block.ships": "海軍",
   "editor.vehicle": "兵器",
   "editor.searchVehicle": "兵器を検索…",
+  "editor.filtersClear": "フィルターを解除",
+  "editor.vehiclesCount": "{n} 両",
   "editor.count": "数",
   "editor.fire": "射撃",
   "editor.fire.aggressive": "攻撃する",

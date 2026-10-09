@@ -211,6 +211,16 @@ wins. (The ground modifications themselves had never been checked in game.) Airc
   and acceleration far better than a normal F-14B; still flyable; the wings stay on in hard turns.
   r9a, r9b, r9c all good (2026-10-09).
 
+## 2i. AI units with a custom (pylon by pylon) loadout (new test)
+
+An AI aircraft's Configure opens the vehicle panel with the pylon-by-pylon loadout; with custom pylons the server
+writes a custom aircraft of its own for that unit (`wtftd_<id>_ai<n>`, `pkg_user`). Presets were confirmed in game
+(2026-10-09); custom pylons not yet. (Also fixed: from the Maps window, Configure left that window over the
+vehicle panel.)
+
+- [ ] **WTFTD r10: AI with a custom loadout (Rafale)** (`wtftd_r10_ai_custom`, invulnerable): 2 enemy Rafale C F3
+  with the saved "Rafale C F3 · Custom" pylons (5) hunt you: they carry those pylons and fire their missiles.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own
