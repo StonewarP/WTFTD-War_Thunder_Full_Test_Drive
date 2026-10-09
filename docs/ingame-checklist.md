@@ -121,7 +121,7 @@ belts written on the unit, an aircraft with custom pylons gets a custom aircraft
 - [ ] `wtftd_r6_ground_afghan` (F-14B): parked on the Afghan runway between its two spawn points, facing NNE
   (towards the airfield centre), no jump; after a crash: same place.
 - [ ] `wtftd_r6_tank_tft` (T-72A, firing range): starts 150 m north of the usual start, facing south, no jump.
-- [ ] `wtftd_r6_ai_loadouts` (F-14B, air start 1500 m above the start, 600 km/h): 2 enemy Rafale (the saved
+- [x] (covered by 2i: presets and custom pylons on AI aircraft work, 2026-10-09) `wtftd_r6_ai_loadouts` (F-14B, air start 1500 m above the start, 600 km/h): 2 enemy Rafale (the saved
   "Rafale C F3 · Custom": Magic / MICA + a pod) and a MiG-29 9.13 with R-73s hunt you, 3 Fw 190 C east.
   Check the Rafale / MiG fire missiles (their loadout is used), the Rafale carry the custom pylons.
 
