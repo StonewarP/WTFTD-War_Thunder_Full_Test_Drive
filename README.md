@@ -12,13 +12,15 @@
 [![Support on Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/stonewarp)
 
 Test drive **any** War Thunder vehicle — ground, aircraft, helicopters, boats, ships — with the
-loadout, ammunition, map, targets and conditions you choose, even vehicles you don't own.
+loadout, ammunition, map, targets and conditions you choose, even vehicles you don't own. Hang any weapon
+of the game on any pylon, or **make your own weapons**: more explosive, more thrust, 100 G missiles, nuclear
+Sidewinders…
 
 WTFTD takes an **official Test Drive / Test Flight mission** from the game files (with its targets,
 triggers and respawn logic), puts your vehicle and setup in it, and writes it to
 `War Thunder/UserMissions/`. In game: **Single missions → User missions**.
 
-![WTFTD in 13 seconds: search a vehicle, its stats, a B61 on a pylon, the Weapons page](docs/demo.gif)
+![A tour of WTFTD: vehicles, stats, custom pylons with your own weapons, the Weapons page, the weapon editor, maps, the scenario editor](docs/demo.gif)
 
 ## Download
 
@@ -26,10 +28,12 @@ triggers and respawn logic), puts your vehicle and setup in it, and writes it to
 **WTFTD-macOS.zip** (macOS, Apple silicon) — nothing to install: double-click it, the app opens in its own
 window and finds your game by itself (Steam or standalone). Close the window to quit.
 
-- **First launch**: WTFTD downloads the game data once (≈1 GB from the community
-  [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine), 2–5 minutes) and builds its
-  database on your PC. No game data is shipped with WTFTD. If Git isn't installed, the official portable
-  MinGit (git-for-windows) is fetched automatically. The data then updates itself after each game patch.
+- **First launch**: a welcome screen says where WTFTD keeps its files and what it downloads from where;
+  nothing is downloaded before you click *Accept and download*. WTFTD then fetches the game data once (≈1 GB
+  from the community [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine), 2–5 minutes)
+  and builds its database on your PC. No game data is shipped with WTFTD. If Git isn't installed, the
+  official portable MinGit (git-for-windows) is fetched automatically. The data then updates itself after
+  each game patch.
 - Your settings, missions and the game database live in `%LOCALAPPDATA%\WTFTD` (Windows) or
   `~/Library/Application Support/WTFTD` (macOS).
 - The apps are not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**. On macOS,
@@ -44,34 +48,44 @@ window and finds your game by itself (Steam or standalone). Close the window to 
 
 ## How it works
 
-1. **Pick a vehicle** in the list or in the research trees (filters by category, type — light / heavy tank,
-   fighter, bomber… —, nation, rank, BR…).
-2. **Set it up** step by step: map & scenario, loadout, ammunition, modifications, cheats, conditions.
-3. **Create mission**, start War Thunder (button in the app), open *Single missions → User missions*.
+1. **Pick a vehicle** (*Vehicles*: list or research trees, filters by category, type — light / heavy tank,
+   fighter, bomber… —, nation, rank, BR, stats, carried weapons).
+2. **Pick a map** (*Maps*: every official test drive / test flight scenario, with the game's tactical map).
+3. **Set it up** in the vehicle panel: loadout (pylon by pylon), ammunition, modifications, cheats, fuel —
+   and the map in the scenario editor (targets, allies, your start).
+4. **Create mission**, start War Thunder (button in the app), open *Single missions → User missions*.
 
 ![Vehicle browser](docs/screenshots/01-browse.png)
 
-| Stats: tanks over 60 km/h, best turret armor first | Carrying the AIM-9L, fastest first, vehicle stats |
+| Research trees | Stats: tanks over 60 km/h, best turret armor first |
 |---|---|
-| ![Stats filters](docs/screenshots/07-stats.png) | ![Weapon search and stats](docs/screenshots/08-stats-drawer.png) |
+| ![Research tree](docs/screenshots/02-tree.png) | ![Stats filters](docs/screenshots/07-stats.png) |
 
-![Weapon picker](docs/screenshots/09-weapon-picker.png)
+| Carrying the AIM-9L, fastest first, vehicle stats | Weapon picker: vehicles carrying given weapons |
+|---|---|
+| ![Weapon search and stats](docs/screenshots/08-stats-drawer.png) | ![Weapon picker](docs/screenshots/09-weapon-picker.png) |
 
 ![Vehicle comparison](docs/screenshots/10-compare.png)
+
+| Pylon editor: your own weapons next to the game's | Cheats: invulnerable, unbreakable airframe, super mobility, no reload |
+|---|---|
+| ![Pylon editor](docs/screenshots/03-pylons.png) | ![Cheats](docs/screenshots/04-cheats.png) |
+
+![Maps and scenarios](docs/screenshots/13-maps.png)
+
+| Scenario editor on the real map, with ground heights | Test flight: your start and the scenario's targets |
+|---|---|
+| ![Scenario editor](docs/screenshots/05-editor.png) | ![Air scenario](docs/screenshots/06-editor-air.png) |
 
 | Weapons page: IR missiles ranked for dogfight, R-73 details and community view | Comparing weapons side by side |
 |---|---|
 | ![Weapons page](docs/screenshots/11-weapons.png) | ![Weapon comparison](docs/screenshots/12-weapons-compare.png) |
 
-| Research trees | Pylon editor — here a B61 nuclear bomb on pylon 5 |
+| My weapons: an AIM-9L at 100 G and thrust ×5, a nuclear AIM-9M, a 10-tonne Mk 82 | The weapon editor: Simple… |
 |---|---|
-| ![Research tree](docs/screenshots/02-tree.png) | ![Pylon editor](docs/screenshots/03-pylons.png) |
+| ![My weapons](docs/screenshots/14-my-weapons.png) | ![Weapon editor](docs/screenshots/15-weapon-editor.png) |
 
-| Scenario editor on the real map, with ground heights | Your real spawn (runway) and targets at your BR |
-|---|---|
-| ![Scenario editor](docs/screenshots/05-editor.png) | ![Runway spawn](docs/screenshots/06-editor-air.png) |
-
-![Conditions: air start, fuel load](docs/screenshots/04-conditions.png)
+![…and Advanced: every value of the weapon's file, explained](docs/screenshots/16-weapon-editor-advanced.png)
 
 ## Features
 
@@ -95,13 +109,16 @@ window and finds your game by itself (Steam or standalone). Close the window to 
   category, community notes on well-known weapons, side-by-side comparison and the vehicles that carry each one
 - **Compare up to 5 vehicles side by side** (button next to the favorite star): BR, every stat with the best
   value highlighted, guns with their caliber, shell types, pylon weapons
-- **100+ official scenarios**: firing range, Fulda, naval range, airfields, heli ranges, carriers,
-  seaplane bases… plus the **hangar maps** (regular, winter, Halloween, Lunar New Year, anniversary)
+- **Maps tab**: 100+ official scenarios with the game's own tactical map — firing range, Fulda, naval
+  range, airfields, heli ranges, carriers, seaplane bases… plus the **hangar maps** (regular, winter,
+  Halloween, Lunar New Year, anniversary); the ones that fit your vehicle first
 - **Loadout**: every official preset, or a **pylon editor** laid out like the game's (presets as rows,
   pylons as columns, game icons). Turn on **non-standard weapons** to mount any of the game's ~2,300 air
   weapons on any pylon — missiles, bombs, rockets, torpedoes, pods, and **nuclear bombs** (RN-28, RN-40,
   B61, AN-52, KB-1, RDS-4, RDS-37) — with a warning when the aircraft lacks the radar / laser designator /
-  guidance the weapon needs
+  guidance the weapon needs. Pylons fire one at a time, as in the game
+- **My weapons**: your own versions of the game's missiles, bombs, rockets and torpedoes (see below), on
+  your pylons and on AI aircraft
 - **Ammunition**: 4 shell slots with round counts for tanks; belts per gun for aircraft, helicopters and ships; the
   game's own shell and belt icons; **flares / chaff split** for countermeasure launchers (beta, see *Known limits*)
 - **Modifications** (custom vehicles): engine power, mass, top speed, brakes, turret speed, thrust,
@@ -115,18 +132,21 @@ window and finds your game by itself (Steam or standalone). Close the window to 
   - behaviour: still, aggressive, return fire or passive; enemies can **hunt you**, allies can **escort you**;
   - shows where the scenario really spawns you (runway / start area) and the units it teleports
 - **Conditions**: time of day, weather, air start with altitude / speed, **fuel load** (% of the tanks)
-- **Cheats**: invulnerable, unlimited ammo, no reload, unlimited fuel, auto repair / rearm, passive
-  targets, no collisions, expert / ace crew
+- **Cheats**: invulnerable, unbreakable airframe (no wings torn off by overspeed or G), super mobility
+  (engine power ×3–4, tighter turns), unlimited ammo, no reload, unlimited fuel, auto repair / rearm,
+  passive targets, no collisions, expert / ace crew
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
   简体中文, 日本語 — picked from your Windows language on first launch (or on the welcome screen), vehicle,
   weapon and map names follow the game's own translations. UI translations
   other than English were machine-assisted and may contain mistakes: corrections are welcome
 - **Uninstall** from Settings: everything, or only some parts (custom vehicle files in the game, missions,
   cache, game database, your settings and library, the app itself); War Thunder itself is never touched
-- **Share a setup** with a friend: a short code to paste, or a `.wtftd` file — they import it (Saved setups →
-  Import, or drop the file on the window) and get the same mission: vehicle, loadout, ammo, map, editor
+- **Your library**: *My vehicles* (saved setups), *My maps* (scenario variants from the editor), *My missions*
+  (saved vehicle + map pairs and the missions created), *My weapons*
+- **Share** a vehicle setup, a map or a mission with a friend: a short code to paste, or a `.wtftd` file — they
+  import it (or drop the file on the window) and get the same thing: vehicle, loadout, ammo, map, editor
   changes, cheats. User missions are single-player, so each of you plays it on your own PC
-- Dark / light theme, saved setups, list of generated missions, `.blk` preview, launch War Thunder
+- Dark / light theme, `.blk` preview, launch War Thunder
 
 ## Custom vehicles (on by default)
 
@@ -136,13 +156,31 @@ WTFTD uses the game's `userVehicles` mechanism (from the CDK, popularised by Ask
 - the mission uses `unit_class:t="userVehicles/<host>"`, where `<host>` is a vehicle you own (US reserve
   vehicles by default: M2A4, PT-6, USS Litchfield — helicopters have no reserve, pick one you own).
   Aircraft get their own new file in `content/pkg_user` and need no host;
-- WTFTD writes files that `include` the real vehicle and apply your **modifications** and
-  **pylon-by-pylon loadouts** with `@override:` lines.
+- WTFTD writes files that `include` the real vehicle and apply your **modifications**,
+  **pylon-by-pylon loadouts** and **your own weapons** with `@override:` lines.
 
 Rules: only new files are written (never a path that replaces a game file), every file is listed in
 `user/cdk_manifest.json`, and **Settings → Remove custom vehicle files** deletes them (do it before
 playing online if you want a clean install). One custom vehicle per type at a time: the last mission you
 create defines it. This is not endorsed by Gaijin — use at your own risk.
+
+## My weapons (custom weapons)
+
+In the **Weapons** tab, **Modify** on a missile, bomb, rocket or torpedo makes your own version of it, kept in
+**My weapons**; put it on a pylon from the vehicle panel (*Loadout → Custom pylons → a pylon → My weapons*).
+
+- **Simple**: explosive, a **nuclear charge** (kilotons, like the game's nuclear bombs — it works on missiles
+  too), motor thrust, burn time, top speed, max G, range, weight, each next to the game's value, with quick
+  settings (×2, ×10, *Absurd*, *Nuclear 20 kt*). The explosion shown follows the new charge.
+- **Advanced**: every value of the weapon's file — guidance, seeker, autopilot, fuse, damage, penetration… —
+  block by block, searchable, each explained on hover.
+- A weapon you edit later flies as it is now on every pylon that holds it; in game it keeps its own name.
+
+How: WTFTD writes a new file per weapon (`content/pkg_user/gameData/Weapons/wtftd/…`) that `include`s the
+game's own and overrides your values — never the game's file, so only your custom vehicles use it. Checked in
+game (F-14B): 100 G turns, thrust ×5, 10 t of explosive, nuclear AIM-9M and Mk 84. The blast radius of
+ordinary explosive grows as the cube root of the charge (×115 explosive ≈ ×5 radius): for a wide area, use a
+nuclear charge.
 
 ## Map backgrounds & ground heights
 
@@ -233,7 +271,9 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
 - Missions and custom vehicles are local: they can't be played together online (custom battles / co-op use
   Gaijin's servers and the official vehicle files). Share the setup instead.
 - "Non-playable units" come from the game files (AI, removed, unreleased) and may not load or behave oddly.
-- The flares / chaff split is new and not yet checked in game ([checklist](docs/ingame-checklist.md)).
+- My weapons: a weapon carried in a launcher of its own (pods, multiple racks) can't be modified yet, nor
+  ground-launched missiles (tank ATGMs, SAMs). The Advanced values are the game's own and not all of them have
+  been tried in game: change one thing at a time ([checklist](docs/ingame-checklist.md)).
 - macOS support is new and less tested than Windows. The packaged app is built for Apple silicon; on an Intel
   Mac, [run from source](#run-from-source).
 
@@ -250,11 +290,13 @@ wtftd/                      Python backend (stdlib only)
   maptex.py / terrain.py    tactical maps and heightmaps from the game files
   builder.py                datamine -> data/*.json
   armament.py               Weapons page data (missiles, bombs, rockets, torpedoes)
+  uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
-web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search
+web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
+                            weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)
-docs/screenshots/           README images
+docs/screenshots/           README images (docs/demo.gif: the tour above)
 docs/ingame-checklist.md    what still needs checking in game
 ```
 

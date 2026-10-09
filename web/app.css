@@ -892,12 +892,30 @@ body.resizing .drawer, body.resizing .content { transition: none; }
 .wp-chip button { border: 0; background: transparent; color: var(--text-2); padding: 0 2px; display: grid; place-items: center; }
 .wp-side { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .btn-block { width: 100%; justify-content: center; }
-/* smaller screens (laptops, 1366 / 1440 px wide): keep the header on one line, narrower vehicle panel */
+/* smaller screens (laptops, 1366 / 1440 px wide): keep the header on one line (7 tabs), narrower vehicle panel */
 .tab { white-space: nowrap; }
-@media (max-width: 1500px) {
-  :root { --drawer-w: 500px; }
+.topbar .search { min-width: 0; }
+.top-actions, .brand, .tabs { flex: none; }
+.brand-text span { white-space: nowrap; }
+@media (max-width: 1960px) {
   .brand-text span { display: none; }
   .brand { min-width: 0; }
+  .status .pill + .pill { display: none; }  /* the data version: in Settings */
+}
+@media (max-width: 1500px) {
+  :root { --drawer-w: 500px; }
+}
+@media (max-width: 1700px) {
+  .topbar { gap: 12px; }
+  .tab { padding: 0 9px; font-size: 12.5px; }
+  .status { display: none; }
+}
+@media (max-width: 1440px) {
+  #btnLaunchTop span { display: none; }  /* its icon, named in a tooltip */
+}
+@media (max-width: 1220px) {
+  .brand-text { display: none; }
+  .tab { padding: 0 7px; font-size: 12px; gap: 5px; }
 }
 @media (max-width: 1280px) {
   :root { --drawer-w: 440px; }
