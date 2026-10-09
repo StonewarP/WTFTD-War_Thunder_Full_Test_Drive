@@ -668,6 +668,11 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     det0 = STATE.get_details().get(str(body.get("vehicle", ""))) or {}
     body["_ammoGroups"] = _ammo_groups(det0)
     veh0 = STATE.get_vehicles().get(str(body.get("vehicle", "")))
+    if veh0 and isinstance(veh0.get("r"), int):
+        body["_rank"] = veh0["r"]  # test flights: targets / airfield of your rank
+    vehicles = STATE.get_vehicles()
+    # SAM batteries: launcher -> its fire control radar (the research tree's slot), added next to AI launchers
+    body["_batteries"] = {v[:-4] + "_launcher": v for v in vehicles if v.endswith("_fcs") and v[:-4] + "_launcher" in vehicles}
     if veh0 and veh0.get("n") not in (None, "", "other"):
         crew_units = {f"country_{veh0['n']}": [veh0["id"]]}
         if STATE.cdk_enabled() and veh0["c"] == "ground":

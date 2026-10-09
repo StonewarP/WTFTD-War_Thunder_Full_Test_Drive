@@ -137,10 +137,13 @@ mission imports directly (without imports of its own: `test_flight_unit_template
 itself when one of them gets another vehicle, and that import gets `importUnits: no`
 (`mission.take_over_units`). Units of nested templates (the bases' Bofors) can't change vehicle.
 
-- [ ] `wtftd_r7_tpl_swap` (F-14B, Afghanistan test flight, the template's targets set by "Vehicles by BR" at 12.7):
-  the airfield and the enemies are there as without WTFTD; the air targets are the new aircraft (AV-8B Plus,
-  F-2A, F-4E AUP, B-52H, Tu-95…), the ground targets new tanks (Leopard 2, Abrams, Leclerc, T-90M…) and SAM / SPAA.
-- [ ] Targets come back after being destroyed (with their new vehicle), the bases and their AA are there.
+- [x] `wtftd_r7_tpl_swap` (F-14B, Afghanistan test flight, the template's targets set by "Vehicles by BR" at 12.7):
+  the airfield and the enemies are there; the targets are the new vehicles; they come back after being destroyed
+  (2026-10-09). Found: a dirt airfield (the file's `target_rank_index` 1: the hangar passes your rank, a user mission
+  doesn't) and SAM "AA" that were only their battery's radar (`*_fcs`, unarmed: the research tree's slot).
+- [ ] Same mission, regenerated: `target_rank_index` now follows your vehicle (rank V and up: 2, high), so the
+  high-rank airfield and targets' zones; SAM picks are launchers (`*_launcher`) with their radar added 30 m away,
+  in the same squad (`<unit>_radar`). Check the SAM launchers fire at you, the radar sits next to each one.
 
 ## 3. Ammunition icons (UI only)
 

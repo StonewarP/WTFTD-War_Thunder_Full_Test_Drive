@@ -68,5 +68,19 @@ class TakeOverUnits(unittest.TestCase):
         self.assertEqual(mission.swappable_units(self.m), set())  # template not in the data: nothing changes
 
 
+class BatteryRadars(unittest.TestCase):
+    def test_radar_next_to_launcher_and_in_its_squads(self):
+        launcher = _unit("sam", "germ_iris_slm_launcher")
+        launcher["tm"][3] = [100.0, 5.0, 200.0]
+        m = {"units": {"tankModels": [launcher, _unit("tank", "germ_leopard_2a6")],
+                       "squad": {"name": "sq", "props": {"squad_members": ["sam", "tank"]}}}}
+        self.assertEqual(mission.add_battery_radars(m, {"germ_iris_slm_launcher": "germ_iris_slm_fcs"}), 1)
+        radar = m["units"]["tankModels"][2]
+        self.assertEqual((radar["name"], radar["unit_class"]), ("sam_radar", "germ_iris_slm_fcs"))
+        self.assertEqual(radar["tm"][3], [100.0, 5.0, 230.0])
+        self.assertEqual(m["units"]["squad"]["props"]["squad_members"], ["sam", "tank", "sam_radar"])
+        self.assertEqual(mission.add_battery_radars(m, {"germ_iris_slm_launcher": "germ_iris_slm_fcs"}), 0)  # once
+
+
 if __name__ == "__main__":
     unittest.main()

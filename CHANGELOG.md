@@ -19,6 +19,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   targets of the test flights) get the vehicle picker, a loadout and Vehicles by BR. The mission then declares
   that template's units itself; the templates' scripts stay imported as the game wrote them (the data keeps the
   templates: it is rebuilt once). Units of nested templates (the bases' AA) keep their vehicle.
+- **SAM batteries**: Vehicles by BR picks a battery's launcher, never its radar alone; the mission adds the battery's
+  fire control radar next to each AI launcher (in the same squad, so the scripts move them together).
+- **Test flights**: the targets and airfield follow your vehicle's rank (high from rank V), as when the game starts
+  them from the hangar (a user mission kept the low ones: a dirt strip).
 - The map settings' **Training targets** (scenario / my BR / a BR) are gone: Vehicles by BR in the map editor
   replaces them (nations, allies and added units too, follows your vehicle). **Right click** on the map: the useful actions right there (on a
   unit: loadout, side, movement, copy, duplicate, remove; on the map: paste here, add a ground unit / aircraft

@@ -402,6 +402,43 @@ def take_over_units(m: dict, names: set) -> set:
     return brought
 
 
+def add_battery_radars(m: dict, batteries: dict) -> int:
+    """A SAM launcher needs its battery's fire control radar: one is added next to each launcher (ground units),
+    in the launcher's squads so the scenario's scripts move / wake them together. batteries = {launcher: radar}.
+    Returns how many were added."""
+    units = m.get("units") or {}
+    names = {u.get("name") for v in units.values() for u in _as_list(v) if isinstance(u, dict)}
+    squads = [s for s in _as_list(units.get("squad")) if isinstance(s, dict)]
+    added = 0
+    for u in list(_as_list(units.get("tankModels"))):
+        radar = batteries.get(u.get("unit_class")) if isinstance(u, dict) else None
+        if not radar or not _CLASS.match(str(radar)) or not isinstance(u.get("tm"), list) or len(u["tm"]) != 4:
+            continue
+        name = f"{u['name']}_radar"
+        if name in names:
+            continue
+        r = copy.deepcopy(u)
+        r["name"], r["unit_class"], r["weapons"] = name, radar, ""
+        for k in [k for k in r if re.fullmatch(r"bullets(Count|Weapon)?\d", k)]:
+            r[k] = 0 if k.startswith("bulletsCount") else ""
+        try:  # 30 m to the launcher's side
+            side = [float(c) for c in u["tm"][2]]
+            norm = math.hypot(side[0], side[2]) or 1.0
+            pos = [float(c) for c in u["tm"][3]]
+            r["tm"][3] = [pos[0] + side[0] / norm * 30.0, pos[1], pos[2] + side[2] / norm * 30.0]
+        except (TypeError, ValueError, IndexError):
+            continue
+        r.setdefault("props", {})["count"] = 1
+        _append_unit(units, "tankModels", r)
+        names.add(name)
+        for s in squads:
+            members = _as_list((s.get("props") or {}).get("squad_members"))
+            if u["name"] in members:
+                s["props"]["squad_members"] = members + [name]
+        added += 1
+    return added
+
+
 def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
     """Map editor changes:
     units: {name: {cls, count, attack, behavior, remove, side, x, y, z}}   existing units of the scenario
@@ -971,6 +1008,8 @@ def build(cfg: dict) -> tuple[str, str]:
         for u in _as_list(units.get(blk_name)):
             if isinstance(u, dict) and u.get("name") in brought and u["name"] in swaps:
                 set_vehicle(u, swaps[u["name"]])
+    if isinstance(cfg.get("_batteries"), dict):
+        add_battery_radars(m, cfg["_batteries"])
 
     # ---- mission settings
     mtype = cfg.get("missionType") or "singleMission"
@@ -984,6 +1023,10 @@ def build(cfg: dict) -> tuple[str, str]:
         mission["weather"] = cfg["weather"]
     if cfg.get("difficulty") in ("arcade", "realistic", "simulation"):
         mission["difficulty"] = cfg["difficulty"]
+    # test flights: their templates pick targets and airfield by the rank the hangar passes them (a user mission keeps
+    # the file's value, 1: low, a dirt strip and old targets); from rank V (jets) on, the high ones
+    if "target_rank_index" in mission and isinstance(cfg.get("_rank"), int):
+        mission["target_rank_index"] = 2 if cfg["_rank"] >= 5 else 1
 
     header = {"selected_tag": "", "bin_dump_file": ""}
     body = {k: v for k, v in m.items() if k not in header}
