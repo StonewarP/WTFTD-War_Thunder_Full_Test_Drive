@@ -4,7 +4,7 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Unreleased
+## 0.18.0 — 2026-10-09
 
 - **First launch asks first**: nothing is downloaded before you click *Accept and download*. The welcome screen
   says where WTFTD keeps its files (its own folder, with the path; in the game folder only your missions and the
