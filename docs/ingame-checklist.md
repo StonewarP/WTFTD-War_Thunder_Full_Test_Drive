@@ -172,19 +172,18 @@ itself when one of them gets another vehicle, and that import gets `importUnits:
   3.6 to 1.3 km in 15 s, 2 target fighters (F-4E AUP / F-2A) from 19 to 16 km; the 2 AV-8B (attack aircraft) stayed
   7-10 km away. Hunts me works for added and template aircraft.
 
-## 2g. Invulnerable without spawn protection, unbreakable airframe, revive after a crash (new)
+## 2g. Invulnerable without spawn protection, unbreakable airframe (new)
 
 Invulnerable no longer sets `invulnerabilityTimer` (the spawn protection: AI aircraft left the player alone, 2f),
-only `isImmortal` (+ the custom vehicle's hit points ×1000). Aircraft / helicopters: `wtftd_rules_revive` resurrects
-and repairs you once killed (`playersWhenStatus isKilled` → `unitRestore ressurectIfDead`): a crash into the ground
-killed you whatever the cheat. New cheat **Unbreakable airframe** (aircraft / helicopters, custom vehicles): the
+only `isImmortal` (+ the custom vehicle's hit points ×1000). A crash into the ground still kills you (a revive
+after it was dropped at the user's request). New cheat **Unbreakable airframe** (aircraft / helicopters, custom vehicles): the
 flight model's breaking limits raised (`Vne`, `VneMach`, `Strength/VNE` → 100000 km/h / Mach 100; `CritOverload`,
 `WingCritOverload` ×100; gear, flaps, airbrake, canopy breaking speeds → 100000).
 
 - [ ] **WTFTD r8: invulnerable, unbreakable airframe, hunted** (`wtftd_r8_invulnerable`, F-14B, Afghanistan; the
   test is in its description): the MiG-29 and the target fighters still come at you and fire, you don't die;
-  past the speed limit and pulling hard the wings stay on, gear and flaps don't break; after a crash into the
-  ground you come back alive on the spot.
+  past the speed limit (thrust ×3 to get there fast) and pulling hard the wings stay on, gear and flaps don't
+  break.
 
 ## 3. Ammunition icons (UI only)
 

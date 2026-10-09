@@ -6,8 +6,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
-- **Invulnerable**: AI aircraft now attack you too (it used the game's spawn protection, which they respect);
-  aircraft and helicopters come back alive, repaired, after a crash into the ground. New cheat **Unbreakable
+- **Invulnerable**: AI aircraft now attack you too (it used the game's spawn protection, which they respect).
+  New cheat **Unbreakable
   airframe** (aircraft, helicopters, custom vehicles): no wings torn off by overspeed or g, gear, flaps and canopy
   don't break.
 - **Mission description** (mission options): shown under the mission in the game's list (it showed
