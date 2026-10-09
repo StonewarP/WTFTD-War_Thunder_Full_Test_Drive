@@ -273,6 +273,7 @@
   "uninstall.app": "The app itself",
   "uninstall.appHint": "{path}, removed once WTFTD has closed.",
   "uninstall.appSource": "WTFTD runs from its source code here: delete its folder yourself to remove it.",
+  "uninstall.appMac": "macOS runs WTFTD from a temporary copy (it was opened straight from Downloads): move WTFTD.app to the Trash yourself.",
   "uninstall.gameSafe": "War Thunder itself is never touched: only what WTFTD added to it goes.",
   "uninstall.go": "Remove",
   "uninstall.confirm": "Click again to confirm",

@@ -44,9 +44,16 @@ def _size(path: Path) -> int:
     return total
 
 
+def translocated() -> bool:
+    """macOS ran WTFTD.app from a read-only temporary copy (opened straight from Downloads, not moved to
+    Applications): removing it would not remove the real app."""
+    return FROZEN and sys.platform == "darwin" and "/AppTranslocation/" in str(Path(sys.executable).resolve())
+
+
 def app_path() -> Path | None:
-    """The packaged app to remove: WTFTD.exe, or the WTFTD.app bundle; None from the source code."""
-    if not FROZEN:
+    """The packaged app to remove: WTFTD.exe, or the WTFTD.app bundle; None from the source code (or a
+    translocated copy on macOS)."""
+    if not FROZEN or translocated():
         return None
     exe = Path(sys.executable).resolve()
     if sys.platform == "darwin":
@@ -76,7 +83,7 @@ def info(game_dir: Path | None) -> dict:
         "cache": {"bytes": _size(CACHE)},
         "data": {"bytes": _size(DATA)},
         "user": {"bytes": _size(USER)},
-        "app": {"available": app is not None, "path": str(app) if app else "", "home": str(HOME),
+        "app": {"available": app is not None, "path": str(app) if app else "", "home": str(HOME), "translocated": translocated(),
                 "bytes": _size(app) if app and app.is_dir() else (app.stat().st_size if app and app.exists() else 0)},
     }
 

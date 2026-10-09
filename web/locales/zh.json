@@ -273,6 +273,7 @@
   "uninstall.app": "应用本身",
   "uninstall.appHint": "{path}，在 WTFTD 关闭后删除。",
   "uninstall.appSource": "此处 WTFTD 从源代码运行：请自行删除其文件夹。",
+  "uninstall.appMac": "macOS 正从临时副本运行 WTFTD（直接从“下载”打开）：请自行将 WTFTD.app 移到废纸篓。",
   "uninstall.gameSafe": "绝不会改动 War Thunder 本身：只删除 WTFTD 添加的内容。",
   "uninstall.go": "删除",
   "uninstall.confirm": "再次点击以确认",

@@ -273,6 +273,7 @@
   "uninstall.app": "Samotná aplikace",
   "uninstall.appHint": "{path}, odstraní se po zavření WTFTD.",
   "uninstall.appSource": "WTFTD zde běží ze zdrojového kódu: jeho složku smaž sám.",
+  "uninstall.appMac": "macOS spouští WTFTD z dočasné kopie (otevřeno přímo ze Stažených): přesuň WTFTD.app do Koše sám.",
   "uninstall.gameSafe": "Samotného War Thunderu se nic nedotkne: odstraní se jen to, co do něj přidal WTFTD.",
   "uninstall.go": "Odstranit",
   "uninstall.confirm": "Klikni znovu pro potvrzení",

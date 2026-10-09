@@ -1371,7 +1371,7 @@ async function openUninstall() {
     cdk: t('uninstall.cdkHint', { n: i.cdk.files }), missions: t('uninstall.missionsHint', { n: i.missions.files }),
     cache: t('uninstall.cacheHint', { size: fmtBytes(i.cache.bytes) }), data: t('uninstall.dataHint', { size: fmtBytes(i.data.bytes) }),
     user: t('uninstall.userHint', { size: fmtBytes(i.user.bytes) }),
-    app: i.app.available ? t('uninstall.appHint', { path: i.app.path }) : t('uninstall.appSource'),
+    app: i.app.available ? t('uninstall.appHint', { path: i.app.path }) : t(i.app.translocated ? 'uninstall.appMac' : 'uninstall.appSource'),
   };
   $('#uninstallBody').innerHTML = `<p class="hint">${esc(t('uninstall.hint'))}</p>
     <div class="un-parts">

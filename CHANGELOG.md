@@ -9,7 +9,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Uninstall** (Settings): remove what WTFTD put on this PC, everything or part by part: the custom vehicle
   files it added to the game, the missions it created, the cache (datamine copy, pictures, maps), the game
   database, your settings and library, and the app itself (WTFTD.exe / WTFTD.app, once it has closed). War
-  Thunder itself is never touched. Each part shows its size; a second click confirms.
+  Thunder itself is never touched. Each part shows its size; a second click confirms. On macOS, WTFTD.app opened
+  straight from Downloads runs from a temporary copy: it asks you to move it to the Trash yourself.
 
 ## 0.16.0 — 2026-10-09
 

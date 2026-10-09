@@ -73,3 +73,37 @@ class AfterExitScript(unittest.TestCase):
         self.assertNotIn("timeout ", text)  # fails at once there
         self.assertIn(r'"%SystemRoot%\System32\PING.EXE" -n 3', text)
         self.assertIn("WTFTD.exe", text)
+
+
+@unittest.skipIf(__import__("sys").platform == "win32", "macOS / Linux script")
+class AfterExitShell(unittest.TestCase):
+    def test_removes_once_the_app_has_closed(self):
+        import subprocess
+        import sys
+        import time
+        with tempfile.TemporaryDirectory() as tmp:
+            t = Path(tmp)
+            app, home = t / "WTFTD.app", t / "home with space's"
+            (app / "Contents" / "MacOS").mkdir(parents=True)
+            (home / ".cache").mkdir(parents=True)
+            (home / ".cache" / "log").write_text("x")
+            holder = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(2)"])  # stands for WTFTD
+            uninstall._after_exit([app, home], pid=holder.pid)
+            time.sleep(1)
+            self.assertTrue(app.exists())  # WTFTD still running
+            holder.wait()
+            for _ in range(20):
+                if not app.exists() and not home.exists():
+                    break
+                time.sleep(0.5)
+            self.assertFalse(app.exists())
+            self.assertFalse(home.exists())
+
+    def test_translocated_app_is_not_removed(self):
+        with mock.patch.object(uninstall, "FROZEN", True), mock.patch.object(uninstall.sys, "platform", "darwin"), \
+                mock.patch.object(uninstall.sys, "executable", "/private/var/folders/x/AppTranslocation/ABC/d/WTFTD.app/Contents/MacOS/WTFTD"):
+            self.assertTrue(uninstall.translocated())
+            self.assertIsNone(uninstall.app_path())
+        with mock.patch.object(uninstall, "FROZEN", True), mock.patch.object(uninstall.sys, "platform", "darwin"), \
+                mock.patch.object(uninstall.sys, "executable", "/Applications/WTFTD.app/Contents/MacOS/WTFTD"):
+            self.assertEqual(uninstall.app_path(), Path("/Applications/WTFTD.app"))
