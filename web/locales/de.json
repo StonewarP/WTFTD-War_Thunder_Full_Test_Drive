@@ -292,7 +292,7 @@
   "uninstall.working": "Wird entfernt…",
   "uninstall.workingHint": "Das kann eine Minute dauern: der Cache enthält Tausende Dateien. WTFTD arbeitet, nicht schließen.",
   "uninstall.bye": "WTFTD wurde von diesem PC entfernt.",
-  "uninstall.byeHint": "Die App verschwindet, sobald dieses Fenster geschlossen ist. Danke, dass du WTFTD benutzt hast!",
+  "uninstall.byeHint": "Dieses Fenster schließt sich gleich; App und Ordner verschwinden wenige Sekunden später. Danke, dass du WTFTD benutzt hast!",
   "settings.cdkFiles": "{n} Datei(en) im Spielordner",
   "loadout.customShort": "Eigene ({n} Aufhängungen)",
   "mods.noteAir": "Eigenes Flugzeug: WTFTD erstellt ein neues Flugzeug (Kopie dieses Flugzeugs mit deinen Änderungen) in content/pkg_user — kein Wirt nötig. Experimentell.",

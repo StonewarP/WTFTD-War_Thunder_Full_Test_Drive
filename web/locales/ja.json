@@ -292,7 +292,7 @@
   "uninstall.working": "削除中…",
   "uninstall.workingHint": "1 分ほどかかることがあります（キャッシュには数千のファイルがあります）。WTFTD は動作中です。閉じないでください。",
   "uninstall.bye": "WTFTD をこの PC から削除しました。",
-  "uninstall.byeHint": "このウィンドウを閉じるとアプリが消えます。WTFTD をご利用いただきありがとうございました！",
+  "uninstall.byeHint": "このウィンドウはまもなく閉じます。アプリとフォルダは数秒後に削除されます。WTFTD をご利用いただきありがとうございました！",
   "settings.cdkFiles": "ゲームフォルダー内のファイル: {n} 件",
   "loadout.customShort": "カスタム（パイロン {n} 基）",
   "mods.noteAir": "カスタム航空機: WTFTD は content/pkg_user に新しい航空機（この機体のコピーに変更を加えたもの）を作成します — ホスト不要。実験的機能。",

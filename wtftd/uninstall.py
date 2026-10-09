@@ -108,21 +108,36 @@ def _rmtree(path: Path, keep: set[str] = frozenset()) -> None:
         pass
 
 
+AFTER_EXIT_DELAY = 6  # seconds: WTFTD closes its window (close_app_window) and quits within 3 s of the answer
+
+
+def close_app_window() -> None:
+    """Closes the app window (the browser processes running its own profile): they lock files of WTFTD's folder."""
+    profile = str(CACHE / WINDOW_PROFILE)
+    try:
+        if sys.platform == "win32":
+            ps = ("Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:WTFTD_PROFILE) } "
+                  "| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }")
+            subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], timeout=15,
+                           env={**os.environ, "WTFTD_PROFILE": profile}, creationflags=0x08000000,  # CREATE_NO_WINDOW
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(["pkill", "-f", f"--user-data-dir={profile}"], timeout=15,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def _after_exit(paths: list[Path], pid: int | None = None) -> None:
-    """A detached script removes paths once WTFTD has closed: it retries for 10 minutes while they are in use (the
-    exe while WTFTD runs, the app window's profile until the window closes). pid: the process to wait for on macOS
-    (this one by default)."""
+    """Removes paths once, a few seconds after WTFTD has closed (the exe can't be removed while it runs). Nothing
+    else: no retries, no lingering process. pid: the process to wait for on macOS (this one by default)."""
     pid = pid or os.getpid()
     if sys.platform == "win32":
-        # no wait on the process itself (tasklist hangs without a console): Windows keeps the exe locked while
-        # WTFTD runs, and the window's profile while the window is open, so the script just retries until all
-        # is gone. The pause is ping, by its full path: timeout fails at once without a console.
-        ping = r'"%SystemRoot%\System32\PING.EXE"'
-        lines = ["@echo off", "for /l %%i in (1,1,300) do ("]
+        # the pause is ping, by its full path: timeout fails without a console, and tasklist hangs there
+        lines = ["@echo off", rf'"%SystemRoot%\System32\PING.EXE" -n {AFTER_EXIT_DELAY + 1} 127.0.0.1 >nul']
         for p in paths:
-            lines.append(f'  if exist "{p}\\*" (rmdir /s /q "{p}" 2>nul) else (del /f /q "{p}" 2>nul)')
-        checks = " ".join(f'if not exist "{p}"' for p in paths)
-        lines += [f"  {checks} goto done", f"  {ping} -n 3 127.0.0.1 >nul", ")", ":done", '(goto) 2>nul & del "%~f0"']
+            lines.append(f'if exist "{p}\\*" (rmdir /s /q "{p}" 2>nul) else (del /f /q "{p}" 2>nul)')
+        lines.append('(goto) 2>nul & del "%~f0"')
         script = Path(tempfile.gettempdir()) / f"wtftd_uninstall_{pid}.cmd"
         script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
         # a hidden console of its own (CREATE_NO_WINDOW), not none at all (DETACHED_PROCESS): without one, Windows
@@ -138,9 +153,7 @@ def _after_exit(paths: list[Path], pid: int | None = None) -> None:
             subprocess.Popen(args, creationflags=flags, startupinfo=hidden, close_fds=True)
     else:
         quoted = " ".join("'" + str(p).replace("'", "'\\''") + "'" for p in paths)
-        sh = (f"while kill -0 {pid} 2>/dev/null; do sleep 1; done; "
-              f"for i in $(seq 1 300); do rm -rf {quoted}; ok=1; for p in {quoted}; do [ -e \"$p\" ] && ok=0; done; "
-              f"[ $ok = 1 ] && break; sleep 2; done")
+        sh = f"while kill -0 {pid} 2>/dev/null; do sleep 1; done; sleep 1; rm -rf {quoted}"
         subprocess.Popen(["/bin/sh", "-c", sh], start_new_session=True, close_fds=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

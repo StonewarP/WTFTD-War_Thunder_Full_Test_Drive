@@ -62,7 +62,7 @@ class Uninstall(unittest.TestCase):
 
 @unittest.skipUnless(__import__("sys").platform == "win32", "Windows script")
 class AfterExitScript(unittest.TestCase):
-    def test_retries_without_console_tools(self):
+    def test_removes_once_without_console_tools(self):
         launched = []
         with tempfile.TemporaryDirectory() as tmp, \
                 mock.patch.object(uninstall.subprocess, "Popen", lambda args, **kw: launched.append((args, kw))), \
@@ -76,7 +76,9 @@ class AfterExitScript(unittest.TestCase):
         self.assertEqual(kw["startupinfo"].wShowWindow, 0)
         self.assertNotIn("tasklist", text)  # hangs in a process without a console
         self.assertNotIn("timeout ", text)  # fails at once there
-        self.assertIn(r'"%SystemRoot%\System32\PING.EXE" -n 3', text)
+        self.assertIn(r'"%SystemRoot%\System32\PING.EXE" -n 7', text)  # one pause: WTFTD and its window close
+        self.assertNotIn("for /l", text)  # one removal, no retries
+        self.assertEqual(text.count("WTFTD.exe"), 3)  # if exist, rmdir, del: once
         self.assertIn("WTFTD.exe", text)
 
 

@@ -292,7 +292,7 @@
   "uninstall.working": "Odstraňuji…",
   "uninstall.workingHint": "Může to trvat minutu: mezipaměť obsahuje tisíce souborů. WTFTD pracuje, nezavírej ho.",
   "uninstall.bye": "WTFTD byl z tohoto PC odstraněn.",
-  "uninstall.byeHint": "Aplikace zmizí, jakmile zavřeš toto okno. Díky za používání WTFTD!",
+  "uninstall.byeHint": "Toto okno se za chvíli zavře; aplikace a její složka zmizí o pár sekund později. Díky za používání WTFTD!",
   "settings.cdkFiles": "Souborů ve složce hry: {n}",
   "loadout.customShort": "Vlastní ({n} pylonů)",
   "mods.noteAir": "Vlastní letadlo: WTFTD vytvoří nové letadlo (kopii tohoto s vašimi změnami) v content/pkg_user — bez hostitele. Experimentální.",

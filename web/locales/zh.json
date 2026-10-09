@@ -292,7 +292,7 @@
   "uninstall.working": "正在删除…",
   "uninstall.workingHint": "可能需要一分钟：缓存中有数千个文件。WTFTD 正在工作，请勿关闭。",
   "uninstall.bye": "WTFTD 已从此电脑删除。",
-  "uninstall.byeHint": "关闭此窗口后应用即会消失。感谢使用 WTFTD！",
+  "uninstall.byeHint": "此窗口即将关闭；应用及其文件夹将在几秒后删除。感谢使用 WTFTD！",
   "settings.cdkFiles": "游戏文件夹中有 {n} 个文件",
   "loadout.customShort": "自定义（{n} 个挂架）",
   "mods.noteAir": "自定义飞机：WTFTD 会在 content/pkg_user 中创建一架新飞机（此飞机的副本加上你的修改）——无需宿主。实验性功能。",

@@ -292,7 +292,7 @@
   "uninstall.working": "Usuwanie…",
   "uninstall.workingHint": "To może potrwać minutę: pamięć podręczna zawiera tysiące plików. WTFTD pracuje, nie zamykaj go.",
   "uninstall.bye": "WTFTD został usunięty z tego PC.",
-  "uninstall.byeHint": "Aplikacja zniknie po zamknięciu tego okna. Dzięki za korzystanie z WTFTD!",
+  "uninstall.byeHint": "To okno zaraz się zamknie; aplikacja i jej folder znikną kilka sekund później. Dzięki za korzystanie z WTFTD!",
   "settings.cdkFiles": "Pliki w folderze gry: {n}",
   "loadout.customShort": "Własne ({n} pylonów)",
   "mods.noteAir": "Samolot niestandardowy: WTFTD tworzy nowy samolot (kopię tego z Twoimi zmianami) w content/pkg_user — bez gospodarza. Eksperymentalne.",

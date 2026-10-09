@@ -292,7 +292,7 @@
   "uninstall.working": "Removing…",
   "uninstall.workingHint": "This can take a minute: the cache holds thousands of files. WTFTD is working, don't close it.",
   "uninstall.bye": "WTFTD has been removed from this PC.",
-  "uninstall.byeHint": "The app goes as soon as this window is closed. Thanks for using WTFTD!",
+  "uninstall.byeHint": "This window closes in a moment; the app and its folder go a few seconds later. Thanks for using WTFTD!",
   "settings.cdkFiles": "{n} file(s) in the game folder",
   "loadout.customShort": "Custom ({n} pylons)",
   "mods.noteAir": "Custom aircraft: WTFTD creates a new aircraft (copy of this one with your changes) in content/pkg_user — no host needed. Experimental.",

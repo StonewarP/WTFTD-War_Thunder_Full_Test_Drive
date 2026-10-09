@@ -627,8 +627,11 @@ class Handler(BaseHTTPRequestHandler):
         if route == "uninstall":
             parts = [p for p in (body.get("parts") or []) if p in uninstall.PARTS]
             res = uninstall.run(parts, STATE.game_dir())
-            if res["quit"]:  # the app goes: WTFTD closes once this answer is sent (the script waits for it)
-                threading.Timer(1.5, lambda: os._exit(0)).start()
+            if res["quit"]:  # the app goes: the page shows its goodbye, then WTFTD closes its window and quits
+                def leave():
+                    uninstall.close_app_window()  # its files would stay locked in WTFTD's folder
+                    os._exit(0)
+                threading.Timer(2.5, leave).start()
             elif "data" in parts:
                 STATE.reload()
             return self.send_json(res)
