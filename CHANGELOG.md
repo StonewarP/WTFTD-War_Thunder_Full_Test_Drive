@@ -9,7 +9,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Map editor**: the scenario's **zones** show on the map (those its scripts use, to spawn, respawn or send
   units, highlighted) and can be moved: what the game puts there moves with them. **Your start**: on the
   ground or in the air, altitude, speed and compass heading (an arrow on the map, its tip can be dragged); it
-  holds even when the scenario's templates respawn you in a zone of theirs (test flights), after a crash too. These left
+  holds even when the scenario's templates respawn you in a zone of theirs, after a crash too. On test flights, an air start moves and turns
+  the scenario's own start zone: you spawn there straight away, no jump. These left
   the vehicle panel (its last step keeps the fuel) and the map window. Template units can be made to
   **attack** too (not only "never shoots").
 - The map editor no longer shows units that never appear: units the scenario keeps delayed (an AV-8B on

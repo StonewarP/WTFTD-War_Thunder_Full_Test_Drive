@@ -81,5 +81,25 @@ class EditorEdits(unittest.TestCase):
         self.assertNotIn("wtftd_start", (bare.get("triggers") or {}))  # nothing else places the player
 
 
+    def test_test_flight_air_start_moves_the_scenarios_own_zone(self):
+        from wtftd import mission
+        ident = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        m = {"imports": {"import_record": [{"file": "test_flight_template.blk"}]},
+             "mission_settings": {"mission": {"air_spawn_point": 1, "is_airfield_spawn": True, "is_ship_spawn": False}},
+             "units": {"armada": [{"name": "me", "tm": [*ident, [0, 0, 0]], "props": {"army": 1}}]},
+             "areas": {"spawn_area01": {"tm": [[200, 0, 0], [0, 230, 0], [0, 0, 200], [1, 2, 3]]},
+                       "spawn_area01_heli": {"tm": [*ident, [4, 5, 6]]}, "spawn_area02": {"tm": [*ident, [7, 8, 9]]}},
+             "triggers": {"isCategory": True, "is_enabled": True}}
+        mission.apply_edits(m, "me", {"player": {"x": 50.0, "y": 3000.0, "z": 60.0, "yaw": 90, "mode": "air", "speed": 600}})
+        a = m["areas"]["spawn_area01"]["tm"]
+        self.assertEqual(a[3], [50.0, 3000.0, 60.0])
+        self.assertAlmostEqual(a[0][2], 200.0)  # turned to the heading, size kept
+        self.assertEqual(m["areas"]["spawn_area01_heli"]["tm"][3], [50.0, 3000.0, 60.0])
+        self.assertEqual(m["areas"]["spawn_area02"]["tm"][3], [7, 8, 9])  # another start: untouched
+        self.assertFalse(m["mission_settings"]["mission"]["is_airfield_spawn"])
+        self.assertNotIn("wtftd_start", m["areas"])  # no second spawn: no jump
+        self.assertEqual(m["triggers"]["wtftd_start"]["actions"], {"unitSetProperties": {"object": "me", "speed": 600.0}})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -439,6 +439,37 @@ def apply_edits(m: dict, wing: str, edits: dict):
             triggers["wtftd_editor"] = _trigger({"initMission": {}}, actions, False)
 
 
+def _move_air_spawn(m: dict, tm: list) -> bool:
+    """Test flights (the game's test_flight_template): the player spawns in the air in zone "spawn_area0" +
+    the mission's air_spawn_point (+ "_high" / "_low" / "_heli" variants), unless the mission asks for an
+    airfield / carrier / water start. Asks for an air start and puts that zone (all its variants) at the
+    start set in the editor, turned the same way: the game spawns the player right there, after a crash
+    too. False when the mission doesn't work that way."""
+    mission = (m.get("mission_settings") or {}).get("mission") or {}
+    areas = m.get("areas") or {}
+    try:
+        base = f"spawn_area0{int(mission['air_spawn_point'])}"
+    except (KeyError, TypeError, ValueError):
+        return False
+    zones = [n for n in areas if n == base or n.startswith(base + "_")]
+    if not zones:
+        return False
+    for flag in ("is_airfield_spawn", "is_ship_spawn", "is_water_spawn"):
+        if flag in mission:
+            mission[flag] = False
+    for n in zones:
+        a = areas[n]
+        try:
+            old = a["tm"]
+            sx = math.hypot(*(float(c) for c in old[0])) or 10.0
+            sy = math.hypot(*(float(c) for c in old[1])) or 10.0
+            sz = math.hypot(*(float(c) for c in old[2])) or 10.0
+        except (KeyError, TypeError, ValueError, IndexError):
+            sx = sy = sz = 10.0
+        a["tm"] = [[c * sx for c in tm[0]], [0.0, sy, 0.0], [c * sz for c in tm[2]], list(tm[3])]
+    return True
+
+
 def _hold_start(m: dict, wing: str, tm: list, player: dict):
     """The game templates a scenario imports may respawn the player in a zone of their own as the mission
     starts (test flights: @player -> @air_spawn, with that zone's height, heading and their speed; checked in
@@ -447,19 +478,24 @@ def _hold_start(m: dict, wing: str, tm: list, player: dict):
     if not m.get("imports"):
         return  # nothing else places the player: the unit's own position is the start
     x, y, z = tm[3]
-    m.setdefault("areas", {})["wtftd_start"] = {
-        "type": "Sphere", "tm": [[c * 10.0 for c in tm[0]], [0.0, 10.0, 0.0], [c * 10.0 for c in tm[2]], [x, y, z]],
-        "objLayer": 0, "props": {}}
-    actions = {"unitRespawn": {"delay": 0.0, "offset": [0.0, 0.0, 0.0], "object": wing, "target": "wtftd_start",
-                               "resetFormation": True}}
-    if player.get("mode") == "air":
+    air = player.get("mode") == "air"
+    actions = {}
+    if air and _move_air_spawn(m, tm):
+        pass  # the scenario itself now spawns the player there: only the speed is left to set
+    else:
+        m.setdefault("areas", {})["wtftd_start"] = {
+            "type": "Sphere", "tm": [[c * 10.0 for c in tm[0]], [0.0, 10.0, 0.0], [c * 10.0 for c in tm[2]], [x, y, z]],
+            "objLayer": 0, "props": {}}
+        actions["unitRespawn"] = {"delay": 0.0, "offset": [0.0, 0.0, 0.0], "object": wing, "target": "wtftd_start",
+                                  "resetFormation": True}
+    if air:
         try:
             speed = max(0.0, min(float(player.get("speed") or 450), 3000.0))
         except (TypeError, ValueError):
             speed = 450.0
         actions["unitSetProperties"] = {"object": wing, "speed": speed}
     triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
-    if not isinstance(triggers, dict):
+    if not isinstance(triggers, dict) or not actions:
         return
     triggers["wtftd_start"] = _trigger({"periodicEvent": {"time": 1.0}}, actions, False)
     # after a crash the scripts respawn the player in their zone again: once back alive (and placed by them,
