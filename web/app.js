@@ -536,6 +536,9 @@ function bindUI() {
   $('#btnOpenFolder').addEventListener('click', () => api('open-folder', {}).catch(toastErr));
   $('#btnSaveSettings').addEventListener('click', saveSettings);
   $('#btnCdkCleanup').addEventListener('click', cdkCleanup);
+  $('#btnUninstall').addEventListener('click', openUninstall);
+  $('#dlgUninstall').addEventListener('click', onUninstallClick);
+  $('#dlgUninstall').addEventListener('change', renderUninstallState);
   $('#btnUpdate').addEventListener('click', () => startUpdate($('#updateLog'), $('#btnUpdate')));
   $('#btnCopyPreview').addEventListener('click', async () => {
     await navigator.clipboard.writeText($('#previewText').textContent);
@@ -1349,6 +1352,71 @@ async function cdkCleanup() {
     $('#cdkFiles').textContent = t('settings.cdkFiles', { n: r.cdk?.present || 0 });
     toast({ title: t('toast.cdkRemoved', { n: r.removed }) });
   } catch (e) { toastErr(e); }
+}
+
+
+// ------------------------------------------------------------------ uninstall (Settings): what WTFTD put on this PC
+const UN_PARTS = ['cdk', 'missions', 'cache', 'data', 'user', 'app'];
+let unInfo = null, unArmed = false;
+const fmtBytes = n => (n >= 1e9 ? (n / 1e9).toFixed(2) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB');
+
+async function openUninstall() {
+  $('#uninstallBody').innerHTML = `<p class="hint">${esc(t('uninstall.loading'))}</p>`;
+  $('#uninstallFoot').classList.remove('hidden');
+  $('#dlgUninstall').showModal();
+  try { unInfo = await api('uninstall-info'); } catch (e) { toastErr(e); $('#dlgUninstall').close(); return; }
+  unArmed = false;
+  const i = unInfo;
+  const hint = {
+    cdk: t('uninstall.cdkHint', { n: i.cdk.files }), missions: t('uninstall.missionsHint', { n: i.missions.files }),
+    cache: t('uninstall.cacheHint', { size: fmtBytes(i.cache.bytes) }), data: t('uninstall.dataHint', { size: fmtBytes(i.data.bytes) }),
+    user: t('uninstall.userHint', { size: fmtBytes(i.user.bytes) }),
+    app: i.app.available ? t('uninstall.appHint', { path: i.app.path }) : t('uninstall.appSource'),
+  };
+  $('#uninstallBody').innerHTML = `<p class="hint">${esc(t('uninstall.hint'))}</p>
+    <div class="un-parts">
+      <label class="un-part un-all"><input type="checkbox" data-un-all><span><b>${esc(t('uninstall.all'))}</b><small>${esc(t('uninstall.allHint'))}</small></span></label>
+      ${UN_PARTS.map(p => `<label class="un-part${p === 'app' && !i.app.available ? ' off' : ''}"><input type="checkbox" data-un="${p}"${p === 'app' && !i.app.available ? ' disabled' : ''}>
+        <span><b>${esc(t('uninstall.' + p))}</b><small>${esc(hint[p])}</small></span></label>`).join('')}
+    </div>
+    <p class="hint">${esc(t('uninstall.gameSafe'))}</p>`;
+  renderUninstallState();
+}
+const unChosen = () => $$('#uninstallBody [data-un]').filter(c => c.checked).map(c => c.dataset.un);
+function renderUninstallState(ev) {
+  const all = $('#uninstallBody [data-un-all]');
+  const boxes = $$('#uninstallBody [data-un]').filter(c => !c.disabled);
+  if (ev?.target === all) boxes.forEach(c => { c.checked = all.checked; });
+  else if (all) all.checked = boxes.length > 0 && boxes.every(c => c.checked);
+  $$('#uninstallBody .un-part').forEach(l => l.classList.toggle('on', !!l.querySelector('input')?.checked));
+  unArmed = false;
+  const n = unChosen().length, go = $('#btnUninstallGo');
+  go.disabled = !n;
+  go.querySelector('span').textContent = t('uninstall.go');
+}
+async function onUninstallClick(ev) {
+  if (ev.target.closest('[data-un-close]')) { $('#dlgUninstall').close(); return; }
+  if (!ev.target.closest('#btnUninstallGo')) return;
+  const parts = unChosen();
+  if (!parts.length) return;
+  if (!unArmed) {  // a second click confirms
+    unArmed = true;
+    $('#btnUninstallGo span').textContent = t('uninstall.confirm');
+    return;
+  }
+  $('#btnUninstallGo').disabled = true;
+  let res;
+  try { res = await api('uninstall', { parts }); } catch (e) { toastErr(e); renderUninstallState(); return; }
+  if (res.quit) {  // the app goes once WTFTD has closed
+    $('#uninstallFoot').classList.add('hidden');
+    $('#uninstallBody').innerHTML = `<div class="un-bye">${icon('check')}<p><b>${esc(t('uninstall.bye'))}</b></p><p class="muted">${esc(t('uninstall.byeHint'))}</p></div>`;
+    setTimeout(() => { try { window.close(); } catch { /* the window stays: the user closes it */ } }, 2500);
+    return;
+  }
+  $('#dlgUninstall').close();
+  toast({ title: t('uninstall.done'), sub: parts.map(p => t('uninstall.' + p)).join(' · '), ms: 6000 });
+  if (parts.includes('data') || parts.includes('user')) { setTimeout(() => location.reload(), 1500); return; }
+  try { S.status = await api('status'); renderStatus(); refreshMissions(); } catch { /* keep the page */ }
 }
 
 

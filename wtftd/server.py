@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import json
 import mimetypes
+import os
 import re
 import shutil
 import socket
@@ -18,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, builder, cdk, game, maptex, mission, terrain
+from . import DONATE, REPO, __version__, builder, cdk, game, maptex, mission, terrain, uninstall
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -487,6 +488,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(read_json(MISSION_SETUPS / f"{f}.json", None))
         if route == "update":
             return self.send_json(STATE.update)
+        if route == "uninstall-info":  # Settings → Uninstall: what WTFTD put on this PC
+            return self.send_json(uninstall.info(STATE.game_dir()))
         return self.send_json({"error": "unknown route"}, 404)
 
     # POST -----------------------------------------------------------------
@@ -602,6 +605,14 @@ class Handler(BaseHTTPRequestHandler):
                     p.unlink()
                 (MISSION_SETUPS / (f[:-4] + ".json")).unlink(missing_ok=True)
             return self.send_json(list_generated())
+        if route == "uninstall":
+            parts = [p for p in (body.get("parts") or []) if p in uninstall.PARTS]
+            res = uninstall.run(parts, STATE.game_dir())
+            if res["quit"]:  # the app goes: WTFTD closes once this answer is sent (the script waits for it)
+                threading.Timer(1.5, lambda: os._exit(0)).start()
+            elif "data" in parts:
+                STATE.reload()
+            return self.send_json(res)
         if route == "update-check":
             return self.send_json(check_for_update(start=bool(body.get("start", True))))
         if route == "update":

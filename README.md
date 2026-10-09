@@ -121,6 +121,8 @@ window and finds your game by itself (Steam or standalone). Close the window to 
   简体中文, 日本語 — picked from your Windows language on first launch (or on the welcome screen), vehicle,
   weapon and map names follow the game's own translations. UI translations
   other than English were machine-assisted and may contain mistakes: corrections are welcome
+- **Uninstall** from Settings: everything, or only some parts (custom vehicle files in the game, missions,
+  cache, game database, your settings and library, the app itself); War Thunder itself is never touched
 - **Share a setup** with a friend: a short code to paste, or a `.wtftd` file — they import it (Saved setups →
   Import, or drop the file on the window) and get the same mission: vehicle, loadout, ammo, map, editor
   changes, cheats. User missions are single-player, so each of you plays it on your own PC

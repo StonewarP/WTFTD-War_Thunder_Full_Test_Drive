@@ -222,6 +222,17 @@
   </div>
 </div>
 
+<dialog class="modal" id="dlgUninstall">
+  <div class="modal-inner">
+    <div class="modal-head"><h3><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="uninstall.title"></span></h3><button class="icon-btn" data-un-close><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body" id="uninstallBody"></div>
+    <div class="modal-foot" id="uninstallFoot">
+      <button class="btn btn-ghost" data-un-close data-i18n="action.cancel"></button>
+      <button class="btn btn-danger-solid" id="btnUninstallGo" disabled><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="uninstall.go"></span></button>
+    </div>
+  </div>
+</dialog>
+
 <dialog class="modal" id="dlgSettings">
   <form method="dialog" class="modal-inner">
     <div class="modal-head"><h3 data-i18n="settings.title"></h3><button class="icon-btn" value="close"><svg class="ic"><use href="#i-x"/></svg></button></div>
@@ -261,6 +272,11 @@
         <label class="host-row"><span data-i18n="settings.airMethod"></span>
           <select id="setAirMethod"><option value="custom" data-i18n="settings.airMethod.custom"></option><option value="userVehicles" data-i18n="settings.airMethod.userVehicles"></option></select></label>
         <div class="row gap"><button type="button" class="btn btn-ghost" id="btnCdkCleanup"><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="settings.cdkCleanup"></span></button><small class="muted" id="cdkFiles"></small></div>
+      </div>
+      <div class="field">
+        <label data-i18n="uninstall.title"></label>
+        <small class="muted" data-i18n="uninstall.settingsHint"></small>
+        <div class="row gap"><button type="button" class="btn btn-ghost btn-danger" id="btnUninstall"><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="uninstall.open"></span></button></div>
       </div>
       <div class="field howto">
         <label data-i18n="settings.howto"></label>

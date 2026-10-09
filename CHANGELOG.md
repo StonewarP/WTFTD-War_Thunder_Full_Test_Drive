@@ -4,6 +4,13 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## Unreleased
+
+- **Uninstall** (Settings): remove what WTFTD put on this PC, everything or part by part: the custom vehicle
+  files it added to the game, the missions it created, the cache (datamine copy, pictures, maps), the game
+  database, your settings and library, and the app itself (WTFTD.exe / WTFTD.app, once it has closed). War
+  Thunder itself is never touched. Each part shows its size; a second click confirms.
+
 ## 0.16.0 — 2026-10-09
 
 - Map editor: a click on the map itself clears the selection (a drag still moves the map).
