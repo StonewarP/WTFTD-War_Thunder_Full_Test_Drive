@@ -109,7 +109,7 @@ function selectVehicle(id, { ownMap = false } = {}) {
   let own = vc?.scenario || '';
   const ownScen = S.scenarios.find(s => s.id === own);
   if (!ownMap && (!ownScen || !scenarioFits(ownScen, v))) own = (scenariosFor(v, false)[0] || S.scenarios[0])?.id || '';
-  if (own && (ownMap || !ps || !scenarioFits(ps, v))) {
+  if (own && (ownMap || (ps && !scenarioFits(ps, v)))) {
     if (ps && !ownMap && own !== ps.id) toast({ title: t('pick.switched', { map: scenarioName(ps), other: scenarioName(S.scenarios.find(s => s.id === own)) }), ms: 6000 });
     if (own !== S.pick.scenario) { S.pick.scenario = own; S.pick.variant = ''; }
   }
@@ -262,8 +262,8 @@ function renderMaps() {
   const kinds = [...(v ? ['fit'] : []), '', ...MAP_KINDS];
   $('#mapKinds').innerHTML = kinds.map(k => `<button class="${MP.kind === k ? 'active' : ''}" data-mkind="${k}">${esc(k === 'fit' ? t('maps.fit', { vehicle: I18N.unit(v.id) }) : k ? t('kind.' + k) : t('maps.all'))}</button>`).join('');
   $('#mapCount').textContent = t('maps.count', { n: maps.length });
-  // one tile per map: its variants (scenarios) open in a window
-  $('#mapGrid').innerHTML = maps.length ? maps.map(([map, list]) => {
+  // one tile per map (its variants open in a window): the test-drive maps, then the game's other maps
+  const tile = ([map, list]) => {
     const picked = list.find(s => s.id === S.pick.scenario);
     const kinds = [...new Set(list.map(s => (s.kind === 'ucav' ? 'heli' : s.kind)))];
     return `<button class="mp-tile${picked ? ' active' : ''}" data-mmap="${esc(map)}">
@@ -272,7 +272,13 @@ function renderMaps() {
         <span class="muted">${esc(list.length === 1 ? t('maps.variant') : t('maps.variants', { n: list.length }))}</span>
         ${picked ? `<span class="chip">${icon('check', 'ic-sm')}${esc(t('kind.' + picked.kind))}</span>` : ''}</span>
     </button>`;
-  }).join('') : `<div class="empty">${icon('search', 'ic-xl')}<p>${esc(t('results.empty'))}</p></div>`;
+  };
+  const official = maps.filter(([, list]) => list.some(s => !s.free)), others = maps.filter(([, list]) => list.every(s => s.free));
+  const section = (title, hint, list) => (list.length ? `<div class="mp-section"><h3>${esc(title)} <span class="muted">${list.length}</span></h3>
+    ${hint ? `<p class="hint">${esc(hint)}</p>` : ''}<div class="mp-grid">${list.map(tile).join('')}</div></div>` : '');
+  $('#mapGrid').innerHTML = maps.length
+    ? section(t('maps.official'), '', official) + section(t('maps.others'), t('maps.othersHint'), others)
+    : `<div class="empty">${icon('search', 'ic-xl')}<p>${esc(t('results.empty'))}</p></div>`;
   observeThumbs($('#mapGrid'));
 }
 
@@ -300,6 +306,7 @@ function renderMapDialog() {
       ...s.tags.filter(x => x !== 'heli' && x !== 'ucav' && x !== 'destroyer').map(x => `<span class="chip info">${esc(I18N.tOr('tag.' + x, x))}</span>`),
       s.nation ? `<span class="chip">${flagHTML(s.nation, 'flag')} ${esc(t('scenario.targets', { nation: nationName(s.nation) }))}</span>` : '',
       `<span class="chip dim">${esc(t('scenario.start.' + s.start))}</span>`,
+      s.free ? `<span class="chip info" title="${esc(t('maps.othersHint'))}">${esc(t('maps.bare'))}</span>` : '',
       off ? `<span class="chip warn">${esc(t('pick.mismatch'))}</span>` : '',
       missing ? `<span class="chip warn">${esc(t('scenario.notInstalled'))}</span>` : '',
     ].join('');

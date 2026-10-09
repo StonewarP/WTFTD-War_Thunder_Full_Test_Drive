@@ -6,6 +6,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- **All the game's maps**: the Maps tab shows the test-drive maps, then the game's 131 other maps.
+  On those, a bare start (you alone, no targets) for each kind of vehicle the map suits, placed where the
+  game's own missions (battles, training…) put that kind of vehicle; aircraft start in the air. Add targets
+  with Edit on the map. Ground, air and naval starts checked in game.
 - **Your library**, three tabs, everything shareable (code or .wtftd file, imported into the right tab):
   **My maps** (saved map variants), **My vehicles** (saved vehicle setups: Choose puts one in the bottom bar
   without opening it) and **My missions** (vehicle + map pairs saved with the bar's save button, ready to

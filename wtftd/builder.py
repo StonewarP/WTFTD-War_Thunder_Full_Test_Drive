@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 10  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 11  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1195,19 +1195,21 @@ HANGAR_PLACES = {"ground": ("tank", "tank_premium"), "air": ("aircraft", "aircra
                  "heli": ("aircraft_premium", "aircraft"), "boat": ("hydroplane", "ship"), "ship": ("ship", "hydroplane")}
 
 
-def _hangar_mission(level: str, block: str, pos: list, title: str) -> dict:
+def _hangar_mission(level: str, block: str, pos: list, title: str, rot: list | None = None, speed: float = 0.0) -> dict:
+    """A bare mission on a level: the player alone at pos (rot: the 3 axis rows of a game tm), respawned there."""
     from .mission import UNIT_DEFAULTS
     import copy as _copy
     x, y, z = (float(c) for c in pos)
     wing = "t1_player01"
     props = _copy.deepcopy(UNIT_DEFAULTS[block])
-    unit = {"name": wing, "tm": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [x, y, z]], "unit_class": "",
+    axes = rot or [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    unit = {"name": wing, "tm": [*axes, [x, y, z]], "unit_class": "",
             "objLayer": 1, "closed_waypoints": False, "isShipSpline": False, "shipTurnRadius": 100.0,
             "weapons": "", "bullets0": "", "bullets1": "", "bullets2": "", "bullets3": "",
             "bulletsCount0": 0, "bulletsCount1": 0, "bulletsCount2": 0, "bulletsCount3": 0,
             "crewSkillK": 0.0, "applyAllMods": True, "props": props, "way": {}}
     if block == "armada":
-        props["speed"] = 0.0
+        props["speed"] = speed
     respawn = {
         "is_enabled": True, "comments": "respawn the player where they started",
         "props": {"actionsType": "PERFORM_ONE_BY_ONE", "conditionsType": "ALL", "enableAfterComplete": True},
@@ -1232,6 +1234,91 @@ def _hangar_mission(level: str, block: str, pos: list, title: str) -> dict:
                                   "objLayer": 0, "props": {}}},
         "objLayers": {}, "wayPoints": {},
     }
+
+
+FREE_SKIP = ("hangar_", "menu", "tutorial")
+FREE_AIR_ALT = 1500.0  # m above the map's highest official air unit is unknown: a safe start height
+
+
+def _unit_rot(tm) -> list | None:
+    """The heading part of a game tm, levelled (yaw only), or None."""
+    try:
+        fx, fz = float(tm[0][0]), float(tm[0][2])
+    except (TypeError, ValueError, IndexError):
+        return None
+    n = math.hypot(fx, fz)
+    if n < 1e-6:
+        return None
+    fx, fz = fx / n, fz / n
+    return [[fx, 0.0, fz], [0.0, 1.0, 0.0], [-fz, 0.0, fx]]
+
+
+def build_free_scenarios(out_dir: Path, lang: "Lang", taken: set, levels: dict, progress=None) -> list:
+    """The game's other maps (no official test drive): one bare scenario per vehicle kind. Ground and naval
+    starts come from where the game's own missions (battles, training…) put tanks / ships on that map
+    (the player's side first); air starts above an air unit of those missions, else above the map centre."""
+    log("Collecting the game's other maps...", progress)
+    root = DM / "mis.vromfs.bin_u" / "gamedata" / "missions"
+    spots: dict[str, dict] = {}  # level -> {"ground" | "naval" | "air": (score, pos, rot)}
+    for f in root.rglob("*.blkx"):
+        d = load(f)
+        if not isinstance(d, dict):
+            continue
+        lvl = ((d.get("mission_settings") or {}).get("mission") or {}).get("level")
+        if not isinstance(lvl, str) or not lvl:
+            continue
+        level = lvl.replace("\\", "/").rsplit("/", 1)[-1].replace(".bin", "").lower()
+        if level in taken or level.startswith(FREE_SKIP):
+            continue
+        best = spots.setdefault(level, {})
+        ext = levels.get(level) or {}
+        inside = (lambda p: ext["a0"][0] <= p[0] <= ext["a1"][0] and ext["a0"][1] <= p[2] <= ext["a1"][1]) if "a0" in ext else (lambda p: True)
+        for block, key in (("tankModels", "ground"), ("ships", "naval"), ("armada", "air")):
+            for u in aslist((d.get("units") or {}).get(block)):
+                if not isinstance(u, dict):
+                    continue
+                pos = tm_pos(u.get("tm"))
+                if not pos or not inside(pos):
+                    continue  # some missions park units off the map
+                if key == "air" and pos[1] < 300:
+                    continue  # parked aircraft: not a flying start
+                score = 2 if (u.get("props") or {}).get("army") == 1 else 1
+                if score > best.get(key, (0,))[0]:
+                    best[key] = (score, pos, _unit_rot(u.get("tm")))
+    blocks = {"ground": "tankModels", "heli": "armada", "air": "armada", "ship": "ships", "boat": "ships"}
+    out = []
+    for level in sorted(set(spots) | {k for k in levels if k not in taken and not k.startswith(FREE_SKIP)}):
+        sp = spots.get(level, {})
+        ext = levels.get(level) or {}
+        air = sp.get("air")
+        if not air and "a0" in ext:
+            cx = (ext["a0"][0] + ext["a1"][0]) / 2
+            cz = (ext["a0"][1] + ext["a1"][1]) / 2
+            air = (0, [cx, FREE_AIR_ALT, cz], None)
+        starts = {}
+        if sp.get("ground"):
+            starts["ground"] = (sp["ground"], "ground", 0.0)
+            starts["heli"] = (sp["ground"], "ground", 0.0)
+        if air:
+            pos = [air[1][0], max(air[1][1], FREE_AIR_ALT), air[1][2]]
+            starts["air"] = ((air[0], pos, air[2]), "air", 450.0)
+        if sp.get("naval"):
+            starts["ship"] = (sp["naval"], "ground", 0.0)
+            starts["boat"] = (sp["naval"], "ground", 0.0)
+        if not starts:
+            continue
+        lang.put("maps", level, f"location/{level}", f"missions/{level}", level,
+                 fallback=humanize(re.sub(r"^(avg|avn|air|hvg|arcade)_", "", level)))
+        for kind, ((_, pos, rot), start, speed) in starts.items():
+            sid = f"free_{level}_{kind}"
+            m = _hangar_mission(level, blocks[kind], pos, "WTFTD", rot, speed)
+            with open(out_dir / f"{sid}.json", "w", encoding="utf-8") as fo:
+                json.dump(m, fo, ensure_ascii=False, separators=(",", ":"))
+            out.append({"id": sid, "map": level, "kind": kind, "nation": "", "tags": [], "start": start,
+                        "block": blocks[kind], "wing": "t1_player01", "pos": [round(float(c), 1) for c in pos],
+                        "units": 1, "type": "singleMission", "en": {}, "free": 1})
+    log(f"  {len({s['map'] for s in out})} other maps", progress)
+    return out
 
 
 def build_hangar_scenarios(out_dir: Path) -> list:
@@ -1419,6 +1506,7 @@ def build_scenarios(lang: Lang, progress=None):
         })
     scenarios += build_hangar_scenarios(out_dir)
     log(f"  {len(scenarios)} scenarios", progress)
+    scenarios += build_free_scenarios(out_dir, lang, {s["map"] for s in scenarios}, build_levels(), progress)
     return scenarios
 
 

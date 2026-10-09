@@ -613,7 +613,8 @@ function scenariosFor(v, all = S.showAllScen) {
   const levels = new Set(S.status.levels || []);
   const score = s => (kinds.includes(s.kind) ? 100 : 0) + (s.nation && s.nation === v.n ? 20 : 0)
     + (s.tags.includes('universal') ? (v.r >= 6 ? 12 : 4) : 0) + (s.tags.includes('jet') && v.r >= 5 ? 6 : 0)
-    + (levels.size && !levels.has(s.map) ? -50 : 0) + (s.tags.includes('destroyer') === (v.k === 'destroyer' || v.k === 'cruiser') ? 2 : 0);
+    + (levels.size && !levels.has(s.map) ? -50 : 0) + (s.tags.includes('destroyer') === (v.k === 'destroyer' || v.k === 'cruiser') ? 2 : 0)
+    + (s.free ? -40 : 0);  // the game's other maps (bare scenarios) after the test-drive ones
   return S.scenarios.filter(s => all || kinds.includes(s.kind)).sort((a, b) => score(b) - score(a) || I18N.map(a.map).localeCompare(I18N.map(b.map)));
 }
 
@@ -784,7 +785,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
       <div><b>${esc(t('toast.generated', { file: S.lastGen.file }))}</b><span>${esc(t('toast.generatedHint', { title: S.lastGen.title }))}</span></div>
       <button class="icon-btn" data-act="genDone" title="${esc(t('action.close'))}">${icon('x', 'ic-sm')}</button></div>` : ''}
     <div class="dr-foot">
-      <button class="icon-btn" data-act="save" title="${esc(t('action.save'))}">${icon('save')}</button>
+      <button class="icon-btn" data-act="save" title="${esc(t('vehicle.save'))}">${icon('save')}</button>
       <button class="icon-btn" data-act="share" title="${esc(t('share.button'))}">${icon('share')}</button>
       <button class="btn btn-ghost" data-act="preview">${icon('file')}<span>${esc(t('action.preview'))}</span></button>
       ${S.pick.vehicle === v.id
@@ -1100,12 +1101,12 @@ function promptText(title, value) {
 async function saveSetup() {
   const c = S.cfg;
   const p = S.details.get(c.vehicle)?.pr.find(x => x.id === c.preset);
-  const name = await promptText(t('setups.namePrompt'), `${I18N.unit(c.vehicle)}${c.pylons ? ' · ' + t('loadout.customRow') : p && p.w.length ? ' · ' + presetLabel(S.byId.get(c.vehicle), p) : ''}`);
+  const name = await promptText(t('vehicle.saveName'), `${I18N.unit(c.vehicle)}${c.pylons ? ' · ' + t('loadout.customRow') : p && p.w.length ? ' · ' + presetLabel(S.byId.get(c.vehicle), p) : ''}`);
   if (!name) return;
   const cfg = vehicleOnly(c);
   S.setups.unshift({ id: Date.now().toString(36), name, vehicle: c.vehicle, cfg, created: Date.now() });
   await persistSetups();
-  toast({ title: t('toast.saved'), ms: 2500 });
+  toast({ title: t('vehicle.saved', { name }), ms: 3000 });
 }
 
 async function persistSetups() {

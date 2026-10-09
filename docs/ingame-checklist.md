@@ -70,6 +70,23 @@ on those emitters (`cdk.py`, `weapons:t="wtftd_custom"`).
 - [x] Fw 190 mix (2026-10-08, works in game).
 - [x] Bf 109 non-standard (2026-10-08, works in game).
 
+## 2c. The game's other maps (new, beta)
+
+131 maps have no official test drive. WTFTD writes a bare mission on them (`builder.py`
+`build_free_scenarios`, `free_<level>_<kind>` scenarios): the player alone, at the spot where the game's own
+missions put a tank / ship of the player's side (else any side), facing the same way; aircraft at 1500 m
+or higher above an air unit of those missions (else the map centre), 450 km/h.
+
+| Mission | Vehicle / map | Check |
+|---|---|---|
+| `wtftd_free_m1_ash_river` | M1 Abrams, Ash River (`avg_ireland`), ground | spawns on the ground, can drive |
+| `wtftd_free_f14b_el_alamein` | F-14B, El Alamein (`air_africa_desert`), air start | flies away, doesn't fall |
+| `wtftd_free_ship_ireland_bay` | Fletcher, Ireland bay (`avn_ireland_bay`) | spawns on water, sails |
+
+- [x] Ground start (2026-10-09, works in game).
+- [x] Air start (2026-10-09, works in game).
+- [x] Naval start (2026-10-09, works in game).
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

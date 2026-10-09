@@ -1004,3 +1004,8 @@ body.pick-on #view-vehicles, body.pick-on #view-mymaps, body.pick-on #view-setup
 .mset .field { margin-top: 10px; }
 .list-head { margin: 18px 0 8px; font: 700 14px var(--font-display); color: var(--text-2); }
 body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
+.mp-section { margin-bottom: 22px; }
+.mp-section h3 { margin: 4px 0 8px; font: 700 15px var(--font-display); }
+.mp-section .hint { margin: -2px 0 10px; }
+#view-maps .mp-section:last-child .mp-grid { padding-bottom: 90px; }
+.mp-section .mp-grid { padding-bottom: 0; }
