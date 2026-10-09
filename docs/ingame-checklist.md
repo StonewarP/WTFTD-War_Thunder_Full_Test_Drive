@@ -167,8 +167,10 @@ itself when one of them gets another vehicle, and that import gets `importUnits:
   cheat (`isImmortal` + `invulnerabilityTimer`, spawn protection) most likely makes AI aircraft leave you alone.
   Seen live (game web UI, port 8111): shot down again and again by F-4E AUP and F-2A (template aircraft), and by
   HQ-11 / Spyder standing in for template targets that Gaijin's template already sets to fire at will.
-- [ ] **WTFTD r7d: 2 MiG-29 + target aircraft hunt you, ground silent** (`wtftd_r7_air_hunt`): every ground
-  target holds fire; 2 MiG-29 9.13 (`mig_29_9_13`) added 6 km north of the start hunt you. Do they appear and attack?
+- [x] **WTFTD r7d: 2 MiG-29 + target aircraft hunt you, ground silent** (`wtftd_r7_air_hunt`, 2026-10-09, watched
+  live on the game's web UI, port 8111): "MiG-29 shot down StonewarP"; after the respawn the 2 MiG-29 closed from
+  3.6 to 1.3 km in 15 s, 2 target fighters (F-4E AUP / F-2A) from 19 to 16 km; the 2 AV-8B (attack aircraft) stayed
+  7-10 km away. Hunts me works for added and template aircraft.
 
 ## 3. Ammunition icons (UI only)
 
