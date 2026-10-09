@@ -1121,6 +1121,7 @@ async function generate(btn) {
   btn.disabled = true;
   btn.querySelector('span').textContent = t('action.generating');
   try {
+    await edAutoRefresh();  // map editor units that follow your vehicle's BR
     const r = await api('generate', missionPayload());
     S.lastGen = { vid: S.cfg.vehicle, file: r.file, title: missionPayload().title };  // stays shown above the button
     if (S.sel && S.sel.id === S.cfg.vehicle) renderDrawer();
@@ -1136,6 +1137,7 @@ async function generate(btn) {
 
 async function preview() {
   try {
+    await edAutoRefresh();  // map editor units that follow your vehicle's BR
     const r = await api('preview', missionPayload());
     $('#previewName').textContent = r.file;
     const extra = Object.entries(r.files || {}).map(([path, text]) => `\n\n// ===== content/pkg_local/${path}\n${text}`).join('');

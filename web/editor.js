@@ -229,8 +229,10 @@ async function openEditor() {
       for (const u of ED.data.units) if (swaps[u.name]) { u.scnCls = u.cls; u.cls = swaps[u.name]; }
     } catch { /* keep the scenario's vehicles */ }
   }
+  ED.data.sid = sid;
   ED.byName = new Map(ED.data.units.map(u => [u.name, u]));
   edEdits();
+  await edAutoRefresh();  // units following your vehicle: its BR may have changed
   edSelect([]); ED.mode = 'select'; ED.search = '';
   ED.layers = [];
   ED.terrain = null;
@@ -1036,10 +1038,10 @@ function edAutoUnits(selection) {
     return selection || ED.auto.who === 'all' || edSide(st) === ED.auto.who;
   });
 }
-function edAutoApply(selection) {
-  const br = edAutoBR(), nation = ED.auto.nation;
+// gives the units vehicles near br; follow: they keep following your vehicle's BR (edAutoRefresh)
+function edAutoPick(units, br, nation, follow) {
   const groups = new Map();  // same kind of vehicle: picked in turn among the closest
-  for (const u of edAutoUnits(selection)) {
+  for (const u of units) {
     const cur = S.byId.get(edUnitState(u).cls);
     const c = cur && ED_BLOCK_CATS[u.block].includes(cur.c) ? cur.c : ED_BLOCK_CATS[u.block][0];
     const k = cur?.k && (ED_AUTO_KINDS[c] || []).concat(['SPAA']).includes(cur.k) ? cur.k : '';
@@ -1048,14 +1050,15 @@ function edAutoApply(selection) {
     groups.get(key).units.push(u);
   }
   let n = 0;
-  for (const { c, k, units } of groups.values()) {
+  const tree = edTreeIds();
+  for (const { c, k, units: us } of groups.values()) {
     const kinds = k ? [k] : ED_AUTO_KINDS[c] || [];
-    const tree = edTreeIds();
-    const cands = S.vehicles.filter(v => v.c === c && !v.h && edBR(v) && (!tree.size || tree.has(v.id)) && (!nation || v.n === nation) && (!kinds.length || kinds.includes(v.k)));
+    const cands = S.vehicles.filter(v => v.c === c && !v.h && edBR(v) && (!tree.size || tree.has(v.id))
+      && (!nation || v.n === nation) && (!kinds.length || kinds.includes(v.k)));
     let near = [];
     for (const w of [0.35, 0.7, 1.4, 3, 99]) {
       near = cands.filter(v => Math.abs(edBR(v) - br) <= w);
-      if (near.length >= Math.min(3, units.length)) break;
+      if (near.length >= Math.min(3, us.length)) break;
     }
     if (!near.length) continue;
     near.sort((a, b) => Math.abs(edBR(a) - br) - Math.abs(edBR(b) - br) || a.id.localeCompare(b.id));
@@ -1067,25 +1070,65 @@ function edAutoApply(selection) {
       order = [];
       while ([...by.values()].some(l => l.length)) for (const l of by.values()) if (l.length) order.push(l.shift());
     }
-    units.forEach((u, i) => { edSet(u, { cls: order[i % order.length].id }); n++; });
+    us.forEach((u, i) => { edSet(u, { cls: order[i % order.length].id, auto: follow ? { nation } : null }); n++; });
   }
+  return n;
+}
+function edAutoApply(selection) {
+  const br = edAutoBR(), follow = ED.auto.src === 'me' && !!edMyBR();
+  const n = edAutoPick(edAutoUnits(selection), br, ED.auto.nation, follow);
+  if (follow) edEdits().autoBR = br;
   toast({ title: t('editor.auto.done', { n, br: br.toFixed(1) }), ms: 2500 });
+}
+// units that follow your vehicle (chosen with "My vehicle")
+function edAutoFollowers() {
+  const e = S.cfg?.edits;
+  if (!e || !ED.data || e.sid !== ED.data.sid) return [];
+  return [...ED.data.units.filter(u => e.units?.[u.name]?.auto), ...(e.add || []).map((a, idx) => ({ ...a, added: true, idx })).filter(a => a.auto)];
+}
+// when the BR of your vehicle changed since: those units get vehicles near the new one (editor opening,
+// mission created); true when they did
+async function edAutoRefresh() {
+  const e = S.cfg?.edits, br = edMyBR();
+  if (!e || e.sid !== S.cfg.scenario || !br || e.autoBR === br) return false;
+  if (!Object.values(e.units || {}).some(x => x?.auto) && !(e.add || []).some(a => a.auto)) return false;
+  if (ED.data?.sid !== S.cfg.scenario) {  // the scenario's units, as the editor loads them
+    let data;
+    try { data = await api('scenario-units/' + encodeURIComponent(S.cfg.scenario)); } catch { return false; }
+    ED.data = data;
+    ED.data.sid = S.cfg.scenario;
+    ED.byName = new Map(ED.data.units.map(u => [u.name, u]));
+  }
+  const byNation = new Map();
+  for (const u of edAutoFollowers()) {
+    const nat = (u.added ? u.auto : e.units[u.name].auto).nation || '';
+    if (!byNation.has(nat)) byNation.set(nat, []);
+    byNation.get(nat).push(u);
+  }
+  let n = 0;
+  for (const [nat, us] of byNation) n += edAutoPick(us, br, nat, true);
+  e.autoBR = br;
+  if (n) toast({ title: t('editor.auto.followed', { n, br: br.toFixed(1) }), ms: 4000 });
+  return n > 0;
 }
 function edAutoHTML(selection) {
   const a = ED.auto, my = edMyBR(), src = a.src === 'me' && my ? 'me' : 'br';
-  const n = edAutoUnits(selection).length;
+  const n = edAutoUnits(selection).length, follow = edAutoFollowers().length;
   return `<details class="ed-auto"${a.open ? ' open' : ''}><summary>${icon('bolt', 'ic-sm')} ${esc(t('editor.auto.title'))}</summary>
     <p class="hint">${esc(t('editor.auto.hint'))}</p>
     <div class="field"><label>BR</label><div class="seg">
       <button class="${src === 'me' ? 'active' : ''}" data-edauto="src:me"${my ? '' : ' disabled'}>${esc(t('editor.auto.mine', { br: my ? my.toFixed(1) : '–' }))}</button>
       <button class="${src === 'br' ? 'active' : ''}" data-edauto="src:br">${esc(t('editor.auto.custom'))}</button></div>
+      ${src === 'me' ? `<small class="muted">${esc(t('editor.auto.followHint'))}</small>` : ''}
       ${src === 'br' ? `<div class="slider-row" style="margin-top:8px"><input type="range" min="1" max="14.3" step="0.3" data-edautof="br" value="${a.br}"><output>BR ${(+a.br).toFixed(1)}</output></div>` : ''}</div>
     <div class="field"><label>${esc(t('editor.auto.nation'))}</label><select data-edautof="nation">
       <option value="">${esc(t('editor.auto.allNations'))}</option>
       ${NATIONS.map(x => `<option value="${x}"${a.nation === x ? ' selected' : ''}>${esc(nationName(x))}</option>`).join('')}</select></div>
     ${selection ? '' : `<div class="field"><label>${esc(t('editor.auto.who'))}</label><div class="seg">
       ${[['enemy', 'editor.enemies'], ['ally', 'editor.allies'], ['all', 'editor.auto.all']].map(([k, l]) => `<button class="${a.who === k ? 'active' : ''}" data-edauto="who:${k}">${esc(t(l))}</button>`).join('')}</div></div>`}
-    <button class="btn btn-sm" data-edauto="apply"${n ? '' : ' disabled'}>${icon('bolt', 'ic-sm')}${esc(t('editor.auto.apply', { n }))}</button>
+    <div class="row gap"><button class="btn btn-sm" data-edauto="apply"${n ? '' : ' disabled'}>${icon('bolt', 'ic-sm')}${esc(t('editor.auto.apply', { n }))}</button>
+      ${follow ? `<button class="btn btn-ghost btn-sm" data-edauto="stop">${esc(t('editor.auto.stop'))}</button>` : ''}</div>
+    ${follow ? `<p class="hint">${esc(t('editor.auto.following', { n: follow }))}</p>` : ''}
   </details>`;
 }
 // a click in the block: true when handled
@@ -1093,6 +1136,7 @@ function edAutoClick(b) {
   const v = b.dataset.edauto;
   if (!v) return false;
   if (v === 'apply') edAutoApply(ED.multi.length > 0);
+  else if (v === 'stop') for (const u of edAutoFollowers()) edSet(u, { auto: null });
   else { const [k, x] = v.split(':'); ED.auto[k] = x; }
   edRenderPanel(); edDraw();
   return true;
@@ -1109,10 +1153,12 @@ function edSelected() {
 function edSet(u, patch) {
   const e = edEdits();
   if ('cls' in patch && !('loadout' in patch) && patch.cls !== edUnitState(u).cls) patch = { ...patch, loadout: null };  // another vehicle: its own default loadout
+  if ('cls' in patch && !('auto' in patch)) patch = { ...patch, auto: null };  // picked by hand: no longer follows your vehicle
   if (u.added) {
     const a = e.add[u.idx];
     Object.assign(a, patch);
     if (a.loadout == null) delete a.loadout;
+    if (a.auto == null) delete a.auto;
     return;
   }
   const cur = Object.assign({}, e.units[u.name], patch);
