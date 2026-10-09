@@ -180,6 +180,9 @@ after it was dropped at the user's request). New cheat **Unbreakable airframe** 
 flight model's breaking limits raised (`Vne`, `VneMach`, `Strength/VNE` → 100000 km/h / Mach 100; `CritOverload`,
 `WingCritOverload` ×100; gear, flaps, airbrake, canopy breaking speeds → 100000).
 
+- [x] First r8 with thrust ×20 (2026-10-09): no more power. Jets take their maximum thrust from the flight model's
+  `ThrustMax` table (`ThrustMax0` × coefficients by altitude / speed), not `Main/Thrust`, which was all the Thrust
+  mod changed: it never worked. Fixed: `ThrustMax0` of every engine type scaled too.
 - [ ] **WTFTD r8: invulnerable, unbreakable airframe, hunted** (`wtftd_r8_invulnerable`, F-14B, Afghanistan; the
   test is in its description): the MiG-29 and the target fighters still come at you and fire, you don't die;
   past the speed limit (thrust ×20 to get there fast) and pulling hard the wings stay on, gear and flaps don't

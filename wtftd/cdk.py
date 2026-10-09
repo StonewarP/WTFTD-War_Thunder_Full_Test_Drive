@@ -370,6 +370,13 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
                 tree[("Mass", "MaxFuelMass0")] = ("r", fuel)
             if thrust_mul and st.get("thrust"):
                 tree[("EngineType0", "Main", "Thrust")] = ("r", float(st["thrust"]) * thrust_mul)
+            if thrust_mul and isinstance(fm_data, dict):
+                # jets: the game takes the maximum thrust from the ThrustMax table (ThrustMax0 x coefficients by
+                # altitude / speed), not from Main/Thrust (checked in game 2026-10-09): that base, every engine type
+                for et, e in fm_data.items():
+                    base = ((e.get("Main") or {}).get("ThrustMax") or {}).get("ThrustMax0") if isinstance(e, dict) and et.startswith("EngineType") else None
+                    if isinstance(base, (int, float)) and not isinstance(base, bool) and base > 0:
+                        tree[(et, "Main", "ThrustMax", "ThrustMax0")] = ("r", float(base) * thrust_mul)
             if tboost:
                 tree[("EngineType0", "Main", "ThrottleBoost")] = ("r", tboost)
             if abboost:

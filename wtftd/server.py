@@ -697,6 +697,8 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     fm_data = None
     if (body.get("cheats") or {}).get("noOverload") and veh["c"] in ("air", "heli"):
         mods["noStructural"] = True  # unbreakable airframe: the flight model's breaking limits raised
+    if veh["c"] in ("air", "heli") and (mods.get("noStructural") or mods.get("thrustMul")):
+        # the flight model itself (datamine): breaking limits, jets' thrust table
         fm = str((det.get("st") or {}).get("fm") or "")
         if fm:
             fm_data = builder.load(builder.DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / (fm.lower() + "x"))

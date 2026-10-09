@@ -81,3 +81,15 @@ class UnbreakableAirframe(unittest.TestCase):
         text = str(b)
         self.assertEqual(text.count('"@override:Mass"{'), 1)
         self.assertIn('"@override:Aerodynamics"{', text)
+
+
+class JetThrust(unittest.TestCase):
+    def test_thrust_table_base_scaled(self):
+        from wtftd import cdk
+        det = {"st": {"fm": "fm/x.blk", "thrust": 6000.0}}
+        fm = {"EngineType0": {"Main": {"Thrust": 6000.0, "ThrustMax": {"ThrustMax0": 6260.0, "ThrustMaxCoeff_0_0": 0.99}}},
+              "Engine0": {"Main": {"FuelSystemNum": 0}}}
+        files = cdk.build_files("x", "air", det, {"thrustMul": 3}, "", None, "custom", None, {}, fm_data=fm)[0]
+        text = files["gameData/flightModels/fm/wtftd_x.blk"]
+        self.assertIn('"@override:ThrustMax0":r=18780', text)  # what the game uses for a jet's maximum thrust
+        self.assertNotIn("Engine0", text)

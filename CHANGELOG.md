@@ -6,6 +6,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- Fix: the **Thrust** modification of jets did nothing (the game takes their maximum thrust from the flight
+  model's thrust table, which it now scales).
 - **Invulnerable**: AI aircraft now attack you too (it used the game's spawn protection, which they respect).
   New cheat **Unbreakable
   airframe** (aircraft, helicopters, custom vehicles): no wings torn off by overspeed or g, gear, flaps and canopy
