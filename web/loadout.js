@@ -1,6 +1,6 @@
 /* WTFTD — pylon loadout editor, laid out like the in-game one:
    rows = presets (first row: your custom loadout), columns = pylons, cells = weapon icons.
-   cfg.pylons = { slot: "<official option name>" | { w: "<catalog weapon key>", n: count } } */
+   cfg.pylons = { slot: "<official option name>" | { w: "<catalog weapon key>", n: count[, cw: "<My weapons id>", mod] } } */
 'use strict';
 
 const WCATS = ['aam_ir', 'aam_radar', 'agm', 'atgm', 'rockets', 'bombs', 'guided_bombs', 'nuke', 'torpedoes', 'mines', 'fuel', 'pods'];
@@ -36,16 +36,20 @@ function cellHTML(d, slot, val, editable, active) {
   } else if (val && typeof val === 'object') {
     const w = LP.weapons?.[val.w];
     if (w) {
-      inner = ammoIcon(w.ic) + (val.n > 1 ? `<span class="wcount">${val.n}</span>` : '');
-      title = `${val.n || 1}× ${I18N.weapon(val.w)}`;
+      inner = ammoIcon(w.ic) + (val.n > 1 ? `<span class="wcount">${val.n}</span>` : '') + (val.cw ? '<i class="lmine">★</i>' : '');
+      title = `${val.n || 1}× ${pylonWeaponName(val)}`;
       warn = needWarning(d, w.g);
     }
   }
-  const cls = ['lcell', editable ? 'edit' : '', active ? 'active' : '', val && typeof val === 'object' ? 'nonstd' : '', warn ? 'warn' : ''].join(' ');
+  const cls = ['lcell', editable ? 'edit' : '', active ? 'active' : '', val && typeof val === 'object' ? 'nonstd' : '', val?.cw ? 'mine' : '', warn ? 'warn' : ''].join(' ');
   return editable
     ? `<button class="${cls}" data-lcell="${slot.i}" title="${esc(title + (warn ? ' — ⚠ ' + warn : ''))}">${inner}${warn ? '<i class="lwarn">!</i>' : ''}</button>`
     : `<span class="${cls}" title="${esc(title)}">${inner}</span>`;
 }
+
+// a pylon's catalog pick: the game's name, or the name of one of My weapons (the one saved with the pylon if deleted)
+const pylonMine = val => (val?.cw ? MW.list.find(x => x.id === val.cw) : null);
+const pylonWeaponName = val => pylonMine(val)?.name || val.nm || I18N.weapon(val.w);
 
 function loadoutGridHTML(v, d) {
   if (!LP.weapons) { loadWeapons().then(() => { if (S.sel) renderDrawer(); }); }
@@ -154,7 +158,7 @@ function summaryHTML(d) {
     } else {
       const w = LP.weapons?.[val.w];
       const warn = w ? needWarning(d, w.g) : '';
-      rows.push(`<li class="${warn ? 'warn' : ''}"><b>${s.i}</b>${ammoIcon(w?.ic)}<span>${val.n || 1}× ${esc(I18N.weapon(val.w))} <i class="chip dim">${esc(t('loadout.nonStd'))}</i>${warn ? `<em>⚠ ${esc(warn)}</em>` : ''}</span></li>`);
+      rows.push(`<li class="${warn ? 'warn' : ''}"><b>${s.i}</b>${ammoIcon(w?.ic)}<span>${val.n || 1}× ${esc(pylonWeaponName(val))} <i class="chip ${val.cw ? 'info' : 'dim'}">${esc(t(val.cw ? 'myw.chip' : 'loadout.nonStd'))}</i>${warn ? `<em>⚠ ${esc(warn)}</em>` : ''}</span></li>`);
     }
   }
   return rows.length ? `<ul class="lsummary">${rows.join('')}</ul>` : `<p class="hint" style="margin-top:8px">${esc(t('loadout.pickHint'))}</p>`;
@@ -212,8 +216,18 @@ function pickerListHTML(d, slot) {
       if (n > shown && groups[cat]) groups[cat].ext.push(`<p class="hint lp-more">${esc(t('loadout.more', { n: n - shown }))}</p>`);
     }
   }
+  // My weapons (modified copies of catalog weapons): any pylon, as the game's other weapons
+  const mine = MW.list.filter(cw => LP.weapons?.[cw.w] && (!LP.cat || LP.weapons[cw.w].c === LP.cat)
+    && (!q || norm(cw.name + ' ' + I18N.weapon(cw.w)).includes(q)));
+  const mineHTML = mine.length ? `<div class="lp-group lp-mine"><div class="opt-group-title">★ ${esc(t('nav.myWeapons'))}</div>
+    ${mine.map(cw => {
+      const w = LP.weapons[cw.w], warn = needWarning(d, w.g);
+      const sel = cur && typeof cur === 'object' && cur.cw === cw.id;
+      return `<button class="lp-item${sel ? ' active' : ''}${warn ? ' warn' : ''}" data-lpickcw="${esc(cw.id)}" title="${esc(warn || t('myw.basedOn', { name: I18N.weapon(cw.w) }))}">
+        ${ammoIcon(cw.ic || w.ic)}<span>${cw.mod?.kt ? '☢ ' : ''}${esc(cw.name)}</span><i class="chip info">${esc(t('myw.chip'))}</i>${warn ? '<i class="lwarn">!</i>' : ''}</button>`;
+    }).join('')}</div>` : '';
   const order = [...WCATS, 'other'];
-  const html = order.filter(cat => groups[cat]).map(cat => `<div class="lp-group"><div class="opt-group-title">${esc(I18N.tOr('wcat.' + cat, cat))}</div>
+  const html = mineHTML + order.filter(cat => groups[cat]).map(cat => `<div class="lp-group"><div class="opt-group-title">${esc(I18N.tOr('wcat.' + cat, cat))}</div>
       ${groups[cat].std.join('')}${groups[cat].ext.join('')}</div>`).join('');
   return html || `<p class="hint">${esc(t('results.empty'))}</p>`;
 }
@@ -226,6 +240,11 @@ function loadoutClick(b, v, d) {
   if (b.dataset.lempty !== undefined) { delete c.pylons[LP.slot]; return true; }
   if (b.dataset.lpick) { c.pylons[LP.slot] = b.dataset.lpick; return true; }
   if (b.dataset.lpickw) { c.pylons[LP.slot] = { w: b.dataset.lpickw, n: 1 }; return true; }
+  if (b.dataset.lpickcw) {  // one of My weapons; its changes and name kept with the pylon (shared setups, deleted weapon)
+    const cw = MW.list.find(x => x.id === b.dataset.lpickcw);
+    if (cw) c.pylons[LP.slot] = { w: cw.w, n: 1, cw: cw.id, nm: cw.name, mod: cw.mod };
+    return true;
+  }
   if (b.dataset.lcat !== undefined) { LP.cat = b.dataset.lcat; return true; }
   return false;
 }

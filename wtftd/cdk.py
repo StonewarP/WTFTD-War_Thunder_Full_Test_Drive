@@ -69,6 +69,20 @@ def _num(d: dict, key: str, lo: float, hi: float):
     return v
 
 
+def _blk_value(typ: str, v) -> str:
+    if typ == "r":
+        return _r(v)
+    if typ == "i":
+        return str(int(v))
+    if typ == "b":
+        return "yes" if v else "no"
+    if typ == "t":
+        return f'"{v}"'
+    if typ in ("p2", "p3", "p4"):
+        return ", ".join(_r(x) for x in v)
+    raise CdkError(f"Unknown value type {typ}")
+
+
 class Blk:
     """Tiny writer for override files."""
 
@@ -176,12 +190,136 @@ def _weapon_slots(unit_data: dict | None) -> dict[int, tuple[int, str]]:
     return out
 
 
-def _weapon_lines(trigger: str, blk: str, emitter: str, bullets: int | None, ind: str = "") -> list[str]:
+def _weapon_lines(trigger: str, blk: str, emitter: str, bullets: int | None, ind: str = "", separate: bool = False) -> list[str]:
     lines = ["Weapon{", f'  trigger:t="{trigger}"', f'  blk:t="{blk}"', f'  emitter:t="{emitter}"']
     if bullets:
         lines.append(f"  bullets:i={bullets}")
-    lines += ["  external:b=yes", "}"]
+    lines.append("  external:b=yes")
+    if separate:  # as the game's own pylon presets: one pylon at a time, not every pylon with that trigger at once
+        lines.append("  separate:b=yes")
+    lines.append("}")
     return [ind + s for s in lines]
+
+
+# Pylon weapons, modified ({"w": key, "n": count, "mod": {...}}): the weapon file's payload block by folder,
+# and what each "mod" key overrides there (absolute values; "g" / "gReq" only on guided weapons: overload limit,
+# autopilot; "kt": a nuclear charge). The page sends only the values the weapon has (server.weapon_base).
+PAYLOADS = {"rocketguns": "rocket", "bombguns": "bomb", "torpedoes": "torpedo", "mines": "mine"}
+WEAPON_MODS = {
+    "e": ("explosiveMass", 0, 1_000_000),  # kg of explosive
+    "mass": ("mass", 0.1, 1_000_000),      # kg, the whole weapon
+    "force": ("force", 0, 10_000_000),     # N, rocket motor thrust
+    "burn": ("timeFire", 0, 600),          # s, rocket motor burn time
+    "mach": ("machMax", 0.1, 50),
+    "fins": ("finsLatAccel", 0, 1000),     # lateral acceleration the fins can give
+    "range": ("maxDistance", 0, 1_000_000),  # m
+}
+# The explosion the game shows follows the weapon, not its explosive: the one of the game's weapons of that size
+# (datamine, explosive mass in kg up to which each effect is used). Bombs: explosionFx; missiles / rockets:
+# explosionEffect, and past their biggest, a bomb's explosionFx as well.
+BOMB_FX = ((20, "bomb_expl_50kg"), (50, "bomb_expl_100kg"), (130, "bomb_expl_200kg"), (460, "bomb_expl_500kg"),
+           (900, "bomb_expl_1000kg"), (float("inf"), "bomb_expl_5000kg"))
+ROCKET_FX = ((2, "explosion_midair_rocket_tiny"), (25, "explosion_midair_rocket_small"),
+             (100, "explosion_midair_rocket_medium"), (float("inf"), "explosion_midair_rocket_big"))
+
+
+def _fx(table, kg: float) -> str:
+    return next(fx for limit, fx in table if kg <= limit)
+
+
+# Advanced changes (mod["adv"] = {"rocket/guidance/workTime": {"t": "r", "v": 30}}): any value of the weapon file,
+# by its path and type as the datamine shows it (server.weapon_base "tree"). Checked here: names, types, ranges.
+ADV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+ADV_TEXT = re.compile(r"^[A-Za-z0-9_\-./ ]{0,120}$")
+ADV_MAX = 500
+
+
+def _adv_value(t: str, v):
+    """A checked advanced value, or CdkError."""
+    import math
+    def real(x):
+        x = float(x)
+        if not math.isfinite(x) or abs(x) > 1e9:
+            raise ValueError
+        return x
+    try:
+        if t == "r":
+            return real(v)
+        if t == "i":
+            x = int(v)
+            if abs(x) > 2_000_000_000:
+                raise ValueError
+            return x
+        if t == "b":
+            if not isinstance(v, bool):
+                raise ValueError
+            return v
+        if t == "t":
+            if not isinstance(v, str) or not ADV_TEXT.match(v):
+                raise ValueError
+            return v
+        if t in ("p2", "p3", "p4"):
+            if not isinstance(v, list) or len(v) != int(t[1]):
+                raise ValueError
+            return [real(x) for x in v]
+    except (TypeError, ValueError):
+        pass
+    raise CdkError(f"Invalid advanced value ({t})")
+
+
+def _custom_weapon(w: dict, mod, what: str) -> str | None:
+    """The text of a modified copy of catalog weapon w (include + overrides), None when nothing changes.
+    Launchers (containers) hold their weapon in a file of their own: not handled yet."""
+    if not isinstance(mod, dict) or w.get("pod"):
+        return None
+    folder = str(w.get("p", "")).replace("\\", "/").split("/")[-2].lower()
+    payload = PAYLOADS.get(folder)
+    if not payload:
+        return None
+    tree: dict[tuple, tuple] = {}  # (block, ..., name) -> (type, value); "+" types: a new value, not an override
+    for key, (field, lo, hi) in WEAPON_MODS.items():
+        v = _num(mod, key, lo, hi)
+        if v is not None:
+            tree[(payload, field)] = ("r", v)
+    e = _num(mod, "e", 0, 1_000_000)
+    if e is not None and payload == "bomb":
+        tree[(payload, "explosionFx")] = ("t", _fx(BOMB_FX, e))
+    elif e is not None and payload == "rocket":
+        tree[(payload, "explosionEffect")] = ("t", _fx(ROCKET_FX, e))
+        if e > 220:  # bigger than any missile: a bomb's explosion too (a new value in that block, not an override)
+            tree[(payload, "explosionFx")] = ("+t", _fx(BOMB_FX, e))
+    kt = _num(mod, "kt", 0.001, 100_000)
+    if kt is not None and payload in ("bomb", "rocket"):
+        # a nuclear charge, as the game's nuclear bombs (yield in kilotons); new values in that block, unless it is one
+        if w.get("c") == "nuke":
+            tree[(payload, "yield")] = ("r", kt)
+        else:
+            tree[(payload, "yield")] = ("+r", kt)
+            tree[(payload, "splashFallBySquare")] = ("+b", True)
+            if kt < 15:  # the 5 kt bombs name their explosion; the bigger ones leave the game's own
+                tree[(payload, "nuclearExplosionFx")] = ("+t", "explosion_massive")
+    if payload == "rocket" and w.get("g"):
+        g = _num(mod, "g", 1, 1000)
+        if g is not None:
+            tree[(payload, "loadFactorMax")] = ("r", g)  # the missile's overload limit
+        g_req = _num(mod, "gReq", 1, 1000)
+        if g_req is not None:  # what its autopilot asks for at most (both raised: 100 G turns, checked in game)
+            tree[(payload, "guidance", "guidanceAutopilot", "reqAccelMax")] = ("r", g_req)
+    adv = mod.get("adv")
+    if isinstance(adv, dict):
+        if len(adv) > ADV_MAX:
+            raise CdkError("Too many advanced changes")
+        for path, tv in adv.items():
+            parts = tuple(str(path).split("/"))
+            if not 1 <= len(parts) <= 8 or not all(ADV_KEY.match(x) for x in parts) or not isinstance(tv, dict):
+                raise CdkError("Invalid advanced value")
+            t = str(tv.get("t"))
+            tree[parts] = (t, _adv_value(t, tv.get("v")))  # wins over the simple fields
+    if not tree:
+        return None
+    b = _header(what, w["p"])
+    _write_tree(b, tree)
+    return str(b)
 
 
 HP_MULT = 1000.0
@@ -284,12 +422,15 @@ def _handling_overrides(fm: dict) -> dict:
 
 
 def _write_tree(b: "Blk", tree: dict):
-    """Writes {path: (type, value)} as nested @override blocks."""
+    """Writes {path: (type, value)} as nested @override blocks ("+<type>": a new value, written as is)."""
     groups: dict = {}
     for path, tv in tree.items():
         if len(path) == 1:
             typ, v = tv
-            {"r": b.real, "p2": b.p2, "p3": b.p3, "i": b.int}[typ](path[0], v)
+            if typ.startswith("+"):
+                b.line(f"{path[0]}:{typ[1:]}={_blk_value(typ[1:], v)}")
+            else:
+                b.line(f'"@override:{path[0]}":{typ}={_blk_value(typ, v)}')
         else:
             groups.setdefault(path[0], {})[path[1:]] = tv
     for name, sub in groups.items():
@@ -471,6 +612,7 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
         legacy = {s["i"]: s for s in details.get("lp", [])} if not details.get("sl") else {}
         emitters = {s["i"]: s.get("e") for s in details.get("sl") or details.get("lp") or []}
         chosen, extras = [], []
+        variants: dict[tuple, str] = {}  # (weapon file, its changes) -> modified copy
         raw: list[tuple] = []  # aircraft without pylons: plain weapons in the loadout
         if pylons:
             slots = {str(s["i"]): {o["n"] for o in s["o"]} for s in details.get("sl") or details.get("lp") or []}
@@ -487,6 +629,17 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
                     w = (catalog or {}).get(str(v.get("w", "")))
                     if w and SAFE.match(str(v.get("w"))):
                         n = max(1, min(int(v.get("n") or 1), 8))
+                        custom = _custom_weapon(w, v.get("mod"), f"{vid} {v.get('w')}")
+                        if custom:  # the same weapon, modified: a file of its own that the pylon uses instead
+                            # one file per weapon + changes: pylons with the same one fire one after the other
+                            # (different files would fire together), and named as the game's own so the game
+                            # shows its name (weapons/<file name>)
+                            key = (w["p"], custom.split("\n", 1)[1])  # without the header line (its time)
+                            if key not in variants:
+                                stem = w["p"].replace("\\", "/").rsplit("/", 1)[-1]
+                                variants[key] = f"gameData/Weapons/wtftd/{name.lower()}_{len(variants) + 1}/{stem}"
+                                files[variants[key]] = custom
+                            w = dict(w, p=variants[key])
                         extras.append((int(k), w, emitters[int(k)], n))  # any weapon of the game on that pylon
         # Aircraft with pylons (WeaponSlots) only take "slot + preset" entries in a loadout: a bare
         # Weapon{trigger, blk, emitter} there is ignored by the game. So each non-standard weapon
@@ -520,7 +673,7 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
                         b.line("WeaponPreset{")
                         b.line(f'  name:t="wtftd_slot{k}"')
                         for weapon in weapons:
-                            for line in _weapon_lines(*weapon, ind="  "):
+                            for line in _weapon_lines(*weapon, ind="  ", separate=True):
                                 b.line(line)
                         b.line("}")
                         b.close()

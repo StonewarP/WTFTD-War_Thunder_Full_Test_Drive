@@ -500,6 +500,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(read_json(USER / "variants.json", []))
         if route == "combos":  # saved missions: a vehicle setup + a map
             return self.send_json(read_json(USER / "combos.json", []))
+        if route == "myweapons":  # My weapons: modified copies of the game's pylon weapons
+            return self.send_json(read_json(USER / "weapons.json", []))
+        if route == "weapon-keys":  # Weapons tab rows -> the pylon weapon they can be modified from
+            return self.send_json(weapon_keys())
+        if route.startswith("weapon-base/"):  # a pylon weapon's own values, for the weapon editor
+            base = weapon_base(route.split("/", 1)[1])
+            return self.send_json(base) if base else self.send_json({"error": "Weapon not found in the game data"}, 404)
         if route == "missions":
             return self.send_json(list_generated())
         if route.startswith("terrain/"):
@@ -628,6 +635,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "combos must be a list"}, 400)
             write_json(USER / "combos.json", [c for c in body["combos"] if isinstance(c, dict)][:500])
             return self.send_json({"ok": True})
+        if route == "myweapons":
+            if not isinstance(body.get("weapons"), list):
+                return self.send_json({"error": "weapons must be a list"}, 400)
+            write_json(USER / "weapons.json", [w for w in body["weapons"] if isinstance(w, dict)][:500])
+            return self.send_json({"ok": True})
         if route == "variants":
             if not isinstance(body.get("variants"), list):
                 return self.send_json({"error": "variants must be a list"}, 400)
@@ -701,6 +713,7 @@ def _prepare_ai(body: dict) -> tuple[dict, dict]:
             lo.pop("pylons", None)
             continue
         n += 1
+        pylons = custom_weapons(pylons)
         non_std = any(isinstance(v, dict) for v in pylons.values())
         try:
             files, preset, unit_class, pkg = cdk.build_files(
@@ -714,6 +727,104 @@ def _prepare_ai(body: dict) -> tuple[dict, dict]:
         if preset:
             lo["preset"] = preset
     return body, out
+
+
+def custom_weapons(pylons: dict) -> dict:
+    """Pylons holding one of My weapons ({"cw": id}) get its current changes: edited after being put on a pylon,
+    the weapon flies as it is now. One deleted since keeps the changes saved with the pylon."""
+    mine = {w.get("id"): w for w in read_json(USER / "weapons.json", []) if isinstance(w, dict)}
+    out = {}
+    for k, v in pylons.items():
+        cw = mine.get(v.get("cw")) if isinstance(v, dict) else None
+        out[k] = dict(v, w=cw.get("w", v.get("w")), mod=cw.get("mod") or {}) if cw else v
+    return out
+
+
+# the editor's fields: (payload block key, its path in the weapon file's payload block)
+WEAPON_BASE_FIELDS = {"e": ("explosiveMass",), "mass": ("mass",), "force": ("force",), "burn": ("timeFire",),
+                      "mach": ("machMax",), "fins": ("finsLatAccel",), "range": ("maxDistance",),
+                      "g": ("loadFactorMax",), "gReq": ("guidance", "guidanceAutopilot", "reqAccelMax"), "kt": ("yield",)}
+
+
+def weapon_tree(node: dict, path: str = "") -> list:
+    """Every value of a weapon file the advanced editor can change: [[path, type, value]], types as in a .blk
+    (r real, i integer, b bool, t text, p2-p4 points). Repeated blocks / values (lists) are left out: an override
+    can't tell them apart."""
+    out = []
+    for k, v in node.items():
+        if not cdk.ADV_KEY.match(str(k)):
+            continue
+        p = f"{path}/{k}" if path else k
+        if isinstance(v, dict):
+            out += weapon_tree(v, p)
+        elif isinstance(v, bool):
+            out.append([p, "b", v])
+        elif isinstance(v, int):
+            out.append([p, "i", v])
+        elif isinstance(v, float):
+            out.append([p, "r", v])
+        elif isinstance(v, str):
+            if cdk.ADV_TEXT.match(v):
+                out.append([p, "t", v])
+        elif (isinstance(v, list) and 2 <= len(v) <= 4 and all(isinstance(x, float) for x in v)):
+            out.append([p, f"p{len(v)}", v])
+    return out
+
+
+_weapon_keys: dict = {"for": None, "map": {}}
+
+
+def weapon_keys() -> dict:
+    """{Weapons tab id: pylon catalog key}. A Weapons tab row is named after its projectile (bulletName, e.g.
+    "pl_5e2"), the catalog after its file ("su_pl5e2"): read once from the local datamine (0.3 s), again after an
+    update. Files that aren't "_default" variants win."""
+    catalog = STATE.get_catalog()
+    if _weapon_keys["for"] is not catalog:
+        out: dict = {}
+        for key, w in catalog.items():
+            folder = str(w.get("p", "")).replace("\\", "/").split("/")[-2].lower()
+            payload = cdk.PAYLOADS.get(folder)
+            if w.get("pod") or not payload:
+                continue
+            d = builder.load(builder.blk_to_path(w["p"]))
+            blocks = d.get(payload) if isinstance(d, dict) else None
+            for b in blocks if isinstance(blocks, list) else [blocks]:
+                if not isinstance(b, dict):
+                    continue
+                name = b.get("bulletName")
+                name = name[0] if isinstance(name, list) and name else name
+                iid = (name if isinstance(name, str) and name else key).lower()
+                cur = out.get(iid)
+                if cur is None or (cur.endswith("_default") and not key.endswith("_default")):
+                    out[iid] = key
+            out.setdefault(key.lower(), key)
+        _weapon_keys.update({"for": catalog, "map": out})
+    return _weapon_keys["map"]
+
+
+def weapon_base(key: str) -> dict | None:
+    """A pylon weapon's own values (local datamine copy): what My weapons' editor starts from."""
+    w = STATE.get_catalog().get(key)
+    if not w or not SAFE_ID.match(key) or w.get("pod"):
+        return None
+    folder = str(w.get("p", "")).replace("\\", "/").split("/")[-2].lower()
+    payload = cdk.PAYLOADS.get(folder)
+    d = builder.load(builder.blk_to_path(w["p"])) if payload else None
+    block = d.get(payload) if isinstance(d, dict) else None
+    block = block[0] if isinstance(block, list) and block else block
+    if not isinstance(block, dict):
+        return None
+    out = {"key": key, "kind": payload, "c": w.get("c"), "guided": bool(w.get("g") and payload == "rocket"),
+           "tree": weapon_tree(d)}
+    for name, path in WEAPON_BASE_FIELDS.items():
+        node = block
+        for part in path:
+            node = node.get(part) if isinstance(node, dict) else None
+        if isinstance(node, list) and node and isinstance(node[0], (int, float)):
+            node = node[0]
+        if isinstance(node, (int, float)) and not isinstance(node, bool):
+            out[name] = node
+    return out
 
 
 def _prepare_cdk(body: dict) -> tuple[dict, dict]:
@@ -767,6 +878,8 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
         fm = str((det.get("st") or {}).get("fm") or "")
         if fm:
             fm_data = builder.load(builder.DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / (fm.lower() + "x"))
+    if isinstance(body.get("pylons"), dict):
+        body["pylons"] = custom_weapons(body["pylons"])
     non_std = any(isinstance(v, dict) for v in (body.get("pylons") or {}).values())
     if mods.get("invulnerable") or non_std:
         # needs the local datamine copy (damage model, pylon layout for non-standard weapons)

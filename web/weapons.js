@@ -56,7 +56,8 @@ async function openWeaponsView() {
   if (!AR.data) {
     $('#arTable').innerHTML = `<p class="hint">${esc(t('arm.loading'))}</p>`;
     try {
-      AR.data = await getData('armament.json');
+      // + the pylon catalog and which row is which pylon weapon: Modify (My weapons)
+      [AR.data, , AR.keys] = await Promise.all([getData('armament.json'), loadWeapons(), api('weapon-keys').catch(() => ({}))]);
       AR.byId = new Map(AR.data.items.map(it => [it.id, it]));
       AR.max = {};
       for (const it of AR.data.items) {
@@ -108,6 +109,9 @@ function arItems() {
 
 const arTags = it => `${it.g ? `<span class="ar-tag g">${esc(t('arm.g.' + it.g))}</span>` : ''}${AR_FLAGS.filter(f => it[f] && f !== 'act')
   .map(f => `<span class="ar-tag${f === 'iw' ? ' nk' : ''}" title="${esc(t(f === 'ccm' && it.ccmt ? 'arm.fh.ccm_' + it.ccmt : 'arm.fh.' + f))}">${esc(t('arm.f.' + f))}</span>`).join('')}`;
+// the pylon weapon a row can be modified from (My weapons): rows are named after the projectile ("pl_5e2"), the
+// catalog after the file ("su_pl5e2"); ground-launched ones (tank ATGMs, SAMs) have none
+const arKey = it => [AR.keys?.[it.id], it.id].find(k => k && LP.weapons?.[k] && !LP.weapons[k].pod) || '';
 const arFlags = it => (it.nat || []).slice(0, 4).map(n => flagHTML(n)).join('') + (it.nat?.length > 4 ? `<span class="muted">+${it.nat.length - 4}</span>` : '');
 
 function renderWeapons() {
@@ -152,7 +156,7 @@ function renderWeaponTable() {
   $('#arCount').textContent = t('arm.count', { n: I18N.num(list.length) });
   $('#arTable').innerHTML = list.length ? `<table class="ar-table"><thead><tr><th></th>${th('name', t('arm.col.name'))}<th>${esc(t('arm.col.type'))}</th>
       ${AR.use ? th('score', t('arm.col.score'), t('arm.useh.' + AR.use)) : ''}
-      ${cols.map(k => th(k, t('arm.col.' + k), t('arm.colh.' + k))).join('')}${th('br', t('arm.col.br'), t('arm.colh.br'))}${th('nv', t('arm.col.nv'), t('arm.colh.nv'))}</tr></thead>
+      ${cols.map(k => th(k, t('arm.col.' + k), t('arm.colh.' + k))).join('')}${th('br', t('arm.col.br'), t('arm.colh.br'))}${th('nv', t('arm.col.nv'), t('arm.colh.nv'))}<th></th></tr></thead>
     <tbody>${list.map(it => {
       const sc = AR.use ? arScore(it, AR.use) / max : 0;
       return `<tr class="${AR.open === it.id ? 'open' : ''}" data-arrow="${esc(it.id)}">
@@ -161,8 +165,9 @@ function renderWeaponTable() {
         <td class="ar-tags">${arTags(it)}</td>
         ${AR.use ? `<td class="ar-score"><span class="bar"><i style="width:${Math.round(sc * 100)}%"></i></span><b>${Math.round(sc * 100)}</b></td>` : ''}
         ${cols.map(k => `<td>${esc(arFmt(k, it[k], it.c))}</td>`).join('')}
-        <td>${esc(fmtBR(it.br))}</td><td>${esc(I18N.num(it.nv || 0))}</td></tr>
-        ${AR.open === it.id ? `<tr class="ar-detail"><td colspan="${5 + cols.length + (AR.use ? 1 : 0)}">${weaponDetailHTML(it)}</td></tr>` : ''}`;
+        <td>${esc(fmtBR(it.br))}</td><td>${esc(I18N.num(it.nv || 0))}</td>
+        <td class="ar-mod">${arKey(it) ? `<button class="btn btn-sm btn-ghost" data-armod="${esc(it.id)}" title="${esc(t('myw.modifyHint'))}">${icon('sliders', 'ic-sm')}<span>${esc(t('myw.modify'))}</span></button>` : ''}</td></tr>
+        ${AR.open === it.id ? `<tr class="ar-detail"><td colspan="${6 + cols.length + (AR.use ? 1 : 0)}">${weaponDetailHTML(it)}</td></tr>` : ''}`;
     }).join('')}</tbody></table>` : `<p class="hint">${esc(t('results.empty'))}</p>`;
 }
 
@@ -252,6 +257,7 @@ function bindWeapons() {
     if (d.arguide !== undefined) { AR.guide = !AR.guide; store.set('wguide', AR.guide ? 1 : 0); return renderWeaponGuide(AR.data.items.filter(it => it.c === AR.cat)); }
     if (d.aropen) { AR.g = ''; AR.q = ''; $('#arSearch').value = ''; AR.open = d.aropen; renderWeapons(); return $(`tr[data-arrow="${CSS.escape(d.aropen)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
     if (d.arveh) { showView('vehicles'); return openVehicle(d.arveh); }
+    if (d.armod) { const it = AR.byId.get(d.armod); return it && openWeaponEditor({ key: arKey(it), item: it }); }
     if (d.arsort) {
       const k = d.arsort;
       if (AR.sort === k) AR.dir = -AR.dir;

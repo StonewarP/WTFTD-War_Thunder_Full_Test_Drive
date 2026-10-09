@@ -239,6 +239,40 @@ the app and the folder once, 6 s later (checked on throwaway files: removed once
   tests (`AfterExitShell`, 2026-10-09). Opened straight from Downloads (App Translocation), "The app itself" is
   greyed out and asks to move WTFTD.app to the Trash.
 
+## 2k. Modified pylon weapons (new test)
+
+A pylon weapon with changes (`{"w": key, "n": count, "mod": {...}}`, no UI yet) gets a file of its own,
+`gameData/Weapons/wtftd/<vehicle>_p<pylon>.blk`: `include` of the game's weapon + overrides of its `rocket` / `bomb`
+block (`cdk._custom_weapon`); the pylon's preset uses it. Launchers (LAU-7…) are not handled yet. Unknown: whether
+the game loads a weapon from that folder at all, and which values drive a missile's turn (G).
+
+- [ ] **WTFTD r11: custom weapons (F-14B)** (`wtftd_r11_custom_weapons`, Afghanistan test flight, invulnerable,
+  enemies passive): AIM-9L on pylons 1 and 8 at 100 G (`loadFactorMax`, autopilot `reqAccelMax`, `finsLatAccel` 150),
+  thrust ×5 (54 000 N) for 10 s, Mach 6; AIM-9M on pylons 2 and 7 with 500 kg of explosive (3.6); Mk 82 on pylons 4
+  and 5 with 10 t of explosive (87 kg). Played 2026-10-09: all carried and fired; the AIM-9L much faster (thrust
+  works). But the HUD names made no sense (the game names a weapon after its file: `weapons/<file name>`), the
+  missiles left two by two (one file per pylon = two weapons firing together), the Mk 82 blast looked ordinary (the
+  effect is the weapon's own, `explosionFx`), the AIM-9M did not hit (blast not seen).
+- [ ] **WTFTD r11b: custom weapons, names fixed (F-14B)** (same file): one file per weapon + changes, named as the
+  game's (`wtftd/f_14b_<n>/us_aim9l_sidewinder.blk`), the explosion effect of a weapon that size (`BOMB_FX`,
+  `ROCKET_FX`; past 220 kg a missile also gets a bomb's `explosionFx`, a new value in its block). Check: real names;
+  one missile per press; AIM-9L tight turns off-boresight; big AIM-9M / Mk 82 blasts, tanks killed far from the
+  impact. Also tells whether a same-named copy clashes with the real weapon (the test flight's AI F-14B carries it).
+  Played 2026-10-09 (with instant reload): AIM-9L very fast (the same-named copy keeps its changes); AIM-9M "heavy"
+  with a big blast; Mk 82 blast bigger; real names in the HUD; much tighter turns at 100 G. But still two missiles
+  / bombs per press (the game's pylon presets mark each weapon `separate:b=yes`; ours did not), and the Mk 82 at
+  10 t kills only a little farther (blast radius grows as the cube root of the charge: x115 → about x5).
+- [x] **WTFTD r11c: one at a time, nuclear charges (F-14B)** (same file): `separate:b=yes` on every pylon weapon;
+  `kt` = a nuclear charge as the game's nuclear bombs (`yield`, `splashFallBySquare`, `nuclearExplosionFx`
+  under 15 kt): AIM-9M (pylons 2, 7) 5 kt, Mk 84 (pylon 5) 20 kt, Mk 82 (pylon 4) 10 t. Check: one per press; a
+  nuclear explosion from the missile? from the Mk 84? tanks destroyed far around. Works (2026-10-09): one per
+  press, the AIM-9M makes a nuclear explosion, the Mk 84 too and destroys tanks far around.
+
+- [ ] **My weapons from the page** (tab My weapons, Weapons → Modify): make a weapon with Simple + one Advanced
+  value (e.g. AIM-9L, Absurd, `rocket/guidance/workTime` 60), put it on two pylons of an aircraft (Loadout →
+  Custom pylons → My weapons) and on an AI aircraft's loadout, create the mission and play it: the changes are
+  there, one per press; edit the weapon, create again: the new values are used.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

@@ -183,6 +183,7 @@ async function boot() {
   bindAppInfo();
   bindCompare();
   bindWeapons();
+  bindMyWeapons();
   bindMaps();
   bindLibrary();
   showView('vehicles');
@@ -567,6 +568,7 @@ function showView(name) {
   if (name === 'missions') refreshMissions();
   if (name === 'setups') renderSetups();
   if (name === 'mymaps') renderMyMaps();
+  if (name === 'myweapons') renderMyWeapons();
 }
 
 // ------------------------------------------------------------------ vehicle drawer

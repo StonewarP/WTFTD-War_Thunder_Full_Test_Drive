@@ -114,6 +114,58 @@ class SuperMobility(unittest.TestCase):
         self.assertIn('"@override:EmptyMass":r=600', files["gameData/flightModels/fm/wtftd_x.blk"])  # 40 % lighter
 
 
+class CustomPylonWeapons(unittest.TestCase):
+    def test_modified_copy_of_the_weapon(self):
+        aim = {"p": "gameData/Weapons/rocketguns/us_aim9l_sidewinder.blk", "c": "aam_ir", "g": "ir", "t": "aam"}
+        text = cdk._custom_weapon(aim, {"e": 50, "force": 54000, "g": 100, "gReq": 100}, "x")
+        self.assertIn('include "#/develop/gameBase/gameData/Weapons/rocketguns/us_aim9l_sidewinder.blk"', text)
+        self.assertIn('"@override:rocket"{', text)
+        self.assertIn('"@override:explosiveMass":r=50', text)
+        self.assertIn('"@override:loadFactorMax":r=100', text)
+        self.assertIn('"@override:reqAccelMax":r=100', text)
+        bomb = {"p": "gameData/Weapons/bombguns/us_500lb_mk_82_ldgp.blk", "c": "bombs", "g": "", "t": "bombs"}
+        text = cdk._custom_weapon(bomb, {"e": 10000, "g": 100}, "x")
+        self.assertIn('"@override:bomb"{', text)
+        self.assertIn('"@override:explosionFx":t="bomb_expl_5000kg"', text)  # the explosion of a bomb that size
+        text = cdk._custom_weapon(aim, {"e": 500}, "x")
+        self.assertIn('"@override:explosionEffect":t="explosion_midair_rocket_big"', text)
+        self.assertIn('explosionFx:t="bomb_expl_1000kg"', text)
+        self.assertNotIn("loadFactorMax", text)  # unguided: no autopilot to override
+        text = cdk._custom_weapon(bomb, {"kt": 20}, "x")
+        self.assertIn("yield:r=20", text)  # a nuclear charge: new values, the Mk 82 has none
+        self.assertIn("splashFallBySquare:b=yes", text)
+        self.assertIsNone(cdk._custom_weapon(bomb, {}, "x"))
+        self.assertIsNone(cdk._custom_weapon(dict(bomb, pod=6), {"e": 1}, "x"))  # launchers: not yet
+        with self.assertRaises(cdk.CdkError):
+            cdk._custom_weapon(bomb, {"e": -1}, "x")
+
+
+class MyWeapons(unittest.TestCase):
+    def test_pylons_take_the_weapons_current_changes(self):
+        saved = [{"id": "a1", "w": "us_aim9l_sidewinder", "mod": {"e": 500}}]
+        real = server.read_json
+        server.read_json = lambda path, default: saved if path.name == "weapons.json" else real(path, default)
+        try:
+            out = server.custom_weapons({"1": {"w": "us_aim9l_sidewinder", "n": 1, "cw": "a1", "mod": {"e": 50}},
+                                         "2": {"w": "x", "n": 1, "cw": "gone", "mod": {"e": 7}}, "3": "aim_9l"})
+        finally:
+            server.read_json = real
+        self.assertEqual(out["1"]["mod"], {"e": 500})  # edited since: the current changes
+        self.assertEqual(out["2"]["mod"], {"e": 7})    # deleted: the changes saved with the pylon
+        self.assertEqual(out["3"], "aim_9l")
+
+    def test_value_tree_of_a_weapon_file(self):
+        tree = server.weapon_tree({"rocket": {"mass": 84.5, "bullets": 1, "on": True, "fx": "a_b", "bad": "x\"y",
+                                              "p": [1.0, 2.0], "ints": [1, 2], "rep": [{"a": 1}], "guidance": {"workTime": 20.0}}})
+        self.assertIn(["rocket/mass", "r", 84.5], tree)
+        self.assertIn(["rocket/bullets", "i", 1], tree)
+        self.assertIn(["rocket/on", "b", True], tree)
+        self.assertIn(["rocket/p", "p2", [1.0, 2.0]], tree)
+        self.assertIn(["rocket/guidance/workTime", "r", 20.0], tree)
+        paths = {p for p, _, _ in tree}
+        self.assertFalse({"rocket/bad", "rocket/ints", "rocket/rep"} & paths)  # unsafe text, int points, repeated blocks
+
+
 class AircraftHandling(unittest.TestCase):
     def test_roll_pitch_turn_drag(self):
         from wtftd import cdk

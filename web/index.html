@@ -70,6 +70,7 @@
     <button class="tab" data-view="mymaps" role="tab"><span data-i18n="nav.myMaps"></span><span class="tab-count" id="myMapCount"></span></button>
     <button class="tab" data-view="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
     <button class="tab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
+    <button class="tab" data-view="myweapons" role="tab"><span data-i18n="nav.myWeapons"></span><span class="tab-count" id="myWeaponCount"></span></button>
   </nav>
   <label class="search">
     <svg class="ic"><use href="#i-search"/></svg>
@@ -177,6 +178,11 @@
       <div class="ar-chips ar-uses" id="arUses"></div>
       <div class="ar-scroll" id="arTable"></div>
       <div class="compare-tray ar-tray hidden" id="arTray"></div>
+    </div>
+
+    <div class="view hidden" id="view-myweapons">
+      <div class="page-head"><div><h2 data-i18n="myw.title"></h2><p class="muted" data-i18n="myw.hint"></p></div></div>
+      <div class="list" id="myWeaponList"></div>
     </div>
 
     <div class="view hidden" id="view-mymaps">
@@ -380,6 +386,18 @@
   </div>
 </dialog>
 
+<dialog class="modal modal-wedit" id="dlgWeaponEdit">
+  <form method="dialog" class="modal-inner" id="weForm">
+    <div class="modal-head"><h3><svg class="ic"><use href="#i-sliders"/></svg><span id="weTitle"></span></h3>
+      <button class="icon-btn" value="cancel" formnovalidate><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body" id="weBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" value="cancel" formnovalidate data-i18n="action.cancel"></button>
+      <button class="btn btn-primary" value="ok" id="weSave" data-i18n="action.save"></button>
+    </div>
+  </form>
+</dialog>
+
 <dialog class="modal" id="dlgPrompt">
   <form method="dialog" class="modal-inner">
     <div class="modal-head"><h3 id="promptTitle"></h3></div>
@@ -441,6 +459,7 @@
 <script src="appinfo.js"></script>
 <script src="compare.js"></script>
 <script src="weapons.js"></script>
+<script src="myweapons.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 </body>
