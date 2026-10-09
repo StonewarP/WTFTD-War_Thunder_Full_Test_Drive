@@ -160,9 +160,10 @@ itself when one of them gets another vehicle, and that import gets `importUnits:
   shot down by the SAM. The 2 MiG-29 were in the mission ~7 km from the real start (`spawn_area01`); their hunt order
   was only given at mission start, before the templates' scripts spawn you: lost. Now every hunt order (added and
   scenario units too) is given again every 10 s (`wtftd_hunt`).
-- [ ] **WTFTD r7c: aircraft hunting you, ground passive** (`wtftd_r7_air_hunt`): ground targets and SAM passive;
-  2 MiG-29 9.13 added 6 km north of the start and the target aircraft hunt you (every 10 s). Do the MiG-29 come
-  at you and fire? Do the target aircraft?
+- [x] **WTFTD r7c: aircraft hunting you, ground passive** (`wtftd_r7_air_hunt`, 2026-10-09): a template F-4E
+  came at the player and shot them down: Hunts me works for aircraft once the order is repeated (every 10 s).
+  The earlier invulnerable run already repeated it for the template's aircraft and none attacked: the invulnerable
+  cheat (`isImmortal` + `invulnerabilityTimer`, spawn protection) most likely makes AI aircraft leave you alone.
 
 ## 3. Ammunition icons (UI only)
 
