@@ -267,7 +267,7 @@
   "cheat.noOverload": "Cellula indistruttibile",
   "cheat.noOverloadHint": "Niente ali strappate da sovravelocità o G; carrello, flap e tettuccio non si rompono (veicoli personalizzati: i limiti del modello di volo vengono alzati).",
   "cheat.superMobility": "Super mobilità",
-  "cheat.superMobilityHint": "Veicoli terrestri: potenza ×4, velocità massima ×2, freni ×3. Aerei: potenza / spinta ×3, 40 % più leggero. Veicoli personalizzati; un valore impostato in Modifiche ha la precedenza.",
+  "cheat.superMobilityHint": "Veicoli terrestri: potenza ×4, velocità massima ×2, freni ×3. Aerei: rollio e beccheggio molto più rapidi, virate più strette (più portanza, comandi più grandi e rapidi, meno inerzia), metà resistenza, potenza / spinta ×3, 40 % più leggero; da abbinare a Cellula indistruttibile. Veicoli personalizzati; un valore impostato in Modifiche ha la precedenza.",
   "cheat.needsCdk": "(Richiede i veicoli personalizzati.)",
   "cheat.infAmmo": "Munizioni illimitate",
   "cheat.infAmmoHint": "Il gioco ricarica le munizioni quando finiscono.",

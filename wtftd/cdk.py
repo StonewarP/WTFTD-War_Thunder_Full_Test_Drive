@@ -96,6 +96,9 @@ class Blk:
     def p2(self, name: str, v):
         self.line(f'"@override:{name}":p2={_r(v[0])}, {_r(v[1])}')
 
+    def p3(self, name: str, v):
+        self.line(f'"@override:{name}":p3={_r(v[0])}, {_r(v[1])}, {_r(v[2])}')
+
     def text(self, name: str, v: str):
         self.line(f'"@override:{name}":t="{v}"')
 
@@ -235,13 +238,58 @@ def _power_overrides(fm: dict, mul: float) -> dict:
     return out
 
 
+def _handling_overrides(fm: dict) -> dict:
+    """{path: (type, value)} for an aircraft that turns, rolls and pitches far better (super mobility): moment of
+    inertia x0.4, control surfaces x1.5 in area, x2 in deflection rate and in the speed up to which they stay
+    effective, the wing's maximum lift x1.3 (old flight models: NoFlaps / FullFlaps; recent: WingPlane* /
+    FlapsPolar*), every minimum drag coefficient (CdMin) x0.5."""
+    out = {}
+
+    def num(v):
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+    def scaled(v, k):
+        if num(v):
+            return ("r", float(v) * k)
+        if isinstance(v, list) and len(v) in (2, 3) and all(num(x) for x in v):
+            return ("p2" if len(v) == 2 else "p3", [float(x) * k for x in v])
+        return None
+
+    def walk(n, path):
+        for k, v in n.items():
+            p = path + (k,)
+            if isinstance(v, dict):
+                walk(v, p)
+                continue
+            mul = None
+            if p == ("MomentOfInertia",):
+                mul = 0.4
+            elif len(p) == 1 and k in ("AileronEffectiveSpeed", "RudderEffectiveSpeed", "ElevatorsEffectiveSpeed",
+                                       "AileronMaxDv", "ElevatorMaxDv", "RudderMaxDv"):
+                mul = 2.0
+            elif len(p) >= 2 and p[-2] == "Areas" and k in ("Aileron", "Elevator", "Rudder"):
+                mul = 1.5
+            elif p[0] == "Aerodynamics" and k == "CdMin":
+                mul = 0.5
+            elif p[0] == "Aerodynamics" and k in ("ClCritHigh", "ClCritLow") and (
+                    any(x in ("NoFlaps", "FullFlaps") for x in p)
+                    or (any(x.startswith("WingPlane") for x in p) and any(x.startswith("FlapsPolar") for x in p))):
+                mul = 1.3
+            got = scaled(v, mul) if mul else None
+            if got:
+                out[p] = got
+
+    walk(fm or {}, ())
+    return out
+
+
 def _write_tree(b: "Blk", tree: dict):
     """Writes {path: (type, value)} as nested @override blocks."""
     groups: dict = {}
     for path, tv in tree.items():
         if len(path) == 1:
             typ, v = tv
-            {"r": b.real, "p2": b.p2, "i": b.int}[typ](path[0], v)
+            {"r": b.real, "p2": b.p2, "p3": b.p3, "i": b.int}[typ](path[0], v)
         else:
             groups.setdefault(path[0], {})[path[1:]] = tv
     for name, sub in groups.items():
@@ -388,7 +436,8 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
             if mods.get("noStructural") and isinstance(fm_data, dict):
                 tree.update(_structural_overrides(fm_data))
             if mods.get("superMobility") and isinstance(fm_data, dict):
-                # super mobility (aircraft): engine output x3 and 40 % lighter, unless set by hand
+                # super mobility (aircraft): handling (roll, pitch, turn, drag), engine output x3, 40 % lighter
+                tree.update(_handling_overrides(fm_data))
                 if not thrust_mul:
                     tree.update(_power_overrides(fm_data, 3.0))
                 if not mass and st.get("mass"):

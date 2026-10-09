@@ -267,7 +267,7 @@
   "cheat.noOverload": "Cellule incassable",
   "cheat.noOverloadHint": "Pas d'ailes arrachées par la survitesse ou les G ; train, volets et verrière ne cassent pas non plus (véhicules personnalisés : les limites du modèle de vol sont relevées).",
   "cheat.superMobility": "Super mobilité",
-  "cheat.superMobilityHint": "Véhicules terrestres : puissance moteur ×4, vitesse de pointe ×2, freins ×3. Avions : puissance / poussée ×3, 40 % plus léger. Véhicules personnalisés ; une valeur réglée dans Modifications l'emporte.",
+  "cheat.superMobilityHint": "Véhicules terrestres : puissance ×4, vitesse de pointe ×2, freins ×3. Avions : roulis et tangage bien plus rapides, virages plus serrés (plus de portance, gouvernes plus grandes et plus rapides, moins d'inertie), traînée divisée par 2, puissance / poussée ×3, 40 % plus léger ; à combiner avec Cellule incassable. Véhicules personnalisés ; une valeur réglée dans Modifications l'emporte.",
   "cheat.needsCdk": "(Nécessite les véhicules personnalisés.)",
   "cheat.infAmmo": "Munitions illimitées",
   "cheat.infAmmoHint": "Le jeu recharge vos munitions quand vous êtes à court.",

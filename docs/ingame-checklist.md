@@ -198,12 +198,17 @@ flight model's breaking limits raised (`Vne`, `VneMach`, `Strength/VNE` and `MNE
 Custom vehicles. Ground vehicles: `engine/horsePowers` ×4, `mechanics/mainGearRatio` ÷2 (top speed ×2),
 `mechanics/maxBrakeForce` ×3. Aircraft: jets `ThrustMax0` ×3, piston engines `Main/Power` and the compressor's
 `Power<n>` / `PowerConstRPM<n>` / `PowerAtCeiling<n>` ×3; `Mass/EmptyMass` ×0.6. A value set under Modifications
-wins. (The ground modifications themselves had never been checked in game.)
+wins. (The ground modifications themselves had never been checked in game.) Aircraft handling too (`cdk._handling_overrides`):
+`MomentOfInertia` ×0.4, `Areas/Aileron|Elevator|Rudder` ×1.5, `*EffectiveSpeed` and `*MaxDv` ×2, the wing's
+`ClCritHigh` / `ClCritLow` ×1.3 (NoFlaps / FullFlaps, WingPlane* / FlapsPolar*), every `CdMin` ×0.5.
 
 - [ ] **WTFTD r9a: super mobility, T-72A** (`wtftd_r9_mobility_tank`, tank test drive): much faster acceleration,
   top speed about 120 km/h instead of 60, still turns and brakes well.
-- [ ] **WTFTD r9b: super mobility, Bf 109 F-4** (`wtftd_r9_mobility_air`, Afghanistan test flight): 3510 hp instead
-  of 1170, 40 % lighter: much stronger climb and acceleration, tighter turns, the engine runs normally.
+- [ ] **WTFTD r9b: super mobility, Bf 109 F-4** (`wtftd_r9_mobility_air`, Afghanistan test flight): roll, pitch, turn
+  time, acceleration and climb far better (3510 hp instead of 1170, 40 % lighter, half the drag); still flyable;
+  the engine runs normally.
+- [ ] **WTFTD r9c: super mobility + unbreakable airframe, F-14B** (`wtftd_r9_mobility_jet`): roll, pitch, turn time
+  and acceleration far better than a normal F-14B; still flyable; the wings stay on in hard turns.
 
 ## 3. Ammunition icons (UI only)
 

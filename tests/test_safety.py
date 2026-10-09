@@ -112,3 +112,22 @@ class SuperMobility(unittest.TestCase):
         det = {"st": {"fm": "fm/x.blk", "mass": 1000.0}}
         files = cdk.build_files("x", "air", det, {"superMobility": True}, "", None, "custom", None, {}, fm_data=fm)[0]
         self.assertIn('"@override:EmptyMass":r=600', files["gameData/flightModels/fm/wtftd_x.blk"])  # 40 % lighter
+
+
+class AircraftHandling(unittest.TestCase):
+    def test_roll_pitch_turn_drag(self):
+        from wtftd import cdk
+        fm = {"MomentOfInertia": [5500.0, 15500.0, 10000.0], "AileronEffectiveSpeed": 450.0,
+              "ElevatorsEffectiveSpeed": [450.0, 450.0], "Areas": {"Aileron": 0.89, "Wing": 16.0},
+              "Aerodynamics": {"NoFlaps": {"ClCritHigh": 1.2, "CdMin": 0.01}, "Fuselage": {"ClCritHigh": 0.2, "CdMin": 0.01},
+                               "WingPlane": {"FlapsPolar0": {"ClCritHigh": 1.7}}, "HorStabPlane": {"Areas": {"Elevator": 12.0}}}}
+        t = cdk._handling_overrides(fm)
+        self.assertEqual(t[("MomentOfInertia",)], ("p3", [2200.0, 6200.0, 4000.0]))
+        self.assertEqual(t[("ElevatorsEffectiveSpeed",)], ("p2", [900.0, 900.0]))
+        self.assertEqual(t[("Areas", "Aileron")], ("r", 0.89 * 1.5))
+        self.assertNotIn(("Areas", "Wing"), t)
+        self.assertEqual(t[("Aerodynamics", "NoFlaps", "ClCritHigh")], ("r", 1.2 * 1.3))
+        self.assertNotIn(("Aerodynamics", "Fuselage", "ClCritHigh"), t)  # the wing's lift only
+        self.assertEqual(t[("Aerodynamics", "Fuselage", "CdMin")], ("r", 0.005))
+        self.assertIn(("Aerodynamics", "WingPlane", "FlapsPolar0", "ClCritHigh"), t)
+        self.assertIn(("Aerodynamics", "HorStabPlane", "Areas", "Elevator"), t)

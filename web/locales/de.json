@@ -267,7 +267,7 @@
   "cheat.noOverload": "Unzerstörbare Zelle",
   "cheat.noOverloadHint": "Keine abgerissenen Flügel durch Überdrehzahl oder G; Fahrwerk, Klappen und Haube brechen auch nicht (eigene Fahrzeuge: die Grenzen des Flugmodells werden angehoben).",
   "cheat.superMobility": "Super-Mobilität",
-  "cheat.superMobilityHint": "Bodenfahrzeuge: Motorleistung ×4, Höchstgeschwindigkeit ×2, Bremsen ×3. Flugzeuge: Leistung / Schub ×3, 40 % leichter. Eigene Fahrzeuge; ein unter Modifikationen gesetzter Wert hat Vorrang.",
+  "cheat.superMobilityHint": "Bodenfahrzeuge: Leistung ×4, Höchstgeschwindigkeit ×2, Bremsen ×3. Flugzeuge: viel schnelleres Rollen und Nicken, engere Kurven (mehr Auftrieb, größere und schnellere Ruder, weniger Trägheit), halber Widerstand, Leistung / Schub ×3, 40 % leichter; mit Unzerstörbare Zelle kombinieren. Eigene Fahrzeuge; ein unter Modifikationen gesetzter Wert hat Vorrang.",
   "cheat.needsCdk": "(Benötigt eigene Fahrzeuge.)",
   "cheat.infAmmo": "Unbegrenzte Munition",
   "cheat.infAmmoHint": "Das Spiel füllt deine Munition auf, wenn sie ausgeht.",

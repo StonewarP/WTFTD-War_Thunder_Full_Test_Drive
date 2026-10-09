@@ -267,7 +267,7 @@
   "cheat.noOverload": "Fuselaje irrompible",
   "cheat.noOverloadHint": "Sin alas arrancadas por exceso de velocidad o de G; tren, flaps y cúpula tampoco se rompen (vehículos personalizados: se elevan los límites del modelo de vuelo).",
   "cheat.superMobility": "Supermovilidad",
-  "cheat.superMobilityHint": "Vehículos terrestres: potencia ×4, velocidad máxima ×2, frenos ×3. Aviones: potencia / empuje ×3, 40 % más ligero. Vehículos personalizados; un valor fijado en Modificaciones manda.",
+  "cheat.superMobilityHint": "Vehículos terrestres: potencia ×4, velocidad máxima ×2, frenos ×3. Aviones: alabeo y cabeceo mucho más rápidos, giros más cerrados (más sustentación, mandos más grandes y rápidos, menos inercia), mitad de resistencia, potencia / empuje ×3, 40 % más ligero; combínalo con Fuselaje irrompible. Vehículos personalizados; un valor fijado en Modificaciones manda.",
   "cheat.needsCdk": "(Requiere vehículos personalizados.)",
   "cheat.infAmmo": "Munición ilimitada",
   "cheat.infAmmoHint": "El juego repone tu munición cuando se agota.",

@@ -267,7 +267,7 @@
   "cheat.noOverload": "Niezniszczalny płatowiec",
   "cheat.noOverloadHint": "Skrzydła nie odpadają od nadmiernej prędkości ani przeciążenia; podwozie, klapy i owiewka też się nie łamią (własne pojazdy: limity modelu lotu są podniesione).",
   "cheat.superMobility": "Super mobilność",
-  "cheat.superMobilityHint": "Pojazdy naziemne: moc ×4, prędkość maksymalna ×2, hamulce ×3. Samoloty: moc / ciąg ×3, 40 % lżejszy. Własne pojazdy; wartość ustawiona w Modyfikacjach ma pierwszeństwo.",
+  "cheat.superMobilityHint": "Pojazdy naziemne: moc ×4, prędkość maksymalna ×2, hamulce ×3. Samoloty: znacznie szybszy przechył i pochylenie, ciaśniejsze zakręty (większa siła nośna, większe i szybsze stery, mniejsza bezwładność), o połowę mniejszy opór, moc / ciąg ×3, 40 % lżejszy; łącz z Niezniszczalnym płatowcem. Własne pojazdy; wartość ustawiona w Modyfikacjach ma pierwszeństwo.",
   "cheat.needsCdk": "(Wymaga własnych pojazdów.)",
   "cheat.infAmmo": "Nieskończona amunicja",
   "cheat.infAmmoHint": "Gra uzupełnia amunicję, gdy się skończy.",
