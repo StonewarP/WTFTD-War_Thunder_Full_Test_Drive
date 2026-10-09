@@ -14,6 +14,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -156,6 +157,20 @@ def cached_image(kind: str, ident: str) -> Path | None:
         except OSError:
             pass
         return None
+
+
+def warm_weapon_icons():
+    """The Weapons tab's icons (≈70, a few KB each) fetched in the background, a few at a time, so the page shows
+    them at once: the browser asks 6 at a time, each one waiting for its download (≈4 s for the tab on a new install).
+    Only once the game data is there (meta.json is written last): on a first install, after the welcome screen was
+    accepted and the download done; run_update starts it again for the weapons of a new patch."""
+    while not (DATA / "meta.json").exists():
+        time.sleep(5)
+    items = read_json(DATA / "armament.json", {}).get("items") or []
+    todo = [ic for ic in sorted({it.get("ic") for it in items if isinstance(it, dict) and isinstance(it.get("ic"), str)})
+            if SAFE_ID.match(ic) and not (IMG_CACHE / "ammo" / f"{ic}.png").exists()]
+    with ThreadPoolExecutor(8) as pool:
+        list(pool.map(lambda ic: cached_image("ammo", ic), todo))
 
 
 def image_urls(kind: str, ident: str) -> list[str]:
@@ -324,6 +339,7 @@ def run_update():
         st["after"] = meta.get("version")
         st["newVehicles"] = max(0, int(meta.get("vehicles", 0)) - int(before.get("vehicles", 0) or 0))
         st["done"] = True
+        threading.Thread(target=warm_weapon_icons, daemon=True).start()  # weapons new in this patch
     except Exception as e:  # report any builder failure to the UI
         st["error"] = str(e)
     finally:
@@ -431,6 +447,13 @@ class Handler(BaseHTTPRequestHandler):
             if re.fullmatch(r"[a-z0-9_]+", level) and terrain.grid_path(level).exists():
                 return self.send_file(terrain.grid_path(level), cache=True)
             return self.send_error(HTTPStatus.NOT_FOUND)
+        if path.startswith("/img/mapthumb/"):  # the maps tab's pictures: a small copy of the map
+            name = path.rsplit("/", 1)[-1].removesuffix(".png")
+            try:
+                gd = STATE.game_dir()
+                return self.send_file(maptex.thumb_path(gd, name, oodle_dll(gd)), cache=True)
+            except (maptex.MapTexError, OSError) as e:
+                return self.send_json({"error": str(e)}, 404)
         if path.startswith("/img/maptex/"):
             name = path.rsplit("/", 1)[-1].removesuffix(".png")
             try:
@@ -870,7 +893,8 @@ def level_map(level: str) -> dict | None:
             if not oodle:
                 no_oodle = True
                 continue
-        layers.append({"url": f"/img/maptex/{name}.png", "min": info[a], "max": info[b], "zUp": True})
+        layers.append({"url": f"/img/maptex/{name}.png", "thumb": f"/img/mapthumb/{name}.png",
+                       "min": info[a], "max": info[b], "zUp": True})
     if layers:
         return {"source": "game", "layers": layers}
     cap = captured_map(level)
@@ -897,4 +921,5 @@ def serve(port: int = 8777) -> tuple[ThreadingHTTPServer, str]:
     httpd.daemon_threads = True
     threading.Thread(target=auto_update_loop, daemon=True).start()
     threading.Thread(target=map_capture_loop, daemon=True).start()
+    threading.Thread(target=warm_weapon_icons, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}/"

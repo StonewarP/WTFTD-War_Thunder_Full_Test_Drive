@@ -262,6 +262,56 @@ def _png(w: int, h: int, rgba: bytearray) -> bytes:
             + chunk(b"IDAT", zlib.compress(rows, 6)) + chunk(b"IEND", b""))
 
 
+THUMBS = APP_CACHE / "maps" / "thumb"
+THUMB_SIZE = 768  # longest side, about: the maps tab's cards and the map window
+
+
+def thumbnail(png: Path, out: Path, size: int = THUMB_SIZE) -> bool:
+    """A small copy of one of our own PNGs (_png: 8-bit RGBA, no row filters), every n-th row and pixel: the maps tab
+    showed the 4096 px maps themselves (64 MB each once decoded). False when the PNG is not one of ours."""
+    import array
+    data = png.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        return False
+    w, h, depth, colour = struct.unpack(">IIBB", data[16:26])
+    if depth != 8 or colour != 6:
+        return False
+    idat, pos = [], 8
+    while pos < len(data):
+        n, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        if kind == b"IDAT":
+            idat.append(data[pos + 8:pos + 8 + n])
+        pos += 12 + n
+    raw = zlib.decompress(b"".join(idat))
+    stride = 1 + w * 4
+    step = max(1, -(-max(w, h) // size))
+    rows = []
+    for y in range(0, h, step):
+        if raw[y * stride] != 0:  # a row filter: not one of ours
+            return False
+        px = array.array("I", raw[y * stride + 1:(y + 1) * stride])[::step]
+        rows.append(px.tobytes())
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_suffix(".part")
+    tmp.write_bytes(_png(len(rows[0]) // 4, len(rows), bytearray(b"".join(rows))))
+    tmp.replace(out)
+    return True
+
+
+def thumb_path(game_dir: Path | None, name: str, dll_path: str | None) -> Path:
+    """The small version of texture <name>'s PNG (made once, cached); the full PNG when it can't be made."""
+    if not re.fullmatch(r"[a-z0-9_\-]+", name or ""):
+        raise MapTexError("Invalid texture name")
+    out = THUMBS / f"{name}.png"
+    if out.exists():
+        return out
+    full = png_path(game_dir, name, dll_path)
+    with _lock:
+        if out.exists() or thumbnail(full, out):
+            return out
+    return full
+
+
 # --------------------------------------------------------------------------- public
 
 def available(game_dir: Path | None, name: str) -> bool:

@@ -218,9 +218,28 @@ function onMissionInput(e) {
 // ------------------------------------------------------------------ map thumbnails (the game's tactical map)
 async function thumbUrl(level) {
   if (MP.thumbs.has(level)) return MP.thumbs.get(level);
-  const p = api('level-map/' + encodeURIComponent(level)).then(m => m?.layers?.[0]?.url || null).catch(() => null);
+  // the small copy of the map (the full one is 4096 px: the editor only)
+  const p = api('level-map/' + encodeURIComponent(level)).then(m => m?.layers?.[0]?.thumb || m?.layers?.[0]?.url || null).catch(() => null);
   MP.thumbs.set(level, p);
   return p;
+}
+
+// two at a time: a map not decoded yet takes 1-8 s (one after the other on the server), and the browser asks
+// only 6 things at a time from WTFTD: the maps tab would hold up every other picture (the Weapons tab's icons…)
+const THUMB_JOBS = { queue: [], busy: 0, max: 2 };
+function nextThumb() {
+  while (THUMB_JOBS.busy < THUMB_JOBS.max && THUMB_JOBS.queue.length) {
+    const el = THUMB_JOBS.queue.shift();
+    if (!el.isConnected) continue;
+    if (!el.offsetParent) { MP.observer.observe(el); continue; }  // its tab was left: when it shows again
+    THUMB_JOBS.busy++;
+    thumbUrl(el.dataset.level).then(url => new Promise(done => {
+      if (!url) { el.classList.add('none'); return done(); }
+      const img = new Image();
+      img.onload = img.onerror = () => { el.style.backgroundImage = `url("${url}")`; done(); };
+      img.src = url;
+    })).finally(() => { THUMB_JOBS.busy--; nextThumb(); });
+  }
 }
 
 function observeThumbs(root) {
@@ -230,13 +249,10 @@ function observeThumbs(root) {
     MP.observer = new IntersectionObserver(entries => {
       for (const en of entries) {
         if (!en.isIntersecting) continue;
-        const el = en.target;
-        MP.observer.unobserve(el);
-        thumbUrl(el.dataset.level).then(url => {
-          if (url) el.style.backgroundImage = `url("${url}")`;
-          else el.classList.add('none');
-        });
+        MP.observer.unobserve(en.target);
+        THUMB_JOBS.queue.push(en.target);
       }
+      nextThumb();
     }, { rootMargin: '200px' });
   }
   for (const el of els) { el.dataset.thumb = '1'; MP.observer.observe(el); }

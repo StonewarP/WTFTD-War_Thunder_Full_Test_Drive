@@ -14,6 +14,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - Fix: on a first launch the app window could show "127.0.0.1 refused to connect": Edge handed its window to
   another of its processes, and WTFTD took that for the window closing and quit. It now serves as long as its
   page is open (the page pings it, and says goodbye when it closes).
+- Faster pictures: the Maps tab and the map window show a small copy of each map (the 4096 px ones weighed
+  10 MB each, 64 MB once shown), two at a time, so a first visit (each map is decoded once, 1–8 s) no longer
+  holds up the other pictures, such as the Weapons tab's icons (5 s → at once). Those icons are also fetched in
+  the background as soon as the game data is there, and again after an update.
 - Uninstall: a spinner shows while the files are removed (it can take a minute), so WTFTD doesn't look frozen.
 - Uninstall: WTFTD closes its window and quits, then removes the app (and its folder) once, a few seconds
   later, in the background: no console window, no retries left running (they removed an exe rebuilt meanwhile).
