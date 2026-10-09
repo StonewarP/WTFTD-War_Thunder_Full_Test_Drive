@@ -125,11 +125,17 @@ def _after_exit(paths: list[Path], pid: int | None = None) -> None:
         lines += [f"  {checks} goto done", f"  {ping} -n 3 127.0.0.1 >nul", ")", ":done", '(goto) 2>nul & del "%~f0"']
         script = Path(tempfile.gettempdir()) / f"wtftd_uninstall_{pid}.cmd"
         script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
-        flags = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+        # a hidden console of its own (CREATE_NO_WINDOW), not none at all (DETACHED_PROCESS): without one, Windows
+        # opened a visible console window for ping (seen with 0.17.0)
+        flags = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+        hidden = subprocess.STARTUPINFO()
+        hidden.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        hidden.wShowWindow = 0  # SW_HIDE
+        args = ["cmd", "/c", str(script)]
         try:  # out of this process's job too (a launcher's job would end the script with WTFTD)
-            subprocess.Popen(["cmd", "/c", str(script)], creationflags=flags | 0x01000000, close_fds=True)  # CREATE_BREAKAWAY_FROM_JOB
+            subprocess.Popen(args, creationflags=flags | 0x01000000, startupinfo=hidden, close_fds=True)  # CREATE_BREAKAWAY_FROM_JOB
         except OSError:  # the job forbids it
-            subprocess.Popen(["cmd", "/c", str(script)], creationflags=flags, close_fds=True)
+            subprocess.Popen(args, creationflags=flags, startupinfo=hidden, close_fds=True)
     else:
         quoted = " ".join("'" + str(p).replace("'", "'\\''") + "'" for p in paths)
         sh = (f"while kill -0 {pid} 2>/dev/null; do sleep 1; done; "
