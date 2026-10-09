@@ -278,6 +278,8 @@
   "uninstall.go": "削除",
   "uninstall.confirm": "もう一度クリックして確定",
   "uninstall.done": "削除しました",
+  "uninstall.working": "削除中…",
+  "uninstall.workingHint": "1 分ほどかかることがあります（キャッシュには数千のファイルがあります）。WTFTD は動作中です。閉じないでください。",
   "uninstall.bye": "WTFTD をこの PC から削除しました。",
   "uninstall.byeHint": "このウィンドウを閉じるとアプリが消えます。WTFTD をご利用いただきありがとうございました！",
   "settings.cdkFiles": "ゲームフォルダー内のファイル: {n} 件",

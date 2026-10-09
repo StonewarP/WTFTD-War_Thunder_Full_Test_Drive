@@ -278,6 +278,8 @@
   "uninstall.go": "删除",
   "uninstall.confirm": "再次点击以确认",
   "uninstall.done": "已删除",
+  "uninstall.working": "正在删除…",
+  "uninstall.workingHint": "可能需要一分钟：缓存中有数千个文件。WTFTD 正在工作，请勿关闭。",
   "uninstall.bye": "WTFTD 已从此电脑删除。",
   "uninstall.byeHint": "关闭此窗口后应用即会消失。感谢使用 WTFTD！",
   "settings.cdkFiles": "游戏文件夹中有 {n} 个文件",

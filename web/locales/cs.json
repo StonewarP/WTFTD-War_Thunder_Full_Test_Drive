@@ -278,6 +278,8 @@
   "uninstall.go": "Odstranit",
   "uninstall.confirm": "Klikni znovu pro potvrzení",
   "uninstall.done": "Odstraněno",
+  "uninstall.working": "Odstraňuji…",
+  "uninstall.workingHint": "Může to trvat minutu: mezipaměť obsahuje tisíce souborů. WTFTD pracuje, nezavírej ho.",
   "uninstall.bye": "WTFTD byl z tohoto PC odstraněn.",
   "uninstall.byeHint": "Aplikace zmizí, jakmile zavřeš toto okno. Díky za používání WTFTD!",
   "settings.cdkFiles": "Souborů ve složce hry: {n}",

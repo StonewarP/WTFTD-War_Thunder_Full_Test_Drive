@@ -4,6 +4,12 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## Unreleased
+
+- Uninstall: a spinner shows while the files are removed (it can take a minute), so WTFTD doesn't look frozen.
+- Fix: at the end of an uninstall a console window opened (the script that removes the app once it has
+  closed); it now runs hidden.
+
 ## 0.17.0 — 2026-10-09
 
 - **Uninstall** (Settings): remove what WTFTD put on this PC, everything or part by part: the custom vehicle

@@ -278,6 +278,8 @@
   "uninstall.go": "Удалить",
   "uninstall.confirm": "Нажмите ещё раз для подтверждения",
   "uninstall.done": "Удалено",
+  "uninstall.working": "Удаление…",
+  "uninstall.workingHint": "Это может занять минуту: в кэше тысячи файлов. WTFTD работает, не закрывайте его.",
   "uninstall.bye": "WTFTD удалён с этого ПК.",
   "uninstall.byeHint": "Приложение исчезнет после закрытия этого окна. Спасибо, что пользовались WTFTD!",
   "settings.cdkFiles": "Файлов в папке игры: {n}",

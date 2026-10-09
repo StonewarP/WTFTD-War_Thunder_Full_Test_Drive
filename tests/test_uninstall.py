@@ -65,10 +65,15 @@ class AfterExitScript(unittest.TestCase):
     def test_retries_without_console_tools(self):
         launched = []
         with tempfile.TemporaryDirectory() as tmp, \
-                mock.patch.object(uninstall.subprocess, "Popen", lambda args, **kw: launched.append(args)), \
+                mock.patch.object(uninstall.subprocess, "Popen", lambda args, **kw: launched.append((args, kw))), \
                 mock.patch.object(uninstall.tempfile, "gettempdir", lambda: tmp):
             uninstall._after_exit([Path(tmp) / "WTFTD.exe"], pid=1234)
-            text = Path(launched[0][-1]).read_text(encoding="utf-8")
+            args, kw = launched[0]
+            text = Path(args[-1]).read_text(encoding="utf-8")
+        # a hidden console: without any (DETACHED_PROCESS), Windows opened a visible one for ping (0.17.0)
+        self.assertFalse(kw["creationflags"] & 0x00000008)
+        self.assertTrue(kw["creationflags"] & 0x08000000)  # CREATE_NO_WINDOW
+        self.assertEqual(kw["startupinfo"].wShowWindow, 0)
         self.assertNotIn("tasklist", text)  # hangs in a process without a console
         self.assertNotIn("timeout ", text)  # fails at once there
         self.assertIn(r'"%SystemRoot%\System32\PING.EXE" -n 3', text)

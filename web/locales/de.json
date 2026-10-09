@@ -278,6 +278,8 @@
   "uninstall.go": "Entfernen",
   "uninstall.confirm": "Zum Bestätigen erneut klicken",
   "uninstall.done": "Entfernt",
+  "uninstall.working": "Wird entfernt…",
+  "uninstall.workingHint": "Das kann eine Minute dauern: der Cache enthält Tausende Dateien. WTFTD arbeitet, nicht schließen.",
   "uninstall.bye": "WTFTD wurde von diesem PC entfernt.",
   "uninstall.byeHint": "Die App verschwindet, sobald dieses Fenster geschlossen ist. Danke, dass du WTFTD benutzt hast!",
   "settings.cdkFiles": "{n} Datei(en) im Spielordner",

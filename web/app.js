@@ -1404,9 +1404,12 @@ async function onUninstallClick(ev) {
     $('#btnUninstallGo span').textContent = t('uninstall.confirm');
     return;
   }
-  $('#btnUninstallGo').disabled = true;
+  // removing can take a while (the cache holds thousands of files): show that WTFTD is at work, not frozen
+  $('#uninstallFoot').classList.add('hidden');
+  $('#uninstallBody').innerHTML = `<div class="un-busy"><span class="spin spin-lg"></span>
+    <p><b>${esc(t('uninstall.working'))}</b></p><p class="muted">${esc(t('uninstall.workingHint'))}</p></div>`;
   let res;
-  try { res = await api('uninstall', { parts }); } catch (e) { toastErr(e); renderUninstallState(); return; }
+  try { res = await api('uninstall', { parts }); } catch (e) { toastErr(e); openUninstall(); return; }
   if (res.quit) {  // the app goes once WTFTD has closed
     $('#uninstallFoot').classList.add('hidden');
     $('#uninstallBody').innerHTML = `<div class="un-bye">${icon('check')}<p><b>${esc(t('uninstall.bye'))}</b></p><p class="muted">${esc(t('uninstall.byeHint'))}</p></div>`;

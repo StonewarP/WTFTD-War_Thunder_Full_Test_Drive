@@ -278,6 +278,8 @@
   "uninstall.go": "Usuń",
   "uninstall.confirm": "Kliknij ponownie, aby potwierdzić",
   "uninstall.done": "Usunięto",
+  "uninstall.working": "Usuwanie…",
+  "uninstall.workingHint": "To może potrwać minutę: pamięć podręczna zawiera tysiące plików. WTFTD pracuje, nie zamykaj go.",
   "uninstall.bye": "WTFTD został usunięty z tego PC.",
   "uninstall.byeHint": "Aplikacja zniknie po zamknięciu tego okna. Dzięki za korzystanie z WTFTD!",
   "settings.cdkFiles": "Pliki w folderze gry: {n}",
