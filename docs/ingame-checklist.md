@@ -233,6 +233,10 @@ real WTFTD.exe.
   then Settings → Uninstall WTFTD… → Everything → Remove, click again. The window says WTFTD was removed; once it
   is closed, `WTFTD.exe` and `%LOCALAPPDATA%\WTFTD` are gone within a few seconds, the game's `wtftd_*` missions
   and custom vehicle files too, nothing else in the game folder. Restore the backup afterwards.
+- [ ] macOS, with WTFTD.app moved to Applications (back up `~/Library/Application Support/WTFTD`): the same,
+  WTFTD.app and that folder gone once the window is closed. The shell script itself runs in the macOS and Linux
+  tests (`AfterExitShell`, 2026-10-09). Opened straight from Downloads (App Translocation), "The app itself" is
+  greyed out and asks to move WTFTD.app to the Trash.
 
 ## 3. Ammunition icons (UI only)
 
