@@ -1,6 +1,7 @@
 """Local web server: static UI + JSON API + wiki image cache. Binds to 127.0.0.1 only."""
 from __future__ import annotations
 
+import copy
 import json
 import mimetypes
 import re
@@ -518,6 +519,8 @@ class Handler(BaseHTTPRequestHandler):
             name, text = mission.build(body)
             if files:
                 cdk.write_files(gd, USER, files, body.get("_pkg", "pkg_local"))
+            for pkg, ai_files in (body.get("_aiFiles") or {}).items():  # AI units with loadouts of their own
+                cdk.write_files(gd, USER, ai_files, pkg)
             # keep the exact setup next to the mission so "Load" can restore it
             write_json(MISSION_SETUPS / (name[:-4] + ".json"), setup)
             try:
@@ -532,7 +535,8 @@ class Handler(BaseHTTPRequestHandler):
             um.mkdir(exist_ok=True)
             out = um / name
             out.write_text(text, encoding="utf-8")
-            return self.send_json({"ok": True, "file": name, "path": str(out), "cdkFiles": sorted(files),
+            ai_names = [k for f in (body.get("_aiFiles") or {}).values() for k in f]
+            return self.send_json({"ok": True, "file": name, "path": str(out), "cdkFiles": sorted(files) + sorted(ai_names),
                                    "host": body.get("unitClass", "")})
         if route == "target-swaps":  # vehicles "Training targets" puts in place of the scenario's enemies
             try:
@@ -545,7 +549,10 @@ class Handler(BaseHTTPRequestHandler):
             body, files = self.prepare_cdk(body)
             name, text = mission.build(body)
             pkg = body.get("_pkg", "pkg_local")
-            return self.send_json({"file": name, "text": text, "files": {f"{pkg}/{k}": v for k, v in files.items()}})
+            shown = {f"{pkg}/{k}": v for k, v in files.items()}
+            for ai_pkg, ai_files in (body.get("_aiFiles") or {}).items():
+                shown.update({f"{ai_pkg}/{k}": v for k, v in ai_files.items()})
+            return self.send_json({"file": name, "text": text, "files": shown})
         if route == "cdk-cleanup":
             gd = STATE.game_dir()
             removed = cdk.cleanup(gd, USER) if gd else 0
@@ -661,14 +668,63 @@ def _target_pool(body: dict) -> dict:
     return pool
 
 
+def _ammo_groups(det: dict) -> list:
+    """A vehicle's ammo groups as mission.write_bullets wants them (aircraft: weapon tags too)."""
+    keys = ("p", "n", "trig") if det.get("b") == "armada" else ("n", "trig")
+    return [{k: g[k] for k in keys if k in g} for g in det.get("am") or [] if isinstance(g, dict)]
+
+
+def _prepare_ai(body: dict) -> tuple[dict, dict]:
+    """Loadouts of the map editor's units (AI): their ammo groups, and for an aircraft / helicopter with
+    pylons of its own, a custom aircraft of its own (CDK, "custom" method). Returns (mission cfg, {package:
+    files})."""
+    edits = body.get("edits")
+    if not isinstance(edits, dict):
+        return body, {}
+    edits = copy.deepcopy(edits)  # the saved setup keeps what the app sent
+    body = dict(body, edits=edits)
+    entries = [e for e in list((edits.get("units") or {}).values()) + list(edits.get("add") or []) if isinstance(e, dict)]
+    out: dict = {}
+    n = 0
+    for e in entries:
+        lo = e.get("loadout")
+        if not isinstance(lo, dict):
+            continue
+        vid = str(lo.get("vehicle") or e.get("cls") or "")
+        veh, det = STATE.get_vehicles().get(vid), STATE.get_details().get(vid)
+        if not veh or not isinstance(det, dict):
+            e.pop("loadout")
+            continue
+        lo["_groups"] = _ammo_groups(det)
+        pylons = lo.get("pylons")
+        if not (pylons and isinstance(pylons, dict) and STATE.cdk_enabled() and veh["c"] in ("air", "heli")
+                and (STATE.settings().get("airMethod") or "custom") == "custom"):
+            lo.pop("pylons", None)
+            continue
+        n += 1
+        non_std = any(isinstance(v, dict) for v in pylons.values())
+        try:
+            files, preset, unit_class, pkg = cdk.build_files(
+                vid, veh["c"], det, {}, "", pylons, "custom", builder.load(builder.unit_file(vid, veh["c"])) if non_std else None,
+                STATE.get_catalog(), tag=f"{vid}_ai{n}")
+        except cdk.CdkError:
+            lo.pop("pylons", None)
+            continue
+        out.setdefault(pkg, {}).update(files)
+        lo["_unitClass"] = unit_class
+        if preset:
+            lo["preset"] = preset
+    return body, out
+
+
 def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     """Custom-vehicle mode: writes nothing, returns (mission cfg, files to write under pkg_local)."""
     body = dict(body, _targetPool=_target_pool(body))
+    body, ai_files = _prepare_ai(body)
+    body["_aiFiles"] = ai_files
     # aircraft / helicopters: bullet slots tagged with their weapon, per-launcher countermeasure counts
     det0 = STATE.get_details().get(str(body.get("vehicle", ""))) or {}
-    keys = ("p", "n", "trig") if det0.get("b") == "armada" else ("n", "trig")
-    body["_ammoGroups"] = [{k: g[k] for k in keys if k in g}
-                           for g in det0.get("am") or [] if isinstance(g, dict)]
+    body["_ammoGroups"] = _ammo_groups(det0)
     veh0 = STATE.get_vehicles().get(str(body.get("vehicle", "")))
     if veh0 and veh0.get("n") not in (None, "", "other"):
         crew_units = {f"country_{veh0['n']}": [veh0["id"]]}

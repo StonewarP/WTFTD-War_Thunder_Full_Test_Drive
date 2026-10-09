@@ -3,11 +3,16 @@
 'use strict';
 
 const ED_BLOCK_CATS = { tankModels: ['ground'], armada: ['air', 'heli'], ships: ['ship', 'boat'] };
-const ED_COLORS = { enemy: '#ff5a4f', ally: '#5ab8ff', player: '#f3b33d', other: '#6b7687' };
+const ED_COLORS = { enemy: '#ff5a4f', ally: '#5ab8ff', player: '#f3b33d', other: '#c3cad4' };
+const ED_SPACING = { tankModels: 40, armada: 150, ships: 300 };  // between units placed / pasted side by side
+// the block a unit is added as when copied (template air defence / vehicles become ground units)
+const ED_ADD_BLOCK = { tankModels: 'tankModels', armada: 'armada', ships: 'ships', air_defence: 'tankModels',
+  tracked_vehicles: 'tankModels', wheeled_vehicles: 'tankModels' };
 
 const ED = {
-  data: null, sel: null, mode: 'select', addBlock: 'tankModels', addSide: 'enemy', zones: true,
-  view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', layers: [],
+  data: null, sel: null, multi: [], mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: true, scenery: true,
+  view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', resTab: 'all', layers: [],
+  labels: [], clip: null, mouse: null, byName: new Map(), configuring: false,
 };
 
 function edEdits() {
@@ -22,10 +27,36 @@ function edCount() {
   return Object.keys(e.units || {}).length + (e.add || []).length + (e.player ? 1 : 0) + Object.keys(e.areas || {}).length;
 }
 
+// a unit's name; objects of the game's templates have no translated name: "uk_40mm_bofors_airfield" -> "40mm bofors airfield"
+const edUnitName = cls => (S.byId.has(cls) || I18N.unit(cls) !== cls ? I18N.unit(cls)
+  : String(cls || '').replace(/^(us|ussr|uk|germ|jp|it|fr|cn|sw|il|ger)_/i, '').replace(/_/g, ' '));
+
 // ------------------------------------------------------------------ the scenario's zones (areas)
-const edZones = () => (ED.zones ? ED.data.areas || [] : []);
+// once your start is set here, the scenario's own start zones follow it (or are no longer used): not drawn
+const edZones = () => (ED.zones ? (ED.data.areas || []).filter(z => !(z.player && edEdits().player)) : []);
 const edZonePos = z => ({ ...z, ...(edEdits().areas[z.name] || {}) });
 const edFlyer = () => S.cfg.block === 'armada';
+// what the scenario puts in a zone: its units by vehicle (most first), and the side they fight for
+function edZoneInfo(z0) {
+  const counts = new Map(), sides = new Set();
+  for (const n of z0.units || []) {
+    const u = ED.byName.get(n);
+    if (!u) continue;
+    const st = edUnitState(u);
+    if (st.removed) continue;
+    counts.set(st.cls, (counts.get(st.cls) || 0) + (+st.count || 1));
+    sides.add(edSide(st) === 'other' && u.army && u.army !== (ED.data.army || 1) ? 'enemy' : edSide(st));
+  }
+  const classes = [...counts].sort((a, b) => b[1] - a[1]);
+  const role = z0.player ? 'player' : sides.has('enemy') ? 'enemy' : sides.has('ally') ? 'ally' : classes.length ? 'other' : '';
+  return { classes, role };
+}
+function edZoneLabel(z0, info = edZoneInfo(z0)) {
+  if (z0.player) return t('editor.zoneYou');
+  if (!info.classes.length) return z0.name.replace(/_/g, ' ');
+  const names = info.classes.slice(0, 2).map(([c]) => edUnitName(c));
+  return names.join(', ') + (info.classes.length > 2 ? ` +${info.classes.length - 2}` : '');
+}
 // the start as it will be: position / heading from the editor, mode (ground / air) and speed
 function edStart() {
   const p = ED.data.units.find(u => u.player);
@@ -54,6 +85,8 @@ function edDrawZones(dpr) {
     const z = edZonePos(z0);
     const sel = ED.sel?.zone === z.name;
     if (!z0.used && !sel && ED.view.scale * Math.max(z.sx, 40) < 3 * dpr) continue;  // tiny unused zones: skip
+    const info = edZoneInfo(z0);
+    const color = info.role && info.role !== 'other' ? ED_COLORS[info.role] : z0.used ? '#e9edf2' : 'rgba(255,255,255,.5)';
     const [cx, cy] = edToScreen(z.x, z.z);
     const rx = Math.max(z.sx * ED.view.scale, 4 * dpr), rz = Math.max(z.sz * ED.view.scale, 4 * dpr);
     ctx.save();
@@ -61,20 +94,42 @@ function edDrawZones(dpr) {
     ctx.rotate(-z.yaw * Math.PI / 180);
     ctx.setLineDash(z0.used ? [6 * dpr, 4 * dpr] : [2 * dpr, 4 * dpr]);
     ctx.lineWidth = (sel ? 2.5 : 1.5) * dpr;
-    ctx.strokeStyle = sel ? ED_COLORS.player : z0.used ? 'rgba(243,179,61,.85)' : 'rgba(255,255,255,.35)';
-    ctx.fillStyle = z0.used ? 'rgba(243,179,61,.08)' : 'rgba(255,255,255,.03)';
+    ctx.strokeStyle = sel ? ED_COLORS.player : color;
+    ctx.globalAlpha = z0.used || sel ? 0.9 : 0.5;
+    ctx.fillStyle = color;
     ctx.beginPath();
     if (/box/i.test(z.type)) ctx.rect(-rx, -rz, rx * 2, rz * 2); else ctx.ellipse(0, 0, rx, rx, 0, 0, Math.PI * 2);
-    ctx.fill(); ctx.stroke();
+    ctx.stroke();
+    ctx.globalAlpha = info.role ? 0.1 : 0.04;
+    ctx.fill();
     ctx.restore();
-    if ((z0.used || sel) && (sel || ED.view.scale * 2000 > 60 * dpr)) {
-      ctx.save();
-      ctx.font = `${10 * dpr}px Segoe UI, sans-serif`;
-      ctx.lineWidth = 3 * dpr; ctx.strokeStyle = 'rgba(0,0,0,.65)'; ctx.fillStyle = sel ? ED_COLORS.player : 'rgba(255,220,150,.95)';
-      ctx.strokeText(z.name, cx + 6 * dpr, cy - 6 * dpr); ctx.fillText(z.name, cx + 6 * dpr, cy - 6 * dpr);
-      ctx.restore();
-    }
+    // labels last, under the units' own (edDrawZoneLabels)
+    if (z0.used || sel) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: cy, color: sel ? ED_COLORS.player : info.role ? color : '#e9edf2', force: sel,
+      prio: sel ? 0 : z0.player ? 1 : info.role === 'enemy' || info.role === 'ally' ? 2 : info.role ? 3 : 4 });
   }
+}
+function edDrawZoneLabels(dpr) {
+  for (const l of ED.zoneLabels.sort((a, b) => a.prio - b.prio)) edPill(l.text, l.x, l.y, l.color, dpr, { center: true, force: l.force, small: true });
+}
+// a label on a dark pill, skipped when it would cover one already drawn (shown on hover instead)
+function edPill(text, x, y, color, dpr, { center = false, force = false, small = false } = {}) {
+  const { ctx } = ED;
+  ctx.save();
+  ctx.font = `600 ${(small ? 11.5 : 12.5) * dpr}px Segoe UI, sans-serif`;
+  const w = ctx.measureText(text).width + 12 * dpr, h = (small ? 18 : 20) * dpr;
+  const x0 = center ? x - w / 2 : x, y0 = y - h / 2;
+  const box = [x0 - 2 * dpr, y0 - 2 * dpr, x0 + w + 2 * dpr, y0 + h + 2 * dpr];
+  if (!force && ED.labels.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) { ctx.restore(); return false; }
+  ED.labels.push(box);
+  ctx.fillStyle = 'rgba(10,13,18,.78)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x0, y0, w, h, h / 2); else ctx.rect(x0, y0, w, h);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x0 + 6 * dpr, y0 + h / 2 + 0.5 * dpr);
+  ctx.restore();
+  return true;
 }
 function edHitZone(sx, sy) {
   const dpr = window.devicePixelRatio || 1;
@@ -124,8 +179,9 @@ async function openEditor() {
       for (const u of ED.data.units) if (swaps[u.name]) { u.scnCls = u.cls; u.cls = swaps[u.name]; }
     } catch { /* keep the scenario's vehicles */ }
   }
+  ED.byName = new Map(ED.data.units.map(u => [u.name, u]));
   edEdits();
-  ED.sel = null; ED.mode = 'select'; ED.search = '';
+  edSelect([]); ED.mode = 'select'; ED.search = '';
   ED.layers = [];
   ED.terrain = null;
   edLoadTerrain(ED.data.level);
@@ -145,6 +201,13 @@ async function openEditor() {
   ED.ctx = ED.canvas.getContext('2d');
   edResize();
   edFit();
+  edRenderPanel();
+  edDraw();
+}
+// back to the editor as it was (after configuring a unit's loadout in the vehicle panel)
+function edResume() {
+  $('#dlgEditor').showModal();
+  edResize();
   edRenderPanel();
   edDraw();
 }
@@ -219,6 +282,79 @@ function edBehaviors(side, air, added) {
   return [['', added ? 'editor.move.free' : 'editor.asScenario'], ...(air ? [] : [['stay', 'editor.move.stay']]),
     side === 'ally' ? ['follow', 'editor.move.follow'] : ['hunt', 'editor.move.hunt']];
 }
+const edMovable = u => u.added || (u.edit && !u.tpl && !u.removed);
+
+// ------------------------------------------------------------------ selection (one unit, several, the start or a zone)
+const edKey = u => (u.added ? 'add:' + u.idx : 'u:' + u.name);
+const edSelKeys = () => (ED.multi.length ? ED.multi : ED.sel?.key ? [ED.sel.key] : []);
+function edUnitByKey(key) {
+  const [kind, id] = key.split(/:(.*)/s);
+  if (kind === 'add') { const a = edEdits().add[+id]; return a ? { ...a, added: true, idx: +id } : null; }
+  return ED.byName.get(id) || null;
+}
+const edSelUnits = () => edSelKeys().map(edUnitByKey).filter(Boolean);
+function edSelect(keys) {
+  keys = [...new Set(keys)];
+  ED.multi = keys.length > 1 ? keys : [];
+  ED.sel = keys.length === 1 ? { key: keys[0] } : null;
+  ED.search = '';
+}
+function edToggle(key) {
+  const cur = edSelKeys();
+  edSelect(cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key]);
+}
+const edIsSelected = u => (u.player ? !!ED.sel?.player : edSelKeys().includes(edKey(u)));
+// removes added units (by index) and / or takes scenario units out of the mission
+function edRemoveUnits(us) {
+  const e = edEdits();
+  const added = us.filter(u => u.added).map(u => u.idx).sort((a, b) => b - a);
+  for (const i of added) e.add.splice(i, 1);
+  for (const u of us.filter(u => !u.added && !u.player)) edSet(u, { remove: true });
+  if (added.length) edSelect(edSelKeys().filter(k => !k.startsWith('add:')));
+}
+
+// ------------------------------------------------------------------ copy / paste / duplicate
+function edCopy() {
+  const us = edSelUnits().map(edUnitState).filter(u => !u.removed && (u.added || ED_ADD_BLOCK[u.block]));
+  if (!us.length) return false;
+  const cx = us.reduce((s, u) => s + u.x, 0) / us.length, cz = us.reduce((s, u) => s + u.z, 0) / us.length;
+  ED.clip = us.map(u => {
+    const block = u.added ? u.block : ED_ADD_BLOCK[u.block];
+    return {
+      block, cls: u.cls, dx: u.x - cx, dz: u.z - cz, y: u.y, agl: block === 'armada' ? u.y - (edGround(u.x, u.z) ?? 0) : 0,
+      yaw: Math.round(u.yaw || 0), count: +u.count || 1, speed: u.speed || 450, side: edSide(u) === 'ally' ? 'ally' : 'enemy',
+      attack: ['fire_at_will', 'return_fire', 'hold_fire'].includes(u.attack) ? u.attack : 'fire_at_will',
+      behavior: ['stay', 'hunt', 'follow'].includes(u.behavior) && !(block === 'armada' && u.behavior === 'stay') ? u.behavior : '',
+      ...(u.loadout ? { loadout: JSON.parse(JSON.stringify(u.loadout)) } : {}),
+    };
+  });
+  $('#edPaste')?.classList.remove('hidden');
+  return true;
+}
+function edPaste(x, z) {
+  if (!ED.clip?.length) return;
+  const e = edEdits(), keys = [];
+  for (const c of ED.clip) {
+    const { dx, dz, agl, ...unit } = JSON.parse(JSON.stringify(c));
+    const px = Math.round(x + dx), pz = Math.round(z + dz), g = edGround(px, pz);
+    const y = unit.block === 'armada' ? (g != null ? Math.round(g + Math.max(agl, 100)) : unit.y)
+      : unit.block === 'ships' ? 0 : Math.round(edGroundY(px, pz) * 10) / 10;
+    e.add.push({ ...unit, x: px, y, z: pz });
+    keys.push('add:' + (e.add.length - 1));
+  }
+  edSelect(keys);
+}
+function edDuplicate() {
+  const us = edSelUnits().map(edUnitState);
+  if (!edCopy()) return;
+  const cx = us.reduce((s, u) => s + u.x, 0) / us.length, cz = us.reduce((s, u) => s + u.z, 0) / us.length;
+  const step = Math.max(...ED.clip.map(c => ED_SPACING[c.block] || 40));
+  edPaste(cx + step, cz - step);
+}
+function edPasteHere() {
+  const [x, z] = ED.mouse || [ED.view.cx, ED.view.cz];
+  edPaste(x, z);
+}
 
 // ------------------------------------------------------------------ drawing
 function edDraw() {
@@ -226,11 +362,14 @@ function edDraw() {
   if (!ctx) return;
   const dpr = window.devicePixelRatio || 1;
   const css = getComputedStyle(document.documentElement);
+  ED.labels = [];
+  ED.zoneLabels = [];
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = css.getPropertyValue('--bg-2').trim() || '#0e1217';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // tactical maps of the level (full map, then the detailed ground battle map), placed by their world extents
+  const hasMap = ED.layers.some(l => l.img);
   ctx.save();
   ctx.imageSmoothingQuality = 'high';
   for (const l of ED.layers) {
@@ -242,19 +381,23 @@ function edDraw() {
     else { ctx.save(); ctx.translate(0, yTop); ctx.scale(1, -1); ctx.drawImage(l.img, sx0, 0, sx1 - sx0, yTop - yBot); ctx.restore(); }
   }
   ctx.restore();
+  if (hasMap) {  // a shade over the map: markers and labels stand out from its pale terrain
+    ctx.fillStyle = 'rgba(8,11,16,.32)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 
   // grid
   const target = 90 * dpr / ED.view.scale;
   const step = [25, 50, 100, 250, 500, 1000, 2500, 5000, 10000].find(s => s >= target) || 10000;
   const [wx0, wz1] = edToWorld(0, 0), [wx1, wz0] = edToWorld(canvas.width, canvas.height);
-  ctx.strokeStyle = ED.layers.some(l => l.img) ? 'rgba(255,255,255,.08)' : (css.getPropertyValue('--line').trim() || '#232b37');
+  ctx.strokeStyle = hasMap ? 'rgba(255,255,255,.07)' : (css.getPropertyValue('--line').trim() || '#232b37');
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = Math.floor(wx0 / step) * step; x <= wx1; x += step) { const [sx] = edToScreen(x, 0); ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height); }
   for (let z = Math.floor(wz0 / step) * step; z <= wz1; z += step) { const [, sy] = edToScreen(0, z); ctx.moveTo(0, sy); ctx.lineTo(canvas.width, sy); }
   ctx.stroke();
   // scale bar
-  ctx.fillStyle = css.getPropertyValue('--muted').trim();
+  ctx.fillStyle = hasMap ? '#d7dde5' : css.getPropertyValue('--muted').trim();
   ctx.font = `${11 * dpr}px Segoe UI, sans-serif`;
   const barPx = step * ED.view.scale;
   ctx.fillRect(14 * dpr, canvas.height - 18 * dpr, barPx, 2 * dpr);
@@ -287,11 +430,21 @@ function edDraw() {
     }
   }
   edDrawZones(dpr);
-  // markers: others first, then editable, then player
-  const pts = edAllPoints().map(edUnitState);
+  // markers: others first, then editable, then player; labels the other way round (the player's first)
+  const pts = edAllPoints().map(edUnitState).filter(u => ED.scenery || u.edit || u.added || u.player);
   pts.sort((a, b) => (a.edit || a.added ? 1 : 0) - (b.edit || b.added ? 1 : 0) + (a.player ? 2 : 0) - (b.player ? 2 : 0));
   for (const u of pts) edMarker(u, u.player ? pPos : u, dpr);
   edDrawArrow(dpr);
+  for (const u of pts.slice().reverse()) edMarkerLabel(u, u.player ? pPos : u, dpr);
+  edDrawZoneLabels(dpr);
+  if (ED.drag?.kind === 'box' && ED.drag.moved) {  // area selection
+    const { sx, sy, x2, y2 } = ED.drag;
+    ctx.save(); ctx.setLineDash([5 * dpr, 4 * dpr]); ctx.strokeStyle = ED_COLORS.player; ctx.lineWidth = 1.5 * dpr;
+    ctx.fillStyle = 'rgba(243,179,61,.08)';
+    ctx.fillRect(Math.min(sx, x2), Math.min(sy, y2), Math.abs(x2 - sx), Math.abs(y2 - sy));
+    ctx.strokeRect(Math.min(sx, x2), Math.min(sy, y2), Math.abs(x2 - sx), Math.abs(y2 - sy));
+    ctx.restore();
+  }
 }
 
 function edPlayerPos(p) {
@@ -310,13 +463,13 @@ function edMarker(u, pos, dpr) {
     ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(sx, sy); ctx.stroke();
     ctx.beginPath(); ctx.arc(ox, oy, 3 * dpr, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
-  const r = (editable ? 7 : 3) * dpr;
+  const r = (editable ? 7 : 3.5) * dpr;
   const color = ED_COLORS[side];
   ctx.save();
-  ctx.globalAlpha = u.removed ? 0.35 : 1;
+  ctx.globalAlpha = u.removed ? 0.35 : editable ? 1 : 0.85;
   ctx.fillStyle = color;
-  ctx.strokeStyle = u.added ? '#fff' : 'rgba(0,0,0,.6)';
-  ctx.lineWidth = (u.added ? 2 : 1) * dpr;
+  ctx.strokeStyle = u.added ? '#fff' : 'rgba(0,0,0,.75)';
+  ctx.lineWidth = (u.added ? 2 : editable ? 1 : 1.2) * dpr;
   ctx.beginPath();
   if (u.player) {
     ctx.arc(sx, sy, r + 2 * dpr, 0, Math.PI * 2);
@@ -326,10 +479,10 @@ function edMarker(u, pos, dpr) {
     ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r, sy); ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r, sy); ctx.closePath();
   } else if (editable) {
     ctx.rect(sx - r * 0.85, sy - r * 0.85, r * 1.7, r * 1.7);
-  } else {
-    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+  } else {  // scenery / objects: small square with a dark outline, readable on any terrain
+    ctx.rect(sx - r * 0.8, sy - r * 0.8, r * 1.6, r * 1.6);
   }
-  ctx.fill(); if (editable) ctx.stroke();
+  ctx.fill(); ctx.stroke();
   if (u.removed) {
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * dpr; ctx.beginPath();
     ctx.moveTo(sx - r, sy - r); ctx.lineTo(sx + r, sy + r); ctx.moveTo(sx + r, sy - r); ctx.lineTo(sx - r, sy + r); ctx.stroke();
@@ -337,32 +490,32 @@ function edMarker(u, pos, dpr) {
   if (u.behavior === 'stay' && !u.removed) {
     ctx.fillStyle = '#fff'; ctx.fillRect(sx - 2 * dpr, sy - 2 * dpr, 4 * dpr, 4 * dpr);
   }
-  const selected = ED.sel && ((u.player && ED.sel.player) || (!u.player && ED.sel.key === edKey(u)));
-  if (selected) {
-    ctx.strokeStyle = ED_COLORS.player; ctx.lineWidth = 2 * dpr; ctx.beginPath(); ctx.arc(sx, sy, r + 6 * dpr, 0, Math.PI * 2); ctx.stroke();
+  if (u.loadout && !u.removed) {  // its own loadout
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx + r * 0.9, sy - r * 0.9, 2.5 * dpr, 0, Math.PI * 2); ctx.fill();
   }
-  if (editable && ED.view.scale * 300 > 40 * dpr) {
-    ctx.globalAlpha = u.removed ? 0.4 : 0.95;
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
-    ctx.font = `${(u.player ? 12 : 11) * dpr}px Segoe UI, sans-serif`;
-    const label = u.player ? t('editor.you') : I18N.unit(u.cls) + (u.count > 1 ? ` ×${u.count}` : '');
-    if (ED.layers.some(l => l.img)) {  // keep labels readable over the map
-      ctx.lineWidth = 3 * dpr; ctx.strokeStyle = 'rgba(0,0,0,.65)'; ctx.strokeText(label, sx + r + 5 * dpr, sy + 4 * dpr);
-      ctx.fillStyle = '#fff';
-    }
-    ctx.fillText(label, sx + r + 5 * dpr, sy + 4 * dpr);
+  if (edIsSelected(u)) {
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = ED_COLORS.player; ctx.lineWidth = 2 * dpr; ctx.beginPath(); ctx.arc(sx, sy, r + 6 * dpr, 0, Math.PI * 2); ctx.stroke();
   }
   ctx.restore();
 }
-
-const edKey = u => (u.added ? 'add:' + u.idx : 'u:' + u.name);
+function edMarkerLabel(u, pos, dpr) {
+  const editable = u.edit || u.added || u.player;
+  if (!editable || (!u.player && !edIsSelected(u) && ED.view.scale * 300 < 40 * dpr)) return;
+  const [sx, sy] = edToScreen(pos.x, pos.z);
+  const r = 7 * dpr;
+  const label = u.player ? t('editor.you') : I18N.unit(u.cls) + (u.count > 1 ? ` ×${u.count}` : '');
+  edPill(label, sx + r + 4 * dpr, sy, u.removed ? 'rgba(255,255,255,.45)' : u.player ? ED_COLORS.player : '#f2f4f7', dpr,
+    { force: u.player || edIsSelected(u) });
+}
 
 // ------------------------------------------------------------------ interaction
-function edHit(sx, sy) {
+function edHit(sx, sy, { all = false } = {}) {
   const dpr = window.devicePixelRatio || 1;
-  let best = null, bd = 14 * dpr;
+  let best = null, bd = (all ? 10 : 14) * dpr;
   for (const u of edAllPoints().map(edUnitState)) {
-    if (!(u.edit || u.added || u.player)) continue;
+    if (!all && !(u.edit || u.added || u.player)) continue;
+    if (all && !ED.scenery && !(u.edit || u.added || u.player)) continue;
     const pos = u.player ? edPlayerPos(u) : u;
     const [x, y] = edToScreen(pos.x, pos.z);
     const d = Math.hypot(x - sx, y - sy);
@@ -375,6 +528,27 @@ function edCanvasPoint(ev) {
   const rect = ED.canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   return [(ev.clientX - rect.left) * dpr, (ev.clientY - rect.top) * dpr];
+}
+
+// what is under the pointer, in plain words
+function edTip(ev, sx, sy) {
+  const tip = $('#edTip');
+  const u = edHit(sx, sy, { all: true });
+  const z = u ? null : edHitZone(sx, sy);
+  if (!u && !z) { tip.classList.add('hidden'); return; }
+  if (u) {
+    const side = edSide(u);
+    const sideTxt = t({ player: 'editor.you', enemy: 'editor.enemy', ally: 'editor.ally', other: 'editor.scenery' }[side]);
+    tip.innerHTML = `<b>${esc(u.player ? t('editor.playerStart') : edUnitName(u.cls))}${u.count > 1 ? ` ×${u.count}` : ''}</b>
+      <span><i class="dot ${side}"></i>${esc(sideTxt)}${u.name && !u.player ? ' · ' + esc(u.name) : ''}${u.tpl ? ' · ' + esc(t('editor.tpl')) : ''}</span>`;
+  } else {
+    const info = edZoneInfo(z);
+    tip.innerHTML = `<b>${esc(edZoneLabel(z, info))}</b><span>${esc(t('editor.zone'))} · ${esc(z.name)}</span>`;
+  }
+  const rect = ED.canvas.getBoundingClientRect();
+  tip.style.left = Math.min(ev.clientX - rect.left + 14, rect.width - 260) + 'px';
+  tip.style.top = (ev.clientY - rect.top + 16) + 'px';
+  tip.classList.remove('hidden');
 }
 
 // ground height of the level (decoded from the game's heightmap by the server), when it has one
@@ -413,17 +587,37 @@ function edGroundY(x, z) {
   return best ? best.y + 1 : 50;
 }
 
+// places ED.addN new units, side by side across the way they face (towards you)
 function edAdd(x, z) {
   const e = edEdits();
   const block = ED.addBlock;
   const player = ED.data.units.find(u => u.player);
   const defaultCls = { tankModels: S.cfg.vehicle && S.byId.get(S.cfg.vehicle)?.c === 'ground' ? S.cfg.vehicle : 'ussr_t_72a',
     armada: 'mig-21_mf', ships: 'us_destroyer_fletcher' }[block];
-  const y = block === 'armada' ? Math.max((player?.y || 0) + 800, (edGround(x, z) ?? 0) + 800) : block === 'ships' ? 0 : Math.round(edGroundY(x, z) * 10) / 10;
   const yaw = player ? Math.atan2(player.z - z, player.x - x) * 180 / Math.PI : 0;
-  e.add.push({ block, cls: defaultCls, x: Math.round(x), y: Math.round(y), z: Math.round(z), yaw: Math.round(yaw), count: 1, attack: 'fire_at_will', behavior: '', speed: 450, side: ED.addSide });
-  ED.sel = { key: 'add:' + (e.add.length - 1) };
+  const n = Math.max(1, Math.min(20, +ED.addN || 1)), sp = ED_SPACING[block], a = yaw * Math.PI / 180;
+  const keys = [];
+  for (let i = 0; i < n; i++) {
+    const off = (i - (n - 1) / 2) * sp;
+    const px = x - Math.sin(a) * off, pz = z + Math.cos(a) * off;
+    const y = block === 'armada' ? Math.max((player?.y || 0) + 800, (edGround(px, pz) ?? 0) + 800) : block === 'ships' ? 0 : Math.round(edGroundY(px, pz) * 10) / 10;
+    e.add.push({ block, cls: defaultCls, x: Math.round(px), y: Math.round(y), z: Math.round(pz), yaw: Math.round(yaw), count: 1, attack: 'fire_at_will', behavior: '', speed: 450, side: ED.addSide });
+    keys.push('add:' + (e.add.length - 1));
+  }
+  edSelect(keys);
   ED.mode = 'select';
+}
+
+// moves a unit (added or the scenario's) to x, z: ground units stay on the ground
+function edMoveUnit(u, x, z) {
+  const e = edEdits();
+  if (u.added) {
+    const a = e.add[u.idx];
+    a.x = Math.round(x); a.z = Math.round(z);
+    if (a.block === 'tankModels') a.y = Math.round(edGroundY(x, z) * 10) / 10;
+  } else {
+    edSet(u, { x: Math.round(x), z: Math.round(z), ...(u.block === 'tankModels' ? { y: Math.round(edGroundY(x, z) * 10) / 10 } : {}) });
+  }
 }
 
 function edBind() {
@@ -431,6 +625,7 @@ function edBind() {
   cv.addEventListener('pointerdown', ev => {
     const [sx, sy] = edCanvasPoint(ev);
     cv.setPointerCapture(ev.pointerId);
+    $('#edTip').classList.add('hidden');
     if (ED.mode === 'add') {
       const [x, z] = edToWorld(sx, sy);
       edAdd(x, z);
@@ -442,27 +637,45 @@ function edBind() {
       ED.drag = { kind: 'turn', moved: false };
       return;
     }
+    const add = ev.ctrlKey || ev.metaKey || ev.shiftKey;
     const hit = edHit(sx, sy);
-    const zone = hit ? null : edHitZone(sx, sy);
-    if (zone) {
-      ED.sel = { zone: zone.name };
-      ED.drag = { kind: 'zone', z: zone, moved: false };
+    if (hit && add && !hit.player) {  // Ctrl / Shift + click: one more (or one less) in the selection
+      edToggle(edKey(hit));
+      ED.drag = null;
       edRenderPanel(); edDraw();
+      return;
+    }
+    const zone = hit || add ? null : edHitZone(sx, sy);
+    if (hit && !hit.player && ED.multi.includes(edKey(hit))) {  // drag the whole selection
+      const [wx, wz] = edToWorld(sx, sy);
+      const items = edSelUnits().map(edUnitState).filter(edMovable).map(u => ({ u, x: u.x, z: u.z }));
+      ED.drag = { kind: 'group', wx, wz, items, moved: false };
     } else if (hit) {
       ED.sel = hit.player ? { player: true } : { key: edKey(hit) };
-      const movable = hit.added || hit.player || (hit.edit && !hit.tpl && !hit.removed);
-      ED.drag = movable ? { kind: 'unit', u: hit, moved: false } : null;
+      ED.multi = [];
+      ED.search = '';
+      ED.drag = edMovable(hit) || hit.player ? { kind: 'unit', u: hit, moved: false } : null;
+      edRenderPanel(); edDraw();
+    } else if (add) {  // Shift / Ctrl + drag on the map: select an area
+      ED.drag = { kind: 'box', sx, sy, x2: sx, y2: sy, keep: edSelKeys(), moved: false };
+    } else if (zone) {
+      ED.sel = { zone: zone.name };
+      ED.multi = [];
+      ED.drag = { kind: 'zone', z: zone, moved: false };
       edRenderPanel(); edDraw();
     } else {
       ED.drag = { kind: 'pan', sx, sy, cx: ED.view.cx, cz: ED.view.cz };
     }
   });
   cv.addEventListener('pointermove', ev => {
-    if (!ED.drag) return;
     const [sx, sy] = edCanvasPoint(ev);
+    ED.mouse = edToWorld(sx, sy);
+    if (!ED.drag) { edTip(ev, sx, sy); return; }
     if (ED.drag.kind === 'pan') {
       ED.view.cx = ED.drag.cx - (sx - ED.drag.sx) / ED.view.scale;
       ED.view.cz = ED.drag.cz + (sy - ED.drag.sy) / ED.view.scale;
+    } else if (ED.drag.kind === 'box') {
+      Object.assign(ED.drag, { x2: sx, y2: sy, moved: true });
     } else if (ED.drag.kind === 'turn') {
       const tip = edArrowTip(window.devicePixelRatio || 1);
       const yaw = Math.round(Math.atan2(-(sy - tip.sy), sx - tip.sx) * 180 / Math.PI);
@@ -471,6 +684,11 @@ function edBind() {
     } else if (ED.drag.kind === 'zone') {
       const [x, z] = edToWorld(sx, sy);
       edEdits().areas[ED.drag.z.name] = { x: Math.round(x), z: Math.round(z) };
+      ED.drag.moved = true;
+    } else if (ED.drag.kind === 'group') {
+      const [x, z] = edToWorld(sx, sy);
+      const dx = x - ED.drag.wx, dz = z - ED.drag.wz;
+      for (const it of ED.drag.items) edMoveUnit(it.u, it.x + dx, it.z + dz);
       ED.drag.moved = true;
     } else {
       const [x, z] = edToWorld(sx, sy);
@@ -485,19 +703,29 @@ function edBind() {
         if (s && edFlyer()) y = s.air ? Math.max(y, Math.round((edGround(x, z) ?? 0) + 100)) : Math.round(edGroundY(x, z) * 10) / 10;
         e.player = { ...(e.player || {}), x: Math.round(x), y, z: Math.round(z), yaw: e.player?.yaw ?? Math.round(p.yaw || 0),
           ...(edFlyer() ? { mode: s?.air ? 'air' : 'ground', speed: s?.speed ?? 450 } : {}) };
-      } else if (ED.drag.u.added) {
-        const a = e.add[ED.drag.u.idx];
-        a.x = Math.round(x); a.z = Math.round(z);
-        if (a.block === 'tankModels') a.y = Math.round(edGroundY(x, z) * 10) / 10;
       } else {
-        const u = ED.data.units.find(x => x.name === ED.drag.u.name);
-        edSet(u, { x: Math.round(x), z: Math.round(z), ...(u.block === 'tankModels' ? { y: Math.round(edGroundY(x, z) * 10) / 10 } : {}) });
+        edMoveUnit(ED.drag.u, x, z);
       }
       ED.drag.moved = true;
     }
     edDraw();
   });
-  cv.addEventListener('pointerup', () => { if (ED.drag?.moved) edRenderPanel(); ED.drag = null; });
+  cv.addEventListener('pointerup', () => {
+    const d = ED.drag;
+    ED.drag = null;
+    if (d?.kind === 'box') {
+      if (d.moved) {
+        const [x0, x1] = [Math.min(d.sx, d.x2), Math.max(d.sx, d.x2)], [y0, y1] = [Math.min(d.sy, d.y2), Math.max(d.sy, d.y2)];
+        const inside = edAllPoints().map(edUnitState).filter(u => (u.edit || u.added) && !u.player).filter(u => {
+          const [x, y] = edToScreen(u.x, u.z);
+          return x >= x0 && x <= x1 && y >= y0 && y <= y1;
+        });
+        edSelect([...d.keep, ...inside.map(edKey)]);
+      }
+      edRenderPanel(); edDraw();
+    } else if (d?.moved) edRenderPanel();
+  });
+  cv.addEventListener('pointerleave', () => $('#edTip').classList.add('hidden'));
   cv.addEventListener('wheel', ev => {
     ev.preventDefault();
     const [sx, sy] = edCanvasPoint(ev);
@@ -509,7 +737,7 @@ function edBind() {
   }, { passive: false });
   window.addEventListener('resize', () => { if ($('#dlgEditor').open) { edResize(); edDraw(); } });
 
-  $('#edPanel').addEventListener('click', edPanelClick);
+  $('#edPanel').addEventListener('click', ev => { edPanelClick(ev); });
   $('#edPanel').addEventListener('change', edPanelChange);
   $('#edPanel').addEventListener('input', ev => {
     if (ev.target.id === 'edSearch') { ED.search = ev.target.value; edRenderResults(); }
@@ -519,40 +747,58 @@ function edBind() {
       edDraw();
     }
   });
+  $('#edAddN').addEventListener('change', ev => { ED.addN = Math.max(1, Math.min(20, +ev.target.value || 1)); ev.target.value = ED.addN; });
   $('#edTools').addEventListener('click', ev => {
     const b = ev.target.closest('button'); if (!b) return;
     if (b.dataset.edmode) { ED.mode = b.dataset.edmode; if (b.dataset.block) ED.addBlock = b.dataset.block; }
     if (b.dataset.edside) ED.addSide = b.dataset.edside;
     if (b.dataset.edact === 'fit') edFit();
     if (b.dataset.edact === 'fitMap') edFitMap();
-    if (b.dataset.edact === 'reset') { S.cfg.edits = { sid: S.cfg.scenario, units: {}, add: [], areas: {} }; ED.sel = null; }
+    if (b.dataset.edact === 'reset') { S.cfg.edits = { sid: S.cfg.scenario, units: {}, add: [], areas: {} }; edSelect([]); }
     if (b.dataset.edact === 'zones') { ED.zones = !ED.zones; if (!ED.zones && ED.sel?.zone) ED.sel = null; }
+    if (b.dataset.edact === 'scenery') ED.scenery = !ED.scenery;
+    if (b.dataset.edact === 'paste') { const [x, z] = [ED.view.cx, ED.view.cz]; edPaste(x, z); }
     edRenderPanel(); edDraw();
   });
   $('#edDone').addEventListener('click', () => $('#dlgEditor').close());
   $('#dlgEditor').addEventListener('keydown', ev => {
-    if (!['Delete', 'Backspace'].includes(ev.key) || ev.target.closest('input, select, textarea')) return;
-    const u = edSelected();
-    if (!u || u.player) return;
+    if (ev.target.closest('input, select, textarea')) return;
+    const mod = ev.ctrlKey || ev.metaKey, k = ev.key.toLowerCase();
+    if (mod && k === 'c') { if (edCopy()) toast({ title: t('editor.copied', { n: ED.clip.length }), ms: 2000 }); }
+    else if (mod && k === 'v') { edPasteHere(); }
+    else if (mod && k === 'd') { edDuplicate(); }
+    else if (mod && k === 'a') { edSelect(edAllPoints().map(edUnitState).filter(u => (u.edit || u.added) && !u.player).map(edKey)); }
+    else if (k === 'escape' && (ED.sel || ED.multi.length)) { edSelect([]); }
+    else if (['delete', 'backspace'].includes(k)) {
+      const us = edSelUnits();
+      if (!us.length) return;
+      if (us.length === 1 && !us[0].added && edUnitState(us[0]).removed) edSet(us[0], { remove: false });
+      else edRemoveUnits(us);
+      if (us.length === 1 && us[0].added) edSelect([]);
+    } else return;
     ev.preventDefault();
-    if (u.added) { edEdits().add.splice(u.idx, 1); ED.sel = null; } else edSet(u, { remove: !edUnitState(u).removed });
     edRenderPanel(); edDraw();
   });
-  $('#dlgEditor').addEventListener('close', () => { if (S.sel) renderDrawer(); });
+  $('#dlgEditor').addEventListener('close', () => { if (S.sel && !ED.configuring) renderDrawer(); });
 }
 
 // ------------------------------------------------------------------ side panel
 function edSelected() {
   if (!ED.sel) return null;
   if (ED.sel.player) return ED.data.units.find(u => u.player);
-  const [kind, id] = ED.sel.key.split(/:(.*)/s);
-  if (kind === 'add') { const a = edEdits().add[+id]; return a ? { ...a, added: true, idx: +id } : null; }
-  return ED.data.units.find(u => u.name === id) || null;
+  if (!ED.sel.key) return null;
+  return edUnitByKey(ED.sel.key);
 }
 
 function edSet(u, patch) {
   const e = edEdits();
-  if (u.added) { Object.assign(e.add[u.idx], patch); return; }
+  if ('cls' in patch && !('loadout' in patch) && patch.cls !== edUnitState(u).cls) patch = { ...patch, loadout: null };  // another vehicle: its own default loadout
+  if (u.added) {
+    const a = e.add[u.idx];
+    Object.assign(a, patch);
+    if (a.loadout == null) delete a.loadout;
+    return;
+  }
   const cur = Object.assign({}, e.units[u.name], patch);
   for (const k of Object.keys(cur)) if (cur[k] === '' || cur[k] == null || cur[k] === false || (k === 'cls' && cur[k] === u.cls) || (k === 'count' && +cur[k] === +u.count) || (u.tpl && k === 'attack' && !['hold_fire', 'fire_at_will'].includes(cur[k])) || (k === 'side' && cur[k] === edSide({ ...u, side: '' }))) delete cur[k];
   if (Object.keys(cur).length) e.units[u.name] = cur; else delete e.units[u.name];
@@ -562,17 +808,24 @@ function edRenderPanel() {
   $$('#edTools [data-edmode]').forEach(b => b.classList.toggle('active', b.dataset.edmode === ED.mode && (ED.mode !== 'add' || b.dataset.block === ED.addBlock)));
   $$('#edTools [data-edside]').forEach(b => b.classList.toggle('active', b.dataset.edside === ED.addSide));
   $('#edFitMap').classList.toggle('hidden', !ED.layers.length);
+  $('#edPaste').classList.toggle('hidden', !ED.clip?.length);
   $('#edHint').textContent = ED.mode === 'add' ? t(ED.addSide === 'ally' ? 'editor.hintAddAlly' : 'editor.hintAdd') : t('editor.hintSelect');
   $('#edChanges').textContent = t('editor.changes', { n: edCount() });
   $('#edZones')?.classList.toggle('active', ED.zones);
+  $('#edScenery')?.classList.toggle('active', ED.scenery);
   const panel = $('#edInspector');
+  if (ED.multi.length) { panel.innerHTML = edMultiHTML(); edRenderResults(); edRenderList(); return; }
   if (ED.sel?.zone) {
     const z0 = (ED.data.areas || []).find(z => z.name === ED.sel.zone);
     if (z0) {
       const z = edZonePos(z0), moved = !!edEdits().areas[z0.name];
-      panel.innerHTML = `<div class="ed-title">${icon('target', 'ic-sm')} <b>${esc(z0.name)}</b></div>
-        <div class="ed-sub muted">${esc(t('editor.zone'))}${z0.type ? ' · ' + esc(z0.type) : ''} · ${Math.round(z0.sx)} × ${Math.round(z0.sz)} m</div>
-        <p class="hint">${esc(t(z0.used ? 'editor.zoneUsed' : 'editor.zoneUnused'))}</p>
+      const info = edZoneInfo(z0);
+      const what = info.classes.length ? `<p class="hint">${esc(t('editor.zoneUnits'))}</p>
+        <div class="ed-zunits">${info.classes.map(([c, n]) => `<div class="ed-zunit">${listThumb(c)}<span>${flagHTML(S.byId.get(c)?.n)}${esc(edUnitName(c))}</span><b>${n > 1 ? '×' + n : ''}</b></div>`).join('')}</div>` : '';
+      panel.innerHTML = `<div class="ed-title">${icon('target', 'ic-sm')} <b>${esc(edZoneLabel(z0, info))}</b></div>
+        <div class="ed-sub muted">${esc(t('editor.zone'))} · ${esc(z0.name)}${z0.type ? ' · ' + esc(z0.type) : ''} · ${Math.round(z0.sx)} × ${Math.round(z0.sz)} m</div>
+        ${z0.player ? `<p class="hint">${esc(t('editor.zonePlayer'))}</p>` : ''}${what}
+        ${!z0.player && !info.classes.length ? `<p class="hint">${esc(t(z0.used ? 'editor.zoneUsed' : 'editor.zoneUnused'))}</p>` : ''}
         <div class="field-row"><div class="field"><label>X</label><input type="number" data-edzone="x" value="${Math.round(z.x)}"></div>
           <div class="field"><label>Z</label><input type="number" data-edzone="z" value="${Math.round(z.z)}"></div></div>
         ${moved ? `<button class="btn btn-ghost btn-sm" data-edact="resetZone">${icon('refresh', 'ic-sm')}${esc(t('mods.reset'))}</button>` : ''}`;
@@ -581,12 +834,11 @@ function edRenderPanel() {
     }
   }
   const u = edSelected();
-  if (!u) { panel.innerHTML = `<p class="hint">${esc(t('editor.noSel'))}</p>`; edRenderList(); return; }
+  if (!u) { panel.innerHTML = `<p class="hint">${esc(t('editor.noSel'))}</p><p class="hint">${esc(t('editor.multiHint'))}</p>`; edRenderList(); return; }
   if (u.player) {
     const p = edStart();
     const sp = ED.data.spawn;
     const spawnNote = sp ? `<p class="hint">${esc(t(edEdits().player ? 'editor.spawnMoved' : sp.runway ? 'editor.spawnRunway' : 'editor.spawnArea'))}</p>` : '';
-    const g = edGround(p.x, p.z);
     const modeSeg = edFlyer() ? `<div class="field"><label>${esc(t('cond.start'))}</label><div class="seg">
         <button class="${p.air ? '' : 'active'}" data-edstart="ground">${esc(t('editor.startGround'))}</button>
         <button class="${p.air ? 'active' : ''}" data-edstart="air">${esc(t('editor.startAir'))}</button></div></div>` : '';
@@ -597,7 +849,7 @@ function edRenderPanel() {
       <p class="hint">${esc(t(edFlyer() ? 'editor.playerHintAir' : 'editor.playerHint'))}</p>${spawnNote}
       ${modeSeg}${airFields}
       <div class="field"><label>${esc(t('editor.heading'))}</label><div class="slider-row"><input type="range" min="0" max="359" step="1" data-edf="pyaw" value="${edCompass(p.yaw)}"><output>${edCompass(p.yaw)}° ${esc(edCardinal(edCompass(p.yaw)))}</output></div>
-        <small class="muted">${esc(t('editor.headingHint'))}</small></div>${g == null && !p.air ? '' : ''}
+        <small class="muted">${esc(t('editor.headingHint'))}</small></div>
       ${edEdits().player ? `<button class="btn btn-ghost btn-sm" data-edact="resetPlayer">${icon('refresh', 'ic-sm')}${esc(t('mods.reset'))}</button>` : ''}`;
     edRenderList();
     return;
@@ -611,6 +863,8 @@ function edRenderPanel() {
       ${edBehaviors(side, air, u.added).map(([k, l]) => `<button class="${(st.behavior || '') === k ? 'active' : ''}" data-edbeh="${k}">${esc(t(l))}</button>`).join('')}
     </div>${st.behavior === 'follow' ? `<small class="muted">${esc(t('editor.followHint'))}</small>` : ''}${st.moves && !u.added ? `<small class="muted">${esc(t('editor.movesHint'))}</small>` : ''}</div>`;
   const removed = `<p class="hint">${esc(t('editor.removedHint'))}</p><button class="btn btn-sm" data-edact="restore">${icon('refresh', 'ic-sm')}${esc(t('editor.restore'))}</button>`;
+  const copyBtns = ED_ADD_BLOCK[u.block] || u.added ? `<button class="btn btn-ghost btn-sm" data-edact="copy">${esc(t('editor.copy'))}</button>
+      <button class="btn btn-ghost btn-sm" data-edact="duplicate">${esc(t('editor.duplicate'))}</button>` : '';
   if (u.tpl) {
     panel.innerHTML = `<div class="ed-title">${v ? flagHTML(v.n) : ''}<b>${esc(v ? I18N.unit(v.id) : st.cls)}</b></div>
       <div class="ed-sub muted">${esc(u.name)} · ${esc(t('editor.fromTemplate'))}</div>
@@ -620,7 +874,8 @@ function edRenderPanel() {
         ${[['', 'editor.asScenario'], ['fire_at_will', 'editor.fire.aggressive'], ['hold_fire', 'editor.fire.passive']].map(([k, l]) => `<option value="${k}"${(['hold_fire', 'fire_at_will'].includes(st.attack) ? st.attack : '') === k ? ' selected' : ''}>${esc(t(l))}</option>`).join('')}
       </select></div>
       ${moveSeg}
-      <button class="btn btn-ghost btn-sm btn-danger" data-edact="remove">${icon('trash', 'ic-sm')}${esc(t('editor.remove'))}</button>`}`;
+      <div class="row gap ed-actions">${copyBtns}
+      <button class="btn btn-ghost btn-sm btn-danger" data-edact="remove">${icon('trash', 'ic-sm')}${esc(t('editor.remove'))}</button></div>`}`;
     edRenderList();
     return;
   }
@@ -632,9 +887,8 @@ function edRenderPanel() {
     <div class="field"><label>${esc(t('editor.side'))}</label><div class="seg ed-side">
       <button class="${side === 'enemy' ? 'active' : ''}" data-edside="enemy"><i class="dot enemy"></i>${esc(t('editor.enemy'))}</button>
       <button class="${side === 'ally' ? 'active' : ''}" data-edside="ally"><i class="dot ally"></i>${esc(t('editor.ally'))}</button></div></div>
-    <div class="field"><label>${esc(t('editor.vehicle'))}</label>
-      <input id="edSearch" type="search" placeholder="${esc(t('editor.searchVehicle'))}" value="${esc(ED.search)}" autocomplete="off">
-      <div class="ed-results" id="edResults" data-cats="${cats.join(',')}"></div></div>
+    ${edVehicleField(cats)}
+    ${edLoadoutField(st)}
     <div class="field-row">
       <div class="field"><label>${esc(t('editor.count'))}</label><input type="number" min="1" max="12" data-edf="count" value="${st.count || 1}"></div>
       <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edf="attack">
@@ -648,10 +902,76 @@ function edRenderPanel() {
     ${u.block === 'tankModels' && (u.added || st.moved) ? `<div class="field"><label>${esc(t('editor.height'))}</label><input type="number" data-edf="y" value="${Math.round(st.y)}">${edGroundInfo(st, false) || `<small class="muted">${esc(t('editor.heightHint'))}</small>`}</div>` : ''}
     <div class="row gap ed-actions">
       ${st.moved ? `<button class="btn btn-ghost btn-sm" data-edact="resetPos">${icon('refresh', 'ic-sm')}${esc(t('editor.resetPos'))}</button>` : ''}
+      ${copyBtns}
       <button class="btn btn-ghost btn-sm btn-danger" data-edact="${u.added ? 'delete' : 'remove'}">${icon('trash', 'ic-sm')}${esc(t(u.added ? 'action.delete' : 'editor.remove'))}</button>
     </div>`}`;
   edRenderResults();
   edRenderList();
+}
+
+// the vehicle picker: all the game's vehicles of that kind (pictures) or the user's saved ones (My vehicles)
+function edVehicleField(cats) {
+  const mine = (S.setups || []).filter(s => cats.includes(S.byId.get(s.vehicle)?.c)).length;
+  return `<div class="field"><label>${esc(t('editor.vehicle'))}</label>
+    <div class="seg ed-restabs"><button class="${ED.resTab === 'all' ? 'active' : ''}" data-edtab="all">${esc(t('editor.allVehicles'))}</button>
+      <button class="${ED.resTab === 'mine' ? 'active' : ''}" data-edtab="mine">${esc(t('editor.myVehicles'))}${mine ? ` <span class="muted">${mine}</span>` : ''}</button></div>
+    ${ED.resTab === 'all' ? `<input id="edSearch" type="search" placeholder="${esc(t('editor.searchVehicle'))}" value="${esc(ED.search)}" autocomplete="off">` : ''}
+    <div class="ed-results" id="edResults" data-cats="${cats.join(',')}"></div></div>`;
+}
+function edLoadoutSummary(st) {
+  const lo = st.loadout;
+  if (!lo) return t('editor.loadoutDefault');
+  if (lo.name) return lo.name;
+  if (lo.pylons) return t('loadout.customRow');
+  const v = S.byId.get(st.cls), p = S.details.get(st.cls)?.pr.find(x => x.id === lo.preset);
+  return v && p ? presetLabel(v, p) : lo.preset || t('editor.loadoutOwn');
+}
+function edLoadoutField(st) {
+  if (!S.byId.get(st.cls)) return '';
+  return `<div class="field"><label>${esc(t('editor.loadout'))}</label><div class="ed-lo">
+    <span${st.loadout ? ' class="on"' : ''}>${esc(edLoadoutSummary(st))}</span>
+    <button class="btn btn-sm" data-edact="loadout">${icon('sliders', 'ic-sm')}${esc(t('editor.configure'))}</button>
+    ${st.loadout ? `<button class="icon-btn" data-edact="loadoutReset" title="${esc(t('mods.reset'))}">${icon('refresh', 'ic-sm')}</button>` : ''}
+  </div></div>`;
+}
+
+// several units selected: what they share, changed for all at once
+function edMultiHTML() {
+  const sts = edSelUnits().map(edUnitState);
+  const own = sts.filter(u => !u.tpl);  // vehicle, side, count: the scenario's own and added units
+  const air = own.filter(u => u.block === 'armada');
+  const same = (arr, f) => (arr.length && arr.every(x => f(x) === f(arr[0])) ? f(arr[0]) : undefined);
+  const counts = new Map();
+  for (const u of sts) counts.set(u.cls, (counts.get(u.cls) || 0) + 1);
+  const side = same(own, edSide), attack = same(sts, u => u.attack || ''), beh = same(sts, u => u.behavior || ''), cnt = same(own, u => +u.count || 1);
+  const cats = [...new Set(own.flatMap(u => ED_BLOCK_CATS[u.block] || []))];
+  const mixed = `<option value="__mixed" selected disabled>${esc(t('editor.mixed'))}</option>`;
+  const behs = [['', 'editor.asScenario'], ...(own.every(u => u.block === 'armada') ? [] : [['stay', 'editor.move.stay']]), ['hunt', 'editor.move.hunt'], ['follow', 'editor.move.follow']];
+  return `<div class="ed-title">${icon('target', 'ic-sm')} <b>${esc(t('editor.selected', { n: sts.length }))}</b></div>
+    <div class="ed-chips">${[...counts].map(([c, n]) => `<span class="chip">${esc(edUnitName(c))}${n > 1 ? ` ×${n}` : ''}</span>`).join('')}</div>
+    <p class="hint">${esc(t('editor.multiHint'))}</p>
+    ${own.length ? `<div class="field"><label>${esc(t('editor.side'))}</label><div class="seg ed-side">
+      <button class="${side === 'enemy' ? 'active' : ''}" data-edmside="enemy"><i class="dot enemy"></i>${esc(t('editor.enemy'))}</button>
+      <button class="${side === 'ally' ? 'active' : ''}" data-edmside="ally"><i class="dot ally"></i>${esc(t('editor.ally'))}</button></div></div>
+    ${edVehicleField(cats)}` : ''}
+    <div class="field-row">
+      ${own.length ? `<div class="field"><label>${esc(t('editor.count'))}</label><input type="number" min="1" max="12" data-edm="count" value="${cnt ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>` : ''}
+      <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edm="attack">${attack === undefined ? mixed : ''}
+        ${[['', 'editor.asScenario'], ['fire_at_will', 'editor.fire.aggressive'], ['return_fire', 'editor.fire.return'], ['hold_fire', 'editor.fire.passive']]
+          .map(([k, l]) => `<option value="${k}"${attack === k ? ' selected' : ''}>${esc(t(l))}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label>${esc(t('editor.move'))}</label><div class="seg seg-wrap3">
+      ${behs.map(([k, l]) => `<button class="${beh === k ? 'active' : ''}" data-edmbeh="${k}">${esc(t(l))}</button>`).join('')}</div>
+      <small class="muted">${esc(t('editor.multiMoveHint'))}</small></div>
+    ${air.length ? `<div class="field-row"><div class="field"><label>${esc(t('cond.altitude'))}</label><input type="number" data-edm="y" value="${same(air, u => Math.round(u.y)) ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>
+      <div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" data-edm="speed" value="${same(air, u => Math.round(u.speed || 450)) ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div></div>` : ''}
+    <div class="row gap ed-actions">
+      <button class="btn btn-ghost btn-sm" data-edact="copy">${esc(t('editor.copy'))}</button>
+      <button class="btn btn-ghost btn-sm" data-edact="duplicate">${esc(t('editor.duplicate'))}</button>
+      ${sts.some(u => u.removed) ? `<button class="btn btn-ghost btn-sm" data-edact="restoreSel">${icon('refresh', 'ic-sm')}${esc(t('editor.restore'))}</button>` : ''}
+      <button class="btn btn-ghost btn-sm btn-danger" data-edact="removeSel">${icon('trash', 'ic-sm')}${esc(t('editor.removeSel'))}</button>
+      <button class="btn btn-ghost btn-sm" data-edact="clearSel">${icon('x', 'ic-sm')}${esc(t('editor.clearSel'))}</button>
+    </div>`;
 }
 
 // under a height field: ground level here, and height above it (aircraft) or a button to put the unit on it
@@ -667,32 +987,42 @@ function edRenderResults() {
   const box = $('#edResults');
   if (!box) return;
   const cats = box.dataset.cats.split(',');
+  const cur = ED.multi.length ? '' : (() => { const u = edSelected(); return u ? edUnitState(u).cls : ''; })();
+  if (ED.resTab === 'mine') {
+    const list = (S.setups || []).filter(s => cats.includes(S.byId.get(s.vehicle)?.c));
+    box.innerHTML = list.map(s => `<button class="ed-vc" data-edsetup="${esc(s.id)}" title="${esc(s.name)}">
+        <div class="ed-vc-img">${unitImgTag(s.vehicle)}</div><span class="ed-vc-name">${esc(s.name)}</span>
+        <span class="ed-vc-sub">${flagHTML(S.byId.get(s.vehicle)?.n)}${esc(I18N.unit(s.vehicle))}</span></button>`).join('')
+      || `<p class="hint">${esc(t('editor.noMine'))}</p>`;
+    return;
+  }
   const q = norm(ED.search);
-  const u = edSelected();
-  const cur = u ? edUnitState(u).cls : '';
   let list = S.vehicles.filter(v => cats.includes(v.c) && !v.h && (!q || v._s.includes(q)));
   if (!q) {
     const ref = S.byId.get(cur)?.br?.[1] ?? 5;
     list.sort((a, b) => Math.abs((a.br[1] ?? 99) - ref) - Math.abs((b.br[1] ?? 99) - ref));
   }
   list = list.slice(0, 40);
-  box.innerHTML = list.map(v => `<button class="ed-res${v.id === cur ? ' active' : ''}" data-edcls="${esc(v.id)}">${flagHTML(v.n)}<span>${esc(I18N.unit(v.id))}</span><b>${fmtBR(v.br?.[1])}</b></button>`).join('')
+  box.innerHTML = list.map(v => `<button class="ed-vc${v.id === cur ? ' active' : ''}" data-edcls="${esc(v.id)}" title="${esc(I18N.unitFull(v.id))}">
+      <div class="ed-vc-img">${unitImgTag(v.id)}<span class="ed-vc-br">${fmtBR(v.br?.[1])}</span></div>
+      <span class="ed-vc-name">${flagHTML(v.n)}${esc(I18N.unit(v.id))}</span></button>`).join('')
     || `<p class="hint">${esc(t('results.empty'))}</p>`;
 }
 
 function edRenderList() {
   const e = edEdits();
   const groups = { enemy: [], ally: [] };
+  const keys = edSelKeys();
   for (const u of ED.data.units.filter(x => x.edit)) {
     const st = edUnitState(u);
     const side = edSide(st);
     const changed = !!e.units[u.name];
-    (groups[side] || groups.enemy).push(`<button class="ed-row${ED.sel?.key === 'u:' + u.name ? ' active' : ''}${st.removed ? ' removed' : ''}" data-edsel="u:${esc(u.name)}">
+    (groups[side] || groups.enemy).push(`<button class="ed-row${keys.includes('u:' + u.name) ? ' active' : ''}${st.removed ? ' removed' : ''}" data-edsel="u:${esc(u.name)}">
       <i class="dot ${side}"></i><span>${esc(I18N.unit(st.cls))}${st.count > 1 ? ` ×${st.count}` : ''}</span>${u.tpl ? `<i class="chip dim">${esc(t(u.runtime ? 'editor.runtime' : 'editor.tpl'))}</i>` : ''}${changed ? '<b>●</b>' : ''}</button>`);
   }
   e.add.forEach((a, i) => {
     const side = a.side === 'ally' ? 'ally' : 'enemy';
-    groups[side].push(`<button class="ed-row added${ED.sel?.key === 'add:' + i ? ' active' : ''}" data-edsel="add:${i}">
+    groups[side].push(`<button class="ed-row added${keys.includes('add:' + i) ? ' active' : ''}" data-edsel="add:${i}">
       <i class="dot ${side}"></i><span>${esc(I18N.unit(a.cls))}${a.count > 1 ? ` ×${a.count}` : ''}</span><b>+</b></button>`);
   });
   const html = ['enemy', 'ally'].filter(k => groups[k].length)
@@ -700,10 +1030,53 @@ function edRenderList() {
   $('#edList').innerHTML = html || `<p class="hint">${esc(t('editor.noUnits'))}</p>`;
 }
 
+// the loadout of an AI unit, set in the vehicle panel like the player's (the editor waits meanwhile)
+async function edConfigure(key) {
+  const u = edUnitByKey(key);
+  if (!u) return;
+  const st = edUnitState(u);
+  ED.configuring = true;
+  $('#dlgEditor').close();
+  ED.configuring = false;
+  await openUnitLoadout(st.cls, st.loadout, { name: I18N.unit(st.cls) }, res => {
+    const cur = edUnitByKey(key);
+    if (res && cur) edSet(cur, { loadout: { ...res, vehicle: st.cls } });
+    edResume();
+  });
+}
+// a saved vehicle (My vehicles) for the selected unit(s): its vehicle and loadout
+async function edUseSetup(id) {
+  const s = (S.setups || []).find(x => x.id === id);
+  const v = s && S.byId.get(s.vehicle);
+  if (!v) return;
+  const lo = await loadoutFromSetup(s);
+  for (const u of edSelUnits()) {
+    const st = edUnitState(u);
+    if (st.tpl || !(ED_BLOCK_CATS[u.block] || []).includes(v.c)) continue;
+    edSet(u, { cls: s.vehicle, loadout: lo ? { ...lo, vehicle: s.vehicle } : null });
+  }
+  edRenderPanel(); edDraw();
+}
+
 function edPanelClick(ev) {
   const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.edsel) {
+    if (ev.ctrlKey || ev.metaKey || ev.shiftKey) edToggle(b.dataset.edsel); else edSelect([b.dataset.edsel]);
+    edRenderPanel(); edDraw(); return;
+  }
+  if (b.dataset.edtab) { ED.resTab = b.dataset.edtab; edRenderPanel(); return; }
+  if (b.dataset.edsetup) { edUseSetup(b.dataset.edsetup); return; }
+  switch (b.dataset.edact) {
+    case 'copy': if (edCopy()) toast({ title: t('editor.copied', { n: ED.clip.length }), ms: 2000 }); edRenderPanel(); return;
+    case 'duplicate': edDuplicate(); edRenderPanel(); edDraw(); return;
+    case 'clearSel': edSelect([]); edRenderPanel(); edDraw(); return;
+    case 'removeSel': edRemoveUnits(edSelUnits()); edRenderPanel(); edDraw(); return;
+    case 'restoreSel': for (const u of edSelUnits()) if (!u.added) edSet(u, { remove: false }); edRenderPanel(); edDraw(); return;
+    case 'loadout': if (ED.sel?.key) edConfigure(ED.sel.key); return;
+    case 'resetZone': delete edEdits().areas[ED.sel.zone]; edRenderPanel(); edDraw(); return;
+  }
+  if (ED.multi.length) { edMultiClick(b); return; }
   const u = edSelected();
-  if (b.dataset.edsel) { ED.sel = { key: b.dataset.edsel }; ED.search = ''; edRenderPanel(); edDraw(); return; }
   if (!u) return;
   if (b.dataset.edcls) { edSet(u, { cls: b.dataset.edcls }); }
   else if (b.dataset.edbeh !== undefined) { edSet(u, { behavior: b.dataset.edbeh }); }
@@ -716,7 +1089,8 @@ function edPanelClick(ev) {
   else if (b.dataset.edact === 'remove') { edSet(u, { remove: true }); }
   else if (b.dataset.edact === 'restore') { edSet(u, { remove: false }); }
   else if (b.dataset.edact === 'resetPos') { edSet(u, { x: null, y: null, z: null }); }
-  else if (b.dataset.edact === 'delete') { edEdits().add.splice(u.idx, 1); ED.sel = null; }
+  else if (b.dataset.edact === 'delete') { edEdits().add.splice(u.idx, 1); edSelect([]); }
+  else if (b.dataset.edact === 'loadoutReset') { edSet(u, { loadout: null }); }
   else if (b.dataset.edact === 'resetPlayer') { delete edEdits().player; }
   else if (b.dataset.edstart) {
     const s = edStart(), g = edGround(s.x, s.z);
@@ -727,13 +1101,37 @@ function edPanelClick(ev) {
   else if (b.dataset.edground) {
     if (b.dataset.edground === 'py') {
       const p = edPlayerPos(u);
-      edEdits().player = { x: p.x, y: Math.round(edGroundY(p.x, p.z) * 10) / 10, z: p.z, yaw: p.yaw || 0 };
+      edSetStart({ y: Math.round(edGroundY(p.x, p.z) * 10) / 10 });
     } else {
       const st = edUnitState(u);
       edSet(u, u.added ? { y: Math.round(edGroundY(st.x, st.z) * 10) / 10 } : { x: st.x, z: st.z, y: Math.round(edGroundY(st.x, st.z) * 10) / 10 });
     }
   }
   else return;
+  edRenderPanel(); edDraw();
+}
+// a change for every selected unit it applies to
+function edMultiClick(b) {
+  const us = edSelUnits();
+  if (b.dataset.edcls) {
+    const v = S.byId.get(b.dataset.edcls);
+    for (const u of us) if (!u.tpl && v && (ED_BLOCK_CATS[u.block] || []).includes(v.c)) edSet(u, { cls: v.id });
+  } else if (b.dataset.edmside) {
+    for (const u of us) {
+      if (u.tpl) continue;
+      const beh = edUnitState(u).behavior;
+      const keep = !(beh === 'hunt' && b.dataset.edmside === 'ally') && !(beh === 'follow' && b.dataset.edmside === 'enemy');
+      edSet(u, { side: b.dataset.edmside, ...(keep ? {} : { behavior: '' }) });
+    }
+  } else if (b.dataset.edmbeh !== undefined) {
+    const beh = b.dataset.edmbeh;
+    for (const u of us) {
+      const side = edSide(edUnitState(u));
+      // hunting: enemies only, escorting: allies only, staying still: not aircraft
+      if ((beh === 'hunt' && side !== 'enemy') || (beh === 'follow' && side !== 'ally') || (beh === 'stay' && u.block === 'armada')) continue;
+      edSet(u, { behavior: beh });
+    }
+  } else return;
   edRenderPanel(); edDraw();
 }
 
@@ -746,9 +1144,19 @@ function edPanelChange(ev) {
     edRenderPanel(); edDraw();
     return;
   }
+  if (el.dataset.edm && el.value !== '' && el.value !== '__mixed') {  // several units
+    for (const u of edSelUnits()) {
+      const st = edUnitState(u);
+      if (el.dataset.edm === 'count' && !u.tpl) edSet(u, { count: Math.max(1, Math.min(12, +el.value || 1)) });
+      else if (el.dataset.edm === 'attack') edSet(u, { attack: el.value });
+      else if (el.dataset.edm === 'y' && u.block === 'armada' && !u.tpl) edSet(u, u.added ? { y: +el.value } : { x: st.x, z: st.z, y: +el.value });
+      else if (el.dataset.edm === 'speed' && u.block === 'armada' && u.added) edSet(u, { speed: +el.value });
+    }
+    edRenderPanel(); edDraw();
+    return;
+  }
   if (!f) return;
   const u = edSelected(); if (!u) return;
-  const e = edEdits();
   if (f === 'py' || f === 'pyaw' || f === 'pspeed') {
     edSetStart(f === 'py' ? { y: +el.value } : f === 'pyaw' ? { yaw: edYaw(+el.value) } : { speed: Math.max(0, Math.min(3000, +el.value || 0)) });
   } else if (f === 'count') edSet(u, { count: Math.max(1, Math.min(12, +el.value || 1)) });

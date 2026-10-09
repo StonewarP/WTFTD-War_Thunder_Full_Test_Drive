@@ -107,6 +107,22 @@ bases' AA (`bdt_t2_aaa_unit`, a template unit) set to Attacks.
   is set 1 s in): spawn straight at ~3034 m, heading 090, no jump; 600 km/h; same after a crash: no jump (2026-10-09).
 - [ ] The enemy bases appear ~3 km east of where they were.
 
+## 2e. Ground starts without a jump, AI units with loadouts (new)
+
+Data schema 14: `{sid}.zones.json` now says what each zone gets (`builder.zone_roles`: units the scripts put
+there, the zones the player is respawned / teleported into). Ground starts: a test flight gets a runway of its
+own (`addAirfield` at the start, the template's `airfield_spawn` variable kept on it, as the template itself
+does for seaplanes); a tank test drive's respawn zone (`spawn01`) is moved to the start. AI units: preset +
+belts written on the unit, an aircraft with custom pylons gets a custom aircraft of its own
+(`pkg_user`, `wtftd_<id>_ai<n>`).
+
+- [ ] `wtftd_r6_ground_afghan` (F-14B): parked on the Afghan runway between its two spawn points, facing NNE
+  (towards the airfield centre), no jump; after a crash: same place.
+- [ ] `wtftd_r6_tank_tft` (T-72A, firing range): starts 150 m north of the usual start, facing south, no jump.
+- [ ] `wtftd_r6_ai_loadouts` (F-14B, air start 1500 m above the start, 600 km/h): 2 enemy Rafale (the saved
+  "Rafale C F3 · Custom": Magic / MICA + a pod) and a MiG-29 9.13 with R-73s hunt you, 3 Fw 190 C east.
+  Check the Rafale / MiG fire missiles (their loadout is used), the Rafale carry the custom pylons.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

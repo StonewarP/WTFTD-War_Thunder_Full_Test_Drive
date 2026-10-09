@@ -6,6 +6,17 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- **Map editor**: zones say what the scenario puts there (your start, the vehicles it brings in, with
+  pictures) and are coloured by side; the map is shaded, labels sit on dark pills, a tip names whatever is
+  under the pointer, scenery can be hidden. **Several units at once**: Ctrl / Shift + click or Shift + drag
+  to select, then change side, vehicle, count, fire, movement, altitude or speed for all; drag them together;
+  Ctrl+C / Ctrl+V / Ctrl+D copy, paste and duplicate; each click can place up to 20 units side by side.
+  **Vehicle picker with pictures**, and **My vehicles**: a saved vehicle becomes an AI unit, its loadout
+  included. **AI loadouts**: Configure opens the unit in the vehicle panel (loadout, ammo) as for your own
+  vehicle; aircraft with custom pylons get a custom aircraft of their own.
+- **Ground starts without a jump**: on test flights you are parked on a runway of your own at the start set
+  in the editor; on tank test drives the scenario's respawn point follows your start. Templates that never
+  move you no longer get the extra respawn.
 - **Map editor**: the scenario's **zones** show on the map (those its scripts use, to spawn, respawn or send
   units, highlighted) and can be moved: what the game puts there moves with them. **Your start**: on the
   ground or in the air, altitude, speed and compass heading (an arrow on the map, its tip can be dragged); it

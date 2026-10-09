@@ -256,13 +256,27 @@ def scenario_units(sid: str) -> dict:
             "areas": scenario_zones(sid, m)}
 
 
-def scenario_zones(sid: str, m: dict) -> list:
-    """The mission's areas for the editor: centre, size, heading, shape, and whether its scripts use it
-    (where they spawn / respawn / send units)."""
+def zone_info(sid: str) -> dict | None:
+    """What the scenario's scripts do with its zones (builder.zone_roles + "used"); None when unknown."""
     try:
-        used = set(json.loads((DATA / "scenarios" / f"{sid}.zones.json").read_text(encoding="utf-8")))
-    except (OSError, ValueError):
-        used = set()
+        z = json.loads((DATA / "scenarios" / f"{sid}.zones.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    if isinstance(z, list):  # older data: the used zones only
+        return {"used": z}
+    return z if isinstance(z, dict) else None
+
+
+def scenario_zones(sid: str, m: dict) -> list:
+    """The mission's areas for the editor: centre, size, heading, shape, whether its scripts use it
+    (where they spawn / respawn / send units), the units they put there and whether you start there."""
+    info = zone_info(sid) or {}
+    used = set(info.get("used") or [])
+    spawns = info.get("spawns") or {}
+    player = set(info.get("player") or [])
+    tf = _test_flight_spawn(m)
+    if tf:  # test flights: of all their start zones, the mission's air_spawn_point picks one (and its variants)
+        player = {n for n in player if n == tf[1] or n.startswith(tf[1] + "_")}
     out = []
     for name, a in (m.get("areas") or {}).items():
         try:
@@ -274,7 +288,8 @@ def scenario_zones(sid: str, m: dict) -> list:
         except (TypeError, KeyError, IndexError, ValueError):
             continue
         out.append({"name": name, "type": str(a.get("type", "")), "x": round(x, 1), "y": round(y, 1), "z": round(z, 1),
-                    "sx": round(sx, 1), "sz": round(sz, 1), "yaw": round(yaw, 1), "used": name in used or name == "wtftd_spawn"})
+                    "sx": round(sx, 1), "sz": round(sz, 1), "yaw": round(yaw, 1), "used": name in used or name == "wtftd_spawn",
+                    **({"units": spawns[name][:80]} if spawns.get(name) else {}), **({"player": 1} if name in player else {})})
     return out
 
 
@@ -283,10 +298,11 @@ def _yaw_tm(deg: float, x: float, y: float, z: float):
     return [[math.cos(t), 0.0, math.sin(t)], [0.0, 1.0, 0.0], [-math.sin(t), 0.0, math.cos(t)], [x, y, z]]
 
 
-def apply_edits(m: dict, wing: str, edits: dict):
+def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
     """Map editor changes:
     units: {name: {cls, count, attack, behavior, remove, side, x, y, z}}   existing units of the scenario
-    add:   [{block, cls, x, y, z, yaw, count, attack, behavior, speed, side}]   new units
+    add:   [{block, cls, x, y, z, yaw, count, attack, behavior, speed, side, loadout}]   new units
+    loadout: {vehicle, preset, ammo, _groups, _unitClass}   an AI unit's weapons / belts (server._prepare_ai)
     player: {x, y, z, yaw}   moves the player's start
     side:     "ally" | "enemy" (default for added units: enemy)
     behavior: "" | "stay" (cannotMove) | "hunt" (unitAttackTarget on the player)
@@ -307,6 +323,15 @@ def apply_edits(m: dict, wing: str, edits: dict):
             for n in range(4):
                 if f"bullets{n}" in u:
                     u[f"bullets{n}"] = ""
+        lo = e.get("loadout")
+        if isinstance(lo, dict):  # the unit's own loadout (AI), set in the app like the player's
+            if _CLASS.match(str(lo.get("_unitClass") or "")):
+                u["unit_class"] = lo["_unitClass"]  # custom aircraft of its own (pylons)
+            preset = str(lo.get("preset") or "")
+            if re.fullmatch(r"[A-Za-z0-9_\-.]{0,120}", preset):
+                u["weapons"] = preset
+            if isinstance(lo.get("ammo"), list):
+                write_bullets(u, lo["ammo"], lo.get("_groups"))
         props = u.setdefault("props", {})
         if e.get("count"):
             props["count"] = max(1, min(int(e["count"]), 12))
@@ -369,7 +394,7 @@ def apply_edits(m: dict, wing: str, edits: dict):
             if _is_start_trigger(t):
                 _strip_unit_moves(a, moved)
 
-    for i, a in enumerate((edits.get("add") or [])[:40]):
+    for i, a in enumerate((edits.get("add") or [])[:300]):
         if not isinstance(a, dict) or a.get("block") not in EDITABLE_BLOCKS or not _CLASS.match(str(a.get("cls", ""))):
             continue
         block = a["block"]
@@ -410,7 +435,7 @@ def apply_edits(m: dict, wing: str, edits: dict):
             except (KeyError, TypeError, ValueError):
                 pass
             else:
-                _hold_start(m, wing, pu["tm"], player)
+                _hold_start(m, wing, pu["tm"], player, zone_info(sid) if sid else None)
 
     actions: dict = {}
     if sleep:
@@ -439,42 +464,97 @@ def apply_edits(m: dict, wing: str, edits: dict):
             triggers["wtftd_editor"] = _trigger({"initMission": {}}, actions, False)
 
 
-def _move_air_spawn(m: dict, tm: list) -> bool:
-    """Test flights (the game's test_flight_template): the player spawns in the air in zone "spawn_area0" +
-    the mission's air_spawn_point (+ "_high" / "_low" / "_heli" variants), unless the mission asks for an
-    airfield / carrier / water start. Asks for an air start and puts that zone (all its variants) at the
-    start set in the editor, turned the same way: the game spawns the player right there, after a crash
-    too. False when the mission doesn't work that way."""
+def _test_flight_spawn(m: dict) -> tuple[dict, str] | None:
+    """Test flights (the game's test_flight_template): (mission settings, base name of the air start zone)."""
     mission = (m.get("mission_settings") or {}).get("mission") or {}
-    areas = m.get("areas") or {}
     try:
         base = f"spawn_area0{int(mission['air_spawn_point'])}"
     except (KeyError, TypeError, ValueError):
+        return None
+    return (mission, base) if base in (m.get("areas") or {}) else None
+
+
+def _place_area(a: dict, tm: list):
+    """Puts an area at tm (position and heading), keeping the size of each of its axes."""
+    try:
+        old = a["tm"]
+        sx, sy, sz = (math.hypot(*(float(c) for c in old[k])) or 10.0 for k in range(3))
+    except (KeyError, TypeError, ValueError, IndexError):
+        sx = sy = sz = 10.0
+    a["tm"] = [[c * sx for c in tm[0]], [0.0, sy, 0.0], [c * sz for c in tm[2]], list(tm[3])]
+
+
+def _move_air_spawn(m: dict, tm: list) -> bool:
+    """Test flights: the player spawns in the air in zone "spawn_area0" + the mission's air_spawn_point
+    (+ "_high" / "_low" / "_heli" variants), unless the mission asks for an airfield / carrier / water
+    start. Asks for an air start and puts that zone (all its variants) at the start set in the editor,
+    turned the same way: the game spawns the player right there, after a crash too (checked in game
+    2026-10-09). False when the mission doesn't work that way."""
+    tf = _test_flight_spawn(m)
+    if not tf:
         return False
-    zones = [n for n in areas if n == base or n.startswith(base + "_")]
-    if not zones:
-        return False
+    mission, base = tf
+    areas = m["areas"]
     for flag in ("is_airfield_spawn", "is_ship_spawn", "is_water_spawn"):
         if flag in mission:
             mission[flag] = False
-    for n in zones:
-        a = areas[n]
-        try:
-            old = a["tm"]
-            sx = math.hypot(*(float(c) for c in old[0])) or 10.0
-            sy = math.hypot(*(float(c) for c in old[1])) or 10.0
-            sz = math.hypot(*(float(c) for c in old[2])) or 10.0
-        except (KeyError, TypeError, ValueError, IndexError):
-            sx = sy = sz = 10.0
-        a["tm"] = [[c * sx for c in tm[0]], [0.0, sy, 0.0], [c * sz for c in tm[2]], list(tm[3])]
+    for n in [n for n in areas if n == base or n.startswith(base + "_")]:
+        _place_area(areas[n], tm)
     return True
 
 
-def _hold_start(m: dict, wing: str, tm: list, player: dict):
-    """The game templates a scenario imports may respawn the player in a zone of their own as the mission
-    starts (test flights: @player -> @air_spawn, with that zone's height, heading and their speed; checked in
-    game 2026-10-09). A WTFTD zone at the start set in the editor, and a respawn into it once their scripts
-    have run (1 s in), keep that start; an air start then gets its speed."""
+def _ground_airfield(m: dict, wing: str, tm: list) -> bool:
+    """Test flights, ground start: the template spawns the player on the runway its variable airfield_spawn
+    names (spawnOnAirfield, after a crash too). A runway of WTFTD's own (addAirfield, as the template
+    itself does for seaplanes) at the start set in the editor, heading its way, and that variable kept on
+    it: the game parks the player right there."""
+    tf = _test_flight_spawn(m)
+    if not tf:
+        return False
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
+    if not isinstance(triggers, dict):
+        return False
+    mission, _ = tf
+    mission["is_airfield_spawn"] = True
+    mission["is_ship_spawn"] = False
+    mission["is_water_spawn"] = False
+    x, y, z = tm[3]
+    fx, fz = float(tm[0][0]), float(tm[0][2])
+    areas = m.setdefault("areas", {})
+    for name, pos in (("wtftd_runway", [x, y, z]), ("wtftd_runway_end", [x + fx * 600.0, y, z + fz * 600.0]),
+                      ("wtftd_runway_spawn", [x, y, z])):
+        areas[name] = {"type": "Point", "tm": [list(tm[0]), [0.0, 1.0, 0.0], list(tm[2]), pos], "objLayer": 0, "props": {}}
+    _, _, pu = _find_player(m.get("units") or {}, wing)
+    army = ((pu or {}).get("props") or {}).get("army", 1)
+    triggers["wtftd_runway"] = _trigger({"initMission": {}}, {"addAirfield": {
+        "runwayStart": "wtftd_runway", "runwayEnd": "wtftd_runway_end", "runwayWidth": 50.0, "army": army,
+        "spawnPoint": "wtftd_runway_spawn", "visibleOnHud": True}}, False)
+    # the template picks its runway over its first ticks (rank, seaplane, helicopter): ours wins every time
+    triggers["wtftd_runway_use"] = _trigger({"periodicEvent": {"time": 0.01}}, {"varSetString": [
+        {"value": "wtftd_runway", "var": "airfield_spawn"},
+        {"value": "wtftd_runway_spawn", "var": "airfield_spawn_reload"}]}, True)
+    triggers["wtftd_runway_use"]["conditions"] = {
+        "varCompareString": {"var_value": "airfield_spawn", "value": "wtftd_runway", "comparasion_func": "notEqual"}}
+    return True
+
+
+def _move_player_zones(m: dict, tm: list, info: dict) -> bool:
+    """Zones the scenario's scripts respawn / teleport the player into (after a crash: tank test drives'
+    spawn01): put at the start set in the editor. Only when no other unit uses them."""
+    areas = m.get("areas") or {}
+    zones = [z for z in info.get("player") or [] if z in areas]
+    if not zones or info.get("playerOther") or any((info.get("spawns") or {}).get(z) for z in zones):
+        return False
+    for z in zones:
+        _place_area(areas[z], tm)
+    return True
+
+
+def _hold_start(m: dict, wing: str, tm: list, player: dict, info: dict | None = None):
+    """The game templates a scenario imports may respawn the player in a zone of their own (test flights:
+    @player -> @air_spawn as the mission starts, tank test drives: spawn01 after a crash). Their own zones /
+    runway are moved to the start set in the editor when WTFTD knows them (no jump); else a WTFTD zone and a
+    respawn into it once their scripts have run (1 s in, and after a crash). An air start gets its speed."""
     if not m.get("imports"):
         return  # nothing else places the player: the unit's own position is the start
     x, y, z = tm[3]
@@ -482,6 +562,12 @@ def _hold_start(m: dict, wing: str, tm: list, player: dict):
     actions = {}
     if air and _move_air_spawn(m, tm):
         pass  # the scenario itself now spawns the player there: only the speed is left to set
+    elif player.get("mode") == "ground" and _ground_airfield(m, wing, tm):
+        return  # parked on WTFTD's runway by the template itself
+    elif info is not None and _move_player_zones(m, tm, info):
+        pass
+    elif info is not None and not info.get("player") and not info.get("playerOther"):
+        return  # the templates never move the player
     else:
         m.setdefault("areas", {})["wtftd_start"] = {
             "type": "Sphere", "tm": [[c * 10.0 for c in tm[0]], [0.0, 10.0, 0.0], [c * 10.0 for c in tm[2]], [x, y, z]],
@@ -797,7 +883,7 @@ def build(cfg: dict) -> tuple[str, str]:
 
     retarget(units, wing, cfg.get("_targetPool") or {})
     start_y = float(unit["tm"][3][1])
-    apply_edits(m, wing, cfg.get("edits") or {})
+    apply_edits(m, wing, cfg.get("edits") or {}, sid)
     pl = (cfg.get("edits") or {}).get("player")
     if block == "armada" and isinstance(pl, dict):
         # the start set in the editor: in the air at its speed, or parked on the ground

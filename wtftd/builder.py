@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 13  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 14  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1479,6 +1479,104 @@ def used_zones(d: dict) -> list:
     return [name for name in areas if name in words or any(name.startswith(s) for s in stems)]
 
 
+def zone_roles(d: dict) -> dict:
+    """What the scenario's scripts (whole import chain) put in each of its zones:
+    {"spawns": {area: [unit names]}, "player": [areas the player is respawned / teleported into],
+     "playerOther": True when a script moves the player somewhere not known before the mission runs}.
+    A variable target ("@air_spawn") counts for every zone its values name; a variable the scripts append
+    to ("spawn_area0" + 1) for every zone starting with them."""
+    chain = _import_chain(d)
+    wing = first_str(((d.get("mission_settings") or {}).get("player") or {}).get("wing"))
+    areas = d.get("areas") if isinstance(d.get("areas"), dict) else {}
+    variables, squads, units = {}, {}, set()
+    sets: dict = {}  # var -> [literal values / ("@", other var)]
+    appended = set()
+    for doc in reversed(chain):
+        if isinstance(doc.get("variables"), dict):
+            variables.update(doc["variables"])
+        for block, entries in (doc.get("units") or {}).items():
+            for u in aslist(entries):
+                if not isinstance(u, dict) or not u.get("name"):
+                    continue
+                if block == "squad":
+                    squads[u["name"]] = aslist((u.get("props") or {}).get("squad_members"))
+                else:
+                    units.add(u["name"])
+
+    def walk(n):
+        if isinstance(n, dict):
+            for k, v in n.items():
+                if k in ("varSetString", "varAddString"):
+                    for a in aslist(v):
+                        if not isinstance(a, dict) or not isinstance(a.get("var"), str):
+                            continue
+                        if k == "varAddString":
+                            appended.add(a["var"])
+                        elif a.get("input_var"):
+                            sets.setdefault(a["var"], []).append(("@", str(a["input_var"]).lstrip("@")))
+                        elif isinstance(a.get("value"), str):
+                            sets.setdefault(a["var"], []).append(a["value"])
+                walk(v)
+        elif isinstance(n, list):
+            for x in n:
+                walk(x)
+    for doc in chain:
+        walk(doc.get("triggers"))
+
+    def values(var, depth=0):
+        out = [variables[var]] if isinstance(variables.get(var), str) else []
+        for v in sets.get(var, []):
+            if isinstance(v, tuple):
+                out += values(v[1], depth + 1) if depth < 3 else []
+            else:
+                out.append(v)
+        return [v for v in out if v]
+
+    def matches(ref, pool):
+        """Names of pool a target / object refers to; None when unknown before the mission runs."""
+        found, unknown = set(), False
+        for item in aslist(ref):
+            if not isinstance(item, str) or not item:
+                continue
+            if not item.startswith("@"):
+                found.add(item)
+                continue
+            var = item[1:]
+            vals = values(var)
+            for v in vals:
+                if var in appended and len(v) >= 4:
+                    found |= {n for n in pool if n.startswith(v)}
+                elif v in pool:
+                    found.add(v)
+            unknown |= not vals
+        out = set()
+        for n in found:
+            out |= set(squads[n]) | {n} if n in squads else {n}
+        return out, unknown
+
+    spawns: dict = {}
+    player, other = set(), False
+    pool_units = units | set(squads)
+    for doc in chain:
+        for t, a in _all_triggers(doc.get("triggers")):
+            moves = [x for x in aslist(a.get("unitRespawn")) if isinstance(x, dict)]
+            moves += [x for x in aslist(a.get("unitMoveTo")) if isinstance(x, dict) and x.get("move_type") == "teleport"]
+            for mv in moves:
+                targets, t_unknown = matches(mv.get("target"), areas)
+                objs, _ = matches(mv.get("object"), pool_units)
+                is_player = wing in objs or mv.get("object") == "@player"
+                for z in targets:
+                    if z in areas:
+                        spawns.setdefault(z, set()).update(o for o in objs if o != wing and o not in squads)
+                if is_player:
+                    player |= {z for z in targets if z in areas}
+                    other |= t_unknown or not any(z in areas for z in targets)
+    out = {"spawns": {z: sorted(v) for z, v in spawns.items()}, "player": sorted(player)}
+    if other:
+        out["playerOther"] = True
+    return out
+
+
 def imported_units(d: dict, depth: int = 0, seen: set | None = None) -> list:
     """Units defined in the game templates a mission imports (read-only for the editor)."""
     seen = seen if seen is not None else set()
@@ -1597,9 +1695,9 @@ def build_scenarios(lang: Lang, progress=None):
             with open(out_dir / f"{sid}.units.json", "w", encoding="utf-8") as fo:
                 json.dump(tpl, fo, ensure_ascii=False, separators=(",", ":"))
         zones = used_zones(d)
-        if zones:
+        if zones or d.get("imports"):  # zones the scripts use, what they put there, where they respawn you
             with open(out_dir / f"{sid}.zones.json", "w", encoding="utf-8") as fo:
-                json.dump(zones, fo, separators=(",", ":"))
+                json.dump({"used": zones, **zone_roles(d)}, fo, separators=(",", ":"))
         scenarios.append({
             "id": sid,
             "map": level,

@@ -571,6 +571,7 @@ function showView(name) {
 async function openVehicle(id, cfg = null, { select = !!cfg } = {}) {
   const v = S.byId.get(id);
   if (!v) return;
+  if (S.ai) aiEnd(false, false);  // an AI unit's loadout left unfinished
   S.sel = v;
   $$('.card.selected, .tcard.selected').forEach(c => c.classList.remove('selected'));
   $$(`.card[data-id="${CSS.escape(id)}"], .tcard[data-id="${CSS.escape(id)}"]`).forEach(c => c.classList.add('selected'));
@@ -599,6 +600,49 @@ async function openVehicle(id, cfg = null, { select = !!cfg } = {}) {
   renderDrawer({ keepScroll: false });
   $('.layout').classList.add('drawer-open');
   $('#drawer').setAttribute('aria-hidden', 'false');
+}
+
+// ------------------------------------------------------------------ an AI unit's loadout (map editor)
+// the vehicle panel edits it like the player's (loadout, ammo); the editor gets {ui, preset, ammo, pylons} back
+const aiLoadoutOf = (c, name = '') => ({ ...(name ? { name } : {}), ui: { preset: c.preset, ammo: JSON.parse(JSON.stringify(c.ammo)), pylons: c.pylons || null },
+  preset: c.preset, ammo: ammoPayload(c), ...(cdkOn() && c.pylons ? { pylons: c.pylons } : {}) });
+async function vehicleDetails(id) {
+  let d = S.details.get(id);
+  if (!d) { d = await api('vehicle/' + encodeURIComponent(id)); S.details.set(id, d); }
+  return d;
+}
+async function openUnitLoadout(vid, loadout, { name = '' } = {}, done) {
+  const v = S.byId.get(vid);
+  let d;
+  try { d = v && await vehicleDetails(vid); } catch (e) { toastErr(e); }
+  if (!d) { done(null); return; }
+  if (S.ai) aiEnd(false, false);
+  S.ai = { sel: S.sel, cfg: S.cfg, step: S.openStep, done, name };
+  S.sel = v;
+  S.cfg = normalizeCfg(v, d, { ...(loadout?.ui || {}), scenario: S.ai.cfg?.scenario });
+  S.openStep = 'loadout';
+  if (typeof LP !== 'undefined') LP.slot = null;
+  renderDrawer({ keepScroll: false });
+  $('.layout').classList.add('drawer-open');
+  $('#drawer').setAttribute('aria-hidden', 'false');
+}
+// back to what the panel showed before; reopen: hand the result to the editor (null: cancelled)
+function aiEnd(apply, reopen = true) {
+  const ai = S.ai;
+  if (!ai) return;
+  const res = apply ? aiLoadoutOf(S.cfg) : null;
+  S.ai = null;
+  S.cfg = ai.cfg;
+  S.openStep = ai.step;
+  if (ai.sel && S.cfg) { S.sel = ai.sel; renderDrawer({ keepScroll: false }); } else closeDrawer();
+  if (reopen) ai.done(res);
+}
+// a saved vehicle (My vehicles) as an AI unit's loadout
+async function loadoutFromSetup(s) {
+  const v = S.byId.get(s.vehicle);
+  let d;
+  try { d = v && await vehicleDetails(v.id); } catch { return null; }
+  return d ? aiLoadoutOf(normalizeCfg(v, d, s.cfg || {}), s.name) : null;
 }
 
 function closeDrawer() {
@@ -774,24 +818,28 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
         <div class="hero-stats">${brs}</div>
         ${statsBlockHTML(v)}
       </div>
+      ${S.ai ? `<div class="ai-banner">${icon('target', 'ic-sm')}<div><b>${esc(t('ai.title'))}</b>${esc(t('ai.hint'))}</div></div>` : ''}
       ${stepHTML('loadout', 1, t('step.loadout'), esc(c.pylons ? t('loadout.customShort', { n: Object.keys(c.pylons).length }) : preset ? presetLabel(v, preset) : t('loadout.default')), () => loadoutBody(v, d))}
       ${stepHTML('ammo', 2, t('step.ammo'), ammoSum, () => ammoBody(v, d))}
-      ${cdkOn() ? stepHTML('mods', 3, t('step.mods'), esc(countMods(c.mods) ? t('mods.count', { n: countMods(c.mods) }) : t('mods.stockShort')), () => modsBody(v, d)) : ''}
+      ${S.ai ? '' : `${cdkOn() ? stepHTML('mods', 3, t('step.mods'), esc(countMods(c.mods) ? t('mods.count', { n: countMods(c.mods) }) : t('mods.stockShort')), () => modsBody(v, d)) : ''}
       ${stepHTML('cheats', cdkOn() ? 4 : 3, t('step.cheats'), esc(cheatsSummary()), () => cheatsBody())}
       ${isFlyer ? stepHTML('conditions', cdkOn() ? 5 : 4, t('step.fuel'), esc(condSum), () => conditionsBody(isFlyer)) : ''}
-      ${stepHTML('advanced', cdkOn() ? (isFlyer ? 6 : 5) : (isFlyer ? 5 : 4), t('step.advanced'), esc(t(c.allMods ? 'adv.allModsOn' : 'adv.allModsOff')), () => advancedBody())}
+      ${stepHTML('advanced', cdkOn() ? (isFlyer ? 6 : 5) : (isFlyer ? 5 : 4), t('step.advanced'), esc(t(c.allMods ? 'adv.allModsOn' : 'adv.allModsOff')), () => advancedBody())}`}
     </div>
-    ${S.lastGen?.vid === v.id ? `<div class="gen-done">${icon('check', 'ic-sm')}
+    ${S.lastGen?.vid === v.id && !S.ai ? `<div class="gen-done">${icon('check', 'ic-sm')}
       <div><b>${esc(t('toast.generated', { file: S.lastGen.file }))}</b><span>${esc(t('toast.generatedHint', { title: S.lastGen.title }))}</span></div>
       <button class="icon-btn" data-act="genDone" title="${esc(t('action.close'))}">${icon('x', 'ic-sm')}</button></div>` : ''}
-    <div class="dr-foot">
+    ${S.ai ? `<div class="dr-foot">
+      <button class="btn btn-ghost btn-lg" data-act="aiCancel">${icon('x')}<span>${esc(t('ai.cancel'))}</span></button>
+      <button class="btn btn-primary btn-lg" data-act="aiApply">${icon('check')}<span>${esc(t('ai.apply'))}</span></button>
+    </div>` : `<div class="dr-foot">
       <button class="icon-btn" data-act="save" title="${esc(t('vehicle.save'))}">${icon('save')}</button>
       <button class="icon-btn" data-act="share" title="${esc(t('share.button'))}">${icon('share')}</button>
       <button class="btn btn-ghost" data-act="preview">${icon('file')}<span>${esc(t('action.preview'))}</span></button>
       ${S.pick.vehicle === v.id
         ? `<button class="btn btn-ghost btn-lg" data-act="select">${icon('check')}<span>${esc(t('pick.selected'))}</span></button>`
         : `<button class="btn btn-primary btn-lg" data-act="select">${icon('play')}<span>${esc(t('pick.select'))}</span></button>`}
-    </div>`;
+    </div>`}`;
   bindDrawer();
   const sc = $('#drawer .dr-scroll');
   sc.scrollTop = prevScroll;
@@ -940,7 +988,9 @@ function bindDrawer() {
     const seg = b.closest('[data-seg]');
     if (seg) { c[seg.dataset.seg] = b.dataset.v; return renderDrawer(); }
     switch (b.dataset.act) {
-      case 'close': return closeDrawer();
+      case 'close': return S.ai ? aiEnd(false) : closeDrawer();
+      case 'aiApply': return aiEnd(true);
+      case 'aiCancel': return aiEnd(false);
       case 'fav': return toggleFav(v.id);
       case 'compare': return toggleCompare(v.id);
       case 'select': return selectVehicle(v.id);
@@ -1037,11 +1087,9 @@ function toggleFav(id) {
 }
 
 // ------------------------------------------------------------------ mission actions
-function missionPayload() {
-  const c = S.cfg;
-  return {
-    scenario: c.scenario, vehicle: c.vehicle, block: c.block, preset: c.preset,
-    ammo: c.ammo.map((a, i) => {
+// belts / shells of a setup as the server wants them (countermeasure launchers split in flares + chaff)
+function ammoPayload(c) {
+  return c.ammo.map((a, i) => {
       const g = c.block === 'armada' ? S.details.get(c.vehicle)?.am[i] : null;
       if (g && cmChaff(g)) {  // split countermeasure launcher
         const total = cmTotal(g), ch = cmChaffCount(g, a);
@@ -1050,7 +1098,14 @@ function missionPayload() {
         return { id: '', count: total - ch, chaff: { id: cmChaff(g).id, count: ch } };
       }
       return a && a.id !== null ? { id: a.id || '', count: +a.count || 0 } : { id: '', count: 0 };
-    }),
+  });
+}
+
+function missionPayload() {
+  const c = S.cfg;
+  return {
+    scenario: c.scenario, vehicle: c.vehicle, block: c.block, preset: c.preset,
+    ammo: ammoPayload(c),
     environment: S.map.environment, weather: S.map.weather, start: 'scenario', altitude: c.altitude, speed: c.speed,
     heading: null, missionType: missionOpts().missionType, allMods: c.allMods,
     fuel: (c.block === 'armada' && c.fuel) || null,

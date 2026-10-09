@@ -100,6 +100,90 @@ class EditorEdits(unittest.TestCase):
         self.assertNotIn("wtftd_start", m["areas"])  # no second spawn: no jump
         self.assertEqual(m["triggers"]["wtftd_start"]["actions"], {"unitSetProperties": {"object": "me", "speed": 600.0}})
 
+    def test_test_flight_ground_start_gets_its_own_runway(self):
+        from wtftd import mission
+        ident = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        m = {"imports": {"import_record": [{"file": "test_flight_template.blk"}]},
+             "mission_settings": {"mission": {"air_spawn_point": 1, "is_airfield_spawn": False, "is_ship_spawn": True}},
+             "units": {"armada": [{"name": "me", "tm": [*ident, [0, 0, 0]], "props": {"army": 1}}]},
+             "areas": {"spawn_area01": {"tm": [*ident, [1, 2, 3]]}},
+             "triggers": {"isCategory": True, "is_enabled": True}}
+        mission.apply_edits(m, "me", {"player": {"x": 50.0, "y": 10.0, "z": 60.0, "yaw": 90, "mode": "ground", "speed": 0}})
+        ms = m["mission_settings"]["mission"]
+        self.assertEqual((ms["is_airfield_spawn"], ms["is_ship_spawn"], ms["is_water_spawn"]), (True, False, False))
+        self.assertEqual(m["areas"]["wtftd_runway_spawn"]["tm"][3], [50.0, 10.0, 60.0])
+        end = m["areas"]["wtftd_runway_end"]["tm"][3]
+        self.assertAlmostEqual(end[0], 50.0, 3)
+        self.assertAlmostEqual(end[2], 660.0, 3)  # 600 m down the heading (yaw 90: +z)
+        self.assertEqual(m["triggers"]["wtftd_runway"]["actions"]["addAirfield"]["spawnPoint"], "wtftd_runway_spawn")
+        use = m["triggers"]["wtftd_runway_use"]
+        self.assertTrue(use["props"]["enableAfterComplete"])
+        self.assertEqual(use["actions"]["varSetString"][0], {"value": "wtftd_runway", "var": "airfield_spawn"})
+        self.assertNotIn("wtftd_start", m["triggers"])  # no respawn: no jump
+        self.assertEqual(m["areas"]["spawn_area01"]["tm"][3], [1, 2, 3])
+
+    def test_known_player_zones_move_with_the_start(self):
+        from wtftd import mission
+        ident = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+        def scen():
+            return {"imports": {"import_record": [{"file": "testFlight_template.blk"}]},
+                    "units": {"tankModels": [{"name": "me", "tm": [*ident, [0, 0, 0]], "props": {"army": 1}}]},
+                    "areas": {"spawn01": {"tm": [*ident, [1, 2, 3]]}, "tanks": {"tm": [*ident, [4, 5, 6]]}},
+                    "triggers": {"isCategory": True, "is_enabled": True}}
+        start = {"x": 50.0, "y": 10.0, "z": 60.0, "yaw": 0}
+        m = scen()  # tank test drive: respawned in spawn01 after a crash
+        mission._hold_start(m, "me", mission._yaw_tm(0, 50.0, 10.0, 60.0), start, {"player": ["spawn01"], "spawns": {"tanks": ["t1"]}})
+        self.assertEqual(m["areas"]["spawn01"]["tm"][3], [50.0, 10.0, 60.0])
+        self.assertEqual(m["areas"]["tanks"]["tm"][3], [4, 5, 6])
+        self.assertNotIn("wtftd_start", m["triggers"])
+        m = scen()  # nothing moves the player: nothing to do
+        mission._hold_start(m, "me", mission._yaw_tm(0, 50.0, 10.0, 60.0), start, {"player": [], "spawns": {}})
+        self.assertEqual(list(m["triggers"]), ["isCategory", "is_enabled"])
+        m = scen()  # a zone other units use too: not moved, held by a respawn instead
+        mission._hold_start(m, "me", mission._yaw_tm(0, 50.0, 10.0, 60.0), start, {"player": ["spawn01"], "spawns": {"spawn01": ["t1"]}})
+        self.assertEqual(m["areas"]["spawn01"]["tm"][3], [1, 2, 3])
+        self.assertEqual(m["triggers"]["wtftd_start"]["actions"]["unitRespawn"]["target"], "wtftd_start")
+
+
+class AiLoadouts(unittest.TestCase):
+    def test_added_and_scenario_units_get_their_loadout(self):
+        from wtftd import mission
+        ident = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0]]
+        m = {"units": {"armada": [{"name": "me", "tm": ident, "props": {"army": 1}},
+                                  {"name": "bandit", "tm": ident, "unit_class": "mig_29_9_13", "weapons": "", "props": {"army": 2}}]}}
+        groups = [{"p": "gameData/Weapons/gsh_301.blk"}, {"p": "gameData/Weapons/cm.blk", "n": 2, "trig": "countermeasures"}]
+        mission.apply_edits(m, "me", {
+            "units": {"bandit": {"loadout": {"vehicle": "mig_29_9_13", "preset": "mig_29_9_13_r73", "ammo": [{"id": "belt_ap", "count": 150}], "_groups": groups}}},
+            "add": [{"block": "armada", "cls": "rafale_c_f3", "x": 1, "y": 2, "z": 3, "loadout": {
+                "vehicle": "rafale_c_f3", "preset": "wtftd_custom", "_unitClass": "wtftd_rafale_c_f3_ai1", "ammo": []}}]})
+        bandit = m["units"]["armada"][1]
+        self.assertEqual(bandit["weapons"], "mig_29_9_13_r73")
+        self.assertEqual((bandit["bullets0"], bandit["bulletsCount0"], bandit["bulletsWeapon0"]), ("belt_ap", 150, "gsh_301"))
+        added = m["units"]["armada"][2]
+        self.assertEqual((added["unit_class"], added["weapons"]), ("wtftd_rafale_c_f3_ai1", "wtftd_custom"))
+
+
+class ZoneRoles(unittest.TestCase):
+    def test_what_each_zone_gets(self):
+        from unittest import mock
+        ident = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0]]
+        mission = {"mission_settings": {"player": {"wing": "me"}},
+                   "areas": {n: {"tm": ident} for n in ("spawn_area01", "spawn_area02", "tank_zone", "reload")}}
+        template = {
+            "variables": {"air_spawn": "spawn_area0", "player": ""},
+            "units": {"tankModels": [{"name": "t1"}, {"name": "t2"}], "squad": [{"name": "sq", "props": {"squad_members": ["t1", "t2"]}}]},
+            "triggers": {"isCategory": True,
+                         "a": {"actions": {"varSetString": {"value": "me", "var": "player"}, "varAddString": {"var": "air_spawn", "input_var": "n"}}},
+                         "b": {"actions": {"unitRespawn": {"object": "@player", "target": "@air_spawn"}}},
+                         "c": {"actions": {"unitRespawn": {"object": "sq", "target": "tank_zone"}}},
+                         "d": {"actions": {"unitRespawn": {"object": "@player", "target": "@later"}}}}}
+        with mock.patch.object(builder, "_import_chain", return_value=[mission, template]):
+            r = builder.zone_roles(mission)
+        self.assertEqual(r["player"], ["spawn_area01", "spawn_area02"])
+        self.assertEqual(r["spawns"]["tank_zone"], ["t1", "t2"])
+        self.assertTrue(r["playerOther"])  # @later: only known while the mission runs
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -203,11 +203,13 @@ def _damage_overrides(b: "Blk", node: dict, mult: float):
 
 def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons: dict | None,
                 air_method: str = "custom", unit_data: dict | None = None,
-                catalog: dict | None = None) -> tuple[dict[str, str], str, str, str]:
-    """Returns ({path under the package: text}, weapons preset or "", mission unit_class, package dir)."""
+                catalog: dict | None = None, tag: str = "") -> tuple[dict[str, str], str, str, str]:
+    """Returns ({path under the package: text}, weapons preset or "", mission unit_class, package dir).
+    tag: names the files and the unit after it instead of the vehicle id (AI units: "<id>_ai1"…)."""
     flyer = cat in ("air", "heli")
     custom_name = flyer and air_method == "custom"
-    if not SAFE.match(vid) or (not custom_name and not SAFE.match(host or "")):
+    name = tag or vid
+    if not SAFE.match(vid) or not SAFE.match(name) or (not custom_name and not SAFE.match(host or "")):
         raise CdkError("Invalid vehicle or host id")
     if cat not in UNIT_DIRS:
         raise CdkError("Unsupported vehicle type")
@@ -216,7 +218,7 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
     files: dict[str, str] = {}
     unit_dir = UNIT_DIRS[cat]
     if custom_name:
-        unit_class = f"wtftd_{vid}".lower()
+        unit_class = f"wtftd_{name}".lower()
         host_path = f"{unit_dir}/{unit_class}.blk"
         pkg = "pkg_user"
     else:
@@ -271,7 +273,7 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
         shells = _clean_shells(gm.get("shells"), g)
         wfile = ""
         if (reload_s or shells) and g.get("p"):
-            wname = f"{vid}_w{g['wi']}".lower()
+            wname = f"{name}_w{g['wi']}".lower()
             wfile = f"gameData/Weapons/wtftd/{wname}.blk"
             wb = _header(f"{vid} weapon {g['wi']}", g["p"])
             if reload_s:
@@ -310,7 +312,7 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
         # always wrap the flight model: the unit file now lives in userVehicles/, and a relative
         # fmFile could otherwise be looked up next to it and not be found
         if st.get("fm"):
-            fm_name = f"wtftd_{vid}".lower()
+            fm_name = f"wtftd_{name}".lower()
             fb = _header(f"{vid} flight model", f"gameData/flightModels/{st['fm']}")
             if mass or fuel:
                 fb.open("Mass")
@@ -372,7 +374,7 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
                 raw.append((w["t"], w["p"], emitter, bullets))
         if chosen or slot_weapons or raw:
             if True:
-                pname = f"wtftd_{vid}".lower()
+                pname = f"wtftd_{name}".lower()
                 pb = Blk()
                 pb.line(f"{MARKER} - {vid} custom loadout")
                 for idx, name in sorted(chosen) + [(k, f"wtftd_slot{k}") for k in sorted(slot_weapons)]:
