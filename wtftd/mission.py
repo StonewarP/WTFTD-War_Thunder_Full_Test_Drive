@@ -413,7 +413,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
               | "follow" (unitMoveTo following the player: escort)
     attack:   "" | fire_at_will | return_fire | hold_fire (+ cannotShoot)"""
     units = m.setdefault("units", {})
-    stay, hunt, passive, sleep, follow, shoot, tpl_hunt = [], [], [], [], [], [], []
+    stay, hunt, passive, sleep, follow, shoot = [], [], [], [], [], []
     _, _, pu = _find_player(units, wing)
     my_army = (pu.get("props") or {}).get("army", 1) if pu else 1
     enemy_army = 2 if my_army == 1 else 1
@@ -456,10 +456,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         if e.get("remove"):  # unit from an imported game template
             sleep.append(name)
             continue
-        if e.get("behavior") == "hunt":  # its scripts may bring it in later, on a route of theirs
-            tpl_hunt.append(name)
-        else:
-            behavior(name, e)
+        behavior(name, e)
         if e.get("attack") == "hold_fire":
             passive.append(name)
         elif e.get("attack") == "fire_at_will":  # a template unit: made to fire by a start trigger
@@ -539,16 +536,13 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         props_actions.append({"object": passive, "cannotShoot": True})
     if props_actions:
         actions["unitSetProperties"] = props_actions if len(props_actions) > 1 else props_actions[0]
-    if hunt:
-        attacks = [{"playerAttracted": True, "object": n, "target": wing, "fireRandom": False} for n in hunt]
-        actions["unitAttackTarget"] = attacks if len(attacks) > 1 else attacks[0]
     if follow:
         actions["unitMoveTo"] = {"target": wing, "follow_target": True, "object": follow, "shouldKeepFormation": False,
                                  "teleportHeightType": "absolute", "useUnitHeightForTele": True, "teleportHeightValue": 0.0,
                                  "horizontalDirectionForTeleport": True, "object_marking": 0, "target_marking": 0,
                                  "waypointReachedDist": 10.0, "recalculatePathDist": -1.0, "follow_radius": 60.0,
                                  "follow_offset": [-60.0, 0.0, 40.0]}
-    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True}) if actions or shoot or tpl_hunt else None
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True}) if actions or shoot or hunt else None
     if actions and isinstance(triggers, dict):
         triggers["wtftd_editor"] = _trigger({"initMission": {}}, actions, False)
     if shoot and isinstance(triggers, dict):
@@ -556,10 +550,11 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         # (re)spawn them (cannotShoot), so this holds every 3 s
         triggers["wtftd_attack"] = _trigger({"periodicEvent": {"time": 3.0}}, {"unitSetProperties": {
             "object": shoot, "attack_type": "fire_at_will", "cannotShoot": False}}, True)
-    if tpl_hunt and isinstance(triggers, dict):
-        # template units hunting you: asleep at start, then spawned by their scripts on a route of their own (aircraft
-        # on it engage no one), so the order is given again every 10 s
-        attacks = [{"playerAttracted": True, "object": n, "target": wing, "fireRandom": False} for n in tpl_hunt]
+    if hunt and isinstance(triggers, dict):
+        # units hunting you: the order is given again every 10 s. At start you may not be there yet (test flights: the
+        # templates' scripts spawn you a moment later, the order is lost), template units come in later on a route
+        # of their own (aircraft on it engage no one)
+        attacks = [{"playerAttracted": True, "object": n, "target": wing, "fireRandom": False} for n in hunt]
         triggers["wtftd_hunt"] = _trigger({"periodicEvent": {"time": 10.0}},
                                           {"unitAttackTarget": attacks if len(attacks) > 1 else attacks[0]}, True)
 

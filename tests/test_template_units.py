@@ -71,11 +71,13 @@ class TakeOverUnits(unittest.TestCase):
 class TemplateHunt(unittest.TestCase):
     def test_hunt_held_every_10_s(self):
         m = {"units": {"armada": [_unit("me", "f_14b")]}, "triggers": {"isCategory": True, "is_enabled": True}}
-        mission.apply_edits(m, "me", {"units": {"flight_target01": {"behavior": "hunt", "attack": "fire_at_will"}}})
+        # a template unit and an added one: you may spawn after the mission starts, the order is given again
+        mission.apply_edits(m, "me", {"units": {"flight_target01": {"behavior": "hunt", "attack": "fire_at_will"}},
+                                      "add": [{"block": "armada", "cls": "mig-29_9_13", "x": 0, "y": 2000, "z": 0, "behavior": "hunt"}]})
         hunt = m["triggers"]["wtftd_hunt"]
         self.assertEqual(hunt["events"], {"periodicEvent": {"time": 10.0}})
         self.assertTrue(hunt["props"]["enableAfterComplete"])
-        self.assertEqual(hunt["actions"]["unitAttackTarget"]["object"], "flight_target01")
+        self.assertEqual([a["object"] for a in hunt["actions"]["unitAttackTarget"]], ["flight_target01", "wtftd_unit_01"])
         self.assertNotIn("wtftd_editor", m["triggers"])  # nothing else at start
 
 

@@ -27,6 +27,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Vehicles by BR** only picks vehicles that fire on their own (not a SAM battery's radar or launcher: AI ones
   don't fire); with Fire: Attacks, enemy aircraft also hunt you. Template units hunting you are told again every
   10 s (their scripts bring them in later, on a route of their own).
+- **Hunts me**: the order is given again every 10 s for every unit (at mission start you may not be there yet: on
+  test flights the game's scripts spawn you a moment later and the order was lost).
 - **Test flights**: the targets and airfield follow your vehicle's rank (high from rank V), as when the game starts
   them from the hangar (a user mission kept the low ones: a dirt strip).
 - The map settings' **Training targets** (scenario / my BR / a BR) are gone: Vehicles by BR in the map editor

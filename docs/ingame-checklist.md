@@ -146,7 +146,7 @@ itself when one of them gets another vehicle, and that import gets `importUnits:
 - [x] Same mission, regenerated: high-rank airfield and target zones (`target_rank_index` follows your vehicle);
   SAM launchers are there (2026-10-09). They did not fire: the template's targets are `hold_fire` / `dont_aim`, and
   its scripts set the aircraft `cannotShoot` each time they spawn them.
-- [ ] Same mission, regenerated with Vehicles by BR → Fire: Attacks (every target `attack: fire_at_will`; WTFTD's
+- [x] Same mission, regenerated with Vehicles by BR → Fire: Attacks (every target `attack: fire_at_will`; WTFTD's
   `wtftd_attack` trigger sets `attack_type: fire_at_will, cannotShoot: no` on them every 3 s): the SAM launchers
   (with their radar 30 m away), tanks, SPAA and aircraft shoot at you, also after they respawn.
   First run (2026-10-09): the HQ-11 (a SAM with its own radar) fires; shot down before seeing the rest.
@@ -156,9 +156,13 @@ itself when one of them gets another vehicle, and that import gets `importUnits:
   to hunt you every 10 s (`wtftd_hunt`), neither came at you nor fired (2026-10-09). Same `unitAttackTarget` as
   Gaijin's missions. Open: their scripts' route wins, or AI aircraft leave a player alone while the invulnerable
   cheat's `invulnerabilityTimer` (spawn protection) is on.
-- [ ] **WTFTD r7b: aircraft hunting you (not invulnerable)** (`wtftd_r7_air_hunt`; same mission, **not**
-  invulnerable, + 2 MiG-29 9.13 added in the editor 6 km ahead, Hunts me): do the 2 added MiG-29 come at you and fire? Do the template's aircraft (AV-8B, F-2A, F-4E…)?
-  Both: the cheat was the cause. MiG-29 only: the template's routes win. Neither: hunting doesn't work for aircraft.
+- [x] **WTFTD r7b: aircraft hunting you (not invulnerable)** (`wtftd_r7_air_hunt`, 2026-10-09): no MiG-29 seen,
+  shot down by the SAM. The 2 MiG-29 were in the mission ~7 km from the real start (`spawn_area01`); their hunt order
+  was only given at mission start, before the templates' scripts spawn you: lost. Now every hunt order (added and
+  scenario units too) is given again every 10 s (`wtftd_hunt`).
+- [ ] **WTFTD r7c: aircraft hunting you, ground passive** (`wtftd_r7_air_hunt`): ground targets and SAM passive;
+  2 MiG-29 9.13 added 6 km north of the start and the target aircraft hunt you (every 10 s). Do the MiG-29 come
+  at you and fire? Do the target aircraft?
 
 ## 3. Ammunition icons (UI only)
 
