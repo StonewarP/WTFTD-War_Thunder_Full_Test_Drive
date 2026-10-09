@@ -107,7 +107,7 @@ bases' AA (`bdt_t2_aaa_unit`, a template unit) set to Attacks.
 - [x] Round 4 (test flights, air start: the mission asks for an air start and the scenario's own zone
   `spawn_area0<air_spawn_point>` and its variants are moved / turned to the editor's start; only the speed
   is set 1 s in): spawn straight at ~3034 m, heading 090, no jump; 600 km/h; same after a crash: no jump (2026-10-09).
-- [ ] The enemy bases appear ~3 km east of where they were.
+- [x] The enemy bases appear ~3 km east of where they were. OK (2026-10-09).
 
 ## 2e. Ground starts without a jump, AI units with loadouts (new)
 
