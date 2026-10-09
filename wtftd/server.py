@@ -538,13 +538,6 @@ class Handler(BaseHTTPRequestHandler):
             ai_names = [k for f in (body.get("_aiFiles") or {}).values() for k in f]
             return self.send_json({"ok": True, "file": name, "path": str(out), "cdkFiles": sorted(files) + sorted(ai_names),
                                    "host": body.get("unitClass", "")})
-        if route == "target-swaps":  # vehicles "Training targets" puts in place of the scenario's enemies
-            try:
-                scen = mission.load_scenario(str(body.get("scenario", "")))
-                wing = ((scen.get("mission_settings") or {}).get("player") or {}).get("wing")
-                return self.send_json(mission.retarget_map(scen.get("units") or {}, wing, _target_pool(body)))
-            except mission.MissionError as e:
-                return self.send_json({"error": str(e)}, 400)
         if route == "preview":
             body, files = self.prepare_cdk(body)
             name, text = mission.build(body)
@@ -618,56 +611,6 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json({"error": "unknown route"}, 404)
 
 
-TARGET_CLASSES = {"ground": ("tank", "tank_destroyer"), "air": ("fighter", "assault", "bomber"),
-                  "ship": ("destroyer", "cruiser"), "boat": ("torpedo_boat", "gun_boat", "torpedo_gun_boat", "submarine_chaser")}
-
-
-def _target_pool(body: dict) -> dict:
-    """Vehicles used as training targets for the chosen level: {unit block: [ids]}."""
-    tg = body.get("targets") or {}
-    mode = tg.get("mode")
-    if mode not in ("match", "br"):
-        return {}
-    vehicles = STATE.get_vehicles()
-    me = vehicles.get(str(body.get("vehicle", "")))
-    try:
-        br = float(tg.get("br")) if mode == "br" else float((me or {}).get("br", [None, None])[1] or 0)
-    except (TypeError, ValueError):
-        br = 0.0
-    if not br:
-        return {}
-    scen = mission.load_scenario(str(body.get("scenario", "")))
-    pool = {}
-    for block, cats in (("tankModels", ("ground",)), ("armada", ("air",)), ("ships", ("ship", "boat"))):
-        enemies = [u for u in mission._as_list((scen.get("units") or {}).get(block))
-                   if isinstance(u, dict) and (u.get("props") or {}).get("army") == 2]
-        if not enemies:
-            continue
-        # keep boats vs ships as in the scenario
-        orig = {vehicles.get(u.get("unit_class"), {}).get("c") for u in enemies}
-        wanted = [c for c in cats if c in orig] or list(cats)
-        cands = [v for v in vehicles.values()
-                 if v["c"] in wanted and not v.get("h") and v.get("br") and v["br"][1]
-                 and v.get("k") in sum((TARGET_CLASSES[c] for c in wanted), ())]
-        for width in (0.35, 0.7, 1.4, 3.0):
-            near = [v for v in cands if abs(v["br"][1] - br) <= width]
-            if len(near) >= min(4, len(enemies)):
-                break
-        near.sort(key=lambda v: (abs(v["br"][1] - br), v["id"]))
-        # mix nations: round-robin over nations
-        by_nation: dict[str, list] = {}
-        for v in near:
-            by_nation.setdefault(v["n"], []).append(v["id"])
-        mixed = []
-        while any(by_nation.values()):
-            for n in sorted(by_nation):
-                if by_nation[n]:
-                    mixed.append(by_nation[n].pop(0))
-        if mixed:
-            pool[block] = mixed[:max(len(enemies), 4)]
-    return pool
-
-
 def _ammo_groups(det: dict) -> list:
     """A vehicle's ammo groups as mission.write_bullets wants them (aircraft: weapon tags too)."""
     keys = ("p", "n", "trig") if det.get("b") == "armada" else ("n", "trig")
@@ -719,7 +662,6 @@ def _prepare_ai(body: dict) -> tuple[dict, dict]:
 
 def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     """Custom-vehicle mode: writes nothing, returns (mission cfg, files to write under pkg_local)."""
-    body = dict(body, _targetPool=_target_pool(body))
     body, ai_files = _prepare_ai(body)
     body["_aiFiles"] = ai_files
     # aircraft / helicopters: bullet slots tagged with their weapon, per-launcher countermeasure counts

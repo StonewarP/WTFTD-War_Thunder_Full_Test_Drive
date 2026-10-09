@@ -13,7 +13,7 @@ const ED = {
   data: null, sel: null, multi: [], mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true,
   view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', resTab: 'all', layers: [],
   labels: [], clip: null, mouse: null, byName: new Map(), configuring: false,
-  auto: { src: 'me', br: 5.0, nation: '', who: 'enemy' },  // "Vehicles by BR"
+  auto: { src: 'me', br: 5.0, nations: [], who: 'enemy' },  // "Vehicles by BR"
 };
 
 function edEdits() {
@@ -223,12 +223,6 @@ async function openEditor() {
   ED.before = S.cfg.edits ? JSON.stringify(S.cfg.edits) : null;  // Cancel puts these back
   try { ED.data = await api('scenario-units/' + encodeURIComponent(sid)); } catch (e) { toastErr(e); return; }
   edResolveStart(ED.data);
-  if (S.map.targets?.mode && S.map.targets.mode !== 'scenario') {  // the map's training targets (maps.js)
-    try {
-      const swaps = await api('target-swaps', { vehicle: S.cfg.vehicle, scenario: sid, targets: S.map.targets });
-      for (const u of ED.data.units) if (swaps[u.name]) { u.scnCls = u.cls; u.cls = swaps[u.name]; }
-    } catch { /* keep the scenario's vehicles */ }
-  }
   ED.data.sid = sid;
   ED.byName = new Map(ED.data.units.map(u => [u.name, u]));
   edEdits();
@@ -1012,7 +1006,7 @@ function edBindMenu() {
 
 // ------------------------------------------------------------------ vehicles by BR
 // every unit gets a vehicle of its own kind (fighter, bomber, tank, SPAA…) at the BR closest to the one
-// chosen (your vehicle's, or any), of one nation or of all of them in turn
+// chosen (your vehicle's, or any), of the nations picked (none: all), one nation after the other
 const ED_AUTO_KINDS = { ground: ['tank', 'heavy_tank', 'tank_destroyer'], air: ['fighter', 'assault', 'bomber'], heli: ['helicopter'],
   ship: ['destroyer', 'cruiser'], boat: ['torpedo_boat', 'gun_boat', 'torpedo_gun_boat', 'submarine_chaser'] };
 const edBR = v => v?.br?.[1];
@@ -1039,7 +1033,7 @@ function edAutoUnits(selection) {
   });
 }
 // gives the units vehicles near br; follow: they keep following your vehicle's BR (edAutoRefresh)
-function edAutoPick(units, br, nation, follow) {
+function edAutoPick(units, br, nations, follow) {
   const groups = new Map();  // same kind of vehicle: picked in turn among the closest
   for (const u of units) {
     const cur = S.byId.get(edUnitState(u).cls);
@@ -1054,7 +1048,7 @@ function edAutoPick(units, br, nation, follow) {
   for (const { c, k, units: us } of groups.values()) {
     const kinds = k ? [k] : ED_AUTO_KINDS[c] || [];
     const cands = S.vehicles.filter(v => v.c === c && !v.h && edBR(v) && (!tree.size || tree.has(v.id))
-      && (!nation || v.n === nation) && (!kinds.length || kinds.includes(v.k)));
+      && (!nations.length || nations.includes(v.n)) && (!kinds.length || kinds.includes(v.k)));
     let near = [];
     for (const w of [0.35, 0.7, 1.4, 3, 99]) {
       near = cands.filter(v => Math.abs(edBR(v) - br) <= w);
@@ -1062,21 +1056,21 @@ function edAutoPick(units, br, nation, follow) {
     }
     if (!near.length) continue;
     near.sort((a, b) => Math.abs(edBR(a) - br) - Math.abs(edBR(b) - br) || a.id.localeCompare(b.id));
-    // all nations: one of each in turn, closest BR first
+    // several nations: one of each in turn, closest BR first
     let order = near;
-    if (!nation) {
+    if (nations.length !== 1) {
       const by = new Map();
       for (const v of near) { if (!by.has(v.n)) by.set(v.n, []); by.get(v.n).push(v); }
       order = [];
       while ([...by.values()].some(l => l.length)) for (const l of by.values()) if (l.length) order.push(l.shift());
     }
-    us.forEach((u, i) => { edSet(u, { cls: order[i % order.length].id, auto: follow ? { nation } : null }); n++; });
+    us.forEach((u, i) => { edSet(u, { cls: order[i % order.length].id, auto: follow ? { nations } : null }); n++; });
   }
   return n;
 }
 function edAutoApply(selection) {
   const br = edAutoBR(), follow = ED.auto.src === 'me' && !!edMyBR();
-  const n = edAutoPick(edAutoUnits(selection), br, ED.auto.nation, follow);
+  const n = edAutoPick(edAutoUnits(selection), br, ED.auto.nations, follow);
   if (follow) edEdits().autoBR = br;
   toast({ title: t('editor.auto.done', { n, br: br.toFixed(1) }), ms: 2500 });
 }
@@ -1101,12 +1095,13 @@ async function edAutoRefresh() {
   }
   const byNation = new Map();
   for (const u of edAutoFollowers()) {
-    const nat = (u.added ? u.auto : e.units[u.name].auto).nation || '';
-    if (!byNation.has(nat)) byNation.set(nat, []);
-    byNation.get(nat).push(u);
+    const nats = (u.added ? u.auto : e.units[u.name].auto).nations || [];
+    const key = nats.join(',');
+    if (!byNation.has(key)) byNation.set(key, { nats, us: [] });
+    byNation.get(key).us.push(u);
   }
   let n = 0;
-  for (const [nat, us] of byNation) n += edAutoPick(us, br, nat, true);
+  for (const { nats, us } of byNation.values()) n += edAutoPick(us, br, nats, true);
   e.autoBR = br;
   if (n) toast({ title: t('editor.auto.followed', { n, br: br.toFixed(1) }), ms: 4000 });
   return n > 0;
@@ -1121,9 +1116,10 @@ function edAutoHTML(selection) {
       <button class="${src === 'br' ? 'active' : ''}" data-edauto="src:br">${esc(t('editor.auto.custom'))}</button></div>
       ${src === 'me' ? `<small class="muted">${esc(t('editor.auto.followHint'))}</small>` : ''}
       ${src === 'br' ? `<div class="slider-row" style="margin-top:8px"><input type="range" min="1" max="14.3" step="0.3" data-edautof="br" value="${a.br}"><output>BR ${(+a.br).toFixed(1)}</output></div>` : ''}</div>
-    <div class="field"><label>${esc(t('editor.auto.nation'))}</label><select data-edautof="nation">
-      <option value="">${esc(t('editor.auto.allNations'))}</option>
-      ${NATIONS.map(x => `<option value="${x}"${a.nation === x ? ' selected' : ''}>${esc(nationName(x))}</option>`).join('')}</select></div>
+    <div class="field"><label>${esc(t('editor.auto.nation'))} <span class="muted">· ${esc(a.nations.length ? a.nations.map(nationName).join(', ') : t('editor.auto.allNations'))}</span></label>
+      <div class="nations ed-nations${a.nations.length ? ' has-active' : ''}">${NATIONS.map(x => `<button class="nation${a.nations.includes(x) ? ' active' : ''}" data-edauto="nat:${x}" title="${esc(nationName(x))}">
+        <img src="${flagImg(x)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'fallback',textContent:'${x.slice(0, 3).toUpperCase()}'}))"></button>`).join('')}</div>
+      ${a.nations.length ? `<button class="btn btn-ghost btn-sm" data-edauto="natAll">${esc(t('editor.auto.allNations'))}</button>` : ''}</div>
     ${selection ? '' : `<div class="field"><label>${esc(t('editor.auto.who'))}</label><div class="seg">
       ${[['enemy', 'editor.enemies'], ['ally', 'editor.allies'], ['all', 'editor.auto.all']].map(([k, l]) => `<button class="${a.who === k ? 'active' : ''}" data-edauto="who:${k}">${esc(t(l))}</button>`).join('')}</div></div>`}
     <div class="row gap"><button class="btn btn-sm" data-edauto="apply"${n ? '' : ' disabled'}>${icon('bolt', 'ic-sm')}${esc(t('editor.auto.apply', { n }))}</button>
@@ -1136,6 +1132,11 @@ function edAutoClick(b) {
   const v = b.dataset.edauto;
   if (!v) return false;
   if (v === 'apply') edAutoApply(ED.multi.length > 0);
+  else if (v === 'natAll') ED.auto.nations = [];
+  else if (v.startsWith('nat:')) {  // one more nation, or one less
+    const x = v.slice(4), l = ED.auto.nations;
+    ED.auto.nations = l.includes(x) ? l.filter(y => y !== x) : [...l, x];
+  }
   else if (v === 'stop') for (const u of edAutoFollowers()) edSet(u, { auto: null });
   else { const [k, x] = v.split(':'); ED.auto[k] = x; }
   edRenderPanel(); edDraw();
@@ -1243,7 +1244,6 @@ function edRenderPanel() {
   }
   panel.innerHTML = `<div class="ed-title">${v ? flagHTML(v.n) : ''}<b>${esc(v ? I18N.unit(v.id) : st.cls)}</b>${v?.br ? `<span class="chip">${fmtBR(v.br[1])}</span>` : ''}</div>
     <div class="ed-sub muted">${esc(u.added ? t('editor.added') : u.name)} · ${esc(t('editor.block.' + u.block))}</div>
-    ${u.scnCls && st.cls === u.cls ? `<p class="hint">${esc(t('editor.retargeted', { cls: I18N.unit(u.scnCls) }))}</p>` : ''}
     ${u.tp ? `<p class="hint">${esc(t(u.tp.start ? (st.moved ? 'editor.tpStartMoved' : 'editor.tpStart') : 'editor.tpLater'))}</p>` : ''}
     ${st.removed ? removed : `
     <div class="field"><label>${esc(t('editor.side'))}</label><div class="seg ed-side">

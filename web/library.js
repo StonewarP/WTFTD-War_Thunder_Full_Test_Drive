@@ -18,7 +18,7 @@ function vehicleOnly(c) {
 function mapSettingsOf(cfg) {
   const ch = cfg?.cheats || {};
   return {
-    targets: Object.assign(mapDefaults().targets, cfg?.targets || {}), environment: cfg?.environment || '', weather: cfg?.weather || '',
+    environment: cfg?.environment || '', weather: cfg?.weather || '',
     enemies: ch.hostileEnemies ? 'hostile' : ch.passiveEnemies ? 'passive' : '', heading: cfg?.heading == null ? '' : cfg.heading,
   };
 }

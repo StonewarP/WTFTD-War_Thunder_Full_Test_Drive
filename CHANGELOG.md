@@ -12,9 +12,11 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   Clicking a unit in the list brings it into view and highlights it alone (a unit the scenario places in game:
   the zones it may appear in). **Vehicles by BR**: every enemy, ally or selected unit gets a vehicle of its own
   kind (fighter, bomber, tank, SPAA…) from the research trees at the BR closest to your vehicle's or to a BR
-  you choose, of one nation or of all in turn. With your vehicle's BR, those units **follow your vehicle**: take
+  you choose, from the nations you tick (one, several or all, in turn). With your vehicle's BR, those units **follow your vehicle**: take
   another one and they get vehicles near its BR (when the editor opens and when the mission is created); a
-  vehicle picked by hand for a unit stops it following. **Right click** on the map: the useful actions right there (on a
+  vehicle picked by hand for a unit stops it following.
+- The map settings' **Training targets** (scenario / my BR / a BR) are gone: Vehicles by BR in the map editor
+  replaces them (nations, allies and added units too, follows your vehicle). **Right click** on the map: the useful actions right there (on a
   unit: loadout, side, movement, copy, duplicate, remove; on the map: paste here, add a ground unit / aircraft
   / ship here, start here, centre). **Paste** drops the copied units centred on the pointer; the Paste button
   lets them follow the pointer until a click places them. **Cancel** next to Done puts the map back as it was

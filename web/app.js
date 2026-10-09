@@ -683,7 +683,6 @@ function defaultCfg(v, d) {
     preset: d.pr[0]?.id || '', ammo: defaultAmmo(v, d),
     environment: '', weather: '', start: 'scenario', altitude: 1500, speed: 450, heading: '', fuel: 0,
     missionType: S.status.settings?.missionType || 'singleMission', allMods: true, mods: {}, pylons: null,
-    targets: { mode: 'scenario', br: v.br?.[1] || 5.0 },
     cheats: { immortal: false, infAmmo: false, noReload: false, infFuel: false, passiveEnemies: false, hostileEnemies: false, ghost: false, crew: '', repairEvery: 0 },
     title: '', fileName: '', _autoTitle: `Test Drive: ${name}`,
   };
@@ -695,7 +694,7 @@ function normalizeCfg(v, d, cfg) {
   if (!S.scenarios.some(s => s.id === c.scenario)) c.scenario = base.scenario;
   if (!d.pr.some(p => p.id === c.preset) && c.preset !== 'wtftd_custom') c.preset = base.preset;
   c.cheats = Object.assign({}, base.cheats, cfg.cheats || {});
-  c.targets = Object.assign({}, base.targets, cfg.targets || {});
+  delete c.targets;  // former "Training targets"
   if (cfg.edits && cfg.edits.sid) c.edits = JSON.parse(JSON.stringify(cfg.edits));
   // setups saved with a mission use the server format: convert back to the UI's
   c.mods = JSON.parse(JSON.stringify(c.mods || {}));
@@ -1111,7 +1110,7 @@ function missionPayload() {
     fuel: (c.block === 'armada' && c.fuel) || null,
     title: missionOpts().title || autoTitle(), fileName: missionOpts().fileName || `wtftd_${c.vehicle}`,
     mods: cdkOn() ? Object.assign(modsPayload(c.mods), c.cheats.noReload ? { noReload: true } : {}) : undefined,
-    pylons: cdkOn() && c.pylons ? c.pylons : undefined, targets: S.map.targets,
+    pylons: cdkOn() && c.pylons ? c.pylons : undefined,
     cheats: { ...c.cheats, passiveEnemies: S.map.enemies === 'passive', hostileEnemies: S.map.enemies === 'hostile' },
     edits: c.edits && c.edits.sid === c.scenario ? c.edits : undefined,
   };

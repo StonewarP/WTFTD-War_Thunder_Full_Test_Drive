@@ -12,9 +12,10 @@ const MAP_KINDS = ['ground', 'air', 'heli', 'ship', 'boat'];
 function savePick() { store.set('pick', S.pick); }
 
 // the map's settings, for any vehicle (and kept in saved variants)
-const MAP_DEFAULTS = { targets: { mode: 'scenario', br: 5.0 }, environment: '', weather: '', enemies: '', heading: '' };
+const MAP_DEFAULTS = { environment: '', weather: '', enemies: '', heading: '' };
 const mapDefaults = () => JSON.parse(JSON.stringify(MAP_DEFAULTS));
 S.map = Object.assign(mapDefaults(), store.get('mapset', {}));
+delete S.map.targets;  // the former "Training targets" (now Vehicles by BR in the map editor)
 function saveMap() { store.set('mapset', S.map); }
 
 // the mission's own options: type, and a title / file name kept for the vehicle + map they were written for
@@ -31,7 +32,7 @@ function saveMission() { store.set('mission', S.mission); }
 function mapFromSetup(cfg) {
   const ch = cfg.cheats || {};
   S.map = {
-    targets: Object.assign(mapDefaults().targets, cfg.targets || {}), environment: cfg.environment || '', weather: cfg.weather || '',
+    environment: cfg.environment || '', weather: cfg.weather || '',
     enemies: ch.hostileEnemies ? 'hostile' : ch.passiveEnemies ? 'passive' : '',
     heading: cfg.heading == null ? '' : cfg.heading,
   };
@@ -341,20 +342,13 @@ function renderMapDialog() {
   observeThumbs($('#mapDlgBody'));
 }
 
-// ------------------------------------------------------------------ map settings (time, weather, targets, enemies)
+// ------------------------------------------------------------------ map settings (time, weather, enemies)
 function mapSettingsHTML(s) {
-  const m = S.map, v = pickedVehicle();
-  const kinds = Object.entries(s.en || {}).map(([b, n]) => `${n} ${t('targets.block.' + b)}`).join(' · ');
+  const m = S.map;
   const seg = (key, values, cur, label) => `<div class="seg seg-wrap" data-mset="${key}">${values.map(x => `<button class="${cur === x ? 'active' : ''}" data-v="${x}">${esc(label(x))}</button>`).join('')}</div>`;
-  const targets = Object.keys(s.en || {}).length
-    ? `<p class="hint">${esc(t('targets.hint', { what: kinds }))}</p>
-      ${seg('targets', ['scenario', 'match', 'br'], m.targets.mode, x => (x === 'scenario' ? t('targets.scenario') : x === 'match' ? (v ? t('targets.match', { br: fmtBR(v.br?.[1]) }) : t('mapset.matchAny')) : t('targets.custom')))}
-      ${m.targets.mode === 'br' ? `<div class="slider-row" style="margin-top:10px"><input type="range" min="1" max="14.3" step="0.3" data-mset-br value="${m.targets.br}"><output>BR ${(+m.targets.br).toFixed(1)}</output></div>` : ''}`
-    : `<p class="hint">${esc(t('targets.fixed'))}</p>`;
   return `<div class="mset">
     <div class="opt-group-title">${icon('sliders', 'ic-sm')} ${esc(t('mapset.title', { name: savedVariant()?.name || scenarioName(s) }))}</div>
     <p class="hint">${esc(t('mapset.hint'))}</p>
-    <div class="field"><label>${icon('target', 'ic-sm')} ${esc(t('targets.title'))}</label>${targets}</div>
     <div class="field"><label>${esc(t('mapset.enemies'))}</label>${seg('enemies', ['', 'passive', 'hostile'], m.enemies, x => t('mapset.enemies.' + (x || 'scenario')))}</div>
     <div class="field"><label>${esc(t('cond.time'))}</label>${seg('environment', ['', ...ENVS], m.environment, x => (x ? t('env.' + x) : t('cond.keep')))}</div>
     <div class="field"><label>${esc(t('cond.weather'))}</label>
@@ -366,8 +360,7 @@ function onMapSettings(e) {
   const b = e.target.closest('[data-mset] [data-v]');
   if (!b) return false;
   const key = b.closest('[data-mset]').dataset.mset;
-  if (key === 'targets') S.map.targets.mode = b.dataset.v;
-  else S.map[key] = b.dataset.v;
+  S.map[key] = b.dataset.v;
   saveMap();
   renderMapDialog();
   return true;
@@ -383,7 +376,7 @@ async function setupForScenario(sid, variantId = '') {
     S.cfg = await pickedCfg(v);
     if (!S.cfg) return false;
   } else {
-    S.cfg = { vehicle: '', block: s?.block || 'armada', altitude: 1500, targets: { mode: 'scenario' }, scenario: sid, edits: S.cfg?.edits };
+    S.cfg = { vehicle: '', block: s?.block || 'armada', altitude: 1500, scenario: sid, edits: S.cfg?.edits };
   }
   pickScenario(sid, variantId);
   return true;
@@ -423,12 +416,6 @@ function bindMaps() {
     }
     const pick = e.target.closest('[data-mpick]');
     if (pick && !pick.closest('.disabled')) await setupForScenario(pick.dataset.mpick);
-  });
-  $('#mapDlgBody').addEventListener('input', e => {
-    if (e.target.dataset.msetBr === undefined) return;
-    S.map.targets.br = +e.target.value;
-    e.target.nextElementSibling.textContent = `BR ${(+e.target.value).toFixed(1)}`;
-    saveMap();
   });
   $('#mapDlgBody').addEventListener('change', e => {
     if (e.target.dataset.msetWeather !== undefined) { S.map.weather = e.target.value; saveMap(); renderMapDialog(); }

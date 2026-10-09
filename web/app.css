@@ -696,6 +696,8 @@ option { background: var(--surface); }
 .ed-auto .seg { flex-wrap: wrap; }
 .ed-auto .seg button:disabled { opacity: .45; cursor: default; }
 .ed-auto > .btn { margin-top: 2px; }
+.ed-auto .ed-nations { margin-bottom: 4px; }
+.ed-auto .field > label .muted { font-weight: 400; }
 
 
 /* ------------------------------------------------------------------ pylon grid (in-game layout) */

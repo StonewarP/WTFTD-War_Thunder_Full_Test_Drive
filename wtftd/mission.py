@@ -598,35 +598,6 @@ def _hold_start(m: dict, wing: str, tm: list, player: dict, info: dict | None = 
         "varCompareBool": {"var_value": "wtftd_dead", "value": True, "comparasion_func": "equal"}}
 
 
-def retarget(units: dict, wing: str, pool: dict):
-    """Swaps the scenario's enemy units for vehicles of the chosen level.
-    pool = {unit block: [unit_class, ...]} prepared by the server (same vehicle type, chosen BR)."""
-    swaps = retarget_map(units, wing, pool)
-    for block in pool:
-        for u in _as_list(units.get(block)):
-            if isinstance(u, dict) and u.get("name") in swaps:
-                u["unit_class"] = swaps[u["name"]]
-                u["weapons"] = ""
-                for n in range(4):
-                    if f"bullets{n}" in u:
-                        u[f"bullets{n}"] = ""
-
-
-def retarget_map(units: dict, wing: str, pool: dict) -> dict:
-    """{unit name: new unit_class} for retarget()."""
-    out = {}
-    for block, classes in pool.items():
-        if not classes:
-            continue
-        i = 0
-        for u in _as_list(units.get(block)):
-            if not isinstance(u, dict) or u.get("name") == wing or (u.get("props") or {}).get("army") != 2:
-                continue
-            out[u["name"]] = classes[i % len(classes)]
-            i += 1
-    return out
-
-
 def _trigger(event: dict, actions: dict, repeat: bool) -> dict:
     return {
         "is_enabled": True, "comments": "WTFTD",
@@ -881,7 +852,6 @@ def build(cfg: dict) -> tuple[str, str]:
         x, y, z = unit["tm"][3]
         unit["tm"] = [[math.cos(yaw), 0.0, math.sin(yaw)], [0.0, 1.0, 0.0], [-math.sin(yaw), 0.0, math.cos(yaw)], [x, y, z]]
 
-    retarget(units, wing, cfg.get("_targetPool") or {})
     start_y = float(unit["tm"][3][1])
     apply_edits(m, wing, cfg.get("edits") or {}, sid)
     pl = (cfg.get("edits") or {}).get("player")
