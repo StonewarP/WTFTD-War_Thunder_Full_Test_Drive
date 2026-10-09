@@ -38,18 +38,20 @@ const edZonePos = z => ({ ...z, ...(edEdits().areas[z.name] || {}) });
 const edFlyer = () => S.cfg.block === 'armada';
 // what the scenario puts in a zone: its units by vehicle (most first), and the side they fight for
 function edZoneInfo(z0) {
-  const counts = new Map(), sides = new Set();
+  const counts = new Map(), sides = new Set(), blocks = new Map();
   for (const n of z0.units || []) {
     const u = ED.byName.get(n);
     if (!u) continue;
     const st = edUnitState(u);
     if (st.removed) continue;
     counts.set(st.cls, (counts.get(st.cls) || 0) + (+st.count || 1));
+    blocks.set(u.block, (blocks.get(u.block) || 0) + (+st.count || 1));
     sides.add(edSide(st) === 'other' && u.army && u.army !== (ED.data.army || 1) ? 'enemy' : edSide(st));
   }
   const classes = [...counts].sort((a, b) => b[1] - a[1]);
   const role = z0.player ? 'player' : sides.has('enemy') ? 'enemy' : sides.has('ally') ? 'ally' : classes.length ? 'other' : '';
-  return { classes, role };
+  const block = [...blocks].sort((a, b) => b[1] - a[1])[0]?.[0] || '';  // what most of them are: the marker's shape
+  return { classes, role, block };
 }
 function edZoneLabel(z0, info = edZoneInfo(z0)) {
   if (z0.player) return t('editor.zoneYou');
@@ -79,15 +81,28 @@ function edSetStart(patch) {
   const e = edEdits();
   e.player = { x: s.x, y: s.y, z: s.z, yaw: Math.round(s.yaw || 0), ...(edFlyer() ? { mode: s.air ? 'air' : 'ground', speed: s.speed } : {}), ...e.player, ...patch };
 }
+// zones where the selected unit(s) may appear (units the scenario places in game have no spot of their own)
+const edSelZones = () => {
+  const names = new Set(edSelUnits().map(u => u.name).filter(Boolean));
+  return names.size ? (ED.data.areas || []).filter(z => (z.units || []).some(n => names.has(n))) : [];
+};
 function edDrawZones(dpr) {
   const { ctx } = ED;
+  const hl = new Set(edSelZones().map(z => z.name));
   for (const z0 of edZones()) {
     const z = edZonePos(z0);
-    const sel = ED.sel?.zone === z.name;
+    const sel = ED.sel?.zone === z.name || hl.has(z.name);
     if (!z0.used && !sel && ED.view.scale * Math.max(z.sx, 40) < 3 * dpr) continue;  // tiny unused zones: skip
     const info = edZoneInfo(z0);
     const color = info.role && info.role !== 'other' ? ED_COLORS[info.role] : z0.used ? '#e9edf2' : 'rgba(255,255,255,.5)';
     const [cx, cy] = edToScreen(z.x, z.z);
+    // a spawn point too small to see as a zone: a marker of what appears there
+    if (info.classes.length && !z0.player && Math.max(z.sx, z.sz) * ED.view.scale < 10 * dpr) {
+      edZoneMarker(cx, cy, info, sel, dpr);
+      if (z0.used || sel) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: cy - 19 * dpr, color: sel ? ED_COLORS.player : info.role !== 'other' ? color : '#e9edf2',
+        force: ED.sel?.zone === z.name, prio: ED.sel?.zone === z.name ? 0 : info.role === 'enemy' || info.role === 'ally' ? 2 : 3 });
+      continue;
+    }
     const rx = Math.max(z.sx * ED.view.scale, 4 * dpr), rz = Math.max(z.sz * ED.view.scale, 4 * dpr);
     ctx.save();
     ctx.translate(cx, cy);
@@ -104,9 +119,32 @@ function edDrawZones(dpr) {
     ctx.fill();
     ctx.restore();
     // labels last, under the units' own (edDrawZoneLabels)
-    if (z0.used || sel) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: cy, color: sel ? ED_COLORS.player : info.role ? color : '#e9edf2', force: sel,
-      prio: sel ? 0 : z0.player ? 1 : info.role === 'enemy' || info.role === 'ally' ? 2 : info.role ? 3 : 4 });
+    const own = ED.sel?.zone === z.name;
+    if (z0.used || sel) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: cy, color: sel ? ED_COLORS.player : info.role ? color : '#e9edf2', force: own,
+      prio: own ? 0 : z0.player ? 1 : info.role === 'enemy' || info.role === 'ally' ? 2 : info.role ? 3 : 4 });
   }
+}
+// the vehicle shape of a unit block: aircraft a triangle, ships a diamond, the rest a square
+function edShape(block, sx, sy, r) {
+  const { ctx } = ED;
+  ctx.beginPath();
+  if (block === 'armada') { ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r, sy + r * 0.8); ctx.lineTo(sx - r, sy + r * 0.8); ctx.closePath(); }
+  else if (block === 'ships') { ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r, sy); ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r, sy); ctx.closePath(); }
+  else ctx.rect(sx - r * 0.85, sy - r * 0.85, r * 1.7, r * 1.7);
+}
+// a spawn zone shown as the vehicle that appears there, in a dashed ring (it isn't a unit of its own)
+function edZoneMarker(sx, sy, info, sel, dpr) {
+  const { ctx } = ED;
+  const r = 6 * dpr, color = ED_COLORS[info.role] || ED_COLORS.other;
+  ctx.save();
+  ctx.setLineDash([3 * dpr, 3 * dpr]);
+  ctx.strokeStyle = sel ? ED_COLORS.player : color; ctx.lineWidth = (sel ? 2 : 1.5) * dpr;
+  ctx.beginPath(); ctx.arc(sx, sy, r + 5 * dpr, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = color; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.lineWidth = 1.2 * dpr;
+  edShape(info.block, sx, sy, r);
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
 }
 function edDrawZoneLabels(dpr) {
   for (const l of ED.zoneLabels.sort((a, b) => a.prio - b.prio)) edPill(l.text, l.x, l.y, l.color, dpr, { center: true, force: l.force, small: true });
@@ -249,6 +287,34 @@ function edFitMap() {
   const span = Math.max(l.max[0] - l.min[0], l.max[1] - l.min[1]) * 1.04;
   ED.view = { scale: Math.min(w, h) / span, cx: (l.min[0] + l.max[0]) / 2, cz: (l.min[1] + l.max[1]) / 2 };
 }
+// brings the selected unit(s) into view (a unit placed in game: the zones it may appear in), with a short glide
+function edFocus() {
+  const pts = [];
+  for (const u of edSelUnits()) {
+    const st = edUnitState(u);
+    if (!u.runtime) pts.push(st);
+  }
+  if (!pts.length) pts.push(...edSelZones().map(edZonePos));
+  if (!pts.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const xs = pts.map(p => p.x), zs = pts.map(p => p.z);
+  const minx = Math.min(...xs), maxx = Math.max(...xs), minz = Math.min(...zs), maxz = Math.max(...zs);
+  const w = ED.canvas.width, h = ED.canvas.height;
+  let scale = ED.view.scale;
+  const span = Math.max(maxx - minx, maxz - minz) * 1.3;
+  if (span * scale > Math.min(w, h)) scale = Math.min(w, h) / span;  // they don't fit: zoom out
+  if (scale * 300 < 40 * dpr) scale = Math.min(Math.min(w, h) / Math.max(span, 1), 40 * dpr / 300 * 4);  // too far to read: zoom in
+  const from = { ...ED.view }, to = { scale, cx: (minx + maxx) / 2, cz: (minz + maxz) / 2 };
+  const t0 = performance.now(), dur = 280;
+  clearTimeout(ED.glide);
+  const step = () => {  // timers, not animation frames: it ends at the target even when the window isn't drawn
+    const k = Math.min(1, (performance.now() - t0) / dur), e = 1 - (1 - k) ** 3;
+    ED.view = { scale: from.scale * (to.scale / from.scale) ** e, cx: from.cx + (to.cx - from.cx) * e, cz: from.cz + (to.cz - from.cz) * e };
+    edDraw();
+    if (k < 1) ED.glide = setTimeout(step, 16);
+  };
+  step();
+}
 const edToScreen = (x, z) => [ED.canvas.width / 2 + (x - ED.view.cx) * ED.view.scale, ED.canvas.height / 2 - (z - ED.view.cz) * ED.view.scale];
 const edToWorld = (sx, sy) => [ED.view.cx + (sx - ED.canvas.width / 2) / ED.view.scale, ED.view.cz - (sy - ED.canvas.height / 2) / ED.view.scale];
 
@@ -351,9 +417,32 @@ function edDuplicate() {
   const step = Math.max(...ED.clip.map(c => ED_SPACING[c.block] || 40));
   edPaste(cx + step, cz - step);
 }
+// Ctrl+V with the pointer on the map pastes there (the copied group centred on it); otherwise, and with the
+// Paste button, the group follows the pointer until a click drops it
 function edPasteHere() {
-  const [x, z] = ED.mouse || [ED.view.cx, ED.view.cz];
-  edPaste(x, z);
+  if (!ED.clip?.length) return;
+  if (ED.over && ED.mouse) edPaste(...ED.mouse);
+  else edPlacing(true);
+}
+function edPlacing(on) {
+  ED.placing = on && !!ED.clip?.length;
+  ED.canvas?.classList.toggle('placing', ED.placing);
+  if (ED.placing) toast({ title: t('editor.pasteClick'), ms: 3000 });
+}
+// what Ctrl+V / a click would paste, under the pointer
+function edDrawGhost(dpr) {
+  if (!ED.placing || !ED.over || !ED.mouse) return;
+  const { ctx } = ED;
+  ctx.save();
+  ctx.globalAlpha = 0.6;
+  ctx.setLineDash([3 * dpr, 3 * dpr]);
+  for (const c of ED.clip) {
+    const [sx, sy] = edToScreen(ED.mouse[0] + c.dx, ED.mouse[1] + c.dz);
+    ctx.fillStyle = ED_COLORS[c.side] || ED_COLORS.enemy; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * dpr;
+    edShape(c.block, sx, sy, 7 * dpr);
+    ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // ------------------------------------------------------------------ drawing
@@ -437,6 +526,7 @@ function edDraw() {
   edDrawArrow(dpr);
   for (const u of pts.slice().reverse()) edMarkerLabel(u, u.player ? pPos : u, dpr);
   edDrawZoneLabels(dpr);
+  edDrawGhost(dpr);
   if (ED.drag?.kind === 'box' && ED.drag.moved) {  // area selection
     const { sx, sy, x2, y2 } = ED.drag;
     ctx.save(); ctx.setLineDash([5 * dpr, 4 * dpr]); ctx.strokeStyle = ED_COLORS.player; ctx.lineWidth = 1.5 * dpr;
@@ -470,18 +560,8 @@ function edMarker(u, pos, dpr) {
   ctx.fillStyle = color;
   ctx.strokeStyle = u.added ? '#fff' : 'rgba(0,0,0,.75)';
   ctx.lineWidth = (u.added ? 2 : editable ? 1 : 1.2) * dpr;
-  ctx.beginPath();
-  if (u.player) {
-    ctx.arc(sx, sy, r + 2 * dpr, 0, Math.PI * 2);
-  } else if (u.block === 'armada') {
-    ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r, sy + r * 0.8); ctx.lineTo(sx - r, sy + r * 0.8); ctx.closePath();
-  } else if (u.block === 'ships') {
-    ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r, sy); ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r, sy); ctx.closePath();
-  } else if (editable) {
-    ctx.rect(sx - r * 0.85, sy - r * 0.85, r * 1.7, r * 1.7);
-  } else {  // scenery / objects: small square with a dark outline, readable on any terrain
-    ctx.rect(sx - r * 0.8, sy - r * 0.8, r * 1.6, r * 1.6);
-  }
+  if (u.player) { ctx.beginPath(); ctx.arc(sx, sy, r + 2 * dpr, 0, Math.PI * 2); }
+  else edShape(u.block, sx, sy, r);  // scenery / objects: a small one with a dark outline, readable on any terrain
   ctx.fill(); ctx.stroke();
   if (u.removed) {
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * dpr; ctx.beginPath();
@@ -608,6 +688,20 @@ function edAdd(x, z) {
   ED.mode = 'select';
 }
 
+// moves your start to x, z (height: on the ground, or in the air for an air start)
+function edMovePlayer(x, z) {
+  const e = edEdits();
+  const p = ED.data.units.find(u => u.player);
+  if (!p) return;
+  const onGround = S.cfg.block === 'tankModels' && edGround(x, z) != null;
+  let y = onGround ? Math.round(edGroundY(x, z) * 10) / 10 : (e.player?.y ?? p.y);
+  // an aircraft moved off its runway starts in the air
+  if (S.cfg.block === 'armada' && !e.player) y = Math.max(y, Math.round((edGround(x, z) ?? p.y) + (S.cfg.altitude || 1000)));
+  const s = edStart();
+  if (s && edFlyer()) y = s.air ? Math.max(y, Math.round((edGround(x, z) ?? 0) + 100)) : Math.round(edGroundY(x, z) * 10) / 10;
+  e.player = { ...(e.player || {}), x: Math.round(x), y, z: Math.round(z), yaw: e.player?.yaw ?? Math.round(p.yaw || 0),
+    ...(edFlyer() ? { mode: s?.air ? 'air' : 'ground', speed: s?.speed ?? 450 } : {}) };
+}
 // moves a unit (added or the scenario's) to x, z: ground units stay on the ground
 function edMoveUnit(u, x, z) {
   const e = edEdits();
@@ -622,10 +716,19 @@ function edMoveUnit(u, x, z) {
 
 function edBind() {
   const cv = $('#edCanvas');
+  edBindMenu();
   cv.addEventListener('pointerdown', ev => {
+    if (ev.button === 2) return;  // the right button opens the menu (edBindMenu)
     const [sx, sy] = edCanvasPoint(ev);
+    clearTimeout(ED.glide);  // the map is the user's again
     cv.setPointerCapture(ev.pointerId);
     $('#edTip').classList.add('hidden');
+    if (ED.placing) {  // drops the copied units here
+      edPaste(...edToWorld(sx, sy));
+      edPlacing(false);
+      edRenderPanel(); edDraw();
+      return;
+    }
     if (ED.mode === 'add') {
       const [x, z] = edToWorld(sx, sy);
       edAdd(x, z);
@@ -670,7 +773,7 @@ function edBind() {
   cv.addEventListener('pointermove', ev => {
     const [sx, sy] = edCanvasPoint(ev);
     ED.mouse = edToWorld(sx, sy);
-    if (!ED.drag) { edTip(ev, sx, sy); return; }
+    if (!ED.drag) { if (ED.placing) edDraw(); else edTip(ev, sx, sy); return; }
     if (ED.drag.kind === 'pan') {
       ED.view.cx = ED.drag.cx - (sx - ED.drag.sx) / ED.view.scale;
       ED.view.cz = ED.drag.cz + (sy - ED.drag.sy) / ED.view.scale;
@@ -692,20 +795,8 @@ function edBind() {
       ED.drag.moved = true;
     } else {
       const [x, z] = edToWorld(sx, sy);
-      const e = edEdits();
-      if (ED.drag.u.player) {
-        const p = ED.data.units.find(u => u.player);
-        const onGround = S.cfg.block === 'tankModels' && edGround(x, z) != null;
-        let y = onGround ? Math.round(edGroundY(x, z) * 10) / 10 : (e.player?.y ?? p.y);
-        // an aircraft moved off its runway starts in the air
-        if (S.cfg.block === 'armada' && !e.player) y = Math.max(y, Math.round((edGround(x, z) ?? p.y) + (S.cfg.altitude || 1000)));
-        const s = edStart();
-        if (s && edFlyer()) y = s.air ? Math.max(y, Math.round((edGround(x, z) ?? 0) + 100)) : Math.round(edGroundY(x, z) * 10) / 10;
-        e.player = { ...(e.player || {}), x: Math.round(x), y, z: Math.round(z), yaw: e.player?.yaw ?? Math.round(p.yaw || 0),
-          ...(edFlyer() ? { mode: s?.air ? 'air' : 'ground', speed: s?.speed ?? 450 } : {}) };
-      } else {
-        edMoveUnit(ED.drag.u, x, z);
-      }
+      if (ED.drag.u.player) edMovePlayer(x, z);
+      else edMoveUnit(ED.drag.u, x, z);
       ED.drag.moved = true;
     }
     edDraw();
@@ -725,9 +816,11 @@ function edBind() {
       edRenderPanel(); edDraw();
     } else if (d?.moved) edRenderPanel();
   });
-  cv.addEventListener('pointerleave', () => $('#edTip').classList.add('hidden'));
+  cv.addEventListener('pointerenter', () => { ED.over = true; });
+  cv.addEventListener('pointerleave', () => { ED.over = false; $('#edTip').classList.add('hidden'); if (ED.placing) edDraw(); });
   cv.addEventListener('wheel', ev => {
     ev.preventDefault();
+    clearTimeout(ED.glide);
     const [sx, sy] = edCanvasPoint(ev);
     const [wx, wz] = edToWorld(sx, sy);
     ED.view.scale *= ev.deltaY < 0 ? 1.18 : 1 / 1.18;
@@ -757,7 +850,7 @@ function edBind() {
     if (b.dataset.edact === 'reset') { S.cfg.edits = { sid: S.cfg.scenario, units: {}, add: [], areas: {} }; edSelect([]); }
     if (b.dataset.edact === 'zones') { ED.zones = !ED.zones; if (!ED.zones && ED.sel?.zone) ED.sel = null; }
     if (b.dataset.edact === 'scenery') ED.scenery = !ED.scenery;
-    if (b.dataset.edact === 'paste') { const [x, z] = [ED.view.cx, ED.view.cz]; edPaste(x, z); }
+    if (b.dataset.edact === 'paste') edPlacing(true);
     edRenderPanel(); edDraw();
   });
   $('#edDone').addEventListener('click', () => $('#dlgEditor').close());
@@ -768,6 +861,7 @@ function edBind() {
     else if (mod && k === 'v') { edPasteHere(); }
     else if (mod && k === 'd') { edDuplicate(); }
     else if (mod && k === 'a') { edSelect(edAllPoints().map(edUnitState).filter(u => (u.edit || u.added) && !u.player).map(edKey)); }
+    else if (k === 'escape' && ED.placing) { edPlacing(false); }
     else if (k === 'escape' && (ED.sel || ED.multi.length)) { edSelect([]); }
     else if (['delete', 'backspace'].includes(k)) {
       const us = edSelUnits();
@@ -780,6 +874,119 @@ function edBind() {
     edRenderPanel(); edDraw();
   });
   $('#dlgEditor').addEventListener('close', () => { if (S.sel && !ED.configuring) renderDrawer(); });
+}
+
+// ------------------------------------------------------------------ right click: what can be done right there
+// the items for what is under the pointer (a unit, the selection, your start, a zone or the map at x, z)
+function edMenuItems(sx, sy) {
+  const [x, z] = edToWorld(sx, sy);
+  const hit = edHit(sx, sy), zone = hit ? null : edHitZone(sx, sy);
+  const items = [], sep = () => items.length && items[items.length - 1] !== '-' && items.push('-');
+  const redraw = () => { edRenderPanel(); edDraw(); };
+  const copy = () => { if (edCopy()) toast({ title: t('editor.copied', { n: ED.clip.length }), ms: 2000 }); };
+  if (hit?.player) {
+    ED.sel = { player: true }; ED.multi = [];
+    if (edFlyer()) {
+      const s = edStart();
+      for (const [mode, key] of [['ground', 'editor.startGround'], ['air', 'editor.startAir']]) {
+        items.push({ label: t(key), on: s.air === (mode === 'air'), run: () => {
+          const g = edGround(s.x, s.z), air = mode === 'air';
+          edSetStart({ mode, y: air ? Math.max(s.y, Math.round((g ?? s.y) + (S.cfg.altitude || 1500))) : Math.round(edGroundY(s.x, s.z) * 10) / 10, speed: air ? (s.speed || 450) : 0 });
+        } });
+      }
+    }
+    if (edEdits().player) { sep(); items.push({ label: t('mods.reset'), icon: 'refresh', run: () => { delete edEdits().player; } }); }
+  } else if (hit) {
+    if (!edSelKeys().includes(edKey(hit))) edSelect([edKey(hit)]);  // right click on a unit selects it, as on a desktop
+    const us = edSelUnits(), sts = us.map(edUnitState);
+    const canCopy = sts.some(u => !u.removed && (u.added || ED_ADD_BLOCK[u.block]));
+    if (us.length === 1) {
+      const u = us[0], st = sts[0], side = edSide(st);
+      if (!st.removed && !u.tpl && S.byId.get(st.cls)) items.push({ label: t('editor.configure') + ' · ' + t('editor.loadout'), icon: 'sliders', run: () => edConfigure(edKey(u)) });
+      if (!st.removed && !u.tpl) {
+        sep();
+        for (const sd of ['enemy', 'ally']) items.push({ label: t('editor.' + sd), dot: sd, on: side === sd, run: () => {
+          const beh = edUnitState(u).behavior;
+          const keep = !(beh === 'hunt' && sd === 'ally') && !(beh === 'follow' && sd === 'enemy');
+          edSet(u, { side: sd, ...(keep ? {} : { behavior: '' }) });
+        } });
+      }
+      if (!st.removed) {
+        sep();
+        for (const [beh, key] of edBehaviors(side, u.block === 'armada', u.added)) items.push({ label: t(key), on: (st.behavior || '') === beh, run: () => edSet(u, { behavior: beh }) });
+      }
+    } else {
+      sep();
+      for (const sd of ['enemy', 'ally']) items.push({ label: t('editor.' + sd), dot: sd, run: () => edMultiClick({ dataset: { edmside: sd } }) });
+    }
+    sep();
+    if (canCopy) {
+      items.push({ label: t('editor.copy'), key: 'Ctrl+C', run: copy });
+      items.push({ label: t('editor.duplicate'), key: 'Ctrl+D', run: edDuplicate });
+    }
+    if (us.length === 1 && sts[0].moved && !us[0].added) items.push({ label: t('editor.resetPos'), icon: 'refresh', run: () => edSet(us[0], { x: null, y: null, z: null }) });
+    sep();
+    if (sts.some(u => u.removed && !u.added)) items.push({ label: t('editor.restore'), icon: 'refresh', run: () => { for (const u of us) if (!u.added) edSet(u, { remove: false }); } });
+    if (sts.some(u => !u.removed)) items.push({ label: t(us.length === 1 && us[0].added ? 'action.delete' : us.length > 1 ? 'editor.removeSel' : 'editor.remove'), icon: 'trash', key: 'Del', danger: true,
+      run: () => { const added = us.length === 1 && us[0].added; edRemoveUnits(us.filter(u => u.added || !edUnitState(u).removed)); if (added) edSelect([]); } });
+    if (us.length > 1) items.push({ label: t('editor.clearSel'), icon: 'x', key: 'Esc', run: () => edSelect([]) });
+  } else {
+    if (zone) {
+      ED.sel = { zone: zone.name }; ED.multi = [];
+      if (edEdits().areas[zone.name]) { items.push({ label: t('mods.reset') + ' · ' + t('editor.zone'), icon: 'refresh', run: () => { delete edEdits().areas[zone.name]; } }); sep(); }
+    }
+    if (ED.clip?.length) items.push({ label: t('editor.menu.pasteHere'), key: 'Ctrl+V', run: () => edPaste(x, z) });
+    sep();
+    for (const [block, key, ic] of [['tankModels', 'editor.menu.addGround', 'ground'], ['armada', 'editor.menu.addAir', 'air'], ['ships', 'editor.menu.addShip', 'ship']]) {
+      items.push({ label: t(key), icon: ic, dot: ED.addSide, run: () => { const b = ED.addBlock; ED.addBlock = block; edAdd(x, z); ED.addBlock = b; } });
+    }
+    if (ED.data.units.some(u => u.player)) { sep(); items.push({ label: t('editor.menu.startHere'), dot: 'player', run: () => { edMovePlayer(x, z); ED.sel = { player: true }; ED.multi = []; } }); }
+    sep();
+    items.push({ label: t('editor.menu.center'), run: () => { ED.view.cx = x; ED.view.cz = z; } });
+    items.push({ label: t('editor.fit'), run: edFit });
+    if (ED.layers.length) items.push({ label: t('editor.fitMap'), run: edFitMap });
+  }
+  if (items[items.length - 1] === '-') items.pop();
+  return items.map(it => (it === '-' ? it : { ...it, run: () => { it.run(); redraw(); } }));
+}
+function edOpenMenu(ev) {
+  ev.preventDefault();
+  edPlacing(false);
+  $('#edTip').classList.add('hidden');
+  const [sx, sy] = edCanvasPoint(ev);
+  const items = edMenuItems(sx, sy);
+  edRenderPanel(); edDraw();  // what the menu acts on is now selected
+  const menu = $('#edMenu');
+  ED.menu = items;
+  menu.innerHTML = items.map((it, i) => (it === '-' ? '<hr>' : `<button data-mi="${i}" class="${it.danger ? 'danger' : ''}${it.on ? ' on' : ''}">
+      <span class="ed-mi-ic">${it.dot ? `<i class="dot ${it.dot}"></i>` : it.icon ? icon(it.icon, 'ic-sm') : it.on ? icon('check', 'ic-sm') : ''}</span>
+      <span>${esc(it.label)}</span>${it.on && it.dot ? icon('check', 'ic-sm') : ''}${it.key ? `<kbd>${esc(it.key)}</kbd>` : ''}</button>`)).join('');
+  menu.classList.remove('hidden');
+  const box = menu.parentElement.getBoundingClientRect(), mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.left = Math.max(4, Math.min(ev.clientX - box.left, box.width - mw - 4)) + 'px';
+  menu.style.top = Math.max(4, Math.min(ev.clientY - box.top, box.height - mh - 4)) + 'px';
+  menu.querySelector('button')?.focus({ preventScroll: true });
+}
+const edCloseMenu = () => { $('#edMenu')?.classList.add('hidden'); ED.menu = null; };
+function edBindMenu() {
+  const menu = $('#edMenu');
+  $('#edCanvas').addEventListener('contextmenu', edOpenMenu);
+  menu.addEventListener('contextmenu', ev => ev.preventDefault());
+  menu.addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-mi]');
+    if (!b) return;
+    const it = ED.menu?.[+b.dataset.mi];
+    edCloseMenu();
+    it?.run();
+  });
+  menu.addEventListener('keydown', ev => {
+    const bs = [...menu.querySelectorAll('button')], i = bs.indexOf(document.activeElement);
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); ev.stopPropagation(); bs[(i + (ev.key === 'ArrowDown' ? 1 : bs.length - 1)) % bs.length]?.focus(); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); edCloseMenu(); }
+  });
+  document.addEventListener('pointerdown', ev => { if (ED.menu && !menu.contains(ev.target)) edCloseMenu(); }, true);
+  $('#edCanvas').addEventListener('wheel', edCloseMenu, { passive: true });
+  $('#dlgEditor').addEventListener('close', edCloseMenu);
 }
 
 // ------------------------------------------------------------------ side panel
@@ -1018,7 +1225,7 @@ function edRenderList() {
     const side = edSide(st);
     const changed = !!e.units[u.name];
     (groups[side] || groups.enemy).push(`<button class="ed-row${keys.includes('u:' + u.name) ? ' active' : ''}${st.removed ? ' removed' : ''}" data-edsel="u:${esc(u.name)}">
-      <i class="dot ${side}"></i><span>${esc(I18N.unit(st.cls))}${st.count > 1 ? ` ×${st.count}` : ''}</span>${u.tpl ? `<i class="chip dim">${esc(t(u.runtime ? 'editor.runtime' : 'editor.tpl'))}</i>` : ''}${changed ? '<b>●</b>' : ''}</button>`);
+      <i class="dot ${side}"></i><span>${esc(edUnitName(st.cls))}${st.count > 1 ? ` ×${st.count}` : ''}</span>${u.tpl ? `<i class="chip dim">${esc(t(u.runtime ? 'editor.runtime' : 'editor.tpl'))}</i>` : ''}${changed ? '<b>●</b>' : ''}</button>`);
   }
   e.add.forEach((a, i) => {
     const side = a.side === 'ally' ? 'ally' : 'enemy';
@@ -1061,8 +1268,11 @@ async function edUseSetup(id) {
 function edPanelClick(ev) {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.edsel) {
+    const inList = !!b.closest('#edList');  // before the panel is drawn again
     if (ev.ctrlKey || ev.metaKey || ev.shiftKey) edToggle(b.dataset.edsel); else edSelect([b.dataset.edsel]);
-    edRenderPanel(); edDraw(); return;
+    edRenderPanel(); edDraw();
+    if (inList) edFocus();
+    return;
   }
   if (b.dataset.edtab) { ED.resTab = b.dataset.edtab; edRenderPanel(); return; }
   if (b.dataset.edsetup) { edUseSetup(b.dataset.edsetup); return; }

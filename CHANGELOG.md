@@ -6,6 +6,12 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- **Map editor**: spawn points too small to see as zones show as a marker of what appears there (triangle:
+  aircraft, square: ground, diamond: ships) in a dashed ring. Clicking a unit in the list brings it into view
+  (a unit the scenario places in game: the zones it may appear in, highlighted). **Right click** on the map:
+  the useful actions right there (on a unit: loadout, side, movement, copy, duplicate, remove; on the map:
+  paste here, add a ground unit / aircraft / ship here, start here, centre). **Paste** drops the copied units
+  centred on the pointer; the Paste button lets them follow the pointer until a click places them.
 - **Map editor**: zones say what the scenario puts there (your start, the vehicles it brings in, with
   pictures) and are coloured by side; the map is shaded, labels sit on dark pills, a tip names whatever is
   under the pointer, scenery can be hidden. **Several units at once**: Ctrl / Shift + click or Shift + drag

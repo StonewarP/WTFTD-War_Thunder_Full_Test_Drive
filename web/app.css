@@ -649,6 +649,18 @@ option { background: var(--surface); }
 .ed-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 340px; }
 .ed-map { position: relative; min-height: 0; border-right: 1px solid var(--line); }
 .ed-map canvas { position: absolute; inset: 0; display: block; cursor: crosshair; touch-action: none; }
+.ed-map canvas.placing { cursor: copy; }
+.ed-menu { position: absolute; z-index: 5; min-width: 210px; max-width: 300px; padding: 5px; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+.ed-menu button { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent;
+  text-align: left; font-size: 12.5px; color: var(--text); }
+.ed-menu button > span:nth-child(2) { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed-menu button:hover, .ed-menu button:focus-visible { background: var(--surface-3); outline: none; }
+.ed-menu button.on { color: var(--accent-2); }
+.ed-menu button.danger { color: var(--danger, #ff5a4f); }
+.ed-menu .ed-mi-ic { width: 16px; display: inline-grid; place-items: center; flex: none; }
+.ed-menu kbd { margin-left: 10px; }
+.ed-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
 .ed-tools { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .ed-tools .btn { background: var(--glass); backdrop-filter: blur(8px); }
 .ed-tools .btn.active { border-color: var(--accent); color: var(--accent-2); background: var(--accent-soft); }
