@@ -4,7 +4,7 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Unreleased
+## 0.19.0 — 2026-10-09
 
 - **My weapons** (new tab, right of Weapons): make your own versions of the game's missiles, bombs, rockets and
   torpedoes from the Weapons tab (**Modify** on a row) and hang them on your pylons (vehicle panel → Loadout →
@@ -14,6 +14,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   weapon's file (guidance, seeker, autopilot, fuse, damage…), searchable, block by block, each explained on hover.
   A weapon edited later flies as it is now on every pylon that holds it. In game it keeps its own name.
   Checked in game (F-14B): 100 G turns, thrust ×5, 500 kg / 10 t explosive, nuclear AIM-9M and Mk 84.
+- The Weapons tab: every air-launched missile, bomb, rocket and torpedo can be modified (747 of 866; the
+  others are fired from the ground), also when its name differs from its file's (PL-5EII…).
+- Header: stays on one line with the new tab on smaller screens and in every language (the subtitle, the
+  status pills and the Launch button's text make room).
 - Fix: non-standard pylon weapons fired two at a time (every pylon with that trigger at once); they now fire one
   pylon at a time, as the game's own presets (`separate`).
 
