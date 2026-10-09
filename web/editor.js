@@ -10,7 +10,7 @@ const ED_ADD_BLOCK = { tankModels: 'tankModels', armada: 'armada', ships: 'ships
   tracked_vehicles: 'tankModels', wheeled_vehicles: 'tankModels' };
 
 const ED = {
-  data: null, sel: null, multi: [], mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: true, scenery: true,
+  data: null, sel: null, multi: [], mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true,
   view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', resTab: 'all', layers: [],
   labels: [], clip: null, mouse: null, byName: new Map(), configuring: false,
 };
@@ -86,41 +86,51 @@ const edSelZones = () => {
   const names = new Set(edSelUnits().map(u => u.name).filter(Boolean));
   return names.size ? (ED.data.areas || []).filter(z => (z.units || []).some(n => names.has(n))) : [];
 };
+// what the map shows of the zones: their outline (Zones on), and always a marker of the vehicles the
+// scenario brings into a zone (its spawn points), whatever the zoom
+function edZoneItems(dpr) {
+  const hl = new Set(edSelZones().map(z => z.name));
+  const outlined = new Set(edZones());
+  const all = new Set([...outlined, ...(ED.data.areas || []).filter(z => !z.player && z.units?.length)]);
+  const out = [];
+  for (const z0 of all) {
+    const z = edZonePos(z0), info = edZoneInfo(z0);
+    const sel = ED.sel?.zone === z0.name || hl.has(z0.name);
+    const spawn = !!info.classes.length && !z0.player;
+    const big = Math.max(z.sx, z.sz) * ED.view.scale >= 10 * dpr;
+    // tiny unused zones are left out (their vehicles keep their marker)
+    const outline = outlined.has(z0) && (!spawn || big) && (z0.used || sel || ED.view.scale * Math.max(z.sx, 40) >= 3 * dpr);
+    if (outline || spawn) out.push({ z0, z, info, sel, spawn, outline });
+  }
+  return out;
+}
 function edDrawZones(dpr) {
   const { ctx } = ED;
-  const hl = new Set(edSelZones().map(z => z.name));
-  for (const z0 of edZones()) {
-    const z = edZonePos(z0);
-    const sel = ED.sel?.zone === z.name || hl.has(z.name);
-    if (!z0.used && !sel && ED.view.scale * Math.max(z.sx, 40) < 3 * dpr) continue;  // tiny unused zones: skip
-    const info = edZoneInfo(z0);
+  for (const { z0, z, info, sel, spawn, outline } of edZoneItems(dpr)) {
     const color = info.role && info.role !== 'other' ? ED_COLORS[info.role] : z0.used ? '#e9edf2' : 'rgba(255,255,255,.5)';
     const [cx, cy] = edToScreen(z.x, z.z);
-    // a spawn point too small to see as a zone: a marker of what appears there
-    if (info.classes.length && !z0.player && Math.max(z.sx, z.sz) * ED.view.scale < 10 * dpr) {
-      edZoneMarker(cx, cy, info, sel, dpr);
-      if (z0.used || sel) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: cy - 19 * dpr, color: sel ? ED_COLORS.player : info.role !== 'other' ? color : '#e9edf2',
-        force: ED.sel?.zone === z.name, prio: ED.sel?.zone === z.name ? 0 : info.role === 'enemy' || info.role === 'ally' ? 2 : 3 });
-      continue;
+    if (outline) {
+      const rx = Math.max(z.sx * ED.view.scale, 4 * dpr), rz = Math.max(z.sz * ED.view.scale, 4 * dpr);
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-z.yaw * Math.PI / 180);
+      ctx.setLineDash(z0.used ? [6 * dpr, 4 * dpr] : [2 * dpr, 4 * dpr]);
+      ctx.lineWidth = (sel ? 2.5 : 1.5) * dpr;
+      ctx.strokeStyle = sel ? ED_COLORS.player : color;
+      ctx.globalAlpha = z0.used || sel ? 0.9 : 0.5;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      if (/box/i.test(z.type)) ctx.rect(-rx, -rz, rx * 2, rz * 2); else ctx.ellipse(0, 0, rx, rx, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = info.role ? 0.1 : 0.04;
+      ctx.fill();
+      ctx.restore();
     }
-    const rx = Math.max(z.sx * ED.view.scale, 4 * dpr), rz = Math.max(z.sz * ED.view.scale, 4 * dpr);
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(-z.yaw * Math.PI / 180);
-    ctx.setLineDash(z0.used ? [6 * dpr, 4 * dpr] : [2 * dpr, 4 * dpr]);
-    ctx.lineWidth = (sel ? 2.5 : 1.5) * dpr;
-    ctx.strokeStyle = sel ? ED_COLORS.player : color;
-    ctx.globalAlpha = z0.used || sel ? 0.9 : 0.5;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    if (/box/i.test(z.type)) ctx.rect(-rx, -rz, rx * 2, rz * 2); else ctx.ellipse(0, 0, rx, rx, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.globalAlpha = info.role ? 0.1 : 0.04;
-    ctx.fill();
-    ctx.restore();
+    if (spawn) edZoneMarker(cx, cy, info, sel, dpr);  // a marker of what appears there
     // labels last, under the units' own (edDrawZoneLabels)
-    const own = ED.sel?.zone === z.name;
-    if (z0.used || sel) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: cy, color: sel ? ED_COLORS.player : info.role ? color : '#e9edf2', force: own,
+    const own = ED.sel?.zone === z0.name;
+    if (z0.used || sel) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: spawn ? cy - 19 * dpr : cy,
+      color: sel ? ED_COLORS.player : info.role && info.role !== 'other' ? color : '#e9edf2', force: own,
       prio: own ? 0 : z0.player ? 1 : info.role === 'enemy' || info.role === 'ally' ? 2 : info.role ? 3 : 4 });
   }
 }
@@ -172,12 +182,11 @@ function edPill(text, x, y, color, dpr, { center = false, force = false, small =
 function edHitZone(sx, sy) {
   const dpr = window.devicePixelRatio || 1;
   let best = null, bd = Infinity;
-  for (const z0 of edZones()) {
-    const z = edZonePos(z0);
+  for (const { z0, z, outline } of edZoneItems(dpr)) {
     const [cx, cy] = edToScreen(z.x, z.z);
     const d = Math.hypot(cx - sx, cy - sy);
-    const r = Math.max(Math.max(z.sx, z.sz) * ED.view.scale, 10 * dpr);
-    if (d <= r && d < bd && (z0.used || ED.view.scale * Math.max(z.sx, 40) >= 3 * dpr)) { bd = d; best = z0; }
+    const r = Math.max(outline ? Math.max(z.sx, z.sz) * ED.view.scale : 0, 12 * dpr);
+    if (d <= r && d < bd) { bd = d; best = z0; }
   }
   return best;
 }
@@ -848,7 +857,7 @@ function edBind() {
     if (b.dataset.edact === 'fit') edFit();
     if (b.dataset.edact === 'fitMap') edFitMap();
     if (b.dataset.edact === 'reset') { S.cfg.edits = { sid: S.cfg.scenario, units: {}, add: [], areas: {} }; edSelect([]); }
-    if (b.dataset.edact === 'zones') { ED.zones = !ED.zones; if (!ED.zones && ED.sel?.zone) ED.sel = null; }
+    if (b.dataset.edact === 'zones') { ED.zones = !ED.zones; if (!ED.zones && ED.sel?.zone && !edZoneItems(window.devicePixelRatio || 1).some(i => i.z0.name === ED.sel.zone)) ED.sel = null; }
     if (b.dataset.edact === 'scenery') ED.scenery = !ED.scenery;
     if (b.dataset.edact === 'paste') edPlacing(true);
     edRenderPanel(); edDraw();
