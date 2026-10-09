@@ -15,10 +15,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   you choose, from the nations you tick (one, several or all, in turn). With your vehicle's BR, those units **follow your vehicle**: take
   another one and they get vehicles near its BR (when the editor opens and when the mission is created); a
   vehicle picked by hand for a unit stops it following.
-- **Template units can change vehicle**: units a scenario takes from the game's templates (all the targets of the
-  test flights) get the vehicle picker, a loadout and Vehicles by BR. The mission then carries those templates
-  itself instead of importing them (the data keeps them: it is rebuilt once). Missions with no such change are
-  written as before.
+- **Template units can change vehicle**: the units a scenario takes from a game template it imports directly (the
+  targets of the test flights) get the vehicle picker, a loadout and Vehicles by BR. The mission then declares
+  that template's units itself; the templates' scripts stay imported as the game wrote them (the data keeps the
+  templates: it is rebuilt once). Units of nested templates (the bases' AA) keep their vehicle.
 - The map settings' **Training targets** (scenario / my BR / a BR) are gone: Vehicles by BR in the map editor
   replaces them (nations, allies and added units too, follows your vehicle). **Right click** on the map: the useful actions right there (on a
   unit: loadout, side, movement, copy, duplicate, remove; on the map: paste here, add a ground unit / aircraft

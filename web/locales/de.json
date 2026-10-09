@@ -414,7 +414,7 @@
   "editor.fromTemplate": "aus einer Spielvorlage",
   "editor.tpl": "Vorlage",
   "editor.tplNote": "Diese Einheit stammt aus einer Spielvorlage: Sie kann nicht verschoben oder geändert werden, aber du kannst sie entfernen, einfrieren, passiv machen oder dich jagen lassen.",
-  "editor.tplNoteSwap": "Diese Einheit stammt aus einer Vorlage des Spiels: Sie lässt sich nicht verschieben, aber du kannst ihr Fahrzeug ändern (die Mission enthält dann die Vorlagen des Spiels selbst), sie entfernen, einfrieren, passiv machen oder dich jagen lassen.",
+  "editor.tplNoteSwap": "Diese Einheit stammt aus einer Vorlage des Spiels: Sie lässt sich nicht verschieben, aber du kannst ihr Fahrzeug ändern (die Mission legt die Einheiten dieser Vorlage dann selbst an), sie entfernen, einfrieren, passiv machen oder dich jagen lassen.",
   "step.fuel": "Treibstoff",
   "cond.startMoved": "Wo und wie du startest (am Boden oder in der Luft, Höhe, Geschwindigkeit, Richtung), stellst du auf der Karte ein: Karten → eine Karte → Auf der Karte bearbeiten → Du.",
   "editor.startGround": "Am Boden",

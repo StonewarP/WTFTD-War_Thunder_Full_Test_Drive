@@ -123,19 +123,24 @@ belts written on the unit, an aircraft with custom pylons gets a custom aircraft
   "Rafale C F3 · Custom": Magic / MICA + a pod) and a MiG-29 9.13 with R-73s hunt you, 3 Fw 190 C east.
   Check the Rafale / MiG fire missiles (their loadout is used), the Rafale carry the custom pylons.
 
-## 2f. Template units given another vehicle: the mission carries the game's templates (new)
+## 2f. Template units given another vehicle (new)
 
-Data schema 15 keeps the game templates the scenarios import (`data/templates/`). When the editor gives a
-template unit another vehicle (or loadout), `mission.inline_imports` copies their content into the mission (units,
-zones, triggers, objectives, variables, waypoints, dialogs; an import's `excludes` left out; their triggers before
-the mission's own) and drops the `imports`; the units then get their new `unit_class`. Missions with no such change
-keep importing the templates as before.
+Data schema 15 keeps the game templates the scenarios import (`data/templates/`).
 
-- [ ] `wtftd_r7_tpl_swap` (F-14B, Afghanistan test flight, every template enemy set by "Vehicles by BR" at 12.7):
-  the mission loads (no error, no empty map); the air targets are the new aircraft (AV-8B Plus, F-2A, F-4E AUP,
-  B-52H, Tu-95…), the ground targets new tanks (Leopard 2, Abrams, Leclerc, T-90M…) and SAM / SPAA.
-- [ ] The scenario's scripts still run: targets appear and come back after being destroyed, the bases and
-  their AA are there, you spawn where you did before (runway or air start), the rank-based targets are picked.
+**First try (2026-10-09), failed:** the mission carried the templates' whole content (`inline_imports`). The map
+loaded, the bombing sites were there, but no enemy and no airfield: the datamine's JSON groups an action used
+several times in a trigger (`varSetString` ×4 in `init_rank_settings`), so their order with the other actions is
+lost and the rank-based target picking broke. Templates' scripts are therefore never rewritten.
+
+**Now:** the templates stay imported (their scripts run as the game wrote them). The units of a template the
+mission imports directly (without imports of its own: `test_flight_unit_template`) are declared by the mission
+itself when one of them gets another vehicle, and that import gets `importUnits: no`
+(`mission.take_over_units`). Units of nested templates (the bases' Bofors) can't change vehicle.
+
+- [ ] `wtftd_r7_tpl_swap` (F-14B, Afghanistan test flight, the template's targets set by "Vehicles by BR" at 12.7):
+  the airfield and the enemies are there as without WTFTD; the air targets are the new aircraft (AV-8B Plus,
+  F-2A, F-4E AUP, B-52H, Tu-95…), the ground targets new tanks (Leopard 2, Abrams, Leclerc, T-90M…) and SAM / SPAA.
+- [ ] Targets come back after being destroyed (with their new vehicle), the bases and their AA are there.
 
 ## 3. Ammunition icons (UI only)
 

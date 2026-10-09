@@ -414,7 +414,7 @@
   "editor.fromTemplate": "from a game template",
   "editor.tpl": "template",
   "editor.tplNote": "This unit comes from one of the game's templates: it can't be moved or changed, but you can remove it, freeze it, make it passive or make it hunt you.",
-  "editor.tplNoteSwap": "This unit comes from one of the game's templates: it can't be moved, but you can change its vehicle (the mission then carries the game's templates itself), remove it, freeze it, make it passive or make it hunt you.",
+  "editor.tplNoteSwap": "This unit comes from one of the game's templates: it can't be moved, but you can change its vehicle (the mission then declares that template's units itself), remove it, freeze it, make it passive or make it hunt you.",
   "step.fuel": "Fuel",
   "cond.startMoved": "Where and how you start (ground or air, altitude, speed, heading) is set on the map: Maps → a map → Edit on the map → You.",
   "editor.startGround": "On the ground",

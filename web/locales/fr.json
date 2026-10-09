@@ -414,7 +414,7 @@
   "editor.fromTemplate": "d'un template du jeu",
   "editor.tpl": "template",
   "editor.tplNote": "Cette unité vient d'un template du jeu : elle ne peut pas être déplacée ni changée, mais vous pouvez la retirer, la figer, la rendre passive ou lui faire vous chasser.",
-  "editor.tplNoteSwap": "Cette unité vient d'un des modèles du jeu : elle ne peut pas être déplacée, mais tu peux changer son véhicule (la mission emporte alors elle-même les modèles du jeu), la retirer, la figer, la rendre passive ou lui faire te chasser.",
+  "editor.tplNoteSwap": "Cette unité vient d'un des modèles du jeu : elle ne peut pas être déplacée, mais tu peux changer son véhicule (la mission déclare alors elle-même les unités de ce modèle), la retirer, la figer, la rendre passive ou lui faire te chasser.",
   "step.fuel": "Carburant",
   "cond.startMoved": "L'endroit et la façon de partir (au sol ou en vol, altitude, vitesse, direction) se règlent sur la carte : Cartes → une carte → Modifier sur la carte → Vous.",
   "editor.startGround": "Au sol",

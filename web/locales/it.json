@@ -414,7 +414,7 @@
   "editor.fromTemplate": "da un template del gioco",
   "editor.tpl": "template",
   "editor.tplNote": "Questa unità proviene da un template del gioco: non può essere spostata né cambiata, ma puoi rimuoverla, bloccarla, renderla passiva o farle darti la caccia.",
-  "editor.tplNoteSwap": "Questa unità viene da uno dei modelli del gioco: non si può spostare, ma puoi cambiarne il veicolo (la missione porta allora con sé i modelli del gioco), rimuoverla, bloccarla, renderla passiva o farti dare la caccia.",
+  "editor.tplNoteSwap": "Questa unità viene da uno dei modelli del gioco: non si può spostare, ma puoi cambiarne il veicolo (la missione dichiara allora essa stessa le unità di quel modello), rimuoverla, bloccarla, renderla passiva o farti dare la caccia.",
   "step.fuel": "Carburante",
   "cond.startMoved": "Dove e come parti (a terra o in volo, quota, velocità, direzione) si imposta sulla mappa: Mappe → una mappa → Modifica sulla mappa → Tu.",
   "editor.startGround": "A terra",

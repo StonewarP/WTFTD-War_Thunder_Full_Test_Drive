@@ -414,7 +414,7 @@
   "editor.fromTemplate": "z herní šablony",
   "editor.tpl": "šablona",
   "editor.tplNote": "Tato jednotka pochází z herní šablony: nelze ji přesunout ani změnit, ale můžete ji odebrat, zmrazit, učinit pasivní nebo ji nechat vás lovit.",
-  "editor.tplNoteSwap": "Tato jednotka pochází z jedné ze šablon hry: nelze ji přesunout, ale můžeš změnit její vozidlo (mise pak sama obsahuje šablony hry), odebrat ji, zmrazit, učinit pasivní nebo ji nechat tě lovit.",
+  "editor.tplNoteSwap": "Tato jednotka pochází z jedné ze šablon hry: nelze ji přesunout, ale můžeš změnit její vozidlo (mise pak sama deklaruje jednotky této šablony), odebrat ji, zmrazit, učinit pasivní nebo ji nechat tě lovit.",
   "step.fuel": "Palivo",
   "cond.startMoved": "Kde a jak startuješ (na zemi nebo ve vzduchu, výška, rychlost, směr) se nastavuje na mapě: Mapy → mapa → Upravit na mapě → Ty.",
   "editor.startGround": "Na zemi",
