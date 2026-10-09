@@ -184,14 +184,15 @@ def _weapon_lines(trigger: str, blk: str, emitter: str, bullets: int | None, ind
 HP_MULT = 1000.0
 # "Unbreakable airframe": the flight model's breaking limits, raised (speeds km/h IAS, overloads in newtons)
 NO_BREAK_SPEED = 100000.0
-_BREAK_SPEEDS = {"Vne", "VNE", "VneCockpitDoor", "CockpitOpenedDoorBreakSpeed", "GearDestructionIndSpeed",
-                 "AirbrakeDestructionIndSpeed"}
+_BREAK_SPEEDS = {"Vne", "VNE", "VneHeli", "VneCockpitDoor", "CockpitOpenedDoorBreakSpeed", "GearDestructionIndSpeed",
+                 "AirbrakeDestructionIndSpeed", "chuteRipSpeed"}
+_BREAK_MACHS = {"VneMach", "MNE"}  # MNE: each wing's Mach limit (Strength), 0.96 on the F-14B (checked in game)
 _BREAK_OVERLOADS = {"CritOverload", "WingCritOverload"}
 
 
 def _structural_overrides(node, path=()) -> dict:
     """{path: (type, value)} raising every breaking limit of a flight model: wings torn off by speed or g
-    (Vne / VneMach / Strength VNE, CritOverload / WingCritOverload), gear, flaps, airbrake, canopy."""
+    (Vne / VneMach / Strength VNE and MNE, CritOverload / WingCritOverload), gear, flaps, airbrake, canopy, chute."""
     out = {}
     if not isinstance(node, dict):
         return out
@@ -203,7 +204,7 @@ def _structural_overrides(node, path=()) -> dict:
             continue
         elif k in _BREAK_SPEEDS and isinstance(v, (int, float)) and v > 0:
             out[p] = ("r", NO_BREAK_SPEED)
-        elif k == "VneMach" and isinstance(v, (int, float)):
+        elif k in _BREAK_MACHS and isinstance(v, (int, float)):
             out[p] = ("r", 100.0)
         elif k in _BREAK_OVERLOADS and isinstance(v, list) and len(v) == 2 and all(isinstance(x, (int, float)) for x in v):
             out[p] = ("p2", [float(v[0]) * 100.0, float(v[1]) * 100.0])
