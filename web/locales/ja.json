@@ -438,6 +438,7 @@
   "editor.auto.all": "すべて",
   "editor.auto.apply": "適用（{n} ユニット）",
   "editor.auto.done": "{n} ユニットを BR {br} 付近の車両に変更しました",
+  "editor.auto.fireHint": "テスト飛行・テストドライブの標的は攻撃しません。「攻撃する」にすると撃ってきます。",
   "editor.auto.followHint": "選んだ車両に追従：その BR が変わると、これらのユニットは新しい BR 付近の車両になります（エディターを開いたとき、ミッション作成時）。",
   "editor.auto.stop": "追従をやめる",
   "editor.auto.following": "{n} ユニットがあなたの車両の BR に追従しています。",

@@ -19,6 +19,9 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   targets of the test flights) get the vehicle picker, a loadout and Vehicles by BR. The mission then declares
   that template's units itself; the templates' scripts stay imported as the game wrote them (the data keeps the
   templates: it is rebuilt once). Units of nested templates (the bases' AA) keep their vehicle.
+- **Vehicles by BR → Fire: Attacks**: the units it sets also fire at you (test flight and test drive targets are
+  passive). Template units set to Attacks in the editor now stay so: the templates' scripts made them passive
+  again when they respawned them, WTFTD sets them back every 3 s.
 - **SAM batteries**: Vehicles by BR picks a battery's launcher, never its radar alone; the mission adds the battery's
   fire control radar next to each AI launcher (in the same squad, so the scripts move them together).
 - **Test flights**: the targets and airfield follow your vehicle's rank (high from rank V), as when the game starts

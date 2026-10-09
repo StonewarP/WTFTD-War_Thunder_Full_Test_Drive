@@ -438,6 +438,7 @@
   "editor.auto.all": "Alle",
   "editor.auto.apply": "Anwenden ({n} Einheiten)",
   "editor.auto.done": "{n} Einheit(en) auf Fahrzeuge nahe BR {br} geändert",
+  "editor.auto.fireHint": "Die Ziele der Testflüge und Testfahrten sind passiv: Greift an lässt sie auf dich schießen.",
   "editor.auto.followHint": "Folgt dem Fahrzeug, das du nimmst: ändert sich sein BR, bekommen diese Einheiten Fahrzeuge nahe dem neuen (beim Öffnen des Editors, beim Erstellen der Mission).",
   "editor.auto.stop": "Nicht mehr folgen",
   "editor.auto.following": "{n} Einheit(en) folgen dem BR deines Fahrzeugs.",

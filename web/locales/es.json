@@ -438,6 +438,7 @@
   "editor.auto.all": "Todas",
   "editor.auto.apply": "Aplicar ({n} unidades)",
   "editor.auto.done": "{n} unidad(es) cambiada(s) a vehículos cerca del BR {br}",
+  "editor.auto.fireHint": "Los objetivos de los vuelos y pruebas son pasivos: Ataca hace que te disparen.",
   "editor.auto.followHint": "Sigue el vehículo que elijas: cuando cambia su BR, estas unidades reciben vehículos cercanos al nuevo (al abrir el editor, al crear la misión).",
   "editor.auto.stop": "Dejar de seguir",
   "editor.auto.following": "{n} unidad(es) siguen el BR de tu vehículo.",

@@ -571,8 +571,6 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         props_actions.append({"object": stay, "cannotMove": True})
     if passive:
         props_actions.append({"object": passive, "cannotShoot": True})
-    if shoot:
-        props_actions.append({"object": shoot, "attack_type": "fire_at_will", "cannotShoot": False})
     if props_actions:
         actions["unitSetProperties"] = props_actions if len(props_actions) > 1 else props_actions[0]
     if hunt:
@@ -584,10 +582,14 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
                                  "horizontalDirectionForTeleport": True, "object_marking": 0, "target_marking": 0,
                                  "waypointReachedDist": 10.0, "recalculatePathDist": -1.0, "follow_radius": 60.0,
                                  "follow_offset": [-60.0, 0.0, 40.0]}
-    if actions:
-        triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
-        if isinstance(triggers, dict):
-            triggers["wtftd_editor"] = _trigger({"initMission": {}}, actions, False)
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True}) if actions or shoot else None
+    if actions and isinstance(triggers, dict):
+        triggers["wtftd_editor"] = _trigger({"initMission": {}}, actions, False)
+    if shoot and isinstance(triggers, dict):
+        # template units made to attack: the templates' scripts set their targets passive again when they
+        # (re)spawn them (cannotShoot), so this holds every 3 s
+        triggers["wtftd_attack"] = _trigger({"periodicEvent": {"time": 3.0}}, {"unitSetProperties": {
+            "object": shoot, "attack_type": "fire_at_will", "cannotShoot": False}}, True)
 
 
 def _test_flight_spawn(m: dict) -> tuple[dict, str] | None:
@@ -1008,6 +1010,8 @@ def build(cfg: dict) -> tuple[str, str]:
         for u in _as_list(units.get(blk_name)):
             if isinstance(u, dict) and u.get("name") in brought and u["name"] in swaps:
                 set_vehicle(u, swaps[u["name"]])
+                if swaps[u["name"]].get("attack") in ATTACK_TYPES:
+                    u.setdefault("props", {})["attack_type"] = swaps[u["name"]]["attack"]
     if isinstance(cfg.get("_batteries"), dict):
         add_battery_radars(m, cfg["_batteries"])
 

@@ -13,7 +13,7 @@ const ED = {
   data: null, sel: null, multi: [], mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true,
   view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', resTab: 'all', layers: [],
   labels: [], clip: null, mouse: null, byName: new Map(), configuring: false,
-  auto: { src: 'me', br: 5.0, nations: [], who: 'enemy' },  // "Vehicles by BR"
+  auto: { src: 'me', br: 5.0, nations: [], who: 'enemy', fire: '' },  // "Vehicles by BR"
 };
 
 function edEdits() {
@@ -1041,7 +1041,7 @@ function edAutoUnits(selection) {
   });
 }
 // gives the units vehicles near br; follow: they keep following your vehicle's BR (edAutoRefresh)
-function edAutoPick(units, br, nations, follow) {
+function edAutoPick(units, br, nations, follow, fire = '') {
   const groups = new Map();  // same kind of vehicle: picked in turn among the closest
   for (const u of units) {
     const cur = S.byId.get(edUnitState(u).cls);
@@ -1073,13 +1073,13 @@ function edAutoPick(units, br, nations, follow) {
       order = [];
       while ([...by.values()].some(l => l.length)) for (const l of by.values()) if (l.length) order.push(l.shift());
     }
-    us.forEach((u, i) => { edSet(u, { cls: order[i % order.length].id, auto: follow ? { nations } : null }); n++; });
+    us.forEach((u, i) => { edSet(u, { cls: order[i % order.length].id, auto: follow ? { nations } : null, ...(fire ? { attack: fire } : {}) }); n++; });
   }
   return n;
 }
 function edAutoApply(selection) {
   const br = edAutoBR(), follow = ED.auto.src === 'me' && !!edMyBR();
-  const n = edAutoPick(edAutoUnits(selection), br, ED.auto.nations, follow);
+  const n = edAutoPick(edAutoUnits(selection), br, ED.auto.nations, follow, ED.auto.fire);
   if (follow) edEdits().autoBR = br;
   toast({ title: t('editor.auto.done', { n, br: br.toFixed(1) }), ms: 2500 });
 }
@@ -1129,6 +1129,9 @@ function edAutoHTML(selection) {
       <div class="nations ed-nations${a.nations.length ? ' has-active' : ''}">${NATIONS.map(x => `<button class="nation${a.nations.includes(x) ? ' active' : ''}" data-edauto="nat:${x}" title="${esc(nationName(x))}">
         <img src="${flagImg(x)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'fallback',textContent:'${x.slice(0, 3).toUpperCase()}'}))"></button>`).join('')}</div>
       ${a.nations.length ? `<button class="btn btn-ghost btn-sm" data-edauto="natAll">${esc(t('editor.auto.allNations'))}</button>` : ''}</div>
+    <div class="field"><label>${esc(t('editor.fire'))}</label><div class="seg">
+      ${[['', 'editor.asScenario'], ['fire_at_will', 'editor.fire.aggressive']].map(([k, l]) => `<button class="${(a.fire || '') === k ? 'active' : ''}" data-edauto="fire:${k}">${esc(t(l))}</button>`).join('')}</div>
+      <small class="muted">${esc(t('editor.auto.fireHint'))}</small></div>
     ${selection ? '' : `<div class="field"><label>${esc(t('editor.auto.who'))}</label><div class="seg">
       ${[['enemy', 'editor.enemies'], ['ally', 'editor.allies'], ['all', 'editor.auto.all']].map(([k, l]) => `<button class="${a.who === k ? 'active' : ''}" data-edauto="who:${k}">${esc(t(l))}</button>`).join('')}</div></div>`}
     <div class="row gap"><button class="btn btn-sm" data-edauto="apply"${n ? '' : ' disabled'}>${icon('bolt', 'ic-sm')}${esc(t('editor.auto.apply', { n }))}</button>

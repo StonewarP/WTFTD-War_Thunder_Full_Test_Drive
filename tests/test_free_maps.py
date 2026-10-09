@@ -56,8 +56,12 @@ class EditorEdits(unittest.TestCase):
         mission.apply_edits(m, "me", {"units": {"tpl_aa": {"attack": "fire_at_will"}, "tpl_tank": {"attack": "hold_fire"}},
                                       "areas": {"zone_a": {"x": 110.0, "z": 220.0}}})
         props = m["triggers"]["wtftd_editor"]["actions"]["unitSetProperties"]
-        self.assertIn({"object": ["tpl_aa"], "attack_type": "fire_at_will", "cannotShoot": False}, props)
-        self.assertIn({"object": ["tpl_tank"], "cannotShoot": True}, props)
+        self.assertEqual({"object": ["tpl_tank"], "cannotShoot": True}, props)
+        # made to attack: held every 3 s (the templates' scripts set their targets passive when they respawn them)
+        attack = m["triggers"]["wtftd_attack"]
+        self.assertEqual(attack["actions"]["unitSetProperties"], {"object": ["tpl_aa"], "attack_type": "fire_at_will", "cannotShoot": False})
+        self.assertEqual(attack["events"], {"periodicEvent": {"time": 3.0}})
+        self.assertTrue(attack["props"]["enableAfterComplete"])
         self.assertEqual(m["areas"]["zone_a"]["tm"][3], [110.0, 5.0, 220.0])
 
 

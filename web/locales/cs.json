@@ -438,6 +438,7 @@
   "editor.auto.all": "Všechny",
   "editor.auto.apply": "Použít (jednotek: {n})",
   "editor.auto.done": "Změněno jednotek: {n} na vozidla blízko BR {br}",
+  "editor.auto.fireHint": "Cíle zkušebních letů a jízd jsou pasivní: Útočí způsobí, že na tebe střílejí.",
   "editor.auto.followHint": "Sleduje vozidlo, které si vezmeš: když se jeho BR změní, tyto jednotky dostanou vozidla blízko nového (při otevření editoru, při vytvoření mise).",
   "editor.auto.stop": "Přestat sledovat",
   "editor.auto.following": "Jednotek sledujících BR tvého vozidla: {n}.",

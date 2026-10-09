@@ -438,6 +438,7 @@
   "editor.auto.all": "全部",
   "editor.auto.apply": "应用（{n} 个单位）",
   "editor.auto.done": "已将 {n} 个单位改为 BR {br} 附近的载具",
+  "editor.auto.fireHint": "试飞和试驾的目标是被动的：选择“主动攻击”后它们会向你开火。",
   "editor.auto.followHint": "跟随你选择的载具：其 BR 改变时，这些单位会换成接近新 BR 的载具（打开编辑器时、创建任务时）。",
   "editor.auto.stop": "停止跟随",
   "editor.auto.following": "{n} 个单位跟随你载具的 BR。",

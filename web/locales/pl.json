@@ -438,6 +438,7 @@
   "editor.auto.all": "Wszystkie",
   "editor.auto.apply": "Zastosuj (jednostki: {n})",
   "editor.auto.done": "Zmieniono jednostki: {n} na pojazdy blisko BR {br}",
+  "editor.auto.fireHint": "Cele lotów i jazd testowych są pasywne: Atakuje sprawia, że do ciebie strzelają.",
   "editor.auto.followHint": "Podąża za wybranym pojazdem: gdy zmienia się jego BR, te jednostki dostają pojazdy blisko nowego (przy otwarciu edytora, przy tworzeniu misji).",
   "editor.auto.stop": "Przestań podążać",
   "editor.auto.following": "Jednostki podążające za BR twojego pojazdu: {n}.",

@@ -438,6 +438,7 @@
   "editor.auto.all": "Tutte",
   "editor.auto.apply": "Applica ({n} unità)",
   "editor.auto.done": "{n} unità cambiate con veicoli vicini al BR {br}",
+  "editor.auto.fireHint": "I bersagli dei voli e delle prove sono passivi: Attacca li fa sparare su di te.",
   "editor.auto.followHint": "Segue il veicolo che scegli: quando il suo BR cambia, queste unità ricevono veicoli vicini al nuovo (all'apertura dell'editor, alla creazione della missione).",
   "editor.auto.stop": "Non seguire più",
   "editor.auto.following": "{n} unità seguono il BR del tuo veicolo.",

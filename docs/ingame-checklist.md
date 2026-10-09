@@ -141,9 +141,12 @@ itself when one of them gets another vehicle, and that import gets `importUnits:
   the airfield and the enemies are there; the targets are the new vehicles; they come back after being destroyed
   (2026-10-09). Found: a dirt airfield (the file's `target_rank_index` 1: the hangar passes your rank, a user mission
   doesn't) and SAM "AA" that were only their battery's radar (`*_fcs`, unarmed: the research tree's slot).
-- [ ] Same mission, regenerated: `target_rank_index` now follows your vehicle (rank V and up: 2, high), so the
-  high-rank airfield and targets' zones; SAM picks are launchers (`*_launcher`) with their radar added 30 m away,
-  in the same squad (`<unit>_radar`). Check the SAM launchers fire at you, the radar sits next to each one.
+- [x] Same mission, regenerated: high-rank airfield and target zones (`target_rank_index` follows your vehicle);
+  SAM launchers are there (2026-10-09). They did not fire: the template's targets are `hold_fire` / `dont_aim`, and
+  its scripts set the aircraft `cannotShoot` each time they spawn them.
+- [ ] Same mission, regenerated with Vehicles by BR → Fire: Attacks (every target `attack: fire_at_will`; WTFTD's
+  `wtftd_attack` trigger sets `attack_type: fire_at_will, cannotShoot: no` on them every 3 s): the SAM launchers
+  (with their radar 30 m away), tanks, SPAA and aircraft shoot at you, also after they respawn.
 
 ## 3. Ammunition icons (UI only)
 
