@@ -109,6 +109,7 @@ window and finds your game by itself (Steam or standalone). Close the window to 
 - **Scenario editor** on the level's real tactical map, read from the game files:
   - drag any unit (and your start) to move it — ground units are put **on the ground** using the map's heightmap;
   - add ground, air or naval units as **allies or enemies**, remove units, swap their vehicle;
+  - the units of the game's templates (test flight targets) can change vehicle too;
   - **vehicles by BR**: enemies, allies or a selection get vehicles of their own kind at your vehicle's BR (they
     follow it when you take another one) or at a BR you pick, from the nations you choose;
   - behaviour: still, aggressive, return fire or passive; enemies can **hunt you**, allies can **escort you**;

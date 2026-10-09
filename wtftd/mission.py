@@ -230,6 +230,7 @@ def scenario_units(sid: str) -> dict:
         water = None  # unknown: keep every unit
     if tpl_path.exists():
         names = {u["name"] for u in out}
+        swap = can_inline(m)  # their vehicle can change (the mission then carries the templates)
         try:
             tpl = json.loads(tpl_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -239,6 +240,7 @@ def scenario_units(sid: str) -> dict:
                 continue  # template ships the scenario only brings in on maps with water
             if isinstance(u, dict) and u.get("name") and u["name"] not in names:
                 out.append({**u, "tpl": True, "moves": False, "player": False,
+                            **({"swap": 1} if swap and u.get("block") in EDITABLE_BLOCKS else {}),
                             # real vehicles only (bombing targets / dummies stay scenery)
                             "edit": u.get("block") in EDITABLE_BLOCKS + ("air_defence", "tracked_vehicles", "wheeled_vehicles")
                             and u.get("army") == 2 and not str(u.get("cls", "")).startswith("dummy")})
@@ -298,6 +300,161 @@ def _yaw_tm(deg: float, x: float, y: float, z: float):
     return [[math.cos(t), 0.0, math.sin(t)], [0.0, 1.0, 0.0], [-math.sin(t), 0.0, math.cos(t)], [x, y, z]]
 
 
+def set_vehicle(u: dict, e: dict):
+    """A unit's vehicle and loadout from the map editor: {cls, loadout: {preset, ammo, _groups, _unitClass}}."""
+    cls = e.get("cls")
+    if cls and _CLASS.match(str(cls)) and cls != u.get("unit_class"):
+        u["unit_class"] = cls
+        u["weapons"] = ""
+        for n in range(4):
+            if f"bullets{n}" in u:
+                u[f"bullets{n}"] = ""
+    lo = e.get("loadout")
+    if isinstance(lo, dict):  # the unit's own loadout (AI), set in the app like the player's
+        if _CLASS.match(str(lo.get("_unitClass") or "")):
+            u["unit_class"] = lo["_unitClass"]  # custom aircraft of its own (pylons)
+        preset = str(lo.get("preset") or "")
+        if re.fullmatch(r"[A-Za-z0-9_\-.]{0,120}", preset):
+            u["weapons"] = preset
+        if isinstance(lo.get("ammo"), list):
+            write_bullets(u, lo["ammo"], lo.get("_groups"))
+
+
+# ---------------------------------------------------------------------------- game templates, carried by the mission
+# A scenario that imports the game's templates (test flights: its targets, bases, scripts) can carry their content
+# itself instead, as the game would have merged it: their units become the mission's own, so their vehicle can change.
+TEMPLATES = DATA / "templates"
+_TPL_SECTIONS = ("units", "areas", "triggers", "mission_objectives", "variables", "wayPoints", "dialogs")
+_CATEGORIZED = ("triggers", "mission_objectives")
+
+
+def template_key(path: str) -> str:
+    """'gameData/missions/training/testFlight/x.blk' -> 'training__testflight__x' (data/templates/<key>.json)."""
+    rel = str(path).replace("\\", "/").lower()
+    rel = re.sub(r"^gamedata/missions/", "", rel)
+    rel = re.sub(r"\.blkx?$", "", rel)
+    return re.sub(r"[^a-z0-9_.-]+", "__", rel).strip("_.")
+
+
+def _template(path: str) -> dict | None:
+    try:
+        d = json.loads((TEMPLATES / f"{template_key(path)}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d if isinstance(d, dict) else None
+
+
+def _import_records(doc: dict) -> list:
+    imp = doc.get("imports")
+    recs = _as_list(imp.get("import_record")) if isinstance(imp, dict) else []
+    return [r for r in recs if isinstance(r, dict) and isinstance(r.get("file"), str) and r["file"]]
+
+
+def can_inline(m: dict, depth: int = 0) -> bool:
+    """Every template the mission imports (recursively) is in data/templates."""
+    if depth > 5:
+        return False
+    for rec in _import_records(m):
+        sub = _template(rec["file"])
+        if sub is None or not can_inline(sub, depth + 1):
+            return False
+    return True
+
+
+def _drop_names(node, names: set):
+    """A section without the entries an import excludes (inside trigger / objective categories too)."""
+    if not isinstance(node, dict):
+        return node
+    out = {}
+    for k, v in node.items():
+        if k in names:
+            continue
+        out[k] = _drop_names(v, names) if isinstance(v, dict) and v.get("isCategory") else v
+    return out
+
+
+def _merge(base: dict, sub: dict, rec: dict):
+    """Adds what an import record brings (sub, its own imports already merged) to base, after base's own
+    entries; base keeps its entry when both name the same thing."""
+    skip = {x for x in _as_list((rec.get("excludes") or {}).get("exclude")) if isinstance(x, str)} \
+        if isinstance(rec.get("excludes"), dict) else set()
+    flags = {"units": "importUnits", "areas": "importAreas", "triggers": "importTriggers",
+             "mission_objectives": "importMissionObjectives", "wayPoints": "importWayPoints", "dialogs": "importDialogs"}
+    for sec in _TPL_SECTIONS:
+        if sec in flags and rec.get(flags[sec]) is False:
+            continue
+        src = sub.get(sec)
+        if not isinstance(src, dict) or not src:
+            continue
+        dst = base.get(sec)
+        if not isinstance(dst, dict):
+            dst = base[sec] = {}
+        if sec == "units":
+            have = {u.get("name") for v in dst.values() for u in _as_list(v) if isinstance(u, dict)}
+            for block, entries in src.items():
+                for u in _as_list(entries):
+                    if isinstance(u, dict) and u.get("name") not in skip and u.get("name") not in have:
+                        _append_unit(dst, block, copy.deepcopy(u))
+            continue
+        for k, v in _drop_names(src, skip).items():
+            if k not in dst:
+                dst[k] = copy.deepcopy(v)
+
+
+def _flatten(doc: dict, depth: int = 0) -> dict | None:
+    """What a document's imports bring, merged in order (None: a template is missing)."""
+    acc: dict = {}
+    for rec in _import_records(doc):
+        sub = _template(rec["file"]) if depth <= 5 else None
+        if sub is None:
+            return None
+        inner = _flatten(sub, depth + 1)
+        if inner is None:
+            return None
+        own = {k: sub.get(k) for k in _TPL_SECTIONS}  # the template's own content, then what it imports
+        _merge(own, inner, {})
+        _merge(acc, own, rec)
+    return acc
+
+
+def inline_imports(m: dict) -> set | None:
+    """Puts the content of the game templates the mission imports into the mission itself (the game merges
+    them the same way when it loads it) and drops the imports. Their triggers and objectives come before the
+    mission's own (WTFTD's included), the mission keeps its entries on a shared name. Returns the names of the
+    units brought in; None when a template is missing (nothing changed)."""
+    if not _import_records(m):
+        return set()
+    acc = _flatten(m)
+    if acc is None:
+        return None
+    units = m.setdefault("units", {})
+    before = {u.get("name") for v in units.values() for u in _as_list(v) if isinstance(u, dict)}
+    for sec in _TPL_SECTIONS:
+        got = acc.get(sec)
+        if not isinstance(got, dict) or not got:
+            continue
+        if sec == "units":
+            _merge(m, {"units": got}, {})
+        elif sec in _CATEGORIZED:  # templates first: their init runs before what the mission (WTFTD) adds
+            mine = m.get(sec) if isinstance(m.get(sec), dict) else {}
+            head = {k: mine[k] for k in ("isCategory", "is_enabled") if k in mine} or {"isCategory": True, "is_enabled": True}
+            body = {k: v for k, v in got.items() if k not in ("isCategory", "is_enabled") and k not in mine}
+            m[sec] = {**head, **body, **{k: v for k, v in mine.items() if k not in head}}
+        else:
+            mine = m.get(sec) if isinstance(m.get(sec), dict) else {}
+            m[sec] = {**got, **mine}
+    # editor layers the template units / zones sit on
+    used = [x.get("objLayer") for x in list(m.get("areas", {}).values()) + [u for v in units.values() for u in _as_list(v)]
+            if isinstance(x, dict) and isinstance(x.get("objLayer"), int)]
+    layers = m.get("objLayers") if isinstance(m.get("objLayers"), dict) else {}
+    lst = _as_list(layers.get("layer"))
+    if used and max(used) >= len(lst):
+        lst = lst + [{"enabled": True} for _ in range(max(used) + 1 - len(lst))]
+        m["objLayers"] = {**layers, "layer": lst}
+    m["imports"] = {}
+    return {u.get("name") for v in units.values() for u in _as_list(v) if isinstance(u, dict)} - before
+
+
 def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
     """Map editor changes:
     units: {name: {cls, count, attack, behavior, remove, side, x, y, z}}   existing units of the scenario
@@ -316,22 +473,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
 
     def apply(u: dict, e: dict):
         name = u["name"]
-        cls = e.get("cls")
-        if cls and _CLASS.match(str(cls)) and cls != u.get("unit_class"):
-            u["unit_class"] = cls
-            u["weapons"] = ""
-            for n in range(4):
-                if f"bullets{n}" in u:
-                    u[f"bullets{n}"] = ""
-        lo = e.get("loadout")
-        if isinstance(lo, dict):  # the unit's own loadout (AI), set in the app like the player's
-            if _CLASS.match(str(lo.get("_unitClass") or "")):
-                u["unit_class"] = lo["_unitClass"]  # custom aircraft of its own (pylons)
-            preset = str(lo.get("preset") or "")
-            if re.fullmatch(r"[A-Za-z0-9_\-.]{0,120}", preset):
-                u["weapons"] = preset
-            if isinstance(lo.get("ammo"), list):
-                write_bullets(u, lo["ammo"], lo.get("_groups"))
+        set_vehicle(u, e)
         props = u.setdefault("props", {})
         if e.get("count"):
             props["count"] = max(1, min(int(e["count"]), 12))
@@ -872,6 +1014,17 @@ def build(cfg: dict) -> tuple[str, str]:
     else:
         cheats.pop("hostileEnemies", None)
     apply_cheats(m, wing, cheats, air=block == "armada")
+
+    # ---- template units given another vehicle in the editor: the mission carries the templates itself
+    eu = (cfg.get("edits") or {}).get("units") or {}
+    swaps = {n: e for n, e in eu.items() if isinstance(e, dict) and not e.get("remove")
+             and (e.get("cls") or isinstance(e.get("loadout"), dict))}
+    if swaps and m.get("imports"):
+        brought = inline_imports(m)
+        for blk_name in EDITABLE_BLOCKS if brought else ():
+            for u in _as_list(units.get(blk_name)):
+                if isinstance(u, dict) and u.get("name") in brought and u["name"] in swaps:
+                    set_vehicle(u, swaps[u["name"]])
 
     # ---- mission settings
     mtype = cfg.get("missionType") or "singleMission"

@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 14  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 15  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1397,6 +1397,22 @@ def _import_chain(d: dict, depth: int = 0, seen: set | None = None) -> list:
     return out
 
 
+def save_templates(d: dict, out_dir: Path, saved: set):
+    """Writes every game template a mission imports (recursively) to out_dir, once each."""
+    from .mission import template_key
+    for rec in aslist((d.get("imports") or {}).get("import_record") if isinstance(d.get("imports"), dict) else None):
+        path = first_str(rec.get("file")) if isinstance(rec, dict) else ""
+        key = template_key(path) if path else ""
+        if not key or key in saved:
+            continue
+        saved.add(key)
+        sub = load(_mission_path(path))
+        if isinstance(sub, dict):
+            with open(out_dir / f"{key}.json", "w", encoding="utf-8") as fo:
+                json.dump(sub, fo, ensure_ascii=False, separators=(",", ":"))
+            save_templates(sub, out_dir, saved)
+
+
 def _all_triggers(node):
     """(trigger, actions) of every trigger, inside categories too."""
     if not isinstance(node, dict):
@@ -1652,6 +1668,12 @@ def build_scenarios(lang: Lang, progress=None):
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("*.json"):
         old.unlink()
+    # the game templates the missions import, kept so a mission can carry them itself (mission.inline_imports)
+    tpl_dir = DATA / "templates"
+    tpl_dir.mkdir(parents=True, exist_ok=True)
+    for old in tpl_dir.glob("*.json"):
+        old.unlink()
+    saved: set = set()
     scenarios = []
     for f in sorted(src.rglob("*.blkx")):
         rel = f.relative_to(root).as_posix()
@@ -1690,6 +1712,7 @@ def build_scenarios(lang: Lang, progress=None):
                  fallback=humanize(re.sub(r"^(avg|avn|air|hvg|arcade)_", "", level)))
         with open(out_dir / f"{sid}.json", "w", encoding="utf-8") as fo:
             json.dump(d, fo, ensure_ascii=False, separators=(",", ":"))
+        save_templates(d, tpl_dir, saved)
         tpl = imported_units(d)
         if tpl:
             with open(out_dir / f"{sid}.units.json", "w", encoding="utf-8") as fo:

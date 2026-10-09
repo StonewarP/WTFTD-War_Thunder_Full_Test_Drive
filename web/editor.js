@@ -357,6 +357,9 @@ function edBehaviors(side, air, added) {
     side === 'ally' ? ['follow', 'editor.move.follow'] : ['hunt', 'editor.move.hunt']];
 }
 const edMovable = u => u.added || (u.edit && !u.tpl && !u.removed);
+// its vehicle (and loadout) can change: the scenario's own and added units, and template units the mission can
+// carry itself (server: mission.inline_imports)
+const edSwappable = u => !u.tpl || !!u.swap;
 
 // ------------------------------------------------------------------ selection (one unit, several, the start or a zone)
 const edKey = u => (u.added ? 'add:' + u.idx : 'u:' + u.name);
@@ -917,7 +920,7 @@ function edMenuItems(sx, sy) {
     const canCopy = sts.some(u => !u.removed && (u.added || ED_ADD_BLOCK[u.block]));
     if (us.length === 1) {
       const u = us[0], st = sts[0], side = edSide(st);
-      if (!st.removed && !u.tpl && S.byId.get(st.cls)) items.push({ label: t('editor.configure') + ' · ' + t('editor.loadout'), icon: 'sliders', run: () => edConfigure(edKey(u)) });
+      if (!st.removed && edSwappable(u) && S.byId.get(st.cls)) items.push({ label: t('editor.configure') + ' · ' + t('editor.loadout'), icon: 'sliders', run: () => edConfigure(edKey(u)) });
       if (!st.removed && !u.tpl) {
         sep();
         for (const sd of ['enemy', 'ally']) items.push({ label: t('editor.' + sd), dot: sd, on: side === sd, run: () => {
@@ -1028,7 +1031,7 @@ function edAutoUnits(selection) {
     .filter(u => (u.edit || u.added) && !u.player);
   return us.filter(u => {
     const st = edUnitState(u);
-    if (st.removed || u.tpl || !ED_BLOCK_CATS[u.block]) return false;
+    if (st.removed || !edSwappable(u) || !ED_BLOCK_CATS[u.block]) return false;
     return selection || ED.auto.who === 'all' || edSide(st) === ED.auto.who;
   });
 }
@@ -1232,10 +1235,11 @@ function edRenderPanel() {
     panel.innerHTML = `<div class="ed-title">${v ? flagHTML(v.n) : ''}<b>${esc(v ? I18N.unit(v.id) : st.cls)}</b></div>
       <div class="ed-sub muted">${esc(u.name)} · ${esc(t('editor.fromTemplate'))}</div>
       ${st.removed ? removed : `
-      <p class="hint">${esc(t('editor.tplNote'))}${u.runtime ? ' ' + esc(t('editor.runtimeNote')) + (edSelZones().length ? ' ' + esc(t('editor.runtimeZones', { n: edSelZones().length })) : '') : u.area ? ' ' + esc(t('editor.areaNote', { area: u.area })) : ''}</p>
+      <p class="hint">${esc(t(u.swap ? 'editor.tplNoteSwap' : 'editor.tplNote'))}${u.runtime ? ' ' + esc(t('editor.runtimeNote')) + (edSelZones().length ? ' ' + esc(t('editor.runtimeZones', { n: edSelZones().length })) : '') : u.area ? ' ' + esc(t('editor.areaNote', { area: u.area })) : ''}</p>
       <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edf="attack">
         ${[['', 'editor.asScenario'], ['fire_at_will', 'editor.fire.aggressive'], ['hold_fire', 'editor.fire.passive']].map(([k, l]) => `<option value="${k}"${(['hold_fire', 'fire_at_will'].includes(st.attack) ? st.attack : '') === k ? ' selected' : ''}>${esc(t(l))}</option>`).join('')}
       </select></div>
+      ${u.swap ? edVehicleField(cats) + edLoadoutField(st) : ''}
       ${moveSeg}
       <div class="row gap ed-actions">${copyBtns}
       <button class="btn btn-ghost btn-sm btn-danger" data-edact="remove">${icon('trash', 'ic-sm')}${esc(t('editor.remove'))}</button></div>`}`;
@@ -1306,7 +1310,8 @@ function edMultiHTML() {
   const counts = new Map();
   for (const u of sts) counts.set(u.cls, (counts.get(u.cls) || 0) + 1);
   const side = same(own, edSide), attack = same(sts, u => u.attack || ''), beh = same(sts, u => u.behavior || ''), cnt = same(own, u => +u.count || 1);
-  const cats = [...new Set(own.flatMap(u => ED_BLOCK_CATS[u.block] || []))];
+  const swp = sts.filter(edSwappable);  // vehicle: template units the mission can carry too
+  const cats = [...new Set(swp.flatMap(u => ED_BLOCK_CATS[u.block] || []))];
   const mixed = `<option value="__mixed" selected disabled>${esc(t('editor.mixed'))}</option>`;
   const behs = [['', 'editor.asScenario'], ...(own.every(u => u.block === 'armada') ? [] : [['stay', 'editor.move.stay']]), ['hunt', 'editor.move.hunt'], ['follow', 'editor.move.follow']];
   return `<div class="ed-title">${icon('target', 'ic-sm')} <b>${esc(t('editor.selected', { n: sts.length }))}</b></div>
@@ -1314,8 +1319,8 @@ function edMultiHTML() {
     <p class="hint">${esc(t('editor.multiHint'))}</p>
     ${own.length ? `<div class="field"><label>${esc(t('editor.side'))}</label><div class="seg ed-side">
       <button class="${side === 'enemy' ? 'active' : ''}" data-edmside="enemy"><i class="dot enemy"></i>${esc(t('editor.enemy'))}</button>
-      <button class="${side === 'ally' ? 'active' : ''}" data-edmside="ally"><i class="dot ally"></i>${esc(t('editor.ally'))}</button></div></div>
-    ${edVehicleField(cats)}` : ''}
+      <button class="${side === 'ally' ? 'active' : ''}" data-edmside="ally"><i class="dot ally"></i>${esc(t('editor.ally'))}</button></div></div>` : ''}
+    ${swp.length ? edVehicleField(cats) : ''}
     <div class="field-row">
       ${own.length ? `<div class="field"><label>${esc(t('editor.count'))}</label><input type="number" min="1" max="12" data-edm="count" value="${cnt ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>` : ''}
       <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edm="attack">${attack === undefined ? mixed : ''}
@@ -1415,7 +1420,7 @@ async function edUseSetup(id) {
   const lo = await loadoutFromSetup(s);
   for (const u of edSelUnits()) {
     const st = edUnitState(u);
-    if (st.tpl || !(ED_BLOCK_CATS[u.block] || []).includes(v.c)) continue;
+    if (!edSwappable(st) || !(ED_BLOCK_CATS[u.block] || []).includes(v.c)) continue;
     edSet(u, { cls: s.vehicle, loadout: lo ? { ...lo, vehicle: s.vehicle } : null });
   }
   edRenderPanel(); edDraw();
@@ -1482,7 +1487,7 @@ function edMultiClick(b) {
   const us = edSelUnits();
   if (b.dataset.edcls) {
     const v = S.byId.get(b.dataset.edcls);
-    for (const u of us) if (!u.tpl && v && (ED_BLOCK_CATS[u.block] || []).includes(v.c)) edSet(u, { cls: v.id });
+    for (const u of us) if (edSwappable(u) && v && (ED_BLOCK_CATS[u.block] || []).includes(v.c)) edSet(u, { cls: v.id });
   } else if (b.dataset.edmside) {
     for (const u of us) {
       if (u.tpl) continue;

@@ -414,6 +414,7 @@
   "editor.fromTemplate": "de una plantilla del juego",
   "editor.tpl": "plantilla",
   "editor.tplNote": "Esta unidad viene de una plantilla del juego: no se puede mover ni cambiar, pero puedes quitarla, congelarla, volverla pasiva o hacer que te persiga.",
+  "editor.tplNoteSwap": "Esta unidad viene de una de las plantillas del juego: no se puede mover, pero puedes cambiar su vehículo (la misión lleva entonces ella misma las plantillas del juego), quitarla, congelarla, hacerla pasiva o que te persiga.",
   "step.fuel": "Combustible",
   "cond.startMoved": "Dónde y cómo sales (en tierra o en el aire, altitud, velocidad, rumbo) se ajusta en el mapa: Mapas → un mapa → Editar en el mapa → Tú.",
   "editor.startGround": "En tierra",

@@ -414,6 +414,7 @@
   "editor.fromTemplate": "z szablonu gry",
   "editor.tpl": "szablon",
   "editor.tplNote": "Ta jednostka pochodzi z szablonu gry: nie można jej przesunąć ani zmienić, ale możesz ją usunąć, zamrozić, uczynić pasywną lub kazać jej na ciebie polować.",
+  "editor.tplNoteSwap": "Ta jednostka pochodzi z jednego z szablonów gry: nie można jej przesunąć, ale możesz zmienić jej pojazd (misja zawiera wtedy sama szablony gry), usunąć ją, zamrozić, uczynić pasywną lub kazać jej na ciebie polować.",
   "step.fuel": "Paliwo",
   "cond.startMoved": "Gdzie i jak startujesz (na ziemi lub w powietrzu, wysokość, prędkość, kierunek) ustawiasz na mapie: Mapy → mapa → Edytuj na mapie → Ty.",
   "editor.startGround": "Na ziemi",

@@ -123,6 +123,20 @@ belts written on the unit, an aircraft with custom pylons gets a custom aircraft
   "Rafale C F3 · Custom": Magic / MICA + a pod) and a MiG-29 9.13 with R-73s hunt you, 3 Fw 190 C east.
   Check the Rafale / MiG fire missiles (their loadout is used), the Rafale carry the custom pylons.
 
+## 2f. Template units given another vehicle: the mission carries the game's templates (new)
+
+Data schema 15 keeps the game templates the scenarios import (`data/templates/`). When the editor gives a
+template unit another vehicle (or loadout), `mission.inline_imports` copies their content into the mission (units,
+zones, triggers, objectives, variables, waypoints, dialogs; an import's `excludes` left out; their triggers before
+the mission's own) and drops the `imports`; the units then get their new `unit_class`. Missions with no such change
+keep importing the templates as before.
+
+- [ ] `wtftd_r7_tpl_swap` (F-14B, Afghanistan test flight, every template enemy set by "Vehicles by BR" at 12.7):
+  the mission loads (no error, no empty map); the air targets are the new aircraft (AV-8B Plus, F-2A, F-4E AUP,
+  B-52H, Tu-95…), the ground targets new tanks (Leopard 2, Abrams, Leclerc, T-90M…) and SAM / SPAA.
+- [ ] The scenario's scripts still run: targets appear and come back after being destroyed, the bases and
+  their AA are there, you spawn where you did before (runway or air start), the rank-based targets are picked.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

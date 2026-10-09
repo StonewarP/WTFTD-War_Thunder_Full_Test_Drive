@@ -414,6 +414,7 @@
   "editor.fromTemplate": "de um modelo do jogo",
   "editor.tpl": "modelo",
   "editor.tplNote": "Esta unidade vem de um modelo do jogo: não pode ser movida nem alterada, mas você pode removê-la, congelá-la, deixá-la passiva ou fazê-la caçar você.",
+  "editor.tplNoteSwap": "Esta unidade vem de um dos modelos do jogo: não pode ser movida, mas podes mudar o seu veículo (a missão passa a levar consigo os modelos do jogo), removê-la, congelá-la, torná-la passiva ou pô-la a caçar-te.",
   "step.fuel": "Combustível",
   "cond.startMoved": "Onde e como parte (no solo ou no ar, altitude, velocidade, direção) ajusta-se no mapa: Mapas → um mapa → Editar no mapa → Você.",
   "editor.startGround": "No solo",
