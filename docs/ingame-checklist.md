@@ -147,6 +147,9 @@ itself when one of them gets another vehicle, and that import gets `importUnits:
 - [ ] Same mission, regenerated with Vehicles by BR → Fire: Attacks (every target `attack: fire_at_will`; WTFTD's
   `wtftd_attack` trigger sets `attack_type: fire_at_will, cannotShoot: no` on them every 3 s): the SAM launchers
   (with their radar 30 m away), tanks, SPAA and aircraft shoot at you, also after they respawn.
+  First run (2026-10-09): the HQ-11 (a SAM with its own radar) fires; shot down before seeing the rest.
+  Regenerated with the invulnerable cheat: check which of SAMP/T, IRIS-SLM, Type 03, NASAMS, Sky Sabre launchers,
+  Spyder, tanks and aircraft fire.
 
 ## 3. Ammunition icons (UI only)
 
