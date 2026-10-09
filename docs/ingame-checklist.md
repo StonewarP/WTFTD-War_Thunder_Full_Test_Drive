@@ -225,9 +225,10 @@ vehicle panel.)
 ## 2j. Uninstall (Settings) with the packaged app (new)
 
 `wtftd/uninstall.py`. Checked from the source tree (sizes, choices, confirm, the final screen; nothing removed)
-and on throwaway files: the post-exit script keeps retrying while the exe is locked and removes it about 1 s
-after it is released (`tasklist` hangs without a console and `timeout` fails there: not used). Not yet with a
-real WTFTD.exe.
+and on throwaway files. 0.17.0 had a post-exit script retrying for 10 minutes: it opened a visible console (ping)
+and, the window's profile staying locked, it removed an exe rebuilt meanwhile in `dist` (2026-10-09). Now WTFTD
+closes its own window (`close_app_window`: the processes running its profile), quits, and a hidden script removes
+the app and the folder once, 6 s later (checked on throwaway files: removed once, a rebuild afterwards kept).
 
 - [ ] With an exe built from `main`: back up `%LOCALAPPDATA%\WTFTD` first (it holds your settings and library),
   then Settings → Uninstall WTFTD… → Everything → Remove, click again. The window says WTFTD was removed; once it
