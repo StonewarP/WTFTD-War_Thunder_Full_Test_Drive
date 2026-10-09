@@ -188,7 +188,8 @@ with your setup's share code.
 Settings, setups and the game database: `%LOCALAPPDATA%\WTFTD` (Windows) or `~/Library/Application Support/WTFTD`
 (macOS). Missions: `UserMissions` in the game folder (on macOS inside
 `WarThunderLauncher.app/Contents/WarThunder.app/Contents/Resources/game`; **Open folder** in the app shows it).
-To uninstall: **Settings → Remove custom vehicle files**, then delete the app and its data folder.
+To uninstall: **Settings → Uninstall WTFTD…** removes everything, or only the parts you tick (custom vehicle
+files in the game, missions, cache, game database, your settings and library, the app itself).
 
 **Does WTFTD collect anything?**
 No: no account, no telemetry. It downloads the datamine, wiki images and this repository's release list,
