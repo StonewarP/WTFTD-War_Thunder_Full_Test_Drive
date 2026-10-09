@@ -165,6 +165,8 @@
   "adv.heading": "Wymuś kurs",
   "adv.headingAuto": "auto",
   "adv.fileName": "Nazwa pliku",
+  "adv.description": "Opis",
+  "adv.descriptionHint": "Wyświetlany na liście misji w grze (co przetestować, co zrobić…)",
   "adv.title": "Tytuł misji (widoczny w grze)",
   "action.generate": "Utwórz misję",
   "action.generating": "Tworzenie…",

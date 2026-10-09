@@ -5,6 +5,8 @@ Mac without the game. Tick each line, note what you see, then fix or remove the 
 
 Setup: `python -m wtftd` from this repository (or the exe built from `main`), custom vehicles on (default).
 After a mission is created: start War Thunder → **Single missions → User missions**.
+Test missions are named here by their title in that list (file name in brackets); from 2026-10-09 on, the test
+to do is also written in the mission's description, shown under it in the game.
 
 ## 1. Countermeasures: flares / chaff split
 
@@ -154,8 +156,8 @@ itself when one of them gets another vehicle, and that import gets `importUnits:
   to hunt you every 10 s (`wtftd_hunt`), neither came at you nor fired (2026-10-09). Same `unitAttackTarget` as
   Gaijin's missions. Open: their scripts' route wins, or AI aircraft leave a player alone while the invulnerable
   cheat's `invulnerabilityTimer` (spawn protection) is on.
-- [ ] `wtftd_r7_air_hunt` (same mission, **not** invulnerable, + 2 MiG-29 9.13 added in the editor 6 km ahead,
-  Hunts me): do the 2 added MiG-29 come at you and fire? Do the template's aircraft (AV-8B, F-2A, F-4E…)?
+- [ ] **WTFTD r7b: aircraft hunting you (not invulnerable)** (`wtftd_r7_air_hunt`; same mission, **not**
+  invulnerable, + 2 MiG-29 9.13 added in the editor 6 km ahead, Hunts me): do the 2 added MiG-29 come at you and fire? Do the template's aircraft (AV-8B, F-2A, F-4E…)?
   Both: the cheat was the cause. MiG-29 only: the template's routes win. Neither: hunting doesn't work for aircraft.
 
 ## 3. Ammunition icons (UI only)

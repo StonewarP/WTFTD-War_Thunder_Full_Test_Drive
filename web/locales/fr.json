@@ -165,6 +165,8 @@
   "adv.heading": "Cap forcé",
   "adv.headingAuto": "auto",
   "adv.fileName": "Nom du fichier",
+  "adv.description": "Description",
+  "adv.descriptionHint": "Affichée dans la liste des missions du jeu (quoi tester, quoi faire…)",
   "adv.title": "Titre de la mission (affiché en jeu)",
   "action.generate": "Créer la mission",
   "action.generating": "Création…",

@@ -7,7 +7,7 @@ S.combos = [];
 
 // a vehicle's own setup: what a saved vehicle keeps (no map, map settings or mission options)
 function vehicleOnly(c) {
-  const { _autoTitle, scenario, edits, targets, environment, weather, heading, title, fileName, missionType, ...cfg } = c || {};
+  const { _autoTitle, scenario, edits, targets, environment, weather, heading, title, fileName, description, missionType, ...cfg } = c || {};
   cfg.cheats = { ...(c?.cheats || {}) };
   delete cfg.cheats.passiveEnemies;
   delete cfg.cheats.hostileEnemies;
@@ -151,7 +151,7 @@ async function saveCombo() {
   S.combos.unshift({
     id: newId(), name: name.slice(0, 100), vehicle: v.id, cfg: vehicleOnly(c), sid: s.id,
     variantId: sv?.id || '', variantName: sv?.name || '', edits: c.edits?.sid === s.id ? clone(c.edits) : null,
-    map: clone(S.map), mission: { missionType: S.mission.missionType || '', title: o.title, fileName: o.fileName }, created: Date.now(),
+    map: clone(S.map), mission: { missionType: S.mission.missionType || '', title: o.title, fileName: o.fileName, description: o.description }, created: Date.now(),
   });
   await persistCombos();
   toast({ title: t('combo.saved', { name }), ms: 3000 });
@@ -170,7 +170,7 @@ async function applyCombo(cb) {
   saveMap();
   S.pick = { vehicle: v.id, scenario: cb.sid, variant: (S.variants || []).some(x => x.id === cb.variantId) ? cb.variantId : '' };
   savePick();
-  S.mission = { missionType: cb.mission?.missionType || '', title: cb.mission?.title || '', fileName: cb.mission?.fileName || '', key: missionKey() };
+  S.mission = { missionType: cb.mission?.missionType || '', title: cb.mission?.title || '', fileName: cb.mission?.fileName || '', description: cb.mission?.description || '', key: missionKey() };
   saveMission();
   renderPickbar();
   if (S.sel) renderDrawer();
@@ -242,7 +242,7 @@ function comboFromSetup(cfg, name) {
   return {
     id: newId(), name: String(name || cfg.title || I18N.unit(cfg.vehicle)).slice(0, 100), vehicle: cfg.vehicle, cfg: vehicleOnly(cfg),
     sid: cfg.scenario, variantId: '', variantName: '', edits: cfg.edits && cfg.edits.sid === cfg.scenario ? cfg.edits : null,
-    map: mapSettingsOf(cfg), mission: { missionType: cfg.missionType || '', title: cfg.title || '', fileName: cfg.fileName || '' }, created: Date.now(),
+    map: mapSettingsOf(cfg), mission: { missionType: cfg.missionType || '', title: cfg.title || '', fileName: cfg.fileName || '', description: cfg.description || '' }, created: Date.now(),
   };
 }
 

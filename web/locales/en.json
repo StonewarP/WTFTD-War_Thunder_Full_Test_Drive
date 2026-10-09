@@ -165,6 +165,8 @@
   "adv.heading": "Heading override",
   "adv.headingAuto": "auto",
   "adv.fileName": "File name",
+  "adv.description": "Description",
+  "adv.descriptionHint": "Shown in the game's mission list (what to test, what to do…)",
   "adv.title": "Mission title (shown in game)",
   "action.generate": "Create mission",
   "action.generating": "Creating…",

@@ -1109,6 +1109,7 @@ function missionPayload() {
     heading: null, missionType: missionOpts().missionType, allMods: c.allMods,
     fuel: (c.block === 'armada' && c.fuel) || null,
     title: missionOpts().title || autoTitle(), fileName: missionOpts().fileName || `wtftd_${c.vehicle}`,
+    description: missionOpts().description || undefined,
     mods: cdkOn() ? Object.assign(modsPayload(c.mods), c.cheats.noReload ? { noReload: true } : {}) : undefined,
     pylons: cdkOn() && c.pylons ? c.pylons : undefined,
     cheats: { ...c.cheats, passiveEnemies: S.map.enemies === 'passive', hostileEnemies: S.map.enemies === 'hostile' },

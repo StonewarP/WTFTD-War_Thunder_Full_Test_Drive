@@ -991,6 +991,10 @@ def build(cfg: dict) -> tuple[str, str]:
         mission["type"] = mtype
     title = (cfg.get("title") or f"Test Drive: {vid}")[:120]
     mission["locName"] = title
+    # shown under the mission in the game's list (else it shows the missing key "missions//objective")
+    desc = " ".join(str(cfg.get("description") or "").split())[:1000]
+    if desc:
+        mission["locDesc"] = desc
     if cfg.get("environment") in ENVIRONMENTS:
         mission["environment"] = cfg["environment"]
     if cfg.get("weather") in WEATHERS:

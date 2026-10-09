@@ -6,6 +6,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- **Mission description** (mission options): shown under the mission in the game's list (it showed
+  "missions//objective").
 - **Map editor**: the vehicles the scenario brings into its zones show as markers (triangle: aircraft,
   square: ground, diamond: ships, dashed white outline) at every zoom; zone outlines are off by default
   (Zones button), drawn at their real size (too small to see: left out), and hiding them keeps those markers.

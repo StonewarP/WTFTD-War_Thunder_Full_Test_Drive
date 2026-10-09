@@ -165,6 +165,8 @@
   "adv.heading": "方位を指定",
   "adv.headingAuto": "自動",
   "adv.fileName": "ファイル名",
+  "adv.description": "説明",
+  "adv.descriptionHint": "ゲームのミッション一覧に表示されます（テスト内容、やること…）",
   "adv.title": "ミッション名（ゲーム内表示）",
   "action.generate": "ミッション作成",
   "action.generating": "作成中…",

@@ -165,6 +165,8 @@
   "adv.heading": "Vynutit kurz",
   "adv.headingAuto": "auto",
   "adv.fileName": "Název souboru",
+  "adv.description": "Popis",
+  "adv.descriptionHint": "Zobrazí se v seznamu misí ve hře (co vyzkoušet, co dělat…)",
   "adv.title": "Název mise (zobrazený ve hře)",
   "action.generate": "Vytvořit misi",
   "action.generating": "Vytváření…",

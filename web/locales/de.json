@@ -165,6 +165,8 @@
   "adv.heading": "Kurs erzwingen",
   "adv.headingAuto": "auto",
   "adv.fileName": "Dateiname",
+  "adv.description": "Beschreibung",
+  "adv.descriptionHint": "Wird in der Missionsliste des Spiels angezeigt (was zu testen, was zu tun ist…)",
   "adv.title": "Missionstitel (im Spiel angezeigt)",
   "action.generate": "Mission erstellen",
   "action.generating": "Wird erstellt…",

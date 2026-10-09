@@ -165,6 +165,8 @@
   "adv.heading": "Forçar rumo",
   "adv.headingAuto": "auto",
   "adv.fileName": "Nome do arquivo",
+  "adv.description": "Descrição",
+  "adv.descriptionHint": "Mostrada na lista de missões do jogo (o que testar, o que fazer…)",
   "adv.title": "Título da missão (exibido no jogo)",
   "action.generate": "Criar missão",
   "action.generating": "Criando…",

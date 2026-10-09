@@ -20,11 +20,11 @@ function saveMap() { store.set('mapset', S.map); }
 
 // the mission's own options: type, and a title / file name kept for the vehicle + map they were written for
 function missionKey() { return [S.pick.vehicle || S.cfg?.vehicle, S.pick.scenario, S.pick.variant || ''].join('|'); }
-S.mission = Object.assign({ missionType: '', title: '', fileName: '', key: '' }, store.get('mission', {}));
+S.mission = Object.assign({ missionType: '', title: '', fileName: '', description: '', key: '' }, store.get('mission', {}));
 function missionOpts() {
   const own = S.mission.key === missionKey();
   return { missionType: S.mission.missionType || S.status.settings?.missionType || 'singleMission',
-    title: own ? S.mission.title : '', fileName: own ? S.mission.fileName : '' };
+    title: own ? S.mission.title : '', fileName: own ? S.mission.fileName : '', description: own ? S.mission.description || '' : '' };
 }
 function saveMission() { store.set('mission', S.mission); }
 
@@ -37,7 +37,7 @@ function mapFromSetup(cfg) {
     heading: cfg.heading == null ? '' : cfg.heading,
   };
   saveMap();
-  S.mission = { missionType: cfg.missionType || '', title: cfg.title || '', fileName: cfg.fileName || '', key: '' };
+  S.mission = { missionType: cfg.missionType || '', title: cfg.title || '', fileName: cfg.fileName || '', description: cfg.description || '', key: '' };
   setTimeout(() => { S.mission.key = missionKey(); saveMission(); });  // once the pick holds the mission's vehicle and map
 }
 
@@ -201,14 +201,15 @@ function openMissionDialog() {
     <div class="field"><label>${esc(t('adv.missionType'))}</label>
       <select data-mo="missionType">${['singleMission', 'testFlight'].map(m => `<option value="${m}"${o.missionType === m ? ' selected' : ''}>${esc(t('adv.missionType.' + m))}</option>`).join('')}</select></div>
     <div class="field"><label>${esc(t('adv.title'))}</label><input type="text" data-mo="title" value="${esc(o.title)}" placeholder="${esc(auto)}"></div>
-    <div class="field"><label>${esc(t('adv.fileName'))}</label><input type="text" data-mo="fileName" value="${esc(o.fileName)}" placeholder="wtftd_${esc(vid || '…')}"></div>`;
+    <div class="field"><label>${esc(t('adv.fileName'))}</label><input type="text" data-mo="fileName" value="${esc(o.fileName)}" placeholder="wtftd_${esc(vid || '…')}"></div>
+    <div class="field"><label>${esc(t('adv.description'))}</label><textarea data-mo="description" rows="3" maxlength="1000" placeholder="${esc(t('adv.descriptionHint'))}">${esc(o.description)}</textarea></div>`;
   $('#dlgMission').showModal();
 }
 
 function onMissionInput(e) {
   const key = e.target.dataset.mo;
   if (!key) return;
-  if (S.mission.key !== missionKey()) Object.assign(S.mission, { title: '', fileName: '', key: missionKey() });
+  if (S.mission.key !== missionKey()) Object.assign(S.mission, { title: '', fileName: '', description: '', key: missionKey() });
   S.mission[key] = e.target.value.trim();
   if (key === 'fileName') S.mission.fileName = S.mission.fileName.replace(/[^A-Za-z0-9_\-]+/g, '_');
   saveMission();

@@ -165,6 +165,8 @@
   "adv.heading": "Forza la rotta",
   "adv.headingAuto": "auto",
   "adv.fileName": "Nome file",
+  "adv.description": "Descrizione",
+  "adv.descriptionHint": "Mostrata nell'elenco delle missioni del gioco (cosa provare, cosa fare…)",
   "adv.title": "Titolo della missione (mostrato in gioco)",
   "action.generate": "Crea missione",
   "action.generating": "Creazione…",

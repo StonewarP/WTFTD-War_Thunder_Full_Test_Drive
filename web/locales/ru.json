@@ -165,6 +165,8 @@
   "adv.heading": "Задать курс",
   "adv.headingAuto": "авто",
   "adv.fileName": "Имя файла",
+  "adv.description": "Описание",
+  "adv.descriptionHint": "Показывается в списке миссий игры (что проверить, что делать…)",
   "adv.title": "Название миссии (в игре)",
   "action.generate": "Создать миссию",
   "action.generating": "Создание…",
