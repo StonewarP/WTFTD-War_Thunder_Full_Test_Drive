@@ -683,7 +683,7 @@ function defaultCfg(v, d) {
     preset: d.pr[0]?.id || '', ammo: defaultAmmo(v, d),
     environment: '', weather: '', start: 'scenario', altitude: 1500, speed: 450, heading: '', fuel: 0,
     missionType: S.status.settings?.missionType || 'singleMission', allMods: true, mods: {}, pylons: null,
-    cheats: { immortal: false, infAmmo: false, noReload: false, infFuel: false, passiveEnemies: false, hostileEnemies: false, ghost: false, crew: '', repairEvery: 0 },
+    cheats: { immortal: false, noOverload: false, infAmmo: false, noReload: false, infFuel: false, passiveEnemies: false, hostileEnemies: false, ghost: false, crew: '', repairEvery: 0 },
     title: '', fileName: '', _autoTitle: `Test Drive: ${name}`,
   };
 }
@@ -1191,6 +1191,7 @@ function listThumb(vid) {
 // ------------------------------------------------------------------ cheats (mission rules)
 const CHEATS = [
   ['immortal', 'cheat.immortal', 'cheat.immortalHint'],
+  ['noOverload', 'cheat.noOverload', 'cheat.noOverloadHint', 'flyer'],  // custom aircraft / helicopters only
   ['infAmmo', 'cheat.infAmmo', 'cheat.infAmmoHint'],
   ['noReload', 'cheat.noReload', 'cheat.noReloadHint'],
   ['infFuel', 'cheat.infFuel', 'cheat.infFuelHint'],
@@ -1199,9 +1200,10 @@ const CHEATS = [
 
 function cheatsBody() {
   const ch = S.cfg.cheats;
-  const rows = CHEATS.map(([k, label, hint]) => `<label class="cheat${ch[k] ? ' on' : ''}">
+  const flyer = ['air', 'heli'].includes(S.byId.get(S.cfg.vehicle)?.c);
+  const rows = CHEATS.filter(([, , , only]) => only !== 'flyer' || flyer).map(([k, label, hint]) => `<label class="cheat${ch[k] ? ' on' : ''}">
       <input type="checkbox" data-cheat="${k}" ${ch[k] ? 'checked' : ''}><span class="sw"></span>
-      <span class="cheat-txt"><b>${esc(t(label))}</b><small>${esc(t(hint))}${k === 'noReload' && !cdkOn() ? ' ' + esc(t('cheat.noReloadCdk')) : ''}</small></span></label>`).join('');
+      <span class="cheat-txt"><b>${esc(t(label))}</b><small>${esc(t(hint))}${k === 'noReload' && !cdkOn() ? ' ' + esc(t('cheat.noReloadCdk')) : ''}${k === 'noOverload' && !cdkOn() ? ' ' + esc(t('cheat.needsCdk')) : ''}</small></span></label>`).join('');
   const crew = ch.crew || (ch.expertCrew ? 'expert' : '');
   return `<div class="cheats">${rows}</div>
     <div class="field" style="margin-top:12px"><label>${esc(t('cheat.crew'))}</label>

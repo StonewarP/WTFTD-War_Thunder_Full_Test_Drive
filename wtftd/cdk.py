@@ -93,6 +93,9 @@ class Blk:
     def int(self, name: str, v):
         self.line(f'"@override:{name}":i={int(v)}')
 
+    def p2(self, name: str, v):
+        self.line(f'"@override:{name}":p2={_r(v[0])}, {_r(v[1])}')
+
     def text(self, name: str, v: str):
         self.line(f'"@override:{name}":t="{v}"')
 
@@ -179,6 +182,49 @@ def _weapon_lines(trigger: str, blk: str, emitter: str, bullets: int | None, ind
 
 
 HP_MULT = 1000.0
+# "Unbreakable airframe": the flight model's breaking limits, raised (speeds km/h IAS, overloads in newtons)
+NO_BREAK_SPEED = 100000.0
+_BREAK_SPEEDS = {"Vne", "VNE", "VneCockpitDoor", "CockpitOpenedDoorBreakSpeed", "GearDestructionIndSpeed",
+                 "AirbrakeDestructionIndSpeed"}
+_BREAK_OVERLOADS = {"CritOverload", "WingCritOverload"}
+
+
+def _structural_overrides(node, path=()) -> dict:
+    """{path: (type, value)} raising every breaking limit of a flight model: wings torn off by speed or g
+    (Vne / VneMach / Strength VNE, CritOverload / WingCritOverload), gear, flaps, airbrake, canopy."""
+    out = {}
+    if not isinstance(node, dict):
+        return out
+    for k, v in node.items():
+        p = path + (k,)
+        if isinstance(v, dict):
+            out.update(_structural_overrides(v, p))
+        elif isinstance(v, bool):
+            continue
+        elif k in _BREAK_SPEEDS and isinstance(v, (int, float)) and v > 0:
+            out[p] = ("r", NO_BREAK_SPEED)
+        elif k == "VneMach" and isinstance(v, (int, float)):
+            out[p] = ("r", 100.0)
+        elif k in _BREAK_OVERLOADS and isinstance(v, list) and len(v) == 2 and all(isinstance(x, (int, float)) for x in v):
+            out[p] = ("p2", [float(v[0]) * 100.0, float(v[1]) * 100.0])
+        elif k.startswith("FlapsDestructionIndSpeed") and isinstance(v, list) and len(v) == 2:
+            out[p] = ("p2", [float(v[0]), NO_BREAK_SPEED])
+    return out
+
+
+def _write_tree(b: "Blk", tree: dict):
+    """Writes {path: (type, value)} as nested @override blocks."""
+    groups: dict = {}
+    for path, tv in tree.items():
+        if len(path) == 1:
+            typ, v = tv
+            {"r": b.real, "p2": b.p2, "i": b.int}[typ](path[0], v)
+        else:
+            groups.setdefault(path[0], {})[path[1:]] = tv
+    for name, sub in groups.items():
+        b.open(name)
+        _write_tree(b, sub)
+        b.close()
 
 
 def _has_hp(node) -> bool:
@@ -203,9 +249,10 @@ def _damage_overrides(b: "Blk", node: dict, mult: float):
 
 def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons: dict | None,
                 air_method: str = "custom", unit_data: dict | None = None,
-                catalog: dict | None = None, tag: str = "") -> tuple[dict[str, str], str, str, str]:
+                catalog: dict | None = None, tag: str = "", fm_data: dict | None = None) -> tuple[dict[str, str], str, str, str]:
     """Returns ({path under the package: text}, weapons preset or "", mission unit_class, package dir).
-    tag: names the files and the unit after it instead of the vehicle id (AI units: "<id>_ai1"…)."""
+    tag: names the files and the unit after it instead of the vehicle id (AI units: "<id>_ai1"…).
+    fm_data: the aircraft's flight model (datamine), for mods["noStructural"] (unbreakable airframe)."""
     flyer = cat in ("air", "heli")
     custom_name = flyer and air_method == "custom"
     name = tag or vid
@@ -314,24 +361,20 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
         if st.get("fm"):
             fm_name = f"wtftd_{name}".lower()
             fb = _header(f"{vid} flight model", f"gameData/flightModels/{st['fm']}")
-            if mass or fuel:
-                fb.open("Mass")
-                if mass:
-                    fb.real("EmptyMass", mass)
-                if fuel is not None:
-                    fb.real("MaxFuelMass0", fuel)
-                fb.close()
-            if thrust_mul or tboost or abboost:
-                fb.open("EngineType0")
-                fb.open("Main")
-                if thrust_mul and st.get("thrust"):
-                    fb.real("Thrust", float(st["thrust"]) * thrust_mul)
-                if tboost:
-                    fb.real("ThrottleBoost", tboost)
-                if abboost:
-                    fb.real("AfterburnerBoost", abboost)
-                fb.close()
-                fb.close()
+            tree: dict = {}  # {path: (type, value)}, one block per section
+            if mods.get("noStructural") and isinstance(fm_data, dict):
+                tree.update(_structural_overrides(fm_data))
+            if mass:
+                tree[("Mass", "EmptyMass")] = ("r", mass)
+            if fuel is not None:
+                tree[("Mass", "MaxFuelMass0")] = ("r", fuel)
+            if thrust_mul and st.get("thrust"):
+                tree[("EngineType0", "Main", "Thrust")] = ("r", float(st["thrust"]) * thrust_mul)
+            if tboost:
+                tree[("EngineType0", "Main", "ThrottleBoost")] = ("r", tboost)
+            if abboost:
+                tree[("EngineType0", "Main", "AfterburnerBoost")] = ("r", abboost)
+            _write_tree(fb, tree)
             text = str(fb)
             # fmFile may be resolved from flightModels/ or next to the unit file: provide both
             files[f"gameData/flightModels/fm/{fm_name}.blk"] = text

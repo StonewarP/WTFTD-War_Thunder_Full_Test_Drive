@@ -694,6 +694,12 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     unit_data = None
     if (body.get("cheats") or {}).get("immortal"):
         mods["invulnerable"] = True
+    fm_data = None
+    if (body.get("cheats") or {}).get("noOverload") and veh["c"] in ("air", "heli"):
+        mods["noStructural"] = True  # unbreakable airframe: the flight model's breaking limits raised
+        fm = str((det.get("st") or {}).get("fm") or "")
+        if fm:
+            fm_data = builder.load(builder.DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / (fm.lower() + "x"))
     non_std = any(isinstance(v, dict) for v in (body.get("pylons") or {}).values())
     if mods.get("invulnerable") or non_std:
         # needs the local datamine copy (damage model, pylon layout for non-standard weapons)
@@ -701,7 +707,7 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     try:
         files, preset, unit_class, pkg = cdk.build_files(vid, veh["c"], det, mods, host,
                                                          body.get("pylons"), air_method, unit_data,
-                                                         STATE.get_catalog())
+                                                         STATE.get_catalog(), fm_data=fm_data)
     except cdk.CdkError as e:
         raise mission.MissionError(str(e))
     body = dict(body, unitClass=unit_class, _pkg=pkg)

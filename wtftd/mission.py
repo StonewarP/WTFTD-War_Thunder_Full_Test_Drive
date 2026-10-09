@@ -733,7 +733,9 @@ def make_hostile(m: dict, edits: dict) -> list[str]:
 def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
     """Game-rule options, built only from actions the official missions use, and stacked so
     that one working mechanism is enough:
-      immortal    unitSetProperties isImmortal + invulnerabilityTimer (re-applied every 1 s)
+      immortal    unitSetProperties isImmortal (re-applied every 1 s); no invulnerabilityTimer any more: that is
+                  the spawn protection, and AI aircraft leave a protected player alone (checked in game 2026-10-09);
+                  aircraft / helicopters: unitRestore resurrect + repair once killed (a crash into the ground)
                   + unitRestore full repair / resurrect every 1 s as a fallback (not for aircraft /
                   helicopters: the repair restarts the engines, the MiG-29SMT's never got going; checked
                   in game 2026-10-08. Custom aircraft also get raised hit points.)
@@ -753,14 +755,12 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
     props = {"object": wing}
     if ch.get("immortal"):
         props["isImmortal"] = True
-        # spawn-protection timer (seconds), re-applied every second: stops damage instead of resurrecting
-        props["invulnerabilityTimer"] = 3600.0
     if ch.get("ghost"):
         props["ignoreCollisions"] = True
 
     active = [label for key, label in (("immortal", "invulnerable"), ("infAmmo", "unlimited ammo"), ("noReload", "no reload"),
                                        ("infFuel", "unlimited fuel"), ("passiveEnemies", "passive targets"), ("hostileEnemies", "targets shoot"),
-                                       ("ghost", "no collisions")) if ch.get(key)]
+                                       ("ghost", "no collisions"), ("noOverload", "unbreakable airframe")) if ch.get(key)]
     every = float(ch.get("repairEvery") or 0)
     if every > 0:
         active.append(f"repair every {int(every)} s")
@@ -804,6 +804,14 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
         fast["unitSetProperties"] = dict(props)  # re-apply after the scenario respawns the player
     if fast:
         triggers["wtftd_rules_fast"] = _trigger({"periodicEvent": {"time": 1.0}}, fast, True)
+
+    if ch.get("immortal") and air:
+        # a crash into the ground kills you whatever isImmortal: back alive, repaired, on the spot. Only when
+        # killed (a repair every second restarts aircraft engines: the MiG-29SMT never got going)
+        revive = _trigger({"periodicEvent": {"time": 0.5}}, {"unitRestore": {
+            "target": wing, "fullRestore": True, "ressurectIfDead": True, "partRestore": True, "ammoRestore": False}}, True)
+        revive["conditions"] = {"playersWhenStatus": {"players": "isKilled", "check_players": "any"}}
+        triggers["wtftd_rules_revive"] = revive
 
     if every > 0 and not ch.get("immortal"):
         repair = {"unitRestore": {"target": wing, "fullRestore": True, "ammoRestore": True, "ressurectIfDead": False}}

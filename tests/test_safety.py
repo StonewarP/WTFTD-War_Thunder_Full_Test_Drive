@@ -59,3 +59,25 @@ class LocalServer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnbreakableAirframe(unittest.TestCase):
+    def test_breaking_limits_raised(self):
+        from wtftd import cdk
+        fm = {"Vne": 760.0, "VneMach": 0.82, "VneControl": 600.0,
+              "Mass": {"WingCritOverload": [-87500.0, 150000.0], "GearDestructionIndSpeed": 270.0,
+                       "AirbrakeDestructionIndSpeed": -1.0, "FlapsDestructionIndSpeedP1": [0.5, 290.0]},
+              "Aerodynamics": {"WingPlaneSweep0": {"Strength": {"VNE": 1021.0, "CritOverload": [-6.0, 13.0]}}}}
+        tree = cdk._structural_overrides(fm)
+        self.assertEqual(tree[("Vne",)], ("r", cdk.NO_BREAK_SPEED))
+        self.assertEqual(tree[("VneMach",)], ("r", 100.0))
+        self.assertNotIn(("VneControl",), tree)  # control stiffness, not a breaking limit
+        self.assertEqual(tree[("Mass", "WingCritOverload")], ("p2", [-8750000.0, 15000000.0]))
+        self.assertNotIn(("Mass", "AirbrakeDestructionIndSpeed"), tree)  # -1: never breaks already
+        self.assertEqual(tree[("Mass", "FlapsDestructionIndSpeedP1")], ("p2", [0.5, cdk.NO_BREAK_SPEED]))
+        self.assertEqual(tree[("Aerodynamics", "WingPlaneSweep0", "Strength", "CritOverload")], ("p2", [-600.0, 1300.0]))
+        b = cdk.Blk()
+        cdk._write_tree(b, tree)
+        text = str(b)
+        self.assertEqual(text.count('"@override:Mass"{'), 1)
+        self.assertIn('"@override:Aerodynamics"{', text)
