@@ -65,10 +65,11 @@
   </div>
   <nav class="tabs" role="tablist">
     <button class="tab active" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
+    <button class="tab" data-view="setups" role="tab"><span data-i18n="nav.myVehicles"></span><span class="tab-count" id="setupCount"></span></button>
     <button class="tab" data-view="maps" role="tab"><span data-i18n="nav.maps"></span></button>
-    <button class="tab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
+    <button class="tab" data-view="mymaps" role="tab"><span data-i18n="nav.myMaps"></span><span class="tab-count" id="myMapCount"></span></button>
     <button class="tab" data-view="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
-    <button class="tab" data-view="setups" role="tab"><span data-i18n="nav.setups"></span><span class="tab-count" id="setupCount"></span></button>
+    <button class="tab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
   </nav>
   <label class="search">
     <svg class="ic"><use href="#i-search"/></svg>
@@ -178,18 +179,28 @@
       <div class="compare-tray ar-tray hidden" id="arTray"></div>
     </div>
 
-    <div class="view hidden" id="view-missions">
-      <div class="page-head">
-        <div><h2 data-i18n="missions.title"></h2><p class="muted" data-i18n="missions.hint"></p></div>
-        <button class="btn btn-ghost" id="btnOpenFolder"><svg class="ic"><use href="#i-folder"/></svg><span data-i18n="action.openFolder"></span></button>
-      </div>
-      <div class="list" id="missionList"></div>
+    <div class="view hidden" id="view-mymaps">
+      <div class="page-head"><div><h2 data-i18n="mymaps.title"></h2><p class="muted" data-i18n="mymaps.hint"></p></div>
+        <button class="btn" id="btnImportMaps"><svg class="ic-sm"><use href="#i-share"/></svg><span data-i18n="share.import"></span></button></div>
+      <div class="list" id="myMapList"></div>
     </div>
 
     <div class="view hidden" id="view-setups">
       <div class="page-head"><div><h2 data-i18n="setups.title"></h2><p class="muted" data-i18n="share.setupsHint"></p></div>
         <button class="btn" id="btnImport"><svg class="ic-sm"><use href="#i-share"/></svg><span data-i18n="share.import"></span></button></div>
       <div class="list" id="setupList"></div>
+    </div>
+
+    <div class="view hidden" id="view-missions">
+      <div class="page-head">
+        <div><h2 data-i18n="missions.title"></h2><p class="muted" data-i18n="missions.hint"></p></div>
+        <div class="row gap"><button class="btn" id="btnImportMissions"><svg class="ic-sm"><use href="#i-share"/></svg><span data-i18n="share.import"></span></button>
+        <button class="btn btn-ghost" id="btnOpenFolder"><svg class="ic"><use href="#i-folder"/></svg><span data-i18n="action.openFolder"></span></button></div>
+      </div>
+      <h3 class="list-head" data-i18n="missions.saved"></h3>
+      <div class="list" id="comboList"></div>
+      <h3 class="list-head" data-i18n="missions.created"></h3>
+      <div class="list" id="missionList"></div>
     </div>
   </section>
 
@@ -406,5 +417,6 @@
 <script src="compare.js"></script>
 <script src="weapons.js"></script>
 <script src="maps.js"></script>
+<script src="library.js"></script>
 </body>
 </html>

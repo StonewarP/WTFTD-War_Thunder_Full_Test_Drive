@@ -184,6 +184,7 @@ async function boot() {
   bindCompare();
   bindWeapons();
   bindMaps();
+  bindLibrary();
   showView('vehicles');
 }
 
@@ -279,9 +280,16 @@ function matcher() {
   };
 }
 
+// the sidebar's filters as one test: the vehicles tab, and My vehicles (with hidden ones, saved on purpose)
+function vehicleFilter({ hidden = S.f.hidden } = {}) {
+  const f = S.f, ok = matcher();
+  return v => !(v.h && !hidden) && (f.cat === 'all' || v.c === f.cat) && (!f.nations.length || f.nations.includes(v.n)) && ok(v);
+}
+
 function applyFilters() {
   const f = S.f;
   store.set('filters', f);
+  if (!$('#view-setups').classList.contains('hidden')) renderSetups();
   const view = currentView();
   $$('#viewMode button').forEach(b => b.classList.toggle('active', b.dataset.v === view));
   $('#sortWrap').classList.toggle('hidden', view === 'tree');
@@ -289,13 +297,7 @@ function applyFilters() {
   if (view === 'tree') return renderTree();
   $('#tree').classList.add('hidden');
   $('#grid').classList.remove('hidden');
-  const ok = matcher();
-  let list = S.vehicles.filter(v => {
-    if (v.h && !f.hidden) return false;
-    if (f.cat !== 'all' && v.c !== f.cat) return false;
-    if (f.nations.length && !f.nations.includes(v.n)) return false;
-    return ok(v);
-  });
+  let list = S.vehicles.filter(vehicleFilter());
   const name = v => I18N.unit(v.id);
   const cmp = {
     br: (a, b) => (brOf(a) ?? 99) - (brOf(b) ?? 99) || (a.r - b.r) || name(a).localeCompare(name(b)),
@@ -555,11 +557,13 @@ function showView(name) {
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
   document.body.classList.toggle('view-weapons', name === 'weapons');
   document.body.classList.toggle('view-maps', name === 'maps');
-  document.body.classList.toggle('pick-on', name === 'vehicles' || name === 'maps');
+  document.body.classList.toggle('no-sidebar', name !== 'vehicles' && name !== 'setups');  // the filters: vehicles, My vehicles
+  document.body.classList.toggle('pick-on', ['vehicles', 'maps', 'mymaps', 'setups'].includes(name));  // the vehicle + map bar
   if (name === 'maps') openMapsView();
   if (name === 'weapons') { if (S.sel) closeDrawer(); openWeaponsView(); }
   if (name === 'missions') refreshMissions();
   if (name === 'setups') renderSetups();
+  if (name === 'mymaps') renderMyMaps();
 }
 
 // ------------------------------------------------------------------ vehicle drawer
@@ -1098,10 +1102,7 @@ async function saveSetup() {
   const p = S.details.get(c.vehicle)?.pr.find(x => x.id === c.preset);
   const name = await promptText(t('setups.namePrompt'), `${I18N.unit(c.vehicle)}${c.pylons ? ' · ' + t('loadout.customRow') : p && p.w.length ? ' · ' + presetLabel(S.byId.get(c.vehicle), p) : ''}`);
   if (!name) return;
-  const { _autoTitle, scenario, edits, targets, environment, weather, heading, title, fileName, missionType, ...cfg } = c;
-  cfg.cheats = { ...c.cheats };
-  delete cfg.cheats.passiveEnemies;
-  delete cfg.cheats.hostileEnemies;
+  const cfg = vehicleOnly(c);
   S.setups.unshift({ id: Date.now().toString(36), name, vehicle: c.vehicle, cfg, created: Date.now() });
   await persistSetups();
   toast({ title: t('toast.saved'), ms: 2500 });
@@ -1122,67 +1123,6 @@ async function refreshSetups() {
 function listThumb(vid) {
   return `<div class="list-thumb">${unitImgTag(vid, true)}</div>`;
 }
-
-function renderSetups() {
-  const el = $('#setupList');
-  if (!S.setups.length) { el.innerHTML = `<div class="empty">${icon('save', 'ic-xl')}<p>${esc(t('setups.empty'))}</p></div>`; return; }
-  el.innerHTML = S.setups.map(s => {
-    const v = S.byId.get(s.vehicle);
-    return `<div class="list-item">${listThumb(s.vehicle)}
-      <div class="list-main"><div class="list-title">${v ? flagHTML(v.n) : ''}${esc(s.name)}</div>
-        <div class="list-sub">${esc(v ? I18N.unit(v.id) : s.vehicle)} · ${new Date(s.created).toLocaleDateString(I18N.code)}</div></div>
-      <div class="list-actions"><button class="btn btn-sm" data-load="${esc(s.id)}">${esc(t('action.load'))}</button>
-        <button class="icon-btn" data-share="${esc(s.id)}" title="${esc(t('share.button'))}">${icon('share')}</button>
-        <button class="icon-btn btn-danger" data-del="${esc(s.id)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`;
-  }).join('');
-}
-
-function onSetupListClick(e) {
-  const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.load) {
-    const s = S.setups.find(x => x.id === b.dataset.load);
-    if (s) { showView('vehicles'); openVehicle(s.vehicle, s.cfg); }
-  } else if (b.dataset.share) {
-    const s = S.setups.find(x => x.id === b.dataset.share);
-    if (s) openShare({ ...s.cfg, vehicle: s.vehicle, title: s.cfg.title || s.name });
-  } else if (b.dataset.del) {
-    S.setups = S.setups.filter(x => x.id !== b.dataset.del);
-    persistSetups();
-  }
-}
-
-async function refreshMissions() {
-  try { S.missions = await api('missions'); } catch { S.missions = []; }
-  $('#missionCount').textContent = S.missions.length || '';
-  const el = $('#missionList');
-  if (!S.missions.length) { el.innerHTML = `<div class="empty">${icon('file', 'ic-xl')}<p>${esc(t('missions.empty'))}</p></div>`; return; }
-  el.innerHTML = S.missions.map(m => {
-    const vid = m.vehicle || m.file.replace(/^wtftd_/, '').replace(/\.blk$/, '');
-    const v = S.byId.get(vid);
-    return `<div class="list-item">${listThumb(vid)}
-      <div class="list-main"><div class="list-title">${v ? flagHTML(v.n) : ''}${esc(v ? I18N.unit(v.id) : vid)}</div>
-        <div class="list-sub"><code>${esc(m.file)}</code> · ${new Date(m.mtime * 1000).toLocaleString(I18N.code)}</div></div>
-      <div class="list-actions">${v ? `<button class="btn btn-sm" data-open="${esc(vid)}" data-file="${esc(m.file)}">${esc(t('action.load'))}</button>` : ''}
-        <button class="icon-btn btn-danger" data-delm="${esc(m.file)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`;
-  }).join('');
-}
-
-async function onMissionListClick(e) {
-  const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.open) {
-    // restore the exact setup the mission was created with (cheats, mods, loadout…) when we have it
-    let cfg = null;
-    try { cfg = await api('mission-setup/' + encodeURIComponent(b.dataset.file.replace(/\.blk$/, ''))); } catch { /* older mission */ }
-    showView('vehicles');
-    openVehicle(b.dataset.open, cfg && cfg.vehicle === b.dataset.open ? cfg : null, { select: true });
-  }
-  else if (b.dataset.delm) {
-    try { S.missions = await api('delete-mission', { file: b.dataset.delm }); } catch (err) { toastErr(err); }
-    refreshMissions();
-  }
-}
-
-
 
 // ------------------------------------------------------------------ cheats (mission rules)
 const CHEATS = [

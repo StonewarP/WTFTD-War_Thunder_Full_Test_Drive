@@ -6,6 +6,12 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- **Your library**, three tabs, everything shareable (code or .wtftd file, imported into the right tab):
+  **My maps** (saved map variants), **My vehicles** (saved vehicle setups: Choose puts one in the bottom bar
+  without opening it) and **My missions** (vehicle + map pairs saved with the bar's save button, ready to
+  Choose or Create, and the mission files created in the game). Old share codes import as missions.
+  Tabs follow the bar: Vehicles · My vehicles · Maps · My maps · My missions · Weapons. The vehicle filters
+  show in Vehicles and My vehicles only (and filter both); the vehicle + map bar shows in the four first tabs.
 - **Vehicle + map**: a new **Maps** tab shows every map (the game's own tactical map as picture). Click one:
   a window lists its variants (scenarios), to choose one or edit it on the map (move, add, remove units) as
   in the vehicle panel, even before picking a vehicle. A bar at the bottom holds the vehicle and the map of

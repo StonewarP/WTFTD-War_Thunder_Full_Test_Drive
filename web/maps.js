@@ -58,6 +58,8 @@ async function loadVariants() {
 }
 async function persistVariants() {
   try { await api('variants', { variants: S.variants }); } catch (e) { toastErr(e); }
+  $('#myMapCount').textContent = (S.variants || []).length || '';
+  if (!$('#view-mymaps').classList.contains('hidden')) renderMyMaps();
 }
 
 // the picked saved variant's edits into a setup of its scenario that has none of its own
@@ -103,7 +105,8 @@ function selectVehicle(id, { ownMap = false } = {}) {
   const v = S.byId.get(id);
   if (!v) return;
   const ps = pickedScenario();
-  let own = S.cfg?.vehicle === id ? S.cfg.scenario : '';
+  const vc = S.cfg?.vehicle === id ? S.cfg : S.cfgs.get(id);  // the vehicle's setup: open panel, or kept one
+  let own = vc?.scenario || '';
   const ownScen = S.scenarios.find(s => s.id === own);
   if (!ownMap && (!ownScen || !scenarioFits(ownScen, v))) own = (scenariosFor(v, false)[0] || S.scenarios[0])?.id || '';
   if (own && (ownMap || !ps || !scenarioFits(ps, v))) {
@@ -111,7 +114,7 @@ function selectVehicle(id, { ownMap = false } = {}) {
     if (own !== S.pick.scenario) { S.pick.scenario = own; S.pick.variant = ''; }
   }
   S.pick.vehicle = id;
-  if (S.cfg?.vehicle === id && S.pick.scenario) S.cfg.scenario = S.pick.scenario;
+  if (vc && S.pick.scenario) vc.scenario = S.pick.scenario;
   savePick();
   renderPickbar();
   if (S.sel) renderDrawer();
@@ -152,6 +155,7 @@ function renderPickbar() {
     ${slot('map', !!s, s ? `<span class="pk-map" data-level="${esc(s.map)}"></span>` : icon('map'), s ? (sv ? sv.name : scenarioName(s)) : '',
       s ? esc(t('kind.' + s.kind)) + (sv ? ` · ${esc(scenarioName(s))}` : '') + (mismatch ? ` <span class="pk-warn">${esc(t('pick.mismatch'))}</span>` : '') : '', 'pick.chooseMap')}
     <button class="icon-btn pk-mission" data-pk-mission title="${esc(t('mission.title'))}">${icon('gear')}</button>
+    <button class="icon-btn pk-mission" data-pk-save title="${esc(t('combo.save'))}" ${v && s ? '' : 'disabled'}>${icon('save')}</button>
     <button class="btn btn-primary" data-pk-go ${v && s ? '' : 'disabled'}>${icon('play')}<span>${esc(t('action.generate'))}</span></button>`;
   observeThumbs(bar);
 }
@@ -178,6 +182,7 @@ function onPickbarClick(e) {
   }
   if (e.target.closest('[data-pk-go]')) return createFromPick(e.target.closest('[data-pk-go]'));
   if (e.target.closest('[data-pk-mission]')) return openMissionDialog();
+  if (e.target.closest('[data-pk-save]')) return saveCombo();
   const slot = e.target.closest('[data-pk]');
   if (!slot) return;
   if (slot.dataset.pk === 'map') return showView('maps');

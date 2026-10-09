@@ -878,7 +878,6 @@ table.cmp tbody tr:hover td.best { background: var(--accent-soft); }
 #cmpTable .upg { margin: 0 0 12px; }
 
 /* ------------------------------------------------------------------ weapons page */
-body.view-weapons .sidebar, body.view-weapons #compareTray { display: none; }
 .ar-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
 .ar-cats .chipbtn { height: 30px; padding: 0 12px; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
 .ar-cats .chipbtn .n { font-size: 10.5px; color: var(--muted); font-weight: 600; }
@@ -964,7 +963,6 @@ body.pick-on .compare-tray { max-width: calc(100% - var(--side-w) - 560px); }
 .pk-warn { color: var(--warn); }
 .pk-clear { width: 26px; height: 26px; flex: none; }
 .pk-plus { color: var(--text-2); font-weight: 700; }
-body.view-maps .sidebar, body.view-maps #compareTray { display: none; }
 .mp-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .mp-search { width: 260px; }
 .mp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; padding-bottom: 90px; }
@@ -994,7 +992,7 @@ body.view-maps .sidebar, body.view-maps #compareTray { display: none; }
   .layout.drawer-open .pickbar { display: none; }
   .pk-slot { max-width: none; flex: 1; }
 }
-body.pick-on #view-vehicles { padding-bottom: 80px; }
+body.pick-on #view-vehicles, body.pick-on #view-mymaps, body.pick-on #view-setups { padding-bottom: 96px; }
 /* fixed presets: the game's 13 columns, narrower so they fit the panel */
 .lgrid.fixed { grid-template-columns: minmax(80px, 1.2fr) repeat(var(--lcols), 24px); }
 .lgrid.fixed .lcell { width: 24px; height: 34px; }
@@ -1004,3 +1002,5 @@ body.pick-on #view-vehicles { padding-bottom: 80px; }
 .mv-saved.active { border-style: solid; }
 .mset { border-top: 1px solid var(--line); padding: 14px 0 6px; }
 .mset .field { margin-top: 10px; }
+.list-head { margin: 18px 0 8px; font: 700 14px var(--font-display); color: var(--text-2); }
+body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
