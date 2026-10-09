@@ -673,12 +673,8 @@ option { background: var(--surface); }
 .ed-panel { overflow-y: auto; overflow-x: hidden; min-width: 0; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
 .ed-panel > *, .ed-panel .field, .ed-panel .seg { min-width: 0; max-width: 100%; }
 .ed-panel .seg { flex-wrap: wrap; }
-.ed-filters { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-.ed-kinds { display: flex; flex-wrap: wrap; gap: 4px; }
-.ed-kinds .chip { cursor: pointer; border: 1px solid transparent; }
-.ed-kinds .chip.on { border-color: var(--accent); color: var(--accent-2); background: var(--accent-soft); }
-.ed-br { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-.ed-br input { width: 64px; }
+.ed-filters { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); }
+.ed-filters .side-title { margin: 4px 0 0; }
 .ed-count { font-size: 11.5px; margin-top: 6px; }
 .ed-title { display: flex; align-items: center; gap: 8px; font-size: 15px; margin-bottom: 2px; }
 .ed-sub { font-size: 12px; margin-bottom: 12px; }

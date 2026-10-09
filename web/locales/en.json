@@ -364,7 +364,6 @@
   "editor.block.ships": "Naval",
   "editor.vehicle": "Vehicle",
   "editor.searchVehicle": "Search a vehicle…",
-  "editor.filtersClear": "Clear filters",
   "editor.vehiclesCount": "{n} vehicles",
   "editor.count": "Count",
   "editor.fire": "Fire",

@@ -364,7 +364,6 @@
   "editor.block.ships": "Флот",
   "editor.vehicle": "Техника",
   "editor.searchVehicle": "Поиск техники…",
-  "editor.filtersClear": "Сбросить фильтры",
   "editor.vehiclesCount": "Техника: {n}",
   "editor.count": "Количество",
   "editor.fire": "Огонь",

@@ -7,7 +7,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 ## Unreleased
 
 - **Map editor**: fills the window (4K too), its side panel no longer scrolls sideways. The vehicle picker shows
-  every vehicle of the kind, by BR, with filters: nations, classes (fighter, bomber…), BR range.
+  every vehicle of the kind, by BR, with the Vehicles menu's filters: nations, rank, battle rating
+  (its AB / RB / SB mode), type.
 - Fix: an AI unit's Configure from the Maps window left that window over the vehicle panel; it now steps aside and
   comes back when the editor closes.
 - New cheat **Super mobility** (custom vehicles): ground vehicles get engine power ×4, top speed ×2, brakes ×3;

@@ -14,7 +14,7 @@ const ED = {
   view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', resTab: 'all', layers: [],
   labels: [], clip: null, mouse: null, byName: new Map(), configuring: false,
   auto: { src: 'me', br: 5.0, nations: [], who: 'enemy', fire: '' },
-  vf: { nations: [], kinds: [], brMin: 1, brMax: 14.3 },  // the vehicle picker's filters
+  vf: null,  // the vehicle picker's filters (edVfReset)
   hidden: [],  // dialogs closed while a unit's loadout is configured (the map window): back when the editor closes  // "Vehicles by BR"
 };
 
@@ -853,9 +853,15 @@ function edBind() {
   $('#edPanel').addEventListener('toggle', ev => { if (ev.target.classList?.contains('ed-auto')) ED.auto.open = ev.target.open; }, true);
   $('#edPanel').addEventListener('input', ev => {
     if (ev.target.id === 'edSearch') { ED.search = ev.target.value; edRenderResults(); }
-    if (ev.target.dataset.edvfn) {  // BR range
-      const v = parseFloat(ev.target.value);
-      if (Number.isFinite(v)) { ED.vf[ev.target.dataset.edvfn] = Math.max(1, Math.min(14.3, v)); edRenderResults(); }
+    if (ev.target.dataset.edvfn) {  // BR range (dual slider): the list follows while dragging
+      const box = ev.target.closest('.range'), f = ED.vf ||= edVfReset();
+      let [a, b] = [...box.querySelectorAll('input')].map(i => +i.value);
+      if (a > b) [a, b] = [b, a];
+      Object.assign(f, { brMin: a, brMax: b });
+      const pct = x => ((x - BR_MIN) / (BR_MAX - BR_MIN)) * 100;
+      Object.assign($('#edBrFill').style, { left: pct(a) + '%', right: (100 - pct(b)) + '%' });
+      $('#edBrMinLabel').textContent = a.toFixed(1); $('#edBrMaxLabel').textContent = b.toFixed(1);
+      edRenderResults();
     }
     if (ev.target.dataset.edautof === 'br') ev.target.nextElementSibling.textContent = `BR ${(+ev.target.value).toFixed(1)}`;
     if (ev.target.dataset.edf === 'pyaw') {  // the arrow turns with the slider
@@ -1312,18 +1318,34 @@ function edVehicleField(cats) {
     <div class="ed-count muted" id="edCount"></div>
     <div class="ed-results" id="edResults" data-cats="${cats.join(',')}"></div></div>`;
 }
-// the picker's filters: nations (none: all), kinds of vehicle, BR range
+// the picker's filters, as the Vehicles menu's: nations, rank, battle rating (its AB / RB / SB mode), type
+const edVfReset = () => ({ nations: [], ranks: [], roles: [], brMin: BR_MIN, brMax: BR_MAX });
 function edFilterHTML(cats) {
-  const f = ED.vf;
-  const kinds = [...new Set(S.vehicles.filter(v => cats.includes(v.c) && !v.h && v.k).map(v => v.k))];
+  const f = ED.vf ||= edVfReset();
+  const pool = S.vehicles.filter(v => cats.includes(v.c) && !v.h);
+  const maxRank = Math.max(...pool.map(v => v.r || 0), 1);
+  const counts = {};
+  for (const v of pool) for (const r of v.ro || []) counts[r] = (counts[r] || 0) + 1;
+  const roles = ROLE_ORDER.filter(r => counts[r]);
+  const pct = x => ((x - BR_MIN) / (BR_MAX - BR_MIN)) * 100;
+  const changed = f.nations.length || f.ranks.length || f.roles.length || f.brMin > BR_MIN || f.brMax < BR_MAX;
   return `<div class="ed-filters">
-    <div class="nations ed-nations${f.nations.length ? ' has-active' : ''}">${NATIONS.map(x => `<button class="nation${f.nations.includes(x) ? ' active' : ''}" data-edvf="nat:${x}" title="${esc(nationName(x))}">
+    <div class="side-title">${esc(t('filters.nations'))}</div>
+    <div class="nations${f.nations.length ? ' has-active' : ''}">${NATIONS.map(x => `<button class="nation${f.nations.includes(x) ? ' active' : ''}" data-edvf="nat:${x}" title="${esc(nationName(x))}">
       <img src="${flagImg(x)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'fallback',textContent:'${x.slice(0, 3).toUpperCase()}'}))"></button>`).join('')}</div>
-    ${kinds.length > 1 ? `<div class="ed-kinds">${kinds.map(k => `<button class="chip${f.kinds.includes(k) ? ' on' : ''}" data-edvf="kind:${esc(k)}">${esc(className(k))}</button>`).join('')}</div>` : ''}
-    <div class="ed-br"><label>BR</label>
-      <input type="number" min="1" max="14.3" step="0.3" data-edvfn="brMin" value="${f.brMin}">
-      <span>–</span><input type="number" min="1" max="14.3" step="0.3" data-edvfn="brMax" value="${f.brMax}">
-      ${f.nations.length || f.kinds.length || f.brMin > 1 || f.brMax < 14.3 ? `<button class="btn btn-ghost btn-sm" data-edvf="clear">${esc(t('editor.filtersClear'))}</button>` : ''}</div>
+    <div class="side-title">${esc(t('filters.rank'))}</div>
+    <div class="ranks">${Array.from({ length: maxRank }, (_, k) => k + 1).map(r => `<button class="rank-chip${f.ranks.includes(r) ? ' active' : ''}" data-edvf="rank:${r}">${ROMAN[r] || r}</button>`).join('')}</div>
+    <div class="side-title">${esc(t('filters.br'))}</div>
+    <div class="range">
+      <div class="range-track"><div class="range-fill" id="edBrFill" style="left:${pct(f.brMin)}%;right:${100 - pct(f.brMax)}%"></div></div>
+      <input type="range" min="${BR_MIN}" max="${BR_MAX}" step="0.1" data-edvfn="brMin" value="${f.brMin}">
+      <input type="range" min="${BR_MIN}" max="${BR_MAX}" step="0.1" data-edvfn="brMax" value="${f.brMax}">
+    </div>
+    <div class="range-labels"><span id="edBrMinLabel">${f.brMin.toFixed(1)}</span><span id="edBrMaxLabel">${f.brMax.toFixed(1)}</span></div>
+    ${roles.length > 1 ? `<div class="side-title">${esc(t('filters.type'))}</div>
+    <div class="roles">${roles.map(r => `<button class="role-chip${f.roles.includes(r) ? ' active' : ''}" data-edvf="role:${r}">
+      <span>${esc(I18N.role(r))}</span><i>${I18N.num(counts[r])}</i></button>`).join('')}</div>` : ''}
+    ${changed ? `<button class="btn btn-ghost btn-sm btn-block" data-edvf="clear">${icon('refresh', 'ic-sm')}${esc(t('filters.reset'))}</button>` : ''}
   </div>`;
 }
 function edLoadoutSummary(st) {
@@ -1406,16 +1428,18 @@ function edRenderResults() {
       || `<p class="hint">${esc(t('editor.noMine'))}</p>`;
     return;
   }
-  const q = norm(ED.search), f = ED.vf;
-  // every vehicle of that kind that the filters keep, by BR
+  const q = norm(ED.search), f = ED.vf ||= edVfReset();
+  // every vehicle of that kind that the filters keep, by BR (the Vehicles menu's AB / RB / SB mode)
+  const fullBR = f.brMin <= BR_MIN && f.brMax >= BR_MAX;
   const list = S.vehicles.filter(v => cats.includes(v.c) && !v.h && (!q || v._s.includes(q))
-    && (!f.nations.length || f.nations.includes(v.n)) && (!f.kinds.length || f.kinds.includes(v.k))
-    && (v.br?.[1] ?? 0) >= f.brMin - 0.01 && (v.br?.[1] ?? 0) <= f.brMax + 0.01);
-  list.sort((a, b) => (a.br?.[1] ?? 99) - (b.br?.[1] ?? 99) || I18N.unit(a.id).localeCompare(I18N.unit(b.id)));
+    && (!f.nations.length || f.nations.includes(v.n)) && (!f.ranks.length || f.ranks.includes(v.r))
+    && (!f.roles.length || (v.ro || []).some(r => f.roles.includes(r)))
+    && (fullBR || (brOf(v) != null && brOf(v) >= f.brMin - 0.01 && brOf(v) <= f.brMax + 0.01)));
+  list.sort((a, b) => (brOf(a) ?? 99) - (brOf(b) ?? 99) || I18N.unit(a.id).localeCompare(I18N.unit(b.id)));
   const count = $('#edCount');
   if (count) count.textContent = t('editor.vehiclesCount', { n: list.length });
   box.innerHTML = list.map(v => `<button class="ed-vc${v.id === cur ? ' active' : ''}" data-edcls="${esc(v.id)}" title="${esc(I18N.unitFull(v.id))}">
-      <div class="ed-vc-img">${unitImgTag(v.id)}<span class="ed-vc-br">${fmtBR(v.br?.[1])}</span></div>
+      <div class="ed-vc-img">${unitImgTag(v.id)}<span class="ed-vc-br">${fmtBR(brOf(v))}</span></div>
       <span class="ed-vc-name">${flagHTML(v.n)}${esc(I18N.unit(v.id))}</span></button>`).join('')
     || `<p class="hint">${esc(t('results.empty'))}</p>`;
 }
@@ -1483,10 +1507,12 @@ function edPanelClick(ev) {
   }
   if (b.dataset.edtab) { ED.resTab = b.dataset.edtab; edRenderPanel(); return; }
   if (b.dataset.edvf) {  // the vehicle picker's filters
-    const [k, x] = b.dataset.edvf.split(/:(.*)/s), f = ED.vf;
-    if (k === 'clear') ED.vf = { nations: [], kinds: [], brMin: 1, brMax: 14.3 };
-    else if (k === 'nat') f.nations = f.nations.includes(x) ? f.nations.filter(y => y !== x) : [...f.nations, x];
-    else if (k === 'kind') f.kinds = f.kinds.includes(x) ? f.kinds.filter(y => y !== x) : [...f.kinds, x];
+    const [k, x] = b.dataset.edvf.split(/:(.*)/s), f = ED.vf ||= edVfReset();
+    const toggle = (list, v) => (list.includes(v) ? list.filter(y => y !== v) : [...list, v]);
+    if (k === 'clear') ED.vf = edVfReset();
+    else if (k === 'nat') f.nations = toggle(f.nations, x);
+    else if (k === 'rank') f.ranks = toggle(f.ranks, +x);
+    else if (k === 'role') f.roles = toggle(f.roles, x);
     edRenderPanel();
     return;
   }
