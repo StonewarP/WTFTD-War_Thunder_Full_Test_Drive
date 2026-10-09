@@ -22,8 +22,9 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Vehicles by BR → Fire: Attacks**: the units it sets also fire at you (test flight and test drive targets are
   passive). Template units set to Attacks in the editor now stay so: the templates' scripts made them passive
   again when they respawned them, WTFTD sets them back every 3 s.
-- **SAM batteries**: Vehicles by BR picks a battery's launcher, never its radar alone; the mission adds the battery's
-  fire control radar next to each AI launcher (in the same squad, so the scripts move them together).
+- **Vehicles by BR** only picks vehicles that fire on their own (not a SAM battery's radar or launcher: AI ones
+  don't fire); with Fire: Attacks, enemy aircraft also hunt you. Template units hunting you are told again every
+  10 s (their scripts bring them in later, on a route of their own).
 - **Test flights**: the targets and airfield follow your vehicle's rank (high from rank V), as when the game starts
   them from the hangar (a user mission kept the low ones: a dirt strip).
 - The map settings' **Training targets** (scenario / my BR / a BR) are gone: Vehicles by BR in the map editor

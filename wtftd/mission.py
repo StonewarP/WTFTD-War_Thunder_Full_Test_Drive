@@ -402,43 +402,6 @@ def take_over_units(m: dict, names: set) -> set:
     return brought
 
 
-def add_battery_radars(m: dict, batteries: dict) -> int:
-    """A SAM launcher needs its battery's fire control radar: one is added next to each launcher (ground units),
-    in the launcher's squads so the scenario's scripts move / wake them together. batteries = {launcher: radar}.
-    Returns how many were added."""
-    units = m.get("units") or {}
-    names = {u.get("name") for v in units.values() for u in _as_list(v) if isinstance(u, dict)}
-    squads = [s for s in _as_list(units.get("squad")) if isinstance(s, dict)]
-    added = 0
-    for u in list(_as_list(units.get("tankModels"))):
-        radar = batteries.get(u.get("unit_class")) if isinstance(u, dict) else None
-        if not radar or not _CLASS.match(str(radar)) or not isinstance(u.get("tm"), list) or len(u["tm"]) != 4:
-            continue
-        name = f"{u['name']}_radar"
-        if name in names:
-            continue
-        r = copy.deepcopy(u)
-        r["name"], r["unit_class"], r["weapons"] = name, radar, ""
-        for k in [k for k in r if re.fullmatch(r"bullets(Count|Weapon)?\d", k)]:
-            r[k] = 0 if k.startswith("bulletsCount") else ""
-        try:  # 30 m to the launcher's side
-            side = [float(c) for c in u["tm"][2]]
-            norm = math.hypot(side[0], side[2]) or 1.0
-            pos = [float(c) for c in u["tm"][3]]
-            r["tm"][3] = [pos[0] + side[0] / norm * 30.0, pos[1], pos[2] + side[2] / norm * 30.0]
-        except (TypeError, ValueError, IndexError):
-            continue
-        r.setdefault("props", {})["count"] = 1
-        _append_unit(units, "tankModels", r)
-        names.add(name)
-        for s in squads:
-            members = _as_list((s.get("props") or {}).get("squad_members"))
-            if u["name"] in members:
-                s["props"]["squad_members"] = members + [name]
-        added += 1
-    return added
-
-
 def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
     """Map editor changes:
     units: {name: {cls, count, attack, behavior, remove, side, x, y, z}}   existing units of the scenario
@@ -450,7 +413,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
               | "follow" (unitMoveTo following the player: escort)
     attack:   "" | fire_at_will | return_fire | hold_fire (+ cannotShoot)"""
     units = m.setdefault("units", {})
-    stay, hunt, passive, sleep, follow, shoot = [], [], [], [], [], []
+    stay, hunt, passive, sleep, follow, shoot, tpl_hunt = [], [], [], [], [], [], []
     _, _, pu = _find_player(units, wing)
     my_army = (pu.get("props") or {}).get("army", 1) if pu else 1
     enemy_army = 2 if my_army == 1 else 1
@@ -493,7 +456,10 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         if e.get("remove"):  # unit from an imported game template
             sleep.append(name)
             continue
-        behavior(name, e)
+        if e.get("behavior") == "hunt":  # its scripts may bring it in later, on a route of theirs
+            tpl_hunt.append(name)
+        else:
+            behavior(name, e)
         if e.get("attack") == "hold_fire":
             passive.append(name)
         elif e.get("attack") == "fire_at_will":  # a template unit: made to fire by a start trigger
@@ -582,7 +548,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
                                  "horizontalDirectionForTeleport": True, "object_marking": 0, "target_marking": 0,
                                  "waypointReachedDist": 10.0, "recalculatePathDist": -1.0, "follow_radius": 60.0,
                                  "follow_offset": [-60.0, 0.0, 40.0]}
-    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True}) if actions or shoot else None
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True}) if actions or shoot or tpl_hunt else None
     if actions and isinstance(triggers, dict):
         triggers["wtftd_editor"] = _trigger({"initMission": {}}, actions, False)
     if shoot and isinstance(triggers, dict):
@@ -590,6 +556,12 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         # (re)spawn them (cannotShoot), so this holds every 3 s
         triggers["wtftd_attack"] = _trigger({"periodicEvent": {"time": 3.0}}, {"unitSetProperties": {
             "object": shoot, "attack_type": "fire_at_will", "cannotShoot": False}}, True)
+    if tpl_hunt and isinstance(triggers, dict):
+        # template units hunting you: asleep at start, then spawned by their scripts on a route of their own (aircraft
+        # on it engage no one), so the order is given again every 10 s
+        attacks = [{"playerAttracted": True, "object": n, "target": wing, "fireRandom": False} for n in tpl_hunt]
+        triggers["wtftd_hunt"] = _trigger({"periodicEvent": {"time": 10.0}},
+                                          {"unitAttackTarget": attacks if len(attacks) > 1 else attacks[0]}, True)
 
 
 def _test_flight_spawn(m: dict) -> tuple[dict, str] | None:
@@ -1012,8 +984,6 @@ def build(cfg: dict) -> tuple[str, str]:
                 set_vehicle(u, swaps[u["name"]])
                 if swaps[u["name"]].get("attack") in ATTACK_TYPES:
                     u.setdefault("props", {})["attack_type"] = swaps[u["name"]]["attack"]
-    if isinstance(cfg.get("_batteries"), dict):
-        add_battery_radars(m, cfg["_batteries"])
 
     # ---- mission settings
     mtype = cfg.get("missionType") or "singleMission"

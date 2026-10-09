@@ -1013,18 +1013,13 @@ function edBindMenu() {
 const ED_AUTO_KINDS = { ground: ['tank', 'heavy_tank', 'tank_destroyer'], air: ['fighter', 'assault', 'bomber'], heli: ['helicopter'],
   ship: ['destroyer', 'cruiser'], boat: ['torpedo_boat', 'gun_boat', 'torpedo_gun_boat', 'submarine_chaser'] };
 const edBR = v => v?.br?.[1];
-// vehicles of the research trees (not killstreak, event or test ones); a SAM battery's slot is its fire control
-// radar (unarmed, "<x>_fcs"): its launcher stands for it (the mission adds the radar next to it: mission.add_battery_radars)
+// vehicles of the research trees (not killstreak, event or test ones)
 let edTreeSet = null;
 function edTreeIds() {
   if (edTreeSet) return edTreeSet;
   edTreeSet = new Set();
   const walk = n => { if (Array.isArray(n)) n.forEach(walk); else if (n && typeof n === 'object') { if (typeof n.id === 'string') edTreeSet.add(n.id); Object.values(n).forEach(walk); } };
   walk(S.trees || {});
-  for (const id of [...edTreeSet]) {
-    const launcher = /_fcs$/.test(id) && S.byId.get(id.replace(/_fcs$/, '_launcher'));
-    if (launcher) edTreeSet.add(launcher.id);
-  }
   return edTreeSet;
 }
 const edMyBR = () => edBR(S.byId.get(S.cfg?.vehicle));
@@ -1055,8 +1050,9 @@ function edAutoPick(units, br, nations, follow, fire = '') {
   const tree = edTreeIds();
   for (const { c, k, units: us } of groups.values()) {
     const kinds = k ? [k] : ED_AUTO_KINDS[c] || [];
-    // armed ones only (a SAM battery's radar alone can't shoot)
-    const cands = S.vehicles.filter(v => v.c === c && !v.h && edBR(v) && (!tree.size || tree.has(v.id)) && (v.wg?.length || v.wp?.length)
+    // vehicles that fire on their own: armed (a SAM battery's slot is its radar, "<x>_fcs"), not a battery's
+    // launcher (AI ones don't fire, even with the battery's radar next to them: checked in game)
+    const cands = S.vehicles.filter(v => v.c === c && !v.h && edBR(v) && (!tree.size || tree.has(v.id)) && (v.wg?.length || v.wp?.length) && !/_launcher$/.test(v.id)
       && (!nations.length || nations.includes(v.n)) && (!kinds.length || kinds.includes(v.k)));
     let near = [];
     for (const w of [0.35, 0.7, 1.4, 3, 99]) {
@@ -1073,7 +1069,12 @@ function edAutoPick(units, br, nations, follow, fire = '') {
       order = [];
       while ([...by.values()].some(l => l.length)) for (const l of by.values()) if (l.length) order.push(l.shift());
     }
-    us.forEach((u, i) => { edSet(u, { cls: order[i % order.length].id, auto: follow ? { nations } : null, ...(fire ? { attack: fire } : {}) }); n++; });
+    us.forEach((u, i) => {
+      // Attacks: enemy aircraft also hunt you (on their route they don't engage anyone)
+      const hunt = fire === 'fire_at_will' && u.block === 'armada' && edSide(edUnitState(u)) === 'enemy';
+      edSet(u, { cls: order[i % order.length].id, auto: follow ? { nations } : null, ...(fire ? { attack: fire } : {}), ...(hunt ? { behavior: 'hunt' } : {}) });
+      n++;
+    });
   }
   return n;
 }
