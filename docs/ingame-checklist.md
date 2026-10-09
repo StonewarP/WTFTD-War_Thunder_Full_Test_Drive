@@ -186,12 +186,24 @@ flight model's breaking limits raised (`Vne`, `VneMach`, `Strength/VNE` and `MNE
 - [x] r8 with the thrust fixed (2026-10-09, live: Mach 3.49, 2806 km/h IAS at 6600 m): power OK, but the wings
   broke with speed: each wing's `Strength` block also has `MNE` (Mach limit, 0.96 on the F-14B), not raised.
   Fixed (`MNE`, and `VneHeli`, `chuteRipSpeed`).
-- [ ] **WTFTD r8b: invulnerable, unbreakable airframe (Mach limit too), hunted** (`wtftd_r8_invulnerable`): past
-  Mach 1 up to Mach 3+ and pulling hard, the wings stay on; the aircraft come at you and fire, you don't die.
+- [x] **WTFTD r8b: invulnerable, unbreakable airframe (Mach limit too), hunted** (`wtftd_r8_invulnerable`): past
+  Mach 1 up to Mach 3+ and pulling hard, the wings stay on; the aircraft come at you and fire, you don't die. All good (2026-10-09).
 - [x] (superseded by r8b) **WTFTD r8: invulnerable, unbreakable airframe, hunted** (`wtftd_r8_invulnerable`, F-14B, Afghanistan; the
   test is in its description): the MiG-29 and the target fighters still come at you and fire, you don't die;
   past the speed limit (thrust ×20 to get there fast) and pulling hard the wings stay on, gear and flaps don't
   break.
+
+## 2h. Super mobility cheat (new)
+
+Custom vehicles. Ground vehicles: `engine/horsePowers` ×4, `mechanics/mainGearRatio` ÷2 (top speed ×2),
+`mechanics/maxBrakeForce` ×3. Aircraft: jets `ThrustMax0` ×3, piston engines `Main/Power` and the compressor's
+`Power<n>` / `PowerConstRPM<n>` / `PowerAtCeiling<n>` ×3; `Mass/EmptyMass` ×0.6. A value set under Modifications
+wins. (The ground modifications themselves had never been checked in game.)
+
+- [ ] **WTFTD r9a: super mobility, T-72A** (`wtftd_r9_mobility_tank`, tank test drive): much faster acceleration,
+  top speed about 120 km/h instead of 60, still turns and brakes well.
+- [ ] **WTFTD r9b: super mobility, Bf 109 F-4** (`wtftd_r9_mobility_air`, Afghanistan test flight): 3510 hp instead
+  of 1170, 40 % lighter: much stronger climb and acceleration, tighter turns, the engine runs normally.
 
 ## 3. Ammunition icons (UI only)
 

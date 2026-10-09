@@ -266,6 +266,8 @@
   "cheat.immortalHint": "Tvé vozidlo nelze zničit. U vlastních vozidel je jeho model poškození 1000× odolnější; pozemní vozidla a lodě se navíc okamžitě opravují.",
   "cheat.noOverload": "Nezničitelný drak",
   "cheat.noOverloadHint": "Křídla se neutrhnou rychlostí ani přetížením; podvozek, klapky ani překryt se také nerozbijí (vlastní vozidla: limity letového modelu jsou zvýšeny).",
+  "cheat.superMobility": "Super mobilita",
+  "cheat.superMobilityHint": "Pozemní vozidla: výkon ×4, maximální rychlost ×2, brzdy ×3. Letadla: výkon / tah ×3, o 40 % lehčí. Vlastní vozidla; hodnota nastavená v Úpravách má přednost.",
   "cheat.needsCdk": "(Vyžaduje vlastní vozidla.)",
   "cheat.infAmmo": "Neomezená munice",
   "cheat.infAmmoHint": "Hra doplní munici, když dojde.",

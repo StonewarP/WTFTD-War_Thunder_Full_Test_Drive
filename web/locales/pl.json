@@ -266,6 +266,8 @@
   "cheat.immortalHint": "Twój pojazd nie może zostać zniszczony. W pojazdach niestandardowych jego model uszkodzeń jest 1000× wytrzymalszy; pojazdy naziemne i okręty są też natychmiast naprawiane.",
   "cheat.noOverload": "Niezniszczalny płatowiec",
   "cheat.noOverloadHint": "Skrzydła nie odpadają od nadmiernej prędkości ani przeciążenia; podwozie, klapy i owiewka też się nie łamią (własne pojazdy: limity modelu lotu są podniesione).",
+  "cheat.superMobility": "Super mobilność",
+  "cheat.superMobilityHint": "Pojazdy naziemne: moc ×4, prędkość maksymalna ×2, hamulce ×3. Samoloty: moc / ciąg ×3, 40 % lżejszy. Własne pojazdy; wartość ustawiona w Modyfikacjach ma pierwszeństwo.",
   "cheat.needsCdk": "(Wymaga własnych pojazdów.)",
   "cheat.infAmmo": "Nieskończona amunicja",
   "cheat.infAmmoHint": "Gra uzupełnia amunicję, gdy się skończy.",

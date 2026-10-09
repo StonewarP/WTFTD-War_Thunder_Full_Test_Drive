@@ -759,7 +759,8 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
 
     active = [label for key, label in (("immortal", "invulnerable"), ("infAmmo", "unlimited ammo"), ("noReload", "no reload"),
                                        ("infFuel", "unlimited fuel"), ("passiveEnemies", "passive targets"), ("hostileEnemies", "targets shoot"),
-                                       ("ghost", "no collisions"), ("noOverload", "unbreakable airframe")) if ch.get(key)]
+                                       ("ghost", "no collisions"), ("noOverload", "unbreakable airframe"),
+                                       ("superMobility", "super mobility")) if ch.get(key)]
     every = float(ch.get("repairEvery") or 0)
     if every > 0:
         active.append(f"repair every {int(every)} s")

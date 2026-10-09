@@ -213,6 +213,28 @@ def _structural_overrides(node, path=()) -> dict:
     return out
 
 
+def _power_overrides(fm: dict, mul: float) -> dict:
+    """{path: (type, value)} multiplying an aircraft's engine output: jets their thrust table base (ThrustMax0),
+    piston engines their power (Main/Power and the compressor's Power<n> / PowerConstRPM<n> / PowerAtCeiling<n>)."""
+    out = {}
+    for ek, e in (fm or {}).items():
+        if not (ek.startswith("Engine") and isinstance(e, dict) and isinstance(e.get("Main"), dict)):
+            continue
+        main = e["Main"]
+        base = (main.get("ThrustMax") or {}).get("ThrustMax0") if isinstance(main.get("ThrustMax"), dict) else None
+        if main.get("Type") == "Jet":
+            if isinstance(base, (int, float)) and base > 0:
+                out[(ek, "Main", "ThrustMax", "ThrustMax0")] = ("r", float(base) * mul)
+            continue
+        if isinstance(main.get("Power"), (int, float)) and main["Power"] > 0:
+            out[(ek, "Main", "Power")] = ("r", float(main["Power"]) * mul)
+        comp = e.get("Compressor")
+        for k, v in (comp.items() if isinstance(comp, dict) else ()):
+            if re.fullmatch(r"(Power|PowerConstRPM|PowerAtCeiling)\d+", k) and isinstance(v, (int, float)) and v > 0:
+                out[(ek, "Compressor", k)] = ("r", float(v) * mul)
+    return out
+
+
 def _write_tree(b: "Blk", tree: dict):
     """Writes {path: (type, value)} as nested @override blocks."""
     groups: dict = {}
@@ -365,6 +387,12 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
             tree: dict = {}  # {path: (type, value)}, one block per section
             if mods.get("noStructural") and isinstance(fm_data, dict):
                 tree.update(_structural_overrides(fm_data))
+            if mods.get("superMobility") and isinstance(fm_data, dict):
+                # super mobility (aircraft): engine output x3 and 40 % lighter, unless set by hand
+                if not thrust_mul:
+                    tree.update(_power_overrides(fm_data, 3.0))
+                if not mass and st.get("mass"):
+                    tree[("Mass", "EmptyMass")] = ("r", float(st["mass"]) * 0.6)
             if mass:
                 tree[("Mass", "EmptyMass")] = ("r", mass)
             if fuel is not None:

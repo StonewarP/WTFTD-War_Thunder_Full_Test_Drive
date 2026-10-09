@@ -694,10 +694,19 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     unit_data = None
     if (body.get("cheats") or {}).get("immortal"):
         mods["invulnerable"] = True
+    st0 = det.get("st") or {}
+    if (body.get("cheats") or {}).get("superMobility") and veh["c"] == "ground":
+        # super mobility: engine power x4, top speed x2 (final drive), brakes x3; a value set in the panel wins
+        for key, value in (("hp", (st0.get("hp") or 0) * 4), ("speedMul", 2.0 if st0.get("gear") else 0),
+                           ("brake", (st0.get("brake") or 0) * 3)):
+            if value and mods.get(key) in (None, ""):
+                mods[key] = value
+    if (body.get("cheats") or {}).get("superMobility") and veh["c"] == "air":
+        mods["superMobility"] = True  # aircraft: engine output x3, 40 % lighter (cdk._power_overrides)
     fm_data = None
     if (body.get("cheats") or {}).get("noOverload") and veh["c"] in ("air", "heli"):
         mods["noStructural"] = True  # unbreakable airframe: the flight model's breaking limits raised
-    if veh["c"] in ("air", "heli") and (mods.get("noStructural") or mods.get("thrustMul")):
+    if veh["c"] in ("air", "heli") and (mods.get("noStructural") or mods.get("thrustMul") or mods.get("superMobility")):
         # the flight model itself (datamine): breaking limits, jets' thrust table
         fm = str((det.get("st") or {}).get("fm") or "")
         if fm:

@@ -6,6 +6,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- New cheat **Super mobility** (custom vehicles): ground vehicles get engine power ×4, top speed ×2, brakes ×3;
+  aircraft engine power / thrust ×3 and 40 % less weight. A value set under Modifications wins.
 - Fix: the **Thrust** modification of jets did nothing (the game takes their maximum thrust from the flight
   model's thrust table, which it now scales).
 - **Invulnerable**: AI aircraft now attack you too (it used the game's spawn protection, which they respect).

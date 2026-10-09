@@ -266,6 +266,8 @@
   "cheat.immortalHint": "Your vehicle can’t be destroyed. With custom vehicles its damage model is made 1000× tougher; ground vehicles and ships are also repaired instantly.",
   "cheat.noOverload": "Unbreakable airframe",
   "cheat.noOverloadHint": "No wings torn off by overspeed or g; gear, flaps and canopy don't break either (custom vehicles: the flight model's limits are raised).",
+  "cheat.superMobility": "Super mobility",
+  "cheat.superMobilityHint": "Ground vehicles: engine power ×4, top speed ×2, brakes ×3. Aircraft: engine power / thrust ×3, 40 % lighter. Custom vehicles; a value set under Modifications wins.",
   "cheat.needsCdk": "(Needs custom vehicles.)",
   "cheat.infAmmo": "Unlimited ammo",
   "cheat.infAmmoHint": "The game refills your ammo when you run out.",

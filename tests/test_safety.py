@@ -94,3 +94,21 @@ class JetThrust(unittest.TestCase):
         text = files["gameData/flightModels/fm/wtftd_x.blk"]
         self.assertIn('"@override:ThrustMax0":r=18780', text)  # what the game uses for a jet's maximum thrust
         self.assertNotIn("Engine0", text)
+
+
+class SuperMobility(unittest.TestCase):
+    def test_aircraft_engines_and_mass(self):
+        from wtftd import cdk
+        fm = {"EngineType0": {"Main": {"Type": "Jet", "Power": 1122.0, "ThrustMax": {"ThrustMax0": 6000.0}}},
+              "Engine0": {"Main": {"Type": "Inline", "Power": 900.0},
+                          "Compressor": {"Power0": 1020.0, "PowerConstRPM0": 200.0, "PowerAtCeiling0": 500.0,
+                                         "PowerConstRPMCurvature0": 0.5}}}
+        tree = cdk._power_overrides(fm, 3.0)
+        self.assertEqual(tree, {("EngineType0", "Main", "ThrustMax", "ThrustMax0"): ("r", 18000.0),
+                                ("Engine0", "Main", "Power"): ("r", 2700.0),
+                                ("Engine0", "Compressor", "Power0"): ("r", 3060.0),
+                                ("Engine0", "Compressor", "PowerConstRPM0"): ("r", 600.0),
+                                ("Engine0", "Compressor", "PowerAtCeiling0"): ("r", 1500.0)})
+        det = {"st": {"fm": "fm/x.blk", "mass": 1000.0}}
+        files = cdk.build_files("x", "air", det, {"superMobility": True}, "", None, "custom", None, {}, fm_data=fm)[0]
+        self.assertIn('"@override:EmptyMass":r=600', files["gameData/flightModels/fm/wtftd_x.blk"])  # 40 % lighter
