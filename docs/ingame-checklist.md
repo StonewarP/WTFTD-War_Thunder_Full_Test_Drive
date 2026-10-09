@@ -222,6 +222,18 @@ vehicle panel.)
 - [x] **WTFTD r10: AI with a custom loadout (Rafale)** (`wtftd_r10_ai_custom`, invulnerable): 2 enemy Rafale C F3
   with the saved "Rafale C F3 · Custom" pylons (5) hunt you: they carry those pylons and fire their missiles. Works (2026-10-09).
 
+## 2j. Uninstall (Settings) with the packaged app (new)
+
+`wtftd/uninstall.py`. Checked from the source tree (sizes, choices, confirm, the final screen; nothing removed)
+and on throwaway files: the post-exit script keeps retrying while the exe is locked and removes it about 1 s
+after it is released (`tasklist` hangs without a console and `timeout` fails there: not used). Not yet with a
+real WTFTD.exe.
+
+- [ ] With an exe built from `main`: back up `%LOCALAPPDATA%\WTFTD` first (it holds your settings and library),
+  then Settings → Uninstall WTFTD… → Everything → Remove, click again. The window says WTFTD was removed; once it
+  is closed, `WTFTD.exe` and `%LOCALAPPDATA%\WTFTD` are gone within a few seconds, the game's `wtftd_*` missions
+  and custom vehicle files too, nothing else in the game folder. Restore the backup afterwards.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own
