@@ -1549,3 +1549,4 @@ function showOnboarding() {
 document.addEventListener('DOMContentLoaded', () => boot().catch(e => { console.error(e); toastErr(e); }));
 // app window: tells the local server the page is gone (macOS keeps the browser running, WTFTD quits with the window)
 addEventListener('pagehide', () => navigator.sendBeacon('/api/bye'));
+setInterval(() => fetch('/api/ping').catch(() => {}), 15000);  // alive: WTFTD keeps serving while this page is open

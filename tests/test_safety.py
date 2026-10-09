@@ -131,3 +131,22 @@ class AircraftHandling(unittest.TestCase):
         self.assertEqual(t[("Aerodynamics", "Fuselage", "CdMin")], ("r", 0.005))
         self.assertIn(("Aerodynamics", "WingPlane", "FlapsPolar0", "ClCritHigh"), t)
         self.assertIn(("Aerodynamics", "HorStabPlane", "Areas", "Elevator"), t)
+
+
+class AppWindowLifetime(unittest.TestCase):
+    """WTFTD serves while its page lives, even when the browser process it started ended at once (Edge handing
+    its window to another of its processes)."""
+
+    def test_waits_for_the_page(self):
+        import time
+        from unittest import mock
+        from wtftd import server
+        with mock.patch.dict(server.PAGE, {"seen": 0.0, "bye": 0.0}):
+            t0 = time.time()
+            server.wait_page_gone(first=0.2, silence=60)  # the page never loaded
+            self.assertLess(time.time() - t0, 3)
+            server.PAGE.update(seen=time.time() - 0.5, bye=time.time() - 0.4)  # it said bye
+            with mock.patch.object(server, "page_closed", lambda: True):
+                server.wait_page_gone(first=0.2, silence=60)
+            server.PAGE.update(seen=time.time() - 120, bye=0.0)  # silent for 2 minutes
+            server.wait_page_gone(first=0.2, silence=60)

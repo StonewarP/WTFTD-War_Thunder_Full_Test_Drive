@@ -16,7 +16,7 @@ import webbrowser
 from pathlib import Path
 
 from .paths import CACHE, FROZEN, prepare
-from .server import ROOT, page_closed, serve
+from .server import ROOT, page_closed, serve, wait_page_gone
 
 # macOS: Chromium browsers that support app windows (--app), executable inside the bundle
 MAC_BROWSERS = ("Google Chrome.app/Contents/MacOS/Google Chrome", "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
@@ -111,7 +111,11 @@ def main():
                 if proc.poll() is None:
                     proc.terminate()
             else:
-                proc.wait()  # window closed -> quit
+                proc.wait()
+                # window closed -> quit. But Edge may hand its window to another of its processes (first launch
+                # with a new profile, an Edge already running in the background): the one started here then ends
+                # at once while the window lives on, so keep serving while the page does (it says bye on closing)
+                wait_page_gone()
         else:
             if "--no-window" not in sys.argv:
                 webbrowser.open(url)

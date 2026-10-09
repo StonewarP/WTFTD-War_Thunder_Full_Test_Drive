@@ -183,6 +183,21 @@ def page_closed(grace: float = 3.0) -> bool:
     return PAGE["bye"] > PAGE["seen"] and time.time() - PAGE["bye"] > grace
 
 
+def wait_page_gone(first: float = 30.0, silence: float = 60.0):
+    """Returns once the app page has closed (its "bye"), never loaded (first s) or went silent (silence s: it
+    pings every 15 s)."""
+    start = time.time()
+    while True:
+        seen = PAGE["seen"]
+        if page_closed():
+            return
+        if not seen and time.time() - start > first:
+            return
+        if seen and time.time() - seen > silence:
+            return
+        time.sleep(1)
+
+
 # --------------------------------------------------------------------------- API
 
 def api_status():
@@ -446,6 +461,8 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_file(target)
 
     def get_api(self, route: str):
+        if route == "ping":  # the app page is alive (every 15 s)
+            return self.send_json({"ok": True})
         if route == "status":
             return self.send_json(api_status())
         if route.startswith("vehicle/"):

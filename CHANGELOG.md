@@ -6,6 +6,9 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- Fix: on a first launch the app window could show "127.0.0.1 refused to connect": Edge handed its window to
+  another of its processes, and WTFTD took that for the window closing and quit. It now serves as long as its
+  page is open (the page pings it, and says goodbye when it closes).
 - Uninstall: a spinner shows while the files are removed (it can take a minute), so WTFTD doesn't look frozen.
 - Fix: at the end of an uninstall a console window opened (the script that removes the app once it has
   closed); it now runs hidden.
