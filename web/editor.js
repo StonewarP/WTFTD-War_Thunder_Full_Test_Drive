@@ -97,9 +97,9 @@ function edZoneItems(dpr) {
     const z = edZonePos(z0), info = edZoneInfo(z0);
     const sel = ED.sel?.zone === z0.name || hl.has(z0.name);
     const spawn = !!info.classes.length && !z0.player;
-    const big = Math.max(z.sx, z.sz) * ED.view.scale >= 10 * dpr;
-    // tiny unused zones are left out (their vehicles keep their marker)
-    const outline = outlined.has(z0) && (!spawn || big) && (z0.used || sel || ED.view.scale * Math.max(z.sx, 40) >= 3 * dpr);
+    // zones at their real size: one too small to see is left out (its vehicles keep their marker)
+    const px = Math.max(z.sx, z.sz) * ED.view.scale;
+    const outline = outlined.has(z0) && px >= (spawn ? 13 : 3) * dpr;
     if (outline || spawn) out.push({ z0, z, info, sel, spawn, outline });
   }
   return out;
@@ -110,7 +110,7 @@ function edDrawZones(dpr) {
     const color = info.role && info.role !== 'other' ? ED_COLORS[info.role] : z0.used ? '#e9edf2' : 'rgba(255,255,255,.5)';
     const [cx, cy] = edToScreen(z.x, z.z);
     if (outline) {
-      const rx = Math.max(z.sx * ED.view.scale, 4 * dpr), rz = Math.max(z.sz * ED.view.scale, 4 * dpr);
+      const rx = z.sx * ED.view.scale, rz = z.sz * ED.view.scale;
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(-z.yaw * Math.PI / 180);
@@ -129,7 +129,7 @@ function edDrawZones(dpr) {
     if (spawn) edZoneMarker(cx, cy, info, sel, dpr);  // a marker of what appears there
     // labels last, under the units' own (edDrawZoneLabels)
     const own = ED.sel?.zone === z0.name;
-    if (z0.used || sel) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: spawn ? cy - 19 * dpr : cy,
+    if ((z0.used || sel) && (outline || spawn || own)) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: spawn ? cy - 19 * dpr : cy,
       color: sel ? ED_COLORS.player : info.role && info.role !== 'other' ? color : '#e9edf2', force: own,
       prio: own ? 0 : z0.player ? 1 : info.role === 'enemy' || info.role === 'ally' ? 2 : info.role ? 3 : 4 });
   }
@@ -182,10 +182,10 @@ function edPill(text, x, y, color, dpr, { center = false, force = false, small =
 function edHitZone(sx, sy) {
   const dpr = window.devicePixelRatio || 1;
   let best = null, bd = Infinity;
-  for (const { z0, z, outline } of edZoneItems(dpr)) {
+  for (const { z0, z, outline, spawn } of edZoneItems(dpr)) {
     const [cx, cy] = edToScreen(z.x, z.z);
     const d = Math.hypot(cx - sx, cy - sy);
-    const r = Math.max(outline ? Math.max(z.sx, z.sz) * ED.view.scale : 0, 12 * dpr);
+    const r = Math.max(outline ? Math.max(z.sx, z.sz) * ED.view.scale : 0, spawn ? 12 * dpr : 6 * dpr);
     if (d <= r && d < bd) { bd = d; best = z0; }
   }
   return best;
@@ -218,6 +218,7 @@ function edDrawArrow(dpr) {
 
 async function openEditor() {
   const sid = S.cfg.scenario;
+  ED.before = S.cfg.edits ? JSON.stringify(S.cfg.edits) : null;  // Cancel puts these back
   try { ED.data = await api('scenario-units/' + encodeURIComponent(sid)); } catch (e) { toastErr(e); return; }
   edResolveStart(ED.data);
   if (S.map.targets?.mode && S.map.targets.mode !== 'scenario') {  // the map's training targets (maps.js)
@@ -863,6 +864,11 @@ function edBind() {
     edRenderPanel(); edDraw();
   });
   $('#edDone').addEventListener('click', () => $('#dlgEditor').close());
+  $('#edCancel').addEventListener('click', () => {  // the map as it was when the editor opened
+    if (ED.before) S.cfg.edits = JSON.parse(ED.before); else delete S.cfg.edits;
+    edPlacing(false);
+    $('#dlgEditor').close();
+  });
   $('#dlgEditor').addEventListener('keydown', ev => {
     if (ev.target.closest('input, select, textarea')) return;
     const mod = ev.ctrlKey || ev.metaKey, k = ev.key.toLowerCase();

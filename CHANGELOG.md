@@ -8,7 +8,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 - **Map editor**: the vehicles the scenario brings into its zones show as markers (triangle: aircraft,
   square: ground, diamond: ships, in a dashed ring) at every zoom; zone outlines are off by default (Zones
-  button) and hiding them keeps those markers. Clicking a unit in the list brings it into view
+  button), drawn at their real size (too small to see: left out) and hiding them keeps those markers.
+  **Cancel** next to Done puts the map back as it was when the editor opened. Clicking a unit in the list brings it into view
   (a unit the scenario places in game: the zones it may appear in, highlighted). **Right click** on the map:
   the useful actions right there (on a unit: loadout, side, movement, copy, duplicate, remove; on the map:
   paste here, add a ground unit / aircraft / ship here, start here, centre). **Paste** drops the copied units
