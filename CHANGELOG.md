@@ -7,13 +7,16 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 ## Unreleased
 
 - **Map editor**: the vehicles the scenario brings into its zones show as markers (triangle: aircraft,
-  square: ground, diamond: ships, in a dashed ring) at every zoom; zone outlines are off by default (Zones
-  button), drawn at their real size (too small to see: left out) and hiding them keeps those markers.
-  **Cancel** next to Done puts the map back as it was when the editor opened. Clicking a unit in the list brings it into view
-  (a unit the scenario places in game: the zones it may appear in, highlighted). **Right click** on the map:
-  the useful actions right there (on a unit: loadout, side, movement, copy, duplicate, remove; on the map:
-  paste here, add a ground unit / aircraft / ship here, start here, centre). **Paste** drops the copied units
-  centred on the pointer; the Paste button lets them follow the pointer until a click places them.
+  square: ground, diamond: ships, dashed white outline) at every zoom; zone outlines are off by default
+  (Zones button), drawn at their real size (too small to see: left out), and hiding them keeps those markers.
+  Clicking a unit in the list brings it into view and highlights it alone (a unit the scenario places in game:
+  the zones it may appear in). **Vehicles by BR**: every enemy, ally or selected unit gets a vehicle of its own
+  kind (fighter, bomber, tank, SPAA…) from the research trees at the BR closest to your vehicle's or to a BR
+  you choose, of one nation or of all in turn. **Right click** on the map: the useful actions right there (on a
+  unit: loadout, side, movement, copy, duplicate, remove; on the map: paste here, add a ground unit / aircraft
+  / ship here, start here, centre). **Paste** drops the copied units centred on the pointer; the Paste button
+  lets them follow the pointer until a click places them. **Cancel** next to Done puts the map back as it was
+  when the editor opened.
 - **Map editor**: zones say what the scenario puts there (your start, the vehicles it brings in, with
   pictures) and are coloured by side; the map is shaded, labels sit on dark pills, a tip names whatever is
   under the pointer, scenery can be hidden. **Several units at once**: Ctrl / Shift + click or Shift + drag

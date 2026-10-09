@@ -13,6 +13,7 @@ const ED = {
   data: null, sel: null, multi: [], mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true,
   view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', resTab: 'all', layers: [],
   labels: [], clip: null, mouse: null, byName: new Map(), configuring: false,
+  auto: { src: 'me', br: 5.0, nation: '', who: 'enemy' },  // "Vehicles by BR"
 };
 
 function edEdits() {
@@ -81,9 +82,10 @@ function edSetStart(patch) {
   const e = edEdits();
   e.player = { x: s.x, y: s.y, z: s.z, yaw: Math.round(s.yaw || 0), ...(edFlyer() ? { mode: s.air ? 'air' : 'ground', speed: s.speed } : {}), ...e.player, ...patch };
 }
-// zones where the selected unit(s) may appear (units the scenario places in game have no spot of their own)
+// zones where the selected unit(s) may appear: only for units the scenario places in game (no spot of their
+// own); a unit with its own marker is shown by it alone (the zones it respawns in list every vehicle)
 const edSelZones = () => {
-  const names = new Set(edSelUnits().map(u => u.name).filter(Boolean));
+  const names = new Set(edSelUnits().filter(u => u.runtime).map(u => u.name).filter(Boolean));
   return names.size ? (ED.data.areas || []).filter(z => (z.units || []).some(n => names.has(n))) : [];
 };
 // what the map shows of the zones: their outline (Zones on), and always a marker of the vehicles the
@@ -97,9 +99,8 @@ function edZoneItems(dpr) {
     const z = edZonePos(z0), info = edZoneInfo(z0);
     const sel = ED.sel?.zone === z0.name || hl.has(z0.name);
     const spawn = !!info.classes.length && !z0.player;
-    // zones at their real size: one too small to see is left out (its vehicles keep their marker)
-    const px = Math.max(z.sx, z.sz) * ED.view.scale;
-    const outline = outlined.has(z0) && px >= (spawn ? 13 : 3) * dpr;
+    // zones at their real size (Zones on): one too small to see is left out, its vehicles keep their marker
+    const outline = outlined.has(z0) && Math.max(z.sx, z.sz) * ED.view.scale >= 3 * dpr;
     if (outline || spawn) out.push({ z0, z, info, sel, spawn, outline });
   }
   return out;
@@ -142,18 +143,19 @@ function edShape(block, sx, sy, r) {
   else if (block === 'ships') { ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r, sy); ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r, sy); ctx.closePath(); }
   else ctx.rect(sx - r * 0.85, sy - r * 0.85, r * 1.7, r * 1.7);
 }
-// a spawn zone shown as the vehicle that appears there, in a dashed ring (it isn't a unit of its own)
+// the vehicle the scenario brings into a zone: its shape, a dashed white outline (not a unit of its own)
 function edZoneMarker(sx, sy, info, sel, dpr) {
   const { ctx } = ED;
-  const r = 6 * dpr, color = ED_COLORS[info.role] || ED_COLORS.other;
+  const r = 6 * dpr;
   ctx.save();
-  ctx.setLineDash([3 * dpr, 3 * dpr]);
-  ctx.strokeStyle = sel ? ED_COLORS.player : color; ctx.lineWidth = (sel ? 2 : 1.5) * dpr;
-  ctx.beginPath(); ctx.arc(sx, sy, r + 5 * dpr, 0, Math.PI * 2); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = color; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.lineWidth = 1.2 * dpr;
+  ctx.fillStyle = ED_COLORS[info.role] || ED_COLORS.other;
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.3 * dpr; ctx.setLineDash([2.5 * dpr, 2 * dpr]);
   edShape(info.block, sx, sy, r);
   ctx.fill(); ctx.stroke();
+  if (sel) {  // selected, or where the selected unit may appear
+    ctx.setLineDash([]); ctx.strokeStyle = ED_COLORS.player; ctx.lineWidth = 2 * dpr;
+    ctx.beginPath(); ctx.arc(sx, sy, r + 5 * dpr, 0, Math.PI * 2); ctx.stroke();
+  }
   ctx.restore();
 }
 function edDrawZoneLabels(dpr) {
@@ -842,8 +844,10 @@ function edBind() {
 
   $('#edPanel').addEventListener('click', ev => { edPanelClick(ev); });
   $('#edPanel').addEventListener('change', edPanelChange);
+  $('#edPanel').addEventListener('toggle', ev => { if (ev.target.classList?.contains('ed-auto')) ED.auto.open = ev.target.open; }, true);
   $('#edPanel').addEventListener('input', ev => {
     if (ev.target.id === 'edSearch') { ED.search = ev.target.value; edRenderResults(); }
+    if (ev.target.dataset.edautof === 'br') ev.target.nextElementSibling.textContent = `BR ${(+ev.target.value).toFixed(1)}`;
     if (ev.target.dataset.edf === 'pyaw') {  // the arrow turns with the slider
       edSetStart({ yaw: edYaw(+ev.target.value) });
       ev.target.nextElementSibling.textContent = `${ev.target.value}° ${edCardinal(+ev.target.value)}`;
@@ -1004,6 +1008,96 @@ function edBindMenu() {
   $('#dlgEditor').addEventListener('close', edCloseMenu);
 }
 
+// ------------------------------------------------------------------ vehicles by BR
+// every unit gets a vehicle of its own kind (fighter, bomber, tank, SPAA…) at the BR closest to the one
+// chosen (your vehicle's, or any), of one nation or of all of them in turn
+const ED_AUTO_KINDS = { ground: ['tank', 'heavy_tank', 'tank_destroyer'], air: ['fighter', 'assault', 'bomber'], heli: ['helicopter'],
+  ship: ['destroyer', 'cruiser'], boat: ['torpedo_boat', 'gun_boat', 'torpedo_gun_boat', 'submarine_chaser'] };
+const edBR = v => v?.br?.[1];
+// vehicles of the research trees (not killstreak, event or test ones)
+let edTreeSet = null;
+function edTreeIds() {
+  if (edTreeSet) return edTreeSet;
+  edTreeSet = new Set();
+  const walk = n => { if (Array.isArray(n)) n.forEach(walk); else if (n && typeof n === 'object') { if (typeof n.id === 'string') edTreeSet.add(n.id); Object.values(n).forEach(walk); } };
+  walk(S.trees || {});
+  return edTreeSet;
+}
+const edMyBR = () => edBR(S.byId.get(S.cfg?.vehicle));
+function edAutoBR() { return ED.auto.src === 'me' && edMyBR() ? edMyBR() : +ED.auto.br; }
+// the units it applies to: the selection, or every unit of a side
+function edAutoUnits(selection) {
+  // every unit, those the scenario places in game too (not drawn, their vehicle can still change)
+  const us = selection ? edSelUnits() : [...ED.data.units, ...edEdits().add.map((a, idx) => ({ ...a, added: true, idx }))]
+    .filter(u => (u.edit || u.added) && !u.player);
+  return us.filter(u => {
+    const st = edUnitState(u);
+    if (st.removed || u.tpl || !ED_BLOCK_CATS[u.block]) return false;
+    return selection || ED.auto.who === 'all' || edSide(st) === ED.auto.who;
+  });
+}
+function edAutoApply(selection) {
+  const br = edAutoBR(), nation = ED.auto.nation;
+  const groups = new Map();  // same kind of vehicle: picked in turn among the closest
+  for (const u of edAutoUnits(selection)) {
+    const cur = S.byId.get(edUnitState(u).cls);
+    const c = cur && ED_BLOCK_CATS[u.block].includes(cur.c) ? cur.c : ED_BLOCK_CATS[u.block][0];
+    const k = cur?.k && (ED_AUTO_KINDS[c] || []).concat(['SPAA']).includes(cur.k) ? cur.k : '';
+    const key = c + '|' + k;
+    if (!groups.has(key)) groups.set(key, { c, k, units: [] });
+    groups.get(key).units.push(u);
+  }
+  let n = 0;
+  for (const { c, k, units } of groups.values()) {
+    const kinds = k ? [k] : ED_AUTO_KINDS[c] || [];
+    const tree = edTreeIds();
+    const cands = S.vehicles.filter(v => v.c === c && !v.h && edBR(v) && (!tree.size || tree.has(v.id)) && (!nation || v.n === nation) && (!kinds.length || kinds.includes(v.k)));
+    let near = [];
+    for (const w of [0.35, 0.7, 1.4, 3, 99]) {
+      near = cands.filter(v => Math.abs(edBR(v) - br) <= w);
+      if (near.length >= Math.min(3, units.length)) break;
+    }
+    if (!near.length) continue;
+    near.sort((a, b) => Math.abs(edBR(a) - br) - Math.abs(edBR(b) - br) || a.id.localeCompare(b.id));
+    // all nations: one of each in turn, closest BR first
+    let order = near;
+    if (!nation) {
+      const by = new Map();
+      for (const v of near) { if (!by.has(v.n)) by.set(v.n, []); by.get(v.n).push(v); }
+      order = [];
+      while ([...by.values()].some(l => l.length)) for (const l of by.values()) if (l.length) order.push(l.shift());
+    }
+    units.forEach((u, i) => { edSet(u, { cls: order[i % order.length].id }); n++; });
+  }
+  toast({ title: t('editor.auto.done', { n, br: br.toFixed(1) }), ms: 2500 });
+}
+function edAutoHTML(selection) {
+  const a = ED.auto, my = edMyBR(), src = a.src === 'me' && my ? 'me' : 'br';
+  const n = edAutoUnits(selection).length;
+  return `<details class="ed-auto"${a.open ? ' open' : ''}><summary>${icon('bolt', 'ic-sm')} ${esc(t('editor.auto.title'))}</summary>
+    <p class="hint">${esc(t('editor.auto.hint'))}</p>
+    <div class="field"><label>BR</label><div class="seg">
+      <button class="${src === 'me' ? 'active' : ''}" data-edauto="src:me"${my ? '' : ' disabled'}>${esc(t('editor.auto.mine', { br: my ? my.toFixed(1) : '–' }))}</button>
+      <button class="${src === 'br' ? 'active' : ''}" data-edauto="src:br">${esc(t('editor.auto.custom'))}</button></div>
+      ${src === 'br' ? `<div class="slider-row" style="margin-top:8px"><input type="range" min="1" max="14.3" step="0.3" data-edautof="br" value="${a.br}"><output>BR ${(+a.br).toFixed(1)}</output></div>` : ''}</div>
+    <div class="field"><label>${esc(t('editor.auto.nation'))}</label><select data-edautof="nation">
+      <option value="">${esc(t('editor.auto.allNations'))}</option>
+      ${NATIONS.map(x => `<option value="${x}"${a.nation === x ? ' selected' : ''}>${esc(nationName(x))}</option>`).join('')}</select></div>
+    ${selection ? '' : `<div class="field"><label>${esc(t('editor.auto.who'))}</label><div class="seg">
+      ${[['enemy', 'editor.enemies'], ['ally', 'editor.allies'], ['all', 'editor.auto.all']].map(([k, l]) => `<button class="${a.who === k ? 'active' : ''}" data-edauto="who:${k}">${esc(t(l))}</button>`).join('')}</div></div>`}
+    <button class="btn btn-sm" data-edauto="apply"${n ? '' : ' disabled'}>${icon('bolt', 'ic-sm')}${esc(t('editor.auto.apply', { n }))}</button>
+  </details>`;
+}
+// a click in the block: true when handled
+function edAutoClick(b) {
+  const v = b.dataset.edauto;
+  if (!v) return false;
+  if (v === 'apply') edAutoApply(ED.multi.length > 0);
+  else { const [k, x] = v.split(':'); ED.auto[k] = x; }
+  edRenderPanel(); edDraw();
+  return true;
+}
+
 // ------------------------------------------------------------------ side panel
 function edSelected() {
   if (!ED.sel) return null;
@@ -1056,7 +1150,7 @@ function edRenderPanel() {
     }
   }
   const u = edSelected();
-  if (!u) { panel.innerHTML = `<p class="hint">${esc(t('editor.noSel'))}</p><p class="hint">${esc(t('editor.multiHint'))}</p>`; edRenderList(); return; }
+  if (!u) { panel.innerHTML = `<p class="hint">${esc(t('editor.noSel'))}</p><p class="hint">${esc(t('editor.multiHint'))}</p>${edAutoHTML(false)}`; edRenderList(); return; }
   if (u.player) {
     const p = edStart();
     const sp = ED.data.spawn;
@@ -1091,7 +1185,7 @@ function edRenderPanel() {
     panel.innerHTML = `<div class="ed-title">${v ? flagHTML(v.n) : ''}<b>${esc(v ? I18N.unit(v.id) : st.cls)}</b></div>
       <div class="ed-sub muted">${esc(u.name)} · ${esc(t('editor.fromTemplate'))}</div>
       ${st.removed ? removed : `
-      <p class="hint">${esc(t('editor.tplNote'))}${u.runtime ? ' ' + esc(t('editor.runtimeNote')) : u.area ? ' ' + esc(t('editor.areaNote', { area: u.area })) : ''}</p>
+      <p class="hint">${esc(t('editor.tplNote'))}${u.runtime ? ' ' + esc(t('editor.runtimeNote')) + (edSelZones().length ? ' ' + esc(t('editor.runtimeZones', { n: edSelZones().length })) : '') : u.area ? ' ' + esc(t('editor.areaNote', { area: u.area })) : ''}</p>
       <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edf="attack">
         ${[['', 'editor.asScenario'], ['fire_at_will', 'editor.fire.aggressive'], ['hold_fire', 'editor.fire.passive']].map(([k, l]) => `<option value="${k}"${(['hold_fire', 'fire_at_will'].includes(st.attack) ? st.attack : '') === k ? ' selected' : ''}>${esc(t(l))}</option>`).join('')}
       </select></div>
@@ -1187,6 +1281,7 @@ function edMultiHTML() {
       <small class="muted">${esc(t('editor.multiMoveHint'))}</small></div>
     ${air.length ? `<div class="field-row"><div class="field"><label>${esc(t('cond.altitude'))}</label><input type="number" data-edm="y" value="${same(air, u => Math.round(u.y)) ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>
       <div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" data-edm="speed" value="${same(air, u => Math.round(u.speed || 450)) ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div></div>` : ''}
+    ${edAutoHTML(true)}
     <div class="row gap ed-actions">
       <button class="btn btn-ghost btn-sm" data-edact="copy">${esc(t('editor.copy'))}</button>
       <button class="btn btn-ghost btn-sm" data-edact="duplicate">${esc(t('editor.duplicate'))}</button>
@@ -1290,6 +1385,7 @@ function edPanelClick(ev) {
     return;
   }
   if (b.dataset.edtab) { ED.resTab = b.dataset.edtab; edRenderPanel(); return; }
+  if (edAutoClick(b)) return;
   if (b.dataset.edsetup) { edUseSetup(b.dataset.edsetup); return; }
   switch (b.dataset.edact) {
     case 'copy': if (edCopy()) toast({ title: t('editor.copied', { n: ED.clip.length }), ms: 2000 }); edRenderPanel(); return;
@@ -1362,6 +1458,7 @@ function edMultiClick(b) {
 
 function edPanelChange(ev) {
   const el = ev.target, f = el.dataset.edf;
+  if (el.dataset.edautof) { ED.auto[el.dataset.edautof] = el.value; edRenderPanel(); return; }
   if (el.dataset.edzone && ED.sel?.zone) {
     const z0 = (ED.data.areas || []).find(z => z.name === ED.sel.zone);
     const cur = edZonePos(z0);

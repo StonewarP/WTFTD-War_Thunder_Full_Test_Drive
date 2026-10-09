@@ -689,6 +689,13 @@ option { background: var(--surface); }
 .ed-row.removed span { text-decoration: line-through; color: var(--muted); }
 .seg-wrap3 { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
 .ed-panel .btn-danger { margin-top: 10px; align-self: flex-start; }
+.ed-auto { margin: 10px 0 6px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface); }
+.ed-auto summary { cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.ed-auto[open] summary { margin-bottom: 6px; }
+.ed-auto .field { margin-bottom: 8px; }
+.ed-auto .seg { flex-wrap: wrap; }
+.ed-auto .seg button:disabled { opacity: .45; cursor: default; }
+.ed-auto > .btn { margin-top: 2px; }
 
 
 /* ------------------------------------------------------------------ pylon grid (in-game layout) */
