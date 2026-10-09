@@ -1010,7 +1010,9 @@ table.ar-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 body.pick-on .pickbar { display: flex; }
 .layout.drawer-open .pickbar { right: calc(var(--drawer-w) + 16px); }
 body.pick-on .compare-tray { max-width: calc(100% - var(--side-w) - 560px); }
-.pk-slot { display: flex; align-items: center; gap: 9px; min-width: 0; max-width: 230px; padding: 4px 6px 4px 4px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
+/* fixed size, filled or empty: the bar doesn't move when a vehicle or a map is picked */
+.pk-slot { display: flex; align-items: center; gap: 9px; min-width: 0; width: 240px; height: 50px; box-sizing: border-box; padding: 4px 6px 4px 4px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
+.pk-txt { flex: 1; }
 .pk-slot:hover { background: var(--surface-2); border-color: var(--line); }
 .pk-slot.empty { border: 1px dashed var(--line-2); }
 .pk-thumb { flex: none; width: 54px; height: 38px; border-radius: 7px; background: var(--surface-3); display: grid; place-items: center; overflow: hidden; color: var(--text-2); }
@@ -1023,6 +1025,7 @@ body.pick-on .compare-tray { max-width: calc(100% - var(--side-w) - 560px); }
 .pk-slot.empty b { color: var(--text-2); font-weight: 600; }
 .pk-warn { color: var(--warn); }
 .pk-clear { width: 26px; height: 26px; flex: none; }
+.pk-clear.ghost { visibility: hidden; }
 .pk-plus { color: var(--text-2); font-weight: 700; }
 .mp-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .mp-search { width: 260px; }
@@ -1051,7 +1054,7 @@ body.pick-on .compare-tray { max-width: calc(100% - var(--side-w) - 560px); }
 @media (max-width: 1000px) {
   .pickbar { left: 12px; right: 12px; }
   .layout.drawer-open .pickbar { display: none; }
-  .pk-slot { max-width: none; flex: 1; }
+  .pk-slot { width: auto; flex: 1; }
 }
 body.pick-on #view-vehicles, body.pick-on #view-mymaps, body.pick-on #view-setups { padding-bottom: 96px; }
 /* fixed presets: the game's 13 columns, narrower so they fit the panel */

@@ -148,7 +148,7 @@ function renderPickbar() {
     <div class="pk-slot${filled ? '' : ' empty'}" data-pk="${kind}" role="button" tabindex="0">
       <span class="pk-thumb">${thumb}</span>
       <span class="pk-txt"><small>${esc(t('pick.' + kind))}</small><b>${esc(filled ? name : t(emptyKey))}</b>${sub ? `<span>${sub}</span>` : ''}</span>
-      ${filled ? `<button class="icon-btn pk-clear" data-pk-clear="${kind}" title="${esc(t('pick.clear'))}">${icon('x', 'ic-sm')}</button>` : ''}
+      ${filled ? `<button class="icon-btn pk-clear" data-pk-clear="${kind}" title="${esc(t('pick.clear'))}">${icon('x', 'ic-sm')}</button>` : '<span class="pk-clear ghost"></span>'}
     </div>`;
   bar.innerHTML = `
     ${slot('vehicle', !!v, v ? unitImgTag(v.id) : icon('all'), v ? I18N.unit(v.id) : '', v ? esc(className(v.k)) : '', 'pick.chooseVehicle')}

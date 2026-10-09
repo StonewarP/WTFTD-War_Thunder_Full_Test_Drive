@@ -6,6 +6,7 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- The vehicle + map bar keeps its size when a vehicle or a map is picked.
 - **Map editor**: fills the window (4K too), its side panel no longer scrolls sideways. The vehicle picker shows
   every vehicle of the kind, by BR, with the Vehicles menu's filters: nations, rank, battle rating
   (its AB / RB / SB mode), type.
