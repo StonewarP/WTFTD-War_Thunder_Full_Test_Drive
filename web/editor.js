@@ -785,7 +785,7 @@ function edBind() {
       ED.drag = { kind: 'zone', z: zone, moved: false };
       edRenderPanel(); edDraw();
     } else {
-      ED.drag = { kind: 'pan', sx, sy, cx: ED.view.cx, cz: ED.view.cz };
+      ED.drag = { kind: 'pan', sx, sy, cx: ED.view.cx, cz: ED.view.cz, moved: false };
     }
   });
   cv.addEventListener('pointermove', ev => {
@@ -793,6 +793,7 @@ function edBind() {
     ED.mouse = edToWorld(sx, sy);
     if (!ED.drag) { if (ED.placing) edDraw(); else edTip(ev, sx, sy); return; }
     if (ED.drag.kind === 'pan') {
+      if (Math.hypot(sx - ED.drag.sx, sy - ED.drag.sy) > 4 * (window.devicePixelRatio || 1)) ED.drag.moved = true;
       ED.view.cx = ED.drag.cx - (sx - ED.drag.sx) / ED.view.scale;
       ED.view.cz = ED.drag.cz + (sy - ED.drag.sy) / ED.view.scale;
     } else if (ED.drag.kind === 'box') {
@@ -832,6 +833,8 @@ function edBind() {
         edSelect([...d.keep, ...inside.map(edKey)]);
       }
       edRenderPanel(); edDraw();
+    } else if (d?.kind === 'pan' && !d.moved) {  // a click on the map itself: nothing selected any more
+      if (ED.sel || ED.multi.length) { edSelect([]); edRenderPanel(); edDraw(); }
     } else if (d?.moved) edRenderPanel();
   });
   cv.addEventListener('pointerenter', () => { ED.over = true; });

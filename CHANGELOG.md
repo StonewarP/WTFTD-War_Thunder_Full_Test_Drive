@@ -4,8 +4,11 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Unreleased
+## 0.16.0 — 2026-10-09
 
+- Map editor: a click on the map itself clears the selection (a drag still moves the map).
+- `start.bat` (running from source) no longer keeps a console window open: it starts WTFTD with `pythonw` and
+  closes; with options (`--browser`, `--port`…) it keeps the console as before. Messages go to `.cache/wtftd.log`.
 - The vehicle + map bar keeps its size when a vehicle or a map is picked.
 - **Map editor**: fills the window (4K too), its side panel no longer scrolls sideways. The vehicle picker shows
   every vehicle of the kind, by BR, with the Vehicles menu's filters: nations, rank, battle rating
@@ -18,9 +21,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - Fix: the **Thrust** modification of jets did nothing (the game takes their maximum thrust from the flight
   model's thrust table, which it now scales).
 - **Invulnerable**: AI aircraft now attack you too (it used the game's spawn protection, which they respect).
-  New cheat **Unbreakable
-  airframe** (aircraft, helicopters, custom vehicles): no wings torn off by overspeed or g, gear, flaps and canopy
-  don't break.
+- New cheat **Unbreakable airframe** (aircraft, helicopters, custom vehicles): no wings torn off by overspeed or g
+  (Mach limit included), gear, flaps and canopy don't break.
 - **Mission description** (mission options): shown under the mission in the game's list (it showed
   "missions//objective").
 - **Map editor**: the vehicles the scenario brings into its zones show as markers (triangle: aircraft,
@@ -47,9 +49,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Test flights**: the targets and airfield follow your vehicle's rank (high from rank V), as when the game starts
   them from the hangar (a user mission kept the low ones: a dirt strip).
 - The map settings' **Training targets** (scenario / my BR / a BR) are gone: Vehicles by BR in the map editor
-  replaces them (nations, allies and added units too, follows your vehicle). **Right click** on the map: the useful actions right there (on a
-  unit: loadout, side, movement, copy, duplicate, remove; on the map: paste here, add a ground unit / aircraft
-  / ship here, start here, centre). **Paste** drops the copied units centred on the pointer; the Paste button
+  replaces them (nations, allies and added units too, follows your vehicle).
+- **Map editor**: **right click** on the map: the useful actions right there (on a unit: loadout, side,
+  movement, copy, duplicate, remove; on the map: paste here, add a ground unit / aircraft / ship here, start
+  here, centre). **Paste** drops the copied units centred on the pointer; the Paste button
   lets them follow the pointer until a click places them. **Cancel** next to Done puts the map back as it was
   when the editor opened.
 - **Map editor**: zones say what the scenario puts there (your start, the vehicles it brings in, with
@@ -93,9 +96,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   in the vehicle panel, even before picking a vehicle. A bar at the bottom holds the vehicle and the map of
   the mission, picked in any order, and creates it. Edited variants can be **saved** under a name (Save…), then
   chosen again with any vehicle, edited, updated, renamed or deleted (`user/variants.json`).
-- The map's settings moved from the vehicle panel to the map window: training targets (scenario / my BR /
-  chosen BR), enemy units (as in the scenario / don't shoot back / shoot), time of day, weather and start
-  heading. They go
+- The map's settings moved from the vehicle panel to the map window: enemy units (as in the scenario / don't
+  shoot back / shoot), time of day, weather and start heading. They go
   with any vehicle and are kept in saved variants. The vehicle panel no longer has a Map & scenario step;
   **Save setup** keeps the vehicle's own setup (loadout, ammo, modifications, cheats, start) for any map.
 - The vehicle panel's main button is **Select vehicle** (puts it in the bottom bar); **Create mission** is in the
