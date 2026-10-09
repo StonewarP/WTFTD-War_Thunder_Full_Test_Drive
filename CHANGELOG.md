@@ -6,6 +6,20 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- **Map editor**: the scenario's **zones** show on the map (those its scripts use, to spawn, respawn or send
+  units, highlighted) and can be moved: what the game puts there moves with them. **Your start**: on the
+  ground or in the air, altitude, speed and compass heading (an arrow on the map, its tip can be dragged); it
+  holds even when the scenario's templates respawn you in a zone of theirs (test flights), after a crash too. These left
+  the vehicle panel (its last step keeps the fuel) and the map window. Template units can be made to
+  **attack** too (not only "never shoots").
+- The map editor no longer shows units that never appear: units the scenario keeps delayed (an AV-8B on
+  Afghanistan) are "placed in game", template ships are dropped on maps without water.
+- Fix: the map editor drew the units of the game templates a scenario imports at the template's own
+  coordinates, which mean nothing on that map (Afghanistan: off the map, far from where they appear). WTFTD
+  now follows the scenario's scripts across the whole import chain: units moved to a known zone show there,
+  units the game places while the mission runs (asleep at start, zone picked by a variable, often at random)
+  are listed as "placed in game" and not drawn.
+- The flares / chaff counts follow the slider live.
 - **All the game's maps**: the Maps tab shows the test-drive maps, then the game's 131 other maps.
   On those, a bare start (you alone, no targets) for each kind of vehicle the map suits, placed where the
   game's own missions (battles, training…) put that kind of vehicle; aircraft start in the air. Add targets

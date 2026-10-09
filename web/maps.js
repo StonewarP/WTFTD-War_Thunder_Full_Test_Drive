@@ -50,7 +50,7 @@ const mapName = (map, list) => (I18N.map(map) !== map ? I18N.map(map) : list?.[0
 const clone = o => JSON.parse(JSON.stringify(o));
 const sameEdits = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
 const savedVariant = () => (S.variants || []).find(x => x.id === S.pick.variant) || null;
-const editsCount = e => (e ? Object.keys(e.units || {}).length + (e.add || []).length + (e.player ? 1 : 0) : 0);
+const editsCount = e => (e ? Object.keys(e.units || {}).length + (e.add || []).length + (e.player ? 1 : 0) + Object.keys(e.areas || {}).length : 0);
 
 async function loadVariants() {
   try { S.variants = await api('variants'); } catch { S.variants = []; }
@@ -254,7 +254,7 @@ function mapsShown() {
 }
 
 const kindIcon = k => icon(CAT_ICON[k === 'ucav' ? 'heli' : k] || 'map', 'ic-sm');
-const editCount = sid => (S.cfg?.edits?.sid === sid ? Object.keys(S.cfg.edits.units || {}).length + (S.cfg.edits.add || []).length : 0);
+const editCount = sid => (S.cfg?.edits?.sid === sid ? editsCount(S.cfg.edits) : 0);
 
 function renderMaps() {
   const v = pickedVehicle();
@@ -357,8 +357,6 @@ function mapSettingsHTML(s) {
     <div class="field"><label>${icon('target', 'ic-sm')} ${esc(t('targets.title'))}</label>${targets}</div>
     <div class="field"><label>${esc(t('mapset.enemies'))}</label>${seg('enemies', ['', 'passive', 'hostile'], m.enemies, x => t('mapset.enemies.' + (x || 'scenario')))}</div>
     <div class="field"><label>${esc(t('cond.time'))}</label>${seg('environment', ['', ...ENVS], m.environment, x => (x ? t('env.' + x) : t('cond.keep')))}</div>
-    <div class="field"><label>${esc(t('adv.heading'))}</label>
-      <input type="number" min="0" max="359" data-mset-heading value="${esc(m.heading ?? '')}" placeholder="${esc(t('adv.headingAuto'))}"></div>
     <div class="field"><label>${esc(t('cond.weather'))}</label>
       <select data-mset-weather><option value="">${esc(t('cond.keep'))}</option>${WEATHERS.map(w => `<option value="${w}"${m.weather === w ? ' selected' : ''}>${esc(t('weather.' + w))}</option>`).join('')}</select></div>
   </div>`;

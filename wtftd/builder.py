@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 11  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 13  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1268,7 +1268,7 @@ def build_free_scenarios(out_dir: Path, lang: "Lang", taken: set, levels: dict, 
         if not isinstance(lvl, str) or not lvl:
             continue
         level = lvl.replace("\\", "/").rsplit("/", 1)[-1].replace(".bin", "").lower()
-        if level in taken or level.startswith(FREE_SKIP):
+        if level.startswith(FREE_SKIP):
             continue
         best = spots.setdefault(level, {})
         ext = levels.get(level) or {}
@@ -1285,9 +1285,12 @@ def build_free_scenarios(out_dir: Path, lang: "Lang", taken: set, levels: dict, 
                 score = 2 if (u.get("props") or {}).get("army") == 1 else 1
                 if score > best.get(key, (0,))[0]:
                     best[key] = (score, pos, _unit_rot(u.get("tm")))
+    # maps with water (a ship somewhere in the game's missions): the editor drops template ships elsewhere
+    with open(DATA / "water.json", "w", encoding="utf-8") as fo:
+        json.dump(sorted(lv for lv, sp in spots.items() if sp.get("naval")), fo, separators=(",", ":"))
     blocks = {"ground": "tankModels", "heli": "armada", "air": "armada", "ship": "ships", "boat": "ships"}
     out = []
-    for level in sorted(set(spots) | {k for k in levels if k not in taken and not k.startswith(FREE_SKIP)}):
+    for level in sorted({k for k in spots if k not in taken} | {k for k in levels if k not in taken and not k.startswith(FREE_SKIP)}):
         sp = spots.get(level, {})
         ext = levels.get(level) or {}
         air = sp.get("air")
@@ -1376,6 +1379,106 @@ def _mission_path(game_path: str) -> Path:
     return DM / "mis.vromfs.bin_u" / "gamedata" / (rel[:-4] + ".blkx" if rel.endswith(".blk") else rel)
 
 
+def _import_chain(d: dict, depth: int = 0, seen: set | None = None) -> list:
+    """The mission and every game template it imports (recursively), mission first."""
+    seen = seen if seen is not None else set()
+    out = [d] if depth == 0 else []
+    if depth > 4 or not isinstance(d, dict):
+        return out
+    for rec in aslist((d.get("imports") or {}).get("import_record") if isinstance(d.get("imports"), dict) else None):
+        path = first_str(rec.get("file")) if isinstance(rec, dict) else ""
+        if not path or path.lower() in seen:
+            continue
+        seen.add(path.lower())
+        sub = load(_mission_path(path))
+        if isinstance(sub, dict):
+            out.append(sub)
+            out += _import_chain(sub, depth + 1, seen)
+    return out
+
+
+def _all_triggers(node):
+    """(trigger, actions) of every trigger, inside categories too."""
+    if not isinstance(node, dict):
+        return
+    for t in node.values():
+        if not isinstance(t, dict):
+            continue
+        if isinstance(t.get("actions"), dict):
+            yield t, t["actions"]
+        elif t.get("isCategory"):
+            yield from _all_triggers(t)
+
+
+def template_placements(d: dict) -> dict:
+    """Where the scenario puts template units, from the triggers of the whole import chain:
+    {unit: {"area", "x", "y", "z"}} for a teleport / respawn to a known area, {unit: {"runtime": 1}} when the
+    scripts choose at runtime (an area held by a variable set later, or asleep from the start)."""
+    from .mission import _is_start_trigger
+    chain = _import_chain(d)
+    variables, areas, squads = {}, {}, {}
+    for doc in reversed(chain):  # the mission's own values win
+        if isinstance(doc.get("variables"), dict):
+            variables.update(doc["variables"])
+        if isinstance(doc.get("areas"), dict):
+            areas.update(doc["areas"])
+        for sq in aslist((doc.get("units") or {}).get("squad")):
+            if isinstance(sq, dict) and sq.get("name"):
+                squads[sq["name"]] = aslist((sq.get("props") or {}).get("squad_members"))
+
+    def names(v, depth=0):
+        """Unit names an action targets; None for a value only known at runtime."""
+        for item in aslist(v):
+            if not isinstance(item, str) or not item:
+                continue
+            if item.startswith("@"):
+                item = variables.get(item[1:])
+                if not isinstance(item, str) or not item:
+                    yield None
+                    continue
+            if item in squads and depth < 3:
+                yield from names(squads[item], depth + 1)
+            else:
+                yield item
+
+    out = {}
+    for doc in chain:
+        for t, a in _all_triggers(doc.get("triggers")):
+            start = _is_start_trigger(t)
+            moves = [x for x in aslist(a.get("unitRespawn")) if isinstance(x, dict)]
+            moves += [x for x in aslist(a.get("unitMoveTo")) if isinstance(x, dict) and x.get("move_type") == "teleport"]
+            for mv in moves:
+                target = next(iter(names(mv.get("target"))), None)
+                area = areas.get(target) if target else None
+                pos = tm_pos(area.get("tm")) if isinstance(area, dict) else None
+                for name in names(mv.get("object")):
+                    if not name:
+                        continue
+                    if pos and ("area" not in out.get(name, {}) or start):
+                        out[name] = {"area": target, "x": round(pos[0], 1), "y": round(pos[1], 1), "z": round(pos[2], 1)}
+                    elif not pos and name not in out:
+                        out[name] = {"runtime": 1}
+            if start:  # asleep from the start: only appears where a later trigger respawns it
+                for sl in aslist(a.get("unitPutToSleep")):  # its units are in "target"
+                    for name in names((sl.get("target") or sl.get("object")) if isinstance(sl, dict) else None):
+                        if name and name not in out:
+                            out[name] = {"runtime": 1}
+    return out
+
+
+def used_zones(d: dict) -> list:
+    """The mission's areas its scripts (or the templates it imports) refer to: by name, or by a name prefix
+    the scripts complete with a number (bdt_t2_bomb_zone_mid_ + 01)."""
+    areas = d.get("areas") if isinstance(d.get("areas"), dict) else {}
+    if not areas:
+        return []
+    text = "".join(json.dumps([doc.get("triggers"), doc.get("variables")]) for doc in _import_chain(d))
+    words = set(re.findall(r'"([A-Za-z0-9_]{4,})"', text))
+    # names the scripts build: a literal start ending in "_" (bdt_t2_bomb_zone_ + mid_01)
+    stems = [w for w in words if w.endswith("_") and len(w) >= 8]
+    return [name for name in areas if name in words or any(name.startswith(s) for s in stems)]
+
+
 def imported_units(d: dict, depth: int = 0, seen: set | None = None) -> list:
     """Units defined in the game templates a mission imports (read-only for the editor)."""
     seen = seen if seen is not None else set()
@@ -1410,6 +1513,12 @@ def imported_units(d: dict, depth: int = 0, seen: set | None = None) -> list:
                             "count": props.get("count", 1) if isinstance(props, dict) else 1,
                             "attack": props.get("attack_type", "") if isinstance(props, dict) else ""})
         out += imported_units(sub, depth + 1, seen)
+    if depth == 0:  # where the scenario really puts them
+        place = template_placements(d)
+        for u in out:
+            p = place.get(u["name"])
+            if p:
+                u.update(p)
     return out
 
 
@@ -1487,6 +1596,10 @@ def build_scenarios(lang: Lang, progress=None):
         if tpl:
             with open(out_dir / f"{sid}.units.json", "w", encoding="utf-8") as fo:
                 json.dump(tpl, fo, ensure_ascii=False, separators=(",", ":"))
+        zones = used_zones(d)
+        if zones:
+            with open(out_dir / f"{sid}.zones.json", "w", encoding="utf-8") as fo:
+                json.dump(zones, fo, separators=(",", ":"))
         scenarios.append({
             "id": sid,
             "map": level,

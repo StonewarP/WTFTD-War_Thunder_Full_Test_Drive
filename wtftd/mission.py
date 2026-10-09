@@ -217,9 +217,17 @@ def scenario_units(sid: str) -> dict:
                 "army": props.get("army", 0), "count": props.get("count", 1), "attack": props.get("attack_type", ""),
                 "moves": bool(u.get("way")), "player": u.get("name") == wing,
                 "edit": block in EDITABLE_BLOCKS and u.get("name") != wing,
+                # delayed: not there at start, the scripts bring it in (or not) while the mission runs
+                **({"runtime": 1} if props.get("isDelayed") and u.get("name") != wing else {}),
             })
     # units of the game templates the mission imports: can be removed / frozen / made passive or hunting
     tpl_path = DATA / "scenarios" / f"{sid}.units.json"
+    level = (((m.get("mission_settings") or {}).get("mission") or {}).get("level") or "")
+    level = level.replace("\\", "/").rsplit("/", 1)[-1].replace(".bin", "").lower()
+    try:
+        water = set(json.loads((DATA / "water.json").read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        water = None  # unknown: keep every unit
     if tpl_path.exists():
         names = {u["name"] for u in out}
         try:
@@ -227,6 +235,8 @@ def scenario_units(sid: str) -> dict:
         except (OSError, ValueError):
             tpl = []
         for u in tpl:
+            if water is not None and level not in water and u.get("block") == "ships" and u.get("runtime"):
+                continue  # template ships the scenario only brings in on maps with water
             if isinstance(u, dict) and u.get("name") and u["name"] not in names:
                 out.append({**u, "tpl": True, "moves": False, "player": False,
                             # real vehicles only (bombing targets / dummies stay scenery)
@@ -242,7 +252,30 @@ def scenario_units(sid: str) -> dict:
     spawn = player_spawn(m, wing) if wing else None
     if not spawn and wing in tp and tp[wing]["start"]:
         spawn = {k: tp[wing][k] for k in ("x", "y", "z", "area")}
-    return {"wing": wing, "units": out, "level": level, "army": (me or {}).get("army") or 1, "spawn": spawn}
+    return {"wing": wing, "units": out, "level": level, "army": (me or {}).get("army") or 1, "spawn": spawn,
+            "areas": scenario_zones(sid, m)}
+
+
+def scenario_zones(sid: str, m: dict) -> list:
+    """The mission's areas for the editor: centre, size, heading, shape, and whether its scripts use it
+    (where they spawn / respawn / send units)."""
+    try:
+        used = set(json.loads((DATA / "scenarios" / f"{sid}.zones.json").read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        used = set()
+    out = []
+    for name, a in (m.get("areas") or {}).items():
+        try:
+            tm = a["tm"]
+            x, y, z = (float(c) for c in tm[3])
+            sx = math.hypot(float(tm[0][0]), float(tm[0][2]))
+            sz = math.hypot(float(tm[2][0]), float(tm[2][2]))
+            yaw = math.degrees(math.atan2(float(tm[0][2]), float(tm[0][0])))
+        except (TypeError, KeyError, IndexError, ValueError):
+            continue
+        out.append({"name": name, "type": str(a.get("type", "")), "x": round(x, 1), "y": round(y, 1), "z": round(z, 1),
+                    "sx": round(sx, 1), "sz": round(sz, 1), "yaw": round(yaw, 1), "used": name in used or name == "wtftd_spawn"})
+    return out
 
 
 def _yaw_tm(deg: float, x: float, y: float, z: float):
@@ -260,7 +293,7 @@ def apply_edits(m: dict, wing: str, edits: dict):
               | "follow" (unitMoveTo following the player: escort)
     attack:   "" | fire_at_will | return_fire | hold_fire (+ cannotShoot)"""
     units = m.setdefault("units", {})
-    stay, hunt, passive, sleep, follow = [], [], [], [], []
+    stay, hunt, passive, sleep, follow, shoot = [], [], [], [], [], []
     _, _, pu = _find_player(units, wing)
     my_army = (pu.get("props") or {}).get("army", 1) if pu else 1
     enemy_army = 2 if my_army == 1 else 1
@@ -312,6 +345,8 @@ def apply_edits(m: dict, wing: str, edits: dict):
         behavior(name, e)
         if e.get("attack") == "hold_fire":
             passive.append(name)
+        elif e.get("attack") == "fire_at_will":  # a template unit: made to fire by a start trigger
+            shoot.append(name)
     for block, entries in units.items():
         if block not in EDITABLE_BLOCKS:
             continue
@@ -359,6 +394,13 @@ def apply_edits(m: dict, wing: str, edits: dict):
         _append_unit(units, block, u)
         apply(u, a)
 
+    for name, e in (edits.get("areas") or {}).items():  # zones moved in the editor
+        a = (m.get("areas") or {}).get(name)
+        try:
+            pos = a["tm"][3]
+            a["tm"][3] = [float(e["x"]), float(e.get("y", pos[1])), float(e["z"])]
+        except (TypeError, KeyError, IndexError, ValueError):
+            continue
     player = edits.get("player")
     if isinstance(player, dict):
         _strip_airfield_spawn(m.get("triggers"), wing)  # the start was placed on the map: no runway spawn
@@ -367,6 +409,8 @@ def apply_edits(m: dict, wing: str, edits: dict):
                 pu["tm"] = _yaw_tm(float(player.get("yaw", 0)), float(player["x"]), float(player["y"]), float(player["z"]))
             except (KeyError, TypeError, ValueError):
                 pass
+            else:
+                _hold_start(m, wing, pu["tm"], player)
 
     actions: dict = {}
     if sleep:
@@ -376,6 +420,8 @@ def apply_edits(m: dict, wing: str, edits: dict):
         props_actions.append({"object": stay, "cannotMove": True})
     if passive:
         props_actions.append({"object": passive, "cannotShoot": True})
+    if shoot:
+        props_actions.append({"object": shoot, "attack_type": "fire_at_will", "cannotShoot": False})
     if props_actions:
         actions["unitSetProperties"] = props_actions if len(props_actions) > 1 else props_actions[0]
     if hunt:
@@ -391,6 +437,43 @@ def apply_edits(m: dict, wing: str, edits: dict):
         triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
         if isinstance(triggers, dict):
             triggers["wtftd_editor"] = _trigger({"initMission": {}}, actions, False)
+
+
+def _hold_start(m: dict, wing: str, tm: list, player: dict):
+    """The game templates a scenario imports may respawn the player in a zone of their own as the mission
+    starts (test flights: @player -> @air_spawn, with that zone's height, heading and their speed; checked in
+    game 2026-10-09). A WTFTD zone at the start set in the editor, and a respawn into it once their scripts
+    have run (1 s in), keep that start; an air start then gets its speed."""
+    if not m.get("imports"):
+        return  # nothing else places the player: the unit's own position is the start
+    x, y, z = tm[3]
+    m.setdefault("areas", {})["wtftd_start"] = {
+        "type": "Sphere", "tm": [[c * 10.0 for c in tm[0]], [0.0, 10.0, 0.0], [c * 10.0 for c in tm[2]], [x, y, z]],
+        "objLayer": 0, "props": {}}
+    actions = {"unitRespawn": {"delay": 0.0, "offset": [0.0, 0.0, 0.0], "object": wing, "target": "wtftd_start",
+                               "resetFormation": True}}
+    if player.get("mode") == "air":
+        try:
+            speed = max(0.0, min(float(player.get("speed") or 450), 3000.0))
+        except (TypeError, ValueError):
+            speed = 450.0
+        actions["unitSetProperties"] = {"object": wing, "speed": speed}
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
+    if not isinstance(triggers, dict):
+        return
+    triggers["wtftd_start"] = _trigger({"periodicEvent": {"time": 1.0}}, actions, False)
+    # after a crash the scripts respawn the player in their zone again: once back alive (and placed by them,
+    # 1 s), back to the WTFTD start
+    if isinstance(m.setdefault("variables", {}), dict):
+        m["variables"]["wtftd_dead"] = False
+    triggers["wtftd_start_killed"] = _trigger(
+        {"periodicEvent": {"time": 0.5}}, {"varSetBool": {"value": True, "var": "wtftd_dead"}}, True)
+    triggers["wtftd_start_killed"]["conditions"] = {"playersWhenStatus": {"players": "isKilled", "check_players": "any"}}
+    triggers["wtftd_start_back"] = _trigger(
+        {"periodicEvent": {"time": 0.5}}, {"varSetBool": {"value": False, "var": "wtftd_dead"}, "wait": {"time": 1.0}, **actions}, True)
+    triggers["wtftd_start_back"]["conditions"] = {
+        "playersWhenStatus": {"players": "isAlive", "check_players": "any"},
+        "varCompareBool": {"var_value": "wtftd_dead", "value": True, "comparasion_func": "equal"}}
 
 
 def retarget(units: dict, wing: str, pool: dict):
@@ -680,9 +763,17 @@ def build(cfg: dict) -> tuple[str, str]:
     start_y = float(unit["tm"][3][1])
     apply_edits(m, wing, cfg.get("edits") or {})
     pl = (cfg.get("edits") or {}).get("player")
-    if block == "armada" and isinstance(pl, dict) and float(unit["tm"][3][1]) > start_y + 50:
-        # start placed in the air in the editor: give it flying speed
-        unit.setdefault("props", {}).setdefault("speed", float(cfg.get("speed") or 450))
+    if block == "armada" and isinstance(pl, dict):
+        # the start set in the editor: in the air at its speed, or parked on the ground
+        mode = pl.get("mode") or ("air" if float(unit["tm"][3][1]) > start_y + 50 else "")
+        if mode == "air":
+            try:
+                speed = float(pl.get("speed") or cfg.get("speed") or 450)
+            except (TypeError, ValueError):
+                speed = 450.0
+            unit.setdefault("props", {})["speed"] = max(0.0, min(speed, 3000.0))
+        elif mode == "ground":
+            unit.setdefault("props", {})["speed"] = 0.0
     cheats = dict(cfg.get("cheats") or {})
     if cheats.get("hostileEnemies") and not cheats.get("passiveEnemies"):
         cheats["_hostile"] = make_hostile(m, cfg.get("edits") or {})

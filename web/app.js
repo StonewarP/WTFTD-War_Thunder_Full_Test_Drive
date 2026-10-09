@@ -751,7 +751,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
     }
     return d.am.length ? esc(`${d.am.length} × ${t('ammo.belt').toLowerCase()}`) : '';
   })();
-  const condSum = [c.start === 'air' ? `${c.altitude} m` : '', c.fuel ? `${t('cond.fuel')} ${c.fuel} %` : ''].filter(Boolean).join(' · ') || t('cond.keep');
+  const condSum = c.fuel ? `${c.fuel} %` : t('cond.keep');
 
   $('#drawer').style.setProperty('--tint', NATION_TINT[v.n] || NATION_TINT.other);
   $('#drawer').innerHTML = `
@@ -778,7 +778,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
       ${stepHTML('ammo', 2, t('step.ammo'), ammoSum, () => ammoBody(v, d))}
       ${cdkOn() ? stepHTML('mods', 3, t('step.mods'), esc(countMods(c.mods) ? t('mods.count', { n: countMods(c.mods) }) : t('mods.stockShort')), () => modsBody(v, d)) : ''}
       ${stepHTML('cheats', cdkOn() ? 4 : 3, t('step.cheats'), esc(cheatsSummary()), () => cheatsBody())}
-      ${isFlyer ? stepHTML('conditions', cdkOn() ? 5 : 4, t('step.start'), esc(condSum), () => conditionsBody(isFlyer)) : ''}
+      ${isFlyer ? stepHTML('conditions', cdkOn() ? 5 : 4, t('step.fuel'), esc(condSum), () => conditionsBody(isFlyer)) : ''}
       ${stepHTML('advanced', cdkOn() ? (isFlyer ? 6 : 5) : (isFlyer ? 5 : 4), t('step.advanced'), esc(t(c.allMods ? 'adv.allModsOn' : 'adv.allModsOff')), () => advancedBody())}
     </div>
     ${S.lastGen?.vid === v.id ? `<div class="gen-done">${icon('check', 'ic-sm')}
@@ -892,10 +892,7 @@ function conditionsBody(isFlyer) {
   const seg = (name, values, cur, label) => `<div class="seg seg-wrap" data-seg="${name}">
       <button class="${!cur ? 'active' : ''}" data-v="">${esc(t('cond.keep'))}</button>
       ${values.map(x => `<button class="${cur === x ? 'active' : ''}" data-v="${x}">${esc(t(label + x))}</button>`).join('')}</div>`;
-  return `${isFlyer ? `<div class="field"><label>${esc(t('cond.start'))}</label>
-      <div class="seg" data-seg="start"><button class="${c.start !== 'air' ? 'active' : ''}" data-v="scenario">${esc(t('cond.startScenario'))}</button><button class="${c.start === 'air' ? 'active' : ''}" data-v="air">${esc(t('cond.startAir'))}</button></div></div>
-      ${c.start === 'air' ? `<div class="field"><label>${esc(t('cond.altitude'))}</label><div class="slider-row"><input type="range" min="100" max="10000" step="100" data-num="altitude" value="${c.altitude}"><output>${c.altitude} m</output></div></div>
-      <div class="field"><label>${esc(t('cond.speed'))}</label><div class="slider-row"><input type="range" min="0" max="1500" step="10" data-num="speed" value="${c.speed}"><output>${c.speed} km/h</output></div></div>` : ''}
+  return `${isFlyer ? `<p class="hint">${esc(t('cond.startMoved'))}</p>
       <div class="field"><label>${esc(t('cond.fuel'))}</label><div class="slider-row"><input type="range" min="0" max="100" step="5" data-fuel value="${c.fuel || 0}"><output>${fuelLabel(c.fuel)}</output></div>
         <small class="muted">${esc(t('cond.fuelHint'))}</small></div>` : ''}`;
 }
@@ -1015,6 +1012,15 @@ function bindDrawer() {
   dr.oninput = e => {
     const el = e.target;
     if (loadoutInput(el)) return;
+    if (el.dataset.cm !== undefined && el.type === 'range') {  // flares / chaff counts follow the slider live
+      const i = +el.dataset.cm, g = S.details.get(S.sel.id).am[i], total = cmTotal(g);
+      const ch = cmStep(g, Math.max(0, Math.min(total, parseInt(el.value, 10) || 0)));
+      S.cfg.ammo[i] = Object.assign(S.cfg.ammo[i] || {}, { id: '', count: total, chaff: ch });
+      const box = el.parentElement;
+      box.querySelector(`input[type=number][data-cm="${i}"][data-cm-key="flares"]`).value = total - ch;
+      box.querySelector(`input[type=number][data-cm="${i}"][data-cm-key="chaff"]`).value = ch;
+      return;
+    }
     if (el.dataset.cheatnum) { el.nextElementSibling.textContent = +el.value ? `${el.value} s` : t('cheat.off'); return; }
     if (el.dataset.fuel !== undefined) { S.cfg.fuel = +el.value; el.nextElementSibling.textContent = fuelLabel(S.cfg.fuel); return; }
     if (el.dataset.num) { S.cfg[el.dataset.num] = +el.value; el.nextElementSibling.textContent = `${el.value} ${el.dataset.num === 'altitude' ? 'm' : 'km/h'}`; }
@@ -1045,8 +1051,8 @@ function missionPayload() {
       }
       return a && a.id !== null ? { id: a.id || '', count: +a.count || 0 } : { id: '', count: 0 };
     }),
-    environment: S.map.environment, weather: S.map.weather, start: c.start, altitude: c.altitude, speed: c.speed,
-    heading: S.map.heading === '' || S.map.heading == null ? null : +S.map.heading, missionType: missionOpts().missionType, allMods: c.allMods,
+    environment: S.map.environment, weather: S.map.weather, start: 'scenario', altitude: c.altitude, speed: c.speed,
+    heading: null, missionType: missionOpts().missionType, allMods: c.allMods,
     fuel: (c.block === 'armada' && c.fuel) || null,
     title: missionOpts().title || autoTitle(), fileName: missionOpts().fileName || `wtftd_${c.vehicle}`,
     mods: cdkOn() ? Object.assign(modsPayload(c.mods), c.cheats.noReload ? { noReload: true } : {}) : undefined,

@@ -87,6 +87,23 @@ or higher above an air unit of those missions (else the map centre), 450 km/h.
 - [x] Air start (2026-10-09, works in game).
 - [x] Naval start (2026-10-09, works in game).
 
+## 2d. Map editor: start, zones, template units firing (new)
+
+`wtftd_editor_test_afghan` (F-14B, Afghanistan): start set in the editor (air, 3034 m = 1500 m above the
+ground, 600 km/h, heading east), the enemy base zones `bdt_t2_bomb_zone_mid_01..04` moved 3 km east, the
+bases' AA (`bdt_t2_aaa_unit`, a template unit) set to Attacks.
+
+- [x] Round 1: start ignored (2600 m, 500 km/h, heading 025): the test-flight template respawns the player in
+  `spawn_area01` (its height, heading; its scripts set 500 km/h). The editor's heading was a maths angle
+  (0 = east), the game shows a compass heading (0 = north). The bases' AA did engage (it is fire-at-will in
+  the template already, brought in by the scripts), the aircraft was just too fast for it.
+- [x] Round 2 (fix: `wtftd_start` zone + respawn into it 1 s in, speed set; compass heading in the editor;
+  2 ZSU-23-4 added, fire at will): spawn at the scenario's start, a few seconds later moved to the right
+  heading, speed and altitude; the ZSU-23-4 fire at you. After a crash: back at the scenario's start.
+- [x] Round 3 (fix: `wtftd_dead` set when killed, back to `wtftd_start` 1 s after being alive again):
+  after a crash, back at the WTFTD start (2026-10-09).
+- [ ] The enemy bases appear ~3 km east of where they were.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own
