@@ -182,7 +182,7 @@ flight model's breaking limits raised (`Vne`, `VneMach`, `Strength/VNE` → 1000
 
 - [ ] **WTFTD r8: invulnerable, unbreakable airframe, hunted** (`wtftd_r8_invulnerable`, F-14B, Afghanistan; the
   test is in its description): the MiG-29 and the target fighters still come at you and fire, you don't die;
-  past the speed limit (thrust ×3 to get there fast) and pulling hard the wings stay on, gear and flaps don't
+  past the speed limit (thrust ×20 to get there fast) and pulling hard the wings stay on, gear and flaps don't
   break.
 
 ## 3. Ammunition icons (UI only)
