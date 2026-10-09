@@ -150,9 +150,13 @@ itself when one of them gets another vehicle, and that import gets `importUnits:
   First run (2026-10-09): the HQ-11 (a SAM with its own radar) fires; shot down before seeing the rest.
   Invulnerable run (2026-10-09): HQ-11, Spyder and tanks fire; the SAM batteries' launchers don't (even with their
   radar 30 m away: dropped, Vehicles by BR now picks vehicles that fire on their own), the aircraft don't.
-- [ ] Regenerated (invulnerable): SPAA are HQ-11, Spyder, Pantsir-SM; enemy aircraft set by Vehicles by BR with
-  Fire: Attacks also hunt you, held every 10 s by `wtftd_hunt` (`unitAttackTarget` on you): the aircraft come at
-  you and fire.
+- [x] Regenerated (invulnerable): HQ-11, Spyder and tanks fire (no Pantsir seen); the template's aircraft, told
+  to hunt you every 10 s (`wtftd_hunt`), neither came at you nor fired (2026-10-09). Same `unitAttackTarget` as
+  Gaijin's missions. Open: their scripts' route wins, or AI aircraft leave a player alone while the invulnerable
+  cheat's `invulnerabilityTimer` (spawn protection) is on.
+- [ ] `wtftd_r7_air_hunt` (same mission, **not** invulnerable, + 2 MiG-29 9.13 added in the editor 6 km ahead,
+  Hunts me): do the 2 added MiG-29 come at you and fire? Do the template's aircraft (AV-8B, F-2A, F-4E…)?
+  Both: the cheat was the cause. MiG-29 only: the template's routes win. Neither: hunting doesn't work for aircraft.
 
 ## 3. Ammunition icons (UI only)
 
