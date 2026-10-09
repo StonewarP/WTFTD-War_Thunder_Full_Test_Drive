@@ -202,13 +202,14 @@ wins. (The ground modifications themselves had never been checked in game.) Airc
 `MomentOfInertia` ×0.4, `Areas/Aileron|Elevator|Rudder` ×1.5, `*EffectiveSpeed` and `*MaxDv` ×2, the wing's
 `ClCritHigh` / `ClCritLow` ×1.3 (NoFlaps / FullFlaps, WingPlane* / FlapsPolar*), every `CdMin` ×0.5.
 
-- [ ] **WTFTD r9a: super mobility, T-72A** (`wtftd_r9_mobility_tank`, tank test drive): much faster acceleration,
+- [x] **WTFTD r9a: super mobility, T-72A** (`wtftd_r9_mobility_tank`, tank test drive): much faster acceleration,
   top speed about 120 km/h instead of 60, still turns and brakes well.
-- [ ] **WTFTD r9b: super mobility, Bf 109 F-4** (`wtftd_r9_mobility_air`, Afghanistan test flight): roll, pitch, turn
+- [x] **WTFTD r9b: super mobility, Bf 109 F-4** (`wtftd_r9_mobility_air`, Afghanistan test flight): roll, pitch, turn
   time, acceleration and climb far better (3510 hp instead of 1170, 40 % lighter, half the drag); still flyable;
   the engine runs normally.
-- [ ] **WTFTD r9c: super mobility + unbreakable airframe, F-14B** (`wtftd_r9_mobility_jet`): roll, pitch, turn time
+- [x] **WTFTD r9c: super mobility + unbreakable airframe, F-14B** (`wtftd_r9_mobility_jet`): roll, pitch, turn time
   and acceleration far better than a normal F-14B; still flyable; the wings stay on in hard turns.
+  r9a, r9b, r9c all good (2026-10-09).
 
 ## 3. Ammunition icons (UI only)
 
