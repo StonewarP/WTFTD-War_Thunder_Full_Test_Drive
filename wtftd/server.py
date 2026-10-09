@@ -213,6 +213,7 @@ def api_status():
         "levels": sorted(game.installed_levels(gd)),
         "data": meta,
         "dataReady": (DATA / "vehicles.json").exists(),
+        "home": str(HOME),  # where WTFTD keeps its files (the welcome screen says so before the first download)
         "oodle": oodle_dll(gd),
         "settings": STATE.settings(),
         "cdk": {"enabled": STATE.cdk_enabled(), "defaultHosts": cdk.DEFAULT_HOSTS,
@@ -348,7 +349,8 @@ def check_for_update(start: bool = True) -> dict:
     local = meta.get("version")
     # newer game patch, or data built by an older WTFTD that lacks fields this version needs
     st["available"] = bool(remote and remote != local) or (bool(meta) and meta.get("schema", 1) < builder.SCHEMA)
-    if start and st["available"] and not st["running"]:
+    # a first install (no data yet) downloads only once the user agreed on the welcome screen (route "update")
+    if start and st["available"] and meta and not st["running"]:
         threading.Thread(target=run_update, daemon=True).start()
     return st
 

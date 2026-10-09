@@ -6,6 +6,11 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- **First launch asks first**: nothing is downloaded before you click *Accept and download*. The welcome screen
+  says where WTFTD keeps its files (its own folder, with the path; in the game folder only your missions and the
+  custom vehicle files), what it downloads and from where (the community War Thunder datamine on GitHub, portable
+  Git if missing, pictures from War Thunder's encyclopedia and wiki, the check for a newer WTFTD), and that
+  Settings → Uninstall removes it all. Game-data updates after patches still run on their own.
 - Fix: on a first launch the app window could show "127.0.0.1 refused to connect": Edge handed its window to
   another of its processes, and WTFTD took that for the window closing and quit. It now serves as long as its
   page is open (the page pings it, and says goodbye when it closes).

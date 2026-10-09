@@ -1537,12 +1537,35 @@ function showOnboarding() {
     await I18N.init(sel.value, S.status.data?.langs || ['en']);
     I18N.apply();
     renderStatus();
+    renderOnboardInfo();
   });
-  $('#btnOnboard').addEventListener('click', () => startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar')));
+  renderOnboardInfo();
+  // nothing is downloaded before the user agreed: where WTFTD keeps its files, what it writes in the game, what it fetches
+  $('#btnOnboard').addEventListener('click', () => {
+    $('#onboard .onboard-card').classList.add('busy');
+    startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar'));
+  });
   $('#btnSettings').addEventListener('click', openSettings);
   $('#btnSaveSettings').addEventListener('click', saveSettings);
-  $('#btnOnboard').classList.add('hidden');
-  startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar'));  // first launch: get the game data right away
+  // a download already under way (the page was reloaded): show its progress again
+  api('update').then(up => {
+    if (up.running) { $('#onboard .onboard-card').classList.add('busy'); startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar')); }
+  }).catch(() => {});
+}
+function renderOnboardInfo() {
+  const st = S.status;
+  const code = s => `<code>${esc(s)}</code>`;
+  // every place WTFTD downloads from (builder.REPO, server.IMAGE_SOURCES / image_urls / REMOTE_VERSION_URL, app_version)
+  $('#onboardInfo').innerHTML = `<b>${esc(t('onboard.where'))}</b><ul>
+    <li>${t('onboard.whereApp', { path: code(st.home || '') })}</li>
+    <li>${t('onboard.whereGame', { path: code(st.gameDir || t('onboard.gameNotFound')) })}</li>
+    <li>${esc(t('onboard.whereRemove'))}</li></ul>
+    <b>${esc(t('onboard.sources'))}</b><ul>
+    <li>${t('onboard.srcData', { url: code('github.com/gszabi99/War-Thunder-Datamine') })}</li>
+    ${st.platform === 'win32' ? `<li>${t('onboard.srcGit', { url: code('github.com/git-for-windows/git') })}</li>` : ''}
+    <li>${t('onboard.srcImages', { a: code('static.encyclopedia.warthunder.com'), b: code('wiki.warthunder.com') })}</li>
+    <li>${t('onboard.srcApp', { url: code('github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive') })}</li>
+    <li>${esc(t('onboard.srcNone'))}</li></ul>`;
 }
 
 // after every script of the page has run: boot() calls functions of the scripts loaded after this one

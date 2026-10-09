@@ -447,6 +447,13 @@ option { background: var(--surface); }
 .onboard-card { position: relative; }
 .onboard-lang { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin: -14px -14px 6px 0; font-size: 12px; color: var(--muted); }
 .onboard-lang select { height: 28px; font-size: 12.5px; }
+.onboard-card { width: min(560px, 94vw); max-height: calc(100vh - var(--top-h) - 32px); overflow-y: auto; }
+.onboard-info { text-align: left; margin: 14px 0 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); font-size: 12.5px; line-height: 1.5; color: var(--text-2); }
+.onboard-info b { display: block; color: var(--text); font-size: 13px; margin-bottom: 6px; }
+.onboard-info ul + b { margin-top: 12px; }
+.onboard-info ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.onboard-info code { font: 500 11.5px var(--mono); color: var(--text); word-break: break-all; }
+.onboard-card.busy .onboard-info, .onboard-card.busy #btnOnboard { display: none; }
 
 /* ------------------------------------------------------------------ toasts */
 .toasts { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 100; align-items: center; pointer-events: none; }

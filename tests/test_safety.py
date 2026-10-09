@@ -150,3 +150,17 @@ class AppWindowLifetime(unittest.TestCase):
                 server.wait_page_gone(first=0.2, silence=60)
             server.PAGE.update(seen=time.time() - 120, bye=0.0)  # silent for 2 minutes
             server.wait_page_gone(first=0.2, silence=60)
+
+
+class FirstDownloadConsent(unittest.TestCase):
+    def test_no_data_waits_for_the_user(self):
+        from unittest import mock
+        from wtftd import server
+        started = []
+        with mock.patch.object(server, "remote_version", lambda: "2.59.0.61"), \
+                mock.patch.object(server, "read_json", lambda p, d=None: {}), \
+                mock.patch.object(server.threading, "Thread", lambda **kw: started.append(kw) or mock.Mock()), \
+                mock.patch.dict(server.STATE.update, {"running": False}):
+            available = server.check_for_update(start=True)["available"]
+        self.assertTrue(available)
+        self.assertEqual(started, [])  # first install: the welcome screen's button starts it
