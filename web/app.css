@@ -1160,3 +1160,9 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 .we-ain input[type=number], .we-ain input[type=text] { width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
 .we-ain input.bad { border-color: var(--bad, #e5484d); }
 @media (max-width: 640px) { .we-arow { grid-template-columns: 1fr 1fr; } }
+
+/* custom sight (ground vehicles) */
+.sight-field { margin-top: 12px; }
+.sight-field .field-row { display: flex; gap: 6px; align-items: center; }
+.sight-field select { flex: 1; min-width: 0; }
+.sight-field small.warn { display: block; color: var(--warn); margin-top: 4px; }

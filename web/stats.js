@@ -14,6 +14,7 @@ const STATS = {
   armH: { cats: ['ground'], unit: 'mm', better: 1, triple: true },
   trav: { cats: ['ground'], unit: '°/s', better: 1 },
   cal: { cats: ['ground', ...NAVAL], unit: 'mm', better: 1 },
+  kin: { cats: ['ground'], unit: 'mm', better: 1 },
   heat: { cats: ['ground'], unit: 'mm', better: 1 },
   rel: { cats: ['ground'], unit: 's', better: -1, digits: 1 },
   turn: { cats: AIR, unit: 's', better: -1, digits: 1 },

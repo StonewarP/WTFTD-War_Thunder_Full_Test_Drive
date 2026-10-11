@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 15  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 16  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -433,12 +433,72 @@ def _numval(v):
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
+# Kinetic penetration (mm, flat armor, at the muzzle): the shell's own table when the game file has one, else the
+# formulas the game uses for shells without one - Lanz-Odermatt for long rods (APFSDS: working length, density,
+# material), DeMarre for full-calibre AP shells (the exponents and coefficient are in the shell's file).
+_LO = {"tungsten": (0.994, 134.5, -0.148), "depletedUranium": (0.825, 90.0, -0.0849)}  # a, c0, c1 (longrods.ch)
+_RHA_BHN, _RHA_DENSITY = 260.0, 7850.0
+_DEMARRE_KFBR = 1900.0
+# explosive filler (% of the shell's mass) -> penetration factor, linear in between
+_FILLER = ((0.65, 1.0), (1.6, 0.93), (2.0, 0.9), (3.0, 0.85), (4.0, 0.75))
+
+
+def _filler_factor(pct: float) -> float:
+    if pct <= _FILLER[0][0]:
+        return 1.0
+    for (x0, y0), (x1, y1) in zip(_FILLER, _FILLER[1:]):
+        if pct <= x1:
+            return y0 + (pct - x0) * (y1 - y0) / (x1 - x0)
+    return _FILLER[-1][1]
+
+
+def kinetic_pen(b: dict) -> float | None:
+    """Penetration of an armor-piercing shell (mm, 0°, muzzle velocity); None for other shells or when the
+    game's files don't give what the formulas need (sub-calibre AP without a table, steel rods)."""
+    bt = first_str(b.get("bulletType")).lower()
+    if not (bt.startswith(("ap", "sap")) or "apds" in bt):
+        return None
+    ap = b.get("armorpower")
+    if isinstance(ap, dict):
+        rows = sorted((float(v[1]), float(v[0])) for v in ap.values()
+                      if isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) for c in v))
+        if rows:
+            return round(rows[0][1])
+    kin = (b.get("damage") or {}).get("kinetic") if isinstance(b.get("damage"), dict) else None
+    v, m = _numval(b.get("speed")), _numval(b.get("mass"))
+    if not isinstance(kin, dict) or not v or not m:
+        return None
+    if kin.get("lanzOdermattWorkingLength") is not None:
+        lo = _LO.get(str(kin.get("lanzOdermattMaterial")))
+        length, rho, d = _numval(kin.get("lanzOdermattWorkingLength")), _numval(kin.get("lanzOdermattDensity")), _numval(b.get("damageCaliber"))
+        if not lo or not length or not rho or not d:
+            return None
+        a, c0, c1 = lo
+        vk = v / 1000.0
+        p = length * a / math.tanh(0.283 + 0.0656 * length / (d * 1000.0)) * math.sqrt(rho / _RHA_DENSITY) \
+            * math.exp(-(c0 + c1 * _RHA_BHN) * _RHA_BHN / (rho * vk * vk))
+        return round(p)
+    k = _numval(kin.get("demarrePenetrationK"))
+    if k is None or _numval(b.get("damageCaliber")):
+        return None  # sub-calibre (APCR / APDS): the game uses the core, not in the files
+    cal = _numval(b.get("caliber"))
+    if not cal:
+        return None
+    sp, mp, cp = (_numval(kin.get(x)) or dflt for x, dflt in (("demarreSpeedPow", 1.43), ("demarreMassPow", 0.71),
+                                                                ("demarreCaliberPow", 1.07)))
+    p = v ** sp * m ** mp / (_DEMARRE_KFBR ** sp * (cal * 10.0) ** cp) * 100.0 * k
+    return round(p * _filler_factor(100.0 * (_numval(b.get("explosiveMass")) or 0.0) / m))
+
+
 def shell_stats(b: dict | None) -> dict:
     """Editable shell values: v speed (m/s), m mass (kg), e explosive mass (kg), h HEAT penetration (mm),
-    l APFSDS rod working length (mm)."""
+    l APFSDS rod working length (mm); and k kinetic penetration (mm, kinetic_pen), shown only."""
     if not isinstance(b, dict):
         return {}
     out = {}
+    pen = kinetic_pen(b)
+    if pen:
+        out["k"] = pen
     for key, src in (("v", b.get("speed")), ("m", b.get("mass")), ("e", b.get("explosiveMass"))):
         val = _numval(src)
         if val is not None:
@@ -665,6 +725,9 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
             heat = max((o.get("s", {}).get("h") or 0 for o in main.get("opts", [])), default=0)
             if heat:
                 out["heat"] = round(heat)
+            kin = max((o.get("s", {}).get("k") or 0 for o in main.get("opts", [])), default=0)
+            if kin:
+                out["kin"] = round(kin)
         if isinstance(wp.get("reloadTime_cannon"), (int, float)):
             out["rel"] = _r1(wp["reloadTime_cannon"])
     else:  # boats and ships
@@ -837,7 +900,7 @@ def guess_nation(vid: str) -> str:
 ROLES = ("light_tank", "medium_tank", "heavy_tank", "tank_destroyer", "spaa", "missile_tank",
          "fighter", "jet_fighter", "interceptor", "aa_fighter", "assault", "strike_aircraft", "bomber",
          "dive_bomber", "light_bomber", "frontline_bomber", "longrange_bomber", "jet_bomber", "torpedo",
-         "naval_aircraft", "hydroplane", "strike_ucav", "attack_helicopter", "utility_helicopter",
+         "naval_aircraft", "hydroplane", "strike_ucav", "drone", "attack_helicopter", "utility_helicopter",
          "boat", "torpedo_boat", "gun_boat", "torpedo_gun_boat", "heavy_boat", "heavy_gun_boat", "armored_boat",
          "submarine_chaser", "minelayer", "barge", "frigate", "destroyer", "light_cruiser", "heavy_cruiser",
          "battlecruiser", "battleship")
@@ -846,9 +909,14 @@ CLASS_ROLES = {"tank_destroyer": "tank_destroyer", "SPAA": "spaa", "fighter": "f
                "torpedo_gun_boat": "torpedo_gun_boat", "submarine_chaser": "submarine_chaser", "destroyer": "destroyer"}
 
 
-def vehicle_roles(tags: dict, unit_class: str, lang: "Lang") -> list:
+DRONES = ("uav_", "ucav_recon")  # drones the player flies (scout / FPV drones), not the strike UCAVs
+
+
+def vehicle_roles(tags: dict, unit_class: str, lang: "Lang", vid: str = "") -> list:
     tg = (tags or {}).get("tags") or {}
     roles = [k[5:] for k, on in tg.items() if on is True and k.startswith("type_") and k[5:] in ROLES]
+    if vid.lower().startswith(DRONES):
+        roles = [r for r in roles if r not in ("fighter", "jet_fighter", "drone")] + ["drone"]
     if not roles and CLASS_ROLES.get(unit_class):
         roles = [CLASS_ROLES[unit_class]]
     for r in roles:
@@ -882,8 +950,8 @@ def build_vehicles(lang: Lang, progress=None):
             vid = f.stem
             if vid.lower() in known:
                 continue
-            if not (lang.get(f"{vid}_shop") or lang.get(f"{vid}_0")):
-                continue  # unnamed = internal helper, skip
+            if not (lang.get(f"{vid}_shop") or lang.get(f"{vid}_0")) and not vid.lower().startswith(DRONES):
+                continue  # unnamed = internal helper, skip (drones: the game's FPV / recon drones have no name)
             entries.append((vid, cat, {}, True))
 
     for n in NUKES:
@@ -975,7 +1043,7 @@ def build_vehicles(lang: Lang, progress=None):
             caps = aircraft_caps(udata, catalog, keys)
             if caps:
                 details[vid]["cap"] = caps
-        roles = vehicle_roles(unittags.get(vid) or {}, rec["k"], lang)
+        roles = vehicle_roles(unittags.get(vid) or {}, rec["k"], lang, vid)
         if roles:
             rec["ro"] = roles
         stats = vehicle_stats(cat, udata, v, unittags.get(vid) or {}, details[vid]["st"], details[vid]["am"])
@@ -1321,6 +1389,105 @@ def build_free_scenarios(out_dir: Path, lang: "Lang", taken: set, levels: dict, 
                         "block": blocks[kind], "wing": "t1_player01", "pos": [round(float(c), 1) for c in pos],
                         "units": 1, "type": "singleMission", "en": {}, "free": 1})
     log(f"  {len({s['map'] for s in out})} other maps", progress)
+    return out
+
+
+# ------------------------------------------------------------------ ground battle maps (Domination layouts)
+# The game's Domination missions (gameData/missions/cta/tanks): each side's spawn and the capture zones, read from
+# the mission and the templates it imports. WTFTD makes a bare mission of each layout and side - your start at that
+# side's spawn facing the zones, the zones and the other side's spawn shown in the editor (no AI, score or capture).
+_BATTLE_SKIP = re.compile(r"hardcore|realistic|(^|_)rb_?|_rb\d|air|heli|plane|fighter|bomber|artillery|ucav|naval|ship|boat|bttl|sim", re.I)
+_BATTLE_TEAM = re.compile(r"(?:^|_)(?:t([12])|team([ab]))_", re.I)
+BATTLE_AIR_ALT = 1000.0  # m above the side's spawn: an air start over it
+
+
+def _battle_team(name: str) -> int | None:
+    m = _BATTLE_TEAM.search(name)
+    if not m:
+        return None
+    return 1 if m.group(1) == "1" or (m.group(2) or "").lower() == "a" else 2
+
+
+def battle_layout(d: dict) -> dict | None:
+    """{spawn: {1: pos, 2: pos}, zones: [(letter, area)], area: battle area or None} of a Domination mission:
+    the briefing markers (what the game shows before a battle) first, else its spawn zones / points."""
+    areas: dict = {}
+    for doc in _import_chain(d):
+        for n, a in (doc.get("areas") or {}).items():
+            if isinstance(a, dict) and tm_pos(a.get("tm")):
+                areas.setdefault(n, a)
+    usable = {n: a for n, a in areas.items() if not _BATTLE_SKIP.search(n)}
+    spawn = {}
+    for team in (1, 2):
+        for rule in (lambda n: n.lower().startswith("briefing_") and "spawn" in n.lower(),
+                     lambda n: "spawn" in n.lower() and not re.search(r"_pt_\d|spawnpoint|_\d\d_\d\d$|clear", n, re.I),
+                     lambda n: "spawn" in n.lower() and "clear" not in n.lower()):
+            names = sorted((n for n in usable if rule(n) and _battle_team(n) == team), key=lambda n: (len(n), n))
+            if names:
+                spawn[team] = tm_pos(usable[names[0]]["tm"])
+                break
+    caps: dict = {}
+    for n in sorted(usable, key=lambda n: (n.lower().startswith("briefing_"), n)):
+        m = re.search(r"capture.*?(\d+)", n, re.I)
+        if m and "capture" in n.lower() and 1 <= int(m.group(1)) <= 9:
+            caps.setdefault(int(m.group(1)), usable[n])
+    if len(spawn) < 2 or not caps:
+        return None
+    area = next((areas[n] for n in ("briefing_battlearea", "briefing_battlearea_arcade") if n in areas), None)
+    return {"spawn": spawn, "zones": [("ABCDEFGHI"[i - 1], caps[i]) for i in sorted(caps)], "area": area}
+
+
+def _facing(frm: list, to: list) -> list:
+    """The heading rows of a game tm, from frm towards to (levelled)."""
+    dx, dz = to[0] - frm[0], to[2] - frm[2]
+    n = math.hypot(dx, dz) or 1.0
+    fx, fz = dx / n, dz / n
+    return [[fx, 0.0, fz], [0.0, 1.0, 0.0], [-fz, 0.0, fx]]
+
+
+def build_battle_scenarios(out_dir: Path, lang: "Lang", progress=None) -> list:
+    log("Collecting the ground battle maps (Domination)...", progress)
+    root = DM / "mis.vromfs.bin_u" / "gamedata" / "missions" / "cta" / "tanks"
+    blocks = {"ground": "tankModels", "heli": "armada", "air": "armada"}
+    out = []
+    for f in sorted(root.rglob("*_dom.blkx")):
+        if "template" in f.as_posix().lower() or f.name.startswith(("aaa_", "ctf_")) or "_aslt_" in f.name:
+            continue
+        d = load(f)
+        mission = ((d or {}).get("mission_settings") or {}).get("mission") or {}
+        level = str(mission.get("level") or "").replace("\\", "/").rsplit("/", 1)[-1].replace(".bin", "").lower()
+        lay = battle_layout(d) if level else None
+        if not lay:
+            continue
+        layout = f.stem.lower()[:-4]  # poland_02_dom -> poland_02
+        lang.put("maps", level, f"location/{level}", f"missions/{level}", level,
+                 fallback=humanize(re.sub(r"^(avg|avn|air|hvg|arcade)_", "", level)))
+        variant = re.search(r"_(\d\d)$", layout)
+        night = layout.startswith("night_")
+        centre = [sum(tm_pos(a["tm"])[i] for _, a in lay["zones"]) / len(lay["zones"]) for i in range(3)]
+        for side, team in (("a", 1), ("b", 2)):
+            pos, foe = lay["spawn"][team], lay["spawn"][3 - team]
+            rot = _facing(pos, centre)
+            for kind, block in blocks.items():
+                start = [pos[0], pos[1] + BATTLE_AIR_ALT, pos[2]] if kind == "air" else pos
+                sid = f"battle_{layout}_{side}_{kind}"
+                m = _hangar_mission(level, block, start, "WTFTD", rot, 450.0 if kind == "air" else 0.0)
+                if night:
+                    m["mission_settings"]["mission"]["environment"] = "Night"
+                areas = m["areas"]
+                for letter, a in lay["zones"]:
+                    areas[f"wtftd_capture_{letter}"] = {"type": str(a.get("type") or "Sphere"), "tm": a["tm"], "objLayer": 0, "props": {}}
+                areas["wtftd_enemy_spawn"] = {"type": "Sphere", "tm": [[40.0, 0.0, 0.0], [0.0, 40.0, 0.0], [0.0, 0.0, 40.0], list(foe)],
+                                              "objLayer": 0, "props": {}}
+                if lay["area"]:
+                    areas["wtftd_battle_area"] = {"type": str(lay["area"].get("type") or "Box"), "tm": lay["area"]["tm"], "objLayer": 0, "props": {}}
+                with open(out_dir / f"{sid}.json", "w", encoding="utf-8") as fo:
+                    json.dump(m, fo, ensure_ascii=False, separators=(",", ":"))
+                out.append({"id": sid, "map": level, "kind": kind, "nation": "", "tags": ["battle"] + (["night"] if night else []),
+                            "start": "air" if kind == "air" else "ground", "block": block, "wing": "t1_player01",
+                            "pos": [round(float(c), 1) for c in start], "units": 1, "type": "singleMission", "en": {},
+                            "free": 1, "battle": {"side": side, "layout": int(variant.group(1)) if variant else 1}})
+    log(f"  {len(out) // 6} battle layouts on {len({s['map'] for s in out})} maps", progress)
     return out
 
 
@@ -1740,6 +1907,7 @@ def build_scenarios(lang: Lang, progress=None):
         })
     scenarios += build_hangar_scenarios(out_dir)
     log(f"  {len(scenarios)} scenarios", progress)
+    scenarios += build_battle_scenarios(out_dir, lang, progress)  # maps with a battle layout get no bare start too
     scenarios += build_free_scenarios(out_dir, lang, {s["map"] for s in scenarios}, build_levels(), progress)
     return scenarios
 

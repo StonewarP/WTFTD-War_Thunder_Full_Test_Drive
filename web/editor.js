@@ -36,7 +36,8 @@ const edUnitName = cls => (S.byId.has(cls) || I18N.unit(cls) !== cls ? I18N.unit
 
 // ------------------------------------------------------------------ the scenario's zones (areas)
 // once your start is set here, the scenario's own start zones follow it (or are no longer used): not drawn
-const edZones = () => (ED.zones ? (ED.data.areas || []).filter(z => !(z.player && edEdits().player)) : []);
+// the battle maps' capture zones and spawns (labelled) are always drawn
+const edZones = () => (ED.data.areas || []).filter(z => (ED.zones || z.label) && !(z.player && edEdits().player));
 const edZonePos = z => ({ ...z, ...(edEdits().areas[z.name] || {}) });
 const edFlyer = () => S.cfg.block === 'armada';
 // what the scenario puts in a zone: its units by vehicle (most first), and the side they fight for
@@ -58,6 +59,7 @@ function edZoneInfo(z0) {
 }
 function edZoneLabel(z0, info = edZoneInfo(z0)) {
   if (z0.player) return t('editor.zoneYou');
+  if (z0.label) return z0.label[0] === '@' ? t(z0.label.slice(1)) : t('editor.capture', { zone: z0.label });
   if (!info.classes.length) return z0.name.replace(/_/g, ' ');
   const names = info.classes.slice(0, 2).map(([c]) => edUnitName(c));
   return names.join(', ') + (info.classes.length > 2 ? ` +${info.classes.length - 2}` : '');

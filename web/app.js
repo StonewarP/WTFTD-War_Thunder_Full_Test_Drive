@@ -680,15 +680,24 @@ function defaultAmmo(v, d) {
   return d.am.slice(0, 4).map(g => ({ id: '', count: (g.cap || 0) * (g.n || 1) }));
 }
 
+// air start speed that suits the aircraft (km/h): drones and helicopters slow, propeller planes 450,
+// early jets (rank V and below) 700, later jets 1000
+function airStartSpeed(v) {
+  if (v.c === 'heli') return 150;
+  if (v.ro?.includes('drone')) return 100;
+  if (v.s?.tw == null) return 450;
+  return (v.r || 0) <= 5 ? 700 : 1000;
+}
+
 function defaultCfg(v, d) {
   const scen = scenariosFor(v, false)[0] || S.scenarios[0];
   const name = I18N.unit(v.id);
   return {
     vehicle: v.id, block: d.b || blockFor(v.c), scenario: scen?.id,
     preset: d.pr[0]?.id || '', ammo: defaultAmmo(v, d),
-    environment: '', weather: '', start: 'scenario', altitude: 1500, speed: 450, heading: '', fuel: 0,
+    environment: '', weather: '', start: 'scenario', altitude: 1500, speed: airStartSpeed(v), heading: '', fuel: 0,
     missionType: S.status.settings?.missionType || 'singleMission', allMods: true, mods: {}, pylons: null,
-    cheats: { immortal: false, noOverload: false, superMobility: false, infAmmo: false, noReload: false, infFuel: false, passiveEnemies: false, hostileEnemies: false, ghost: false, crew: '', repairEvery: 0 },
+    cheats: { immortal: false, noOverload: false, superMobility: false, infAmmo: false, noReload: false, infFuel: false, passiveEnemies: false, hostileEnemies: false, ghost: false, crew: '', repairEvery: 0, hotkeys: false, targetsBack: false },
     title: '', fileName: '', _autoTitle: `Test Drive: ${name}`,
   };
 }
@@ -771,7 +780,8 @@ function ammoLabel(o, belt = false) {
     return `${m || o.id.replace(/_/g, ' ')}${types ? ` (${types})` : ''}`;
   }
   const names = o.b.map(b => I18N.bullet(b)).join(', ');
-  return `${types || '?'}${names ? ' · ' + names : ''}${o.id ? '' : ' — ' + t('ammo.default')}`;
+  const pen = o.s?.k || o.s?.h;  // armor-piercing (≈ for those without a table in the game files) / HEAT
+  return `${types || '?'}${names ? ' · ' + names : ''}${pen ? ' · ' + t('ammo.pen', { mm: Math.round(pen) }) : ''}${o.id ? '' : ' — ' + t('ammo.default')}`;
 }
 
 function stepHTML(key, num, title, summary, body) {
@@ -929,7 +939,7 @@ function ammoBody(v, d) {
         <div class="mini-actions"><button class="btn btn-ghost btn-sm" data-act="fill">${esc(t('ammo.fill'))}</button><button class="btn btn-ghost btn-sm" data-act="split">${esc(t('ammo.split'))}</button></div></div>
       ${slots}
       ${g.cap ? `<div class="cap"><div class="cap-bar">${bar}</div><div class="cap-legend${over ? ' over' : ''}"><span>${esc(t('ammo.capacity', { used, cap: g.cap }))}</span>${over ? `<span>${esc(t('ammo.overCap'))}</span>` : ''}</div></div>` : ''}
-    </div>${unofficialToggle}`;
+    </div>${unofficialToggle}${sightHTML()}`;
   }
   if (!d.am.length) return `<p class="hint">${esc(t('ammo.none'))}</p>`;
   const guns = d.am.map((g, i) => `<div class="gun"><div class="gun-head">${icon('ammo', 'ic-sm')}<span class="gun-name">${esc(I18N.weapon(g.w))}</span>
@@ -937,6 +947,45 @@ function ammoBody(v, d) {
       ${cmChaff(g) && i < 4 ? cmBody(g, i, c.ammo[i]) + '</div>' : `<div class="belt-row">${beltIcons(g.opts.find(o => o.id === (c.ammo[i]?.id ?? '')), g.trig === 'countermeasures')}
         <select data-belt="${i}">${ammoOptions(g, c.ammo[i]?.id ?? '', true)}</select></div></div>`}`).join('');
   return `<p class="hint">${esc(t('ammo.beltNote'))}</p>${guns}${unofficialToggle}`;
+}
+
+// ------------------------------------------------------------------ custom sight (ground vehicles, sights.py)
+async function loadSights(force = false) {
+  if (S.sights && !force) return;
+  S.sights = { dir: '', sights: [], loading: true };
+  try { S.sights = await api('sights'); } catch { S.sights = { dir: '', sights: [] }; }
+  if (S.sel?.c === 'ground' && S.openStep === 'ammo') renderDrawer();
+}
+
+function sightHTML() {
+  if (!S.sights) { loadSights(); return ''; }
+  const cur = S.cfg.sight || '';
+  const known = S.sights.sights.some(x => x.id === cur);
+  return `<div class="field sight-field"><label>${esc(t('sight.label'))}</label>
+    <div class="field-row"><select data-sight>
+      <option value="">${esc(t('sight.default'))}</option>
+      ${cur && !known ? `<option value="${esc(cur)}" selected>${esc(cur.split('/').pop().replace(/\.blk$/i, ''))} ⚠</option>` : ''}
+      ${S.sights.sights.map(x => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(x.name)} · ${esc(x.folder || t('sight.library'))}</option>`).join('')}
+    </select><button class="btn btn-sm btn-ghost" data-act="sightImport">${icon('file', 'ic-sm')}<span>${esc(t('sight.import'))}</span></button></div>
+    <small class="muted">${esc(t('sight.hint'))}</small>
+    ${S.sights.loading ? '' : S.sights.dir ? '' : `<small class="warn">${esc(t('sight.noDir'))}</small>`}</div>`;
+}
+
+function importSight() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.blk';
+  inp.onchange = async () => {
+    const f = inp.files?.[0];
+    if (!f) return;
+    try {
+      const r = await api('sight-import', { name: f.name, text: await f.text() });
+      S.sights = { dir: r.dir, sights: r.sights };
+      if (S.cfg) S.cfg.sight = r.id;
+      renderDrawer();
+    } catch (e) { toastErr(e); }
+  };
+  inp.click();
 }
 
 function conditionsBody(isFlyer) {
@@ -1004,6 +1053,7 @@ function bindDrawer() {
       case 'reset-mods': c.mods = {}; return renderDrawer();
       case 'editor': return openEditor();
       case 'genDone': S.lastGen = null; return renderDrawer();
+      case 'sightImport': return importSight();
       case 'fill': {
         const g = mainGun(d, v); const used = c.ammo.reduce((s, a, i) => s + (a.id !== null && i > 0 ? +a.count : 0), 0);
         if (c.ammo[0].id !== null) c.ammo[0].count = Math.max(0, g.cap - used);
@@ -1019,6 +1069,7 @@ function bindDrawer() {
   dr.onchange = e => {
     const el = e.target, c = S.cfg;
     if (el.dataset.bind) { S[el.dataset.bind] = el.checked; return renderDrawer(); }
+    if (el.dataset.sight !== undefined) { if (el.value) c.sight = el.value; else delete c.sight; return renderDrawer(); }
     if (el.dataset.ammo !== undefined) {
       const a = c.ammo[+el.dataset.ammo];
       const was = a.id;
@@ -1118,6 +1169,8 @@ function missionPayload() {
     mods: cdkOn() ? Object.assign(modsPayload(c.mods), c.cheats.noReload ? { noReload: true } : {}) : undefined,
     pylons: cdkOn() && c.pylons ? c.pylons : undefined,
     cheats: { ...c.cheats, passiveEnemies: S.map.enemies === 'passive', hostileEnemies: S.map.enemies === 'hostile' },
+    hotkeyTexts: c.cheats.hotkeys ? hotkeyTexts() : undefined,
+    sight: c.block === 'tankModels' && c.sight ? c.sight : undefined,
     edits: c.edits && c.edits.sid === c.scenario ? c.edits : undefined,
   };
 }
@@ -1132,7 +1185,10 @@ async function generate(btn) {
     if (S.sel && S.sel.id === S.cfg.vehicle) renderDrawer();
     toast({
       title: t('toast.generated', { file: r.file }),
-      sub: t('toast.generatedHint', { title: missionPayload().title }) + (r.cdkFiles?.length ? ' ' + t('toast.cdkHint', { n: r.cdkFiles.length }) : ''), ms: 12000,
+      sub: t('toast.generatedHint', { title: missionPayload().title }) + (r.cdkFiles?.length ? ' ' + t('toast.cdkHint', { n: r.cdkFiles.length }) : '')
+        + (r.sight?.error ? ' ' + t('sight.failed', { error: r.sight.error })
+          : r.sight?.vehicles?.length ? ' ' + t('sight.installed', { file: r.sight.file, vehicle: r.sight.vehicles.map(x => I18N.unit(x)).join(', ') }) : ''),
+      ms: r.sight ? 20000 : 12000,
       actions: [{ label: t('action.launch'), icon: 'play', primary: true, run: launchGame }, { label: t('action.openFolder'), icon: 'folder', run: () => api('open-folder', {}) }],
     });
     refreshMissions();
@@ -1202,7 +1258,12 @@ const CHEATS = [
   ['noReload', 'cheat.noReload', 'cheat.noReloadHint'],
   ['infFuel', 'cheat.infFuel', 'cheat.infFuelHint'],
   ['ghost', 'cheat.ghost', 'cheat.ghostHint'],
+  ['targetsBack', 'cheat.targetsBack', 'cheat.targetsBackHint'],
+  ['hotkeys', 'cheat.hotkeys', 'cheat.hotkeysHint'],
 ];
+// in-mission keys: the hints the mission shows, in the player's language (mission.HOTKEY_TEXTS)
+const hotkeyTexts = () => Object.fromEntries(['on', 'off', 'immortal', 'reload', 'passive', 'repair', 'targets', 'start', 'help', 'intro']
+  .map(k => [k, t('hk.' + k)]));
 
 function cheatsBody() {
   const ch = S.cfg.cheats;

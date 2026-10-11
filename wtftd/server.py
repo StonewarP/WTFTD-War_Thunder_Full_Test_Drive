@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, builder, cdk, game, maptex, mission, terrain, uninstall
+from . import DONATE, REPO, __version__, builder, cdk, game, maptex, mission, sights, terrain, uninstall
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -494,6 +494,8 @@ class Handler(BaseHTTPRequestHandler):
             vid = route.split("/", 1)[1]
             d = api_vehicle(vid) if SAFE_ID.match(vid) else None
             return self.send_json(d) if d is not None else self.send_json({"error": "not found"}, 404)
+        if route == "sights":  # custom tank sights: the game's UserSights and WTFTD's library
+            return self.send_json(sights.list_sights(USER))
         if route == "setups":
             return self.send_json(read_json(USER / "setups.json", []))
         if route == "variants":  # scenario variants saved from the map editor
@@ -588,8 +590,9 @@ class Handler(BaseHTTPRequestHandler):
             out = um / name
             out.write_text(text, encoding="utf-8")
             ai_names = [k for f in (body.get("_aiFiles") or {}).values() for k in f]
+            sight = install_sight(body)
             return self.send_json({"ok": True, "file": name, "path": str(out), "cdkFiles": sorted(files) + sorted(ai_names),
-                                   "host": body.get("unitClass", "")})
+                                   "host": body.get("unitClass", ""), **({"sight": sight} if sight else {})})
         if route == "preview":
             body, files = self.prepare_cdk(body)
             name, text = mission.build(body)
@@ -598,9 +601,15 @@ class Handler(BaseHTTPRequestHandler):
             for ai_pkg, ai_files in (body.get("_aiFiles") or {}).items():
                 shown.update({f"{ai_pkg}/{k}": v for k, v in ai_files.items()})
             return self.send_json({"file": name, "text": text, "files": shown})
+        if route == "sight-import":  # a sight file the player picked (.blk text) into WTFTD's library
+            try:
+                return self.send_json({"id": sights.import_sight(USER, str(body.get("name", "")), body.get("text")),
+                                       **sights.list_sights(USER)})
+            except sights.SightError as e:
+                return self.send_json({"error": str(e)}, 400)
         if route == "cdk-cleanup":
             gd = STATE.game_dir()
-            removed = cdk.cleanup(gd, USER) if gd else 0
+            removed = (cdk.cleanup(gd, USER) if gd else 0) + sights.cleanup(USER)
             return self.send_json({"removed": removed, **api_status()})
         if route == "launch":
             how = game.launch(STATE.game_dir())
@@ -825,6 +834,21 @@ def weapon_base(key: str) -> dict | None:
         if isinstance(node, (int, float)) and not isinstance(node, bool):
             out[name] = node
     return out
+
+
+def install_sight(body: dict) -> dict | None:
+    """The custom sight chosen for a ground vehicle, copied for the vehicle the game loads (the custom vehicle's
+    host) and the vehicle itself: {sight, vehicles} or {error}."""
+    sid = body.get("sight")
+    veh = STATE.get_vehicles().get(str(body.get("vehicle", "")))
+    if not sid or not veh or veh["c"] != "ground":
+        return None
+    unit_class = str(body.get("unitClass") or "")
+    targets = [unit_class.split("/", 1)[1] if unit_class.startswith("userVehicles/") else "", veh["id"]]
+    try:
+        return {"sight": sid, "vehicles": sights.install(USER, str(sid), targets), "file": sights.SIGHT_FILE[:-4]}
+    except (sights.SightError, OSError) as e:
+        return {"error": str(e)}
 
 
 def _prepare_cdk(body: dict) -> tuple[dict, dict]:

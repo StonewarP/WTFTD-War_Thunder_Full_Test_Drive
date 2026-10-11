@@ -4,6 +4,28 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## Unreleased (experimental branch)
+
+- **In-mission keys** (Cheats → In-mission keys): switch options while you play with the game's *Quick radio
+  messages* (give them keys in the game's controls): #1 invulnerable, #2 no reload, #3 passive targets, #4 repair,
+  #5 targets back, #6 back to the start, #9 shows the keys. The hints in game are in the app's language.
+- **Targets come back** (Cheats): destroyed targets of the scenario and the ones added in the map editor are
+  repaired and brought back every 20 s.
+- **Ground battle maps** (Maps): the game's Domination layouts (79 layouts on 55 maps), from either side's spawn,
+  for ground vehicles, helicopters and aircraft (air start over the spawn); the capture zones A / B / C, the other
+  side's spawn and the battle area are drawn in the editor. A solo sandbox: no AI, score or capture.
+- **Custom sights** (ground vehicles, Ammunition step): pick a sight of your UserSights folder or add a `.blk`
+  sight file; WTFTD copies it as `wtftd` for the vehicle the game loads (the custom vehicle's host, and the
+  vehicle itself): pick `wtftd` once in the game's sight settings. Settings → Remove custom vehicle files removes
+  those copies too. WTFTD never changes the game's settings files.
+- **Armor-piercing penetration**: shells show their penetration in the Ammunition step (AP / APCBC / APHE /
+  APFSDS), and a new stat *Best AP penetration* (sortable, filterable, in the comparison): the game's own table
+  when the shell has one, else the formulas the game uses (DeMarre for full-calibre shells, Lanz-Odermatt for
+  long rods), about ±5 %. APCR / APDS without a table are not shown.
+- **Drones**: the game's FPV / recon drones are listed (non-playable units) with a *Drone* type.
+- Air starts on the bare and battle maps use a speed that suits the aircraft: drones 100 km/h, helicopters 150,
+  propeller planes 450, early jets (rank V and below) 700, later jets 1000.
+
 ## 0.19.0 — 2026-10-09
 
 - **My weapons** (new tab, right of Weapons): make your own versions of the game's missiles, bombs, rockets and
