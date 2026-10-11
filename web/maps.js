@@ -291,11 +291,14 @@ function renderMaps() {
         ${picked ? `<span class="chip">${icon('check', 'ic-sm')}${esc(t('kind.' + picked.kind))}</span>` : ''}</span>
     </button>`;
   };
-  const official = maps.filter(([, list]) => list.some(s => !s.free)), others = maps.filter(([, list]) => list.every(s => s.free));
+  const official = maps.filter(([, list]) => list.some(s => !s.free));
+  const battles = maps.filter(([, list]) => list.every(s => s.free) && list.some(s => s.battle));
+  const others = maps.filter(([, list]) => list.every(s => s.free && !s.battle));
   const section = (title, hint, list) => (list.length ? `<div class="mp-section"><h3>${esc(title)} <span class="muted">${list.length}</span></h3>
     ${hint ? `<p class="hint">${esc(hint)}</p>` : ''}<div class="mp-grid">${list.map(tile).join('')}</div></div>` : '');
   $('#mapGrid').innerHTML = maps.length
-    ? section(t('maps.official'), '', official) + section(t('maps.others'), t('maps.othersHint'), others)
+    ? section(t('maps.official'), '', official) + section(t('maps.battles'), t('maps.battlesHint'), battles)
+      + section(t('maps.others'), t('maps.othersHint'), others)
     : `<div class="empty">${icon('search', 'ic-xl')}<p>${esc(t('results.empty'))}</p></div>`;
   observeThumbs($('#mapGrid'));
 }
@@ -313,7 +316,8 @@ function renderMapDialog() {
   const v = pickedVehicle();
   const levels = new Set(S.status.levels || []);
   const list = (mapsShown().find(([m]) => m === map)?.[1] || S.scenarios.filter(s => s.map === map))
-    .slice().sort((a, b) => scenarioFits(b, v) - scenarioFits(a, v));
+    .slice().sort((a, b) => scenarioFits(b, v) - scenarioFits(a, v)
+      || (a.battle?.layout || 0) - (b.battle?.layout || 0) || (a.battle?.side || '').localeCompare(b.battle?.side || ''));
   $('#mapDlgName').textContent = mapName(map, list);
   const row = s => {
     const off = v && !scenarioFits(s, v);
@@ -321,10 +325,11 @@ function renderMapDialog() {
     const picked = S.pick.scenario === s.id && !S.pick.variant;
     const edits = picked ? editCount(s.id) : 0;
     const chips = [
-      ...s.tags.filter(x => x !== 'heli' && x !== 'ucav' && x !== 'destroyer').map(x => `<span class="chip info">${esc(I18N.tOr('tag.' + x, x))}</span>`),
+      ...s.tags.filter(x => x !== 'heli' && x !== 'ucav' && x !== 'destroyer' && x !== 'battle').map(x => `<span class="chip info">${esc(I18N.tOr('tag.' + x, x))}</span>`),
       s.nation ? `<span class="chip">${flagHTML(s.nation, 'flag')} ${esc(t('scenario.targets', { nation: nationName(s.nation) }))}</span>` : '',
       `<span class="chip dim">${esc(t('scenario.start.' + s.start))}</span>`,
-      s.free ? `<span class="chip info" title="${esc(t('maps.othersHint'))}">${esc(t('maps.bare'))}</span>` : '',
+      s.battle ? `<span class="chip info" title="${esc(t('maps.battlesHint'))}">${esc(t('maps.battleSide', { side: s.battle.side.toUpperCase() }))}${s.battle.layout > 1 ? ' · ' + esc(t('maps.layout', { n: s.battle.layout })) : ''}</span>`
+        : s.free ? `<span class="chip info" title="${esc(t('maps.othersHint'))}">${esc(t('maps.bare'))}</span>` : '',
       off ? `<span class="chip warn">${esc(t('pick.mismatch'))}</span>` : '',
       missing ? `<span class="chip warn">${esc(t('scenario.notInstalled'))}</span>` : '',
     ].join('');

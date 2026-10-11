@@ -273,6 +273,30 @@ the game loads a weapon from that folder at all, and which values drive a missil
   Custom pylons → My weapons) and on an AI aircraft's loadout, create the mission and play it: the changes are
   there, one per press; edit the weapon, create again: the new values are used.
 
+## 2l. Experimental branch (new tests)
+
+Checked out of game: unit tests (`tests/test_experimental.py`), the app's panels and the editor (2026-10-11).
+
+- [ ] **In-mission keys**: in the game's controls give keys to Quick radio messages #1–#6 and #9. Create a mission
+  with Cheats → In-mission keys (+ Invulnerable on) on a tank test drive and play it: the hint "WTFTD keys…" after
+  3 s; #9 shows the list; #1 says "Invulnerable: off" and a hit now damages you, #1 again turns it back on; #2
+  switches instant reload; #3 makes the targets stop / start firing (with "Targets shoot"); #4 repairs; #6 puts you
+  back at the start. Unknown: whether a key held a little long switches twice, whether the radio message also shows
+  in the chat.
+- [ ] Same on a test flight (aircraft): #6 puts you back in the air at the start's speed; #4 repairs (may restart
+  the engine).
+- [ ] **Targets come back**: add 3 enemy tanks in the editor, destroy them: they come back within 20 s
+  (`unitRestore` with `ressurectIfDead` on AI units: unknown), and #5 brings them back at once.
+- [ ] **Ground battle maps**: Maps → Ground battle maps → Poland → Ground, side A: you start in team A's spawn
+  facing the zones; side B: the other end. An aircraft (air start) and a helicopter on the same map.
+- [ ] **Custom sights**: put a sight in UserSights/all_tanks (or add a `.blk` in the Ammunition step), pick it for a
+  tank, create the mission: `UserSights/us_m2a4/wtftd.blk` (custom vehicle host) and `UserSights/<tank>/wtftd.blk`
+  exist. In the hangar select the M2A4, Options → … → Sight settings → Reticle → "wtftd", save. Play the mission:
+  is the sight used with the custom vehicle (the host's sight, or the tank's own folder)?
+- [ ] **AP penetration**: compare a few values with the game's X-ray / hangar shell card (M62, DM63, BR-471, a
+  modern APFSDS): within a few %?
+- [ ] **Drones**: UAV Raven's Eye and the FPV strike drone on a bare map (air start, 100 km/h): do they load?
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

@@ -91,11 +91,11 @@ window and finds your game by itself (Steam or standalone). Close the window to 
 
 - **3,500+ vehicles** with images from the [War Thunder wiki](https://wiki.warthunder.com/), grid or
   research-tree view, filters (category, **vehicle type** — light / medium / heavy tank, tank destroyer, SPAA,
-  fighter, bomber, attacker, helicopter, destroyer… with the game's own names —, nation, rank, BR in AB/RB/SB,
+  fighter, bomber, attacker, helicopter, drone, destroyer… with the game's own names —, nation, rank, BR in AB/RB/SB,
   favorites, premium/event, non-playable units), **sort by rarity** with badges (premium, squadron, pack, event,
   removed, hidden)
 - **Stats & fine search**: each vehicle's performance — top / reverse speed, power-to-weight, engine power,
-  turret / hull armor, turret traverse, gun caliber, HEAT penetration, reload; for aircraft turn time, roll rate,
+  turret / hull armor, turret traverse, gun caliber, AP and HEAT penetration, reload; for aircraft turn time, roll rate,
   climb rate, ceiling, thrust-to-weight, wing loading; for ships displacement — shown on its card, with a
   **Stock / All upgrades** switch (stock values from the modules' penalties, estimated for aircraft), **sortable**
   (fastest, best turning, best armored…) and **filterable with min / max** values. **Weapon picker**: pick carried
@@ -131,10 +131,16 @@ window and finds your game by itself (Steam or standalone). Close the window to 
     follow it when you take another one) or at a BR you pick, from the nations you choose;
   - behaviour: still, aggressive, return fire or passive; enemies can **hunt you**, allies can **escort you**;
   - shows where the scenario really spawns you (runway / start area) and the units it teleports
-- **Conditions**: time of day, weather, air start with altitude / speed, **fuel load** (% of the tanks)
+- **Ground battle maps**: the game's Domination layouts (79 on 55 maps) from either side's spawn, with the capture
+  zones and the other side's spawn in the editor (a solo sandbox: no AI, score or capture)
+- **Conditions**: time of day, weather, air start with altitude / speed (a speed that suits the aircraft by
+  default), **fuel load** (% of the tanks)
 - **Cheats**: invulnerable, unbreakable airframe (no wings torn off by overspeed or G), super mobility
   (engine power ×3–4, tighter turns), unlimited ammo, no reload, unlimited fuel, auto repair / rearm,
-  passive targets, no collisions, expert / ace crew
+  passive targets, no collisions, expert / ace crew, **targets come back**; **in-mission keys**: switch
+  invulnerability, instant reload and passive targets, repair, bring the targets back or go back to the start
+  while you play (the game's Quick radio messages)
+- **Custom sights** for ground vehicles: a sight of your UserSights folder or a `.blk` file you add
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
   简体中文, 日本語 — picked from your Windows language on first launch (or on the welcome screen), vehicle,
   weapon and map names follow the game's own translations. UI translations
@@ -263,7 +269,9 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
 ## Known limits
 
 - Stats come from the game's own stat cards (aircraft, armor) or are computed from the vehicle files (tank top
-  speed from the gearbox, ±10 %). Kinetic (AP / APFSDS) penetration isn't stored in the game files and isn't shown.
+  speed from the gearbox, ±10 %). Armor-piercing penetration is the shell's own table when its file has one,
+  else computed with the formulas the game uses (DeMarre, Lanz-Odermatt), about ±5 %; APCR / APDS without a table
+  aren't shown.
 - Without custom vehicles, aircraft use the official presets and the vehicle must be owned.
 - For aircraft and ships, belts are matched to gun groups in order (best effort).
 - A few scenarios pick their spawn / enemies from your vehicle's nation (Mozdok heli / UCAV, Denmark

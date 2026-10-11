@@ -17,7 +17,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import cdk, game
+from . import cdk, game, sights
 from .paths import CACHE, DATA, FROZEN, HOME, USER
 
 PARTS = ("cdk", "missions", "cache", "data", "user", "app")
@@ -163,7 +163,7 @@ def run(parts: list[str], game_dir: Path | None) -> dict:
     parts = [p for p in PARTS if p in parts]
     removed: dict = {}
     if "cdk" in parts:
-        removed["cdk"] = cdk.cleanup(game_dir, USER) if game_dir else 0
+        removed["cdk"] = (cdk.cleanup(game_dir, USER) if game_dir else 0) + sights.cleanup(USER)
     if "missions" in parts:
         n = 0
         for p in mission_files(game_dir):
@@ -181,7 +181,7 @@ def run(parts: list[str], game_dir: Path | None) -> dict:
         removed["data"] = 1
     if "user" in parts:
         # without its manifest, the custom vehicle files left in the game could no longer be removed
-        _rmtree(USER, keep=set() if "cdk" in parts else {cdk._manifest_path(USER).name})
+        _rmtree(USER, keep=set() if "cdk" in parts else {cdk._manifest_path(USER).name, sights._manifest(USER).name})
         removed["user"] = 1
     later: list[Path] = []
     app = app_path()

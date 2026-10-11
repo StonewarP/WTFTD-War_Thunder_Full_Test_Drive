@@ -269,6 +269,10 @@ def zone_info(sid: str) -> dict | None:
     return z if isinstance(z, dict) else None
 
 
+# zones of the battle maps (builder.build_battle_scenarios): capture zones are named by their letter
+BATTLE_ZONES = {"wtftd_enemy_spawn": "@editor.enemySpawn", "wtftd_battle_area": "@editor.battleArea"}
+
+
 def scenario_zones(sid: str, m: dict) -> list:
     """The mission's areas for the editor: centre, size, heading, shape, whether its scripts use it
     (where they spawn / respawn / send units), the units they put there and whether you start there."""
@@ -289,8 +293,10 @@ def scenario_zones(sid: str, m: dict) -> list:
             yaw = math.degrees(math.atan2(float(tm[0][2]), float(tm[0][0])))
         except (TypeError, KeyError, IndexError, ValueError):
             continue
+        label = BATTLE_ZONES.get(name) or (name[-1] if name.startswith("wtftd_capture_") else "")
         out.append({"name": name, "type": str(a.get("type", "")), "x": round(x, 1), "y": round(y, 1), "z": round(z, 1),
-                    "sx": round(sx, 1), "sz": round(sz, 1), "yaw": round(yaw, 1), "used": name in used or name == "wtftd_spawn",
+                    "sx": round(sx, 1), "sz": round(sz, 1), "yaw": round(yaw, 1),
+                    "used": name in used or name == "wtftd_spawn" or bool(label), **({"label": label} if label else {}),
                     **({"units": spawns[name][:80]} if spawns.get(name) else {}), **({"player": 1} if name in player else {})})
     return out
 
@@ -751,8 +757,9 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
     if ch.get("infFuel"):
         mission["isLimitedFuel"] = False
 
+    keys = bool(ch.get("hotkeys"))  # invulnerable / no reload switched by keys: kept on by apply_hotkeys' triggers
     props = {"object": wing}
-    if ch.get("immortal"):
+    if ch.get("immortal") and not keys:
         props["isImmortal"] = True
     if ch.get("ghost"):
         props["ignoreCollisions"] = True
@@ -793,9 +800,9 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
     # every second: keep the player immortal / topped up
     fast: dict = {}
     restore = {}
-    if ch.get("immortal") and not air:
+    if ch.get("immortal") and not air and not keys:
         restore.update({"fullRestore": True, "ressurectIfDead": True, "partRestore": True})
-    if ch.get("infAmmo") or ch.get("noReload"):
+    if ch.get("infAmmo") or ch.get("noReload") and not keys:
         restore["ammoRestore"] = True
     if restore:
         fast["unitRestore"] = {"target": wing, "fullRestore": restore.get("fullRestore", False),
@@ -808,6 +815,110 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
     if every > 0 and not ch.get("immortal"):
         repair = {"unitRestore": {"target": wing, "fullRestore": True, "ammoRestore": True, "ressurectIfDead": False}}
         triggers["wtftd_rules_repair"] = _trigger({"periodicEvent": {"time": max(1.0, every)}}, repair, True)
+
+
+# ---------------------------------------------------------------------------- in-mission keys
+# The game's "Quick radio message #n" controls (ID_FAST_VOICE_MESSAGE_n, set in the game's controls) are read by
+# the mission's triggers (playerShortcutPressed, as the game's own tutorials read keys). A key either runs an
+# action (repair, targets back, back to the start) or switches an option: the key's trigger asks a second,
+# disabled one to check its conditions (triggerActivate), which turns the option on (actions) or off
+# (else_actions) by a mission variable; while an option is on, a third trigger keeps it applied.
+HOTKEYS = {"immortal": 1, "reload": 2, "passive": 3, "repair": 4, "targets": 5, "start": 6, "help": 9}
+HOTKEY_TEXTS = {  # English fallback; the app sends them in the player's language
+    "on": "{what}: on", "off": "{what}: off",
+    "immortal": "Invulnerable", "reload": "No reload", "passive": "Passive targets", "repair": "Repaired",
+    "targets": "Targets back", "start": "Back to the start",
+    "help": "WTFTD keys (Quick radio messages): #1 invulnerable · #2 no reload · #3 passive targets · #4 repair · "
+            "#5 targets back · #6 back to the start · #9 this help",
+    "intro": "WTFTD keys: Quick radio message #9 shows them",
+}
+TARGETS_BACK_EVERY = 20.0  # s, "Targets come back"
+
+
+def _key_cond(name: str) -> dict:
+    return {"playerShortcutPressed": {"control": f"ID_FAST_VOICE_MESSAGE_{HOTKEYS[name]}"}}
+
+
+def _hint(text: str, time: float = 4.0) -> dict:
+    return {"hintType": "standard", "name": text, "action": "show", "shouldFadeOut": True, "time": time,
+            "priority": 0, "isOverFade": False, "target_marking": 0, "object_var_name": "",
+            "object_var_comp_op": "equal", "object_var_value": 0, "team": "Both"}
+
+
+def _clean_text(s, default: str) -> str:
+    s = " ".join(str(s or "").replace('"', "'").split())[:300]
+    return s or default
+
+
+def apply_hotkeys(m: dict, wing: str, ch: dict, air: bool, texts: dict | None, start_tm: list | None):
+    """In-mission keys (cheat "hotkeys") and "Targets come back" (cheat "targetsBack"): see HOTKEYS."""
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
+    variables = m.setdefault("variables", {})
+    if not isinstance(triggers, dict) or not isinstance(variables, dict):
+        return
+    enemies = _enemy_units(m.get("units") or {})
+    if ch.get("targetsBack") and enemies:
+        triggers["wtftd_targets_back"] = _trigger({"periodicEvent": {"time": TARGETS_BACK_EVERY}}, {"unitRestore": {
+            "target": enemies, "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True}}, True)
+    if not ch.get("hotkeys"):
+        return
+    tx = {k: _clean_text((texts or {}).get(k), v) for k, v in HOTKEY_TEXTS.items()}
+    on = lambda what: tx["on"].replace("{what}", tx[what])  # noqa: E731
+    off = lambda what: tx["off"].replace("{what}", tx[what])  # noqa: E731
+
+    def toggle(name: str, initial: bool, on_actions: dict, off_actions: dict, hold: dict | None = None):
+        var = f"wtftd_hk_{name}"
+        variables[var] = initial
+        triggers[f"wtftd_key_{name}"] = _trigger({"periodicEvent": {"time": 0.1}}, {
+            "wait": {"time": 0.3},
+            "triggerActivate": {"target": f"wtftd_key_{name}_switch", "activate_type": "checkConidtions",
+                                "check_trigger_status": False, "after_activation": "doNotChange"}}, True)
+        triggers[f"wtftd_key_{name}"]["conditions"] = _key_cond(name)
+        sw = _trigger({"periodicEvent": {"time": 1.0}}, {"varSetBool": {"value": True, "var": var}, **on_actions,
+                                                         "playHint": _hint(on(name))}, False)
+        sw["is_enabled"] = False
+        sw["conditions"] = {"varCompareBool": {"var_value": var, "value": False, "comparasion_func": "equal"}}
+        sw["else_actions"] = {"varSetBool": {"value": False, "var": var}, **off_actions, "playHint": _hint(off(name))}
+        triggers[f"wtftd_key_{name}_switch"] = sw
+        if hold:
+            h = _trigger({"periodicEvent": {"time": 1.0}}, hold, True)
+            h["conditions"] = {"varCompareBool": {"var_value": var, "value": True, "comparasion_func": "equal"}}
+            triggers[f"wtftd_key_{name}_hold"] = h
+
+    def action(name: str, actions: dict):
+        t = _trigger({"periodicEvent": {"time": 0.1}}, {**actions, "playHint": _hint(tx[name]), "wait": {"time": 1.0}}, True)
+        t["conditions"] = _key_cond(name)
+        triggers[f"wtftd_key_{name}"] = t
+
+    restore = {"target": wing, "fullRestore": True, "ressurectIfDead": True, "partRestore": True, "ammoRestore": True}
+    immortal_hold = {"unitSetProperties": {"object": wing, "isImmortal": True}}
+    if not air:  # aircraft: a full repair restarts the engines (apply_cheats)
+        immortal_hold["unitRestore"] = dict(restore)
+    toggle("immortal", bool(ch.get("immortal")), {"unitSetProperties": {"object": wing, "isImmortal": True}},
+           {"unitSetProperties": {"object": wing, "isImmortal": False}}, immortal_hold)
+    toggle("reload", bool(ch.get("noReload")), {"unitForceRearmSpeed": {"rearmSpeedK": 1000.0, "target": wing}},
+           {"unitForceRearmSpeed": {"rearmSpeedK": 1.0, "target": wing}},
+           {"unitRestore": {"target": wing, "fullRestore": False, "ressurectIfDead": False, "ammoRestore": True}})
+    if enemies:
+        toggle("passive", bool(ch.get("passiveEnemies")), {"unitSetProperties": {"object": enemies, "cannotShoot": True}},
+               {"unitSetProperties": {"object": enemies, "cannotShoot": False}})
+        action("targets", {"unitRestore": {"target": enemies, "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True}})
+    action("repair", {"unitRestore": restore})
+    if start_tm:
+        m.setdefault("areas", {})["wtftd_key_start"] = {
+            "type": "Sphere", "tm": [[c * 5.0 for c in start_tm[0]], [0.0, 5.0, 0.0], [c * 5.0 for c in start_tm[2]], list(start_tm[3])],
+            "objLayer": 0, "props": {}}
+        back = {"unitRespawn": {"delay": 0.0, "offset": [0.0, 0.0, 0.0], "object": wing, "target": "wtftd_key_start",
+                                "resetFormation": True}}
+        _, _, pu = _find_player(m.get("units") or {}, wing)
+        speed = ((pu or {}).get("props") or {}).get("speed")
+        if air and isinstance(speed, (int, float)) and speed > 0:
+            back["unitSetProperties"] = {"object": wing, "speed": float(speed)}
+        action("start", back)
+    action("help", {})
+    triggers["wtftd_key_help"]["actions"]["playHint"] = _hint(tx["help"], 12.0)
+    intro = _trigger({"periodicEvent": {"time": 3.0}}, {"playHint": _hint(tx["intro"], 8.0)}, False)
+    triggers["wtftd_key_intro"] = intro
 
 
 def safe_name(s: str) -> str:
@@ -947,6 +1058,15 @@ def build(cfg: dict) -> tuple[str, str]:
         x, y, z = unit["tm"][3]
         unit["tm"] = [[math.cos(yaw), 0.0, math.sin(yaw)], [0.0, 1.0, 0.0], [-math.sin(yaw), 0.0, math.cos(yaw)], [x, y, z]]
 
+    # a bare map's air start (no game script places the player): at the speed the app picked for the aircraft
+    if block == "armada" and not m.get("imports") and not (cfg.get("edits") or {}).get("player"):
+        props = unit.get("props") or {}
+        try:
+            if float(props.get("speed") or 0) > 0 and cfg.get("speed"):
+                props["speed"] = max(50.0, min(float(cfg["speed"]), 3000.0))
+        except (TypeError, ValueError):
+            pass
+
     start_y = float(unit["tm"][3][1])
     apply_edits(m, wing, cfg.get("edits") or {}, sid)
     pl = (cfg.get("edits") or {}).get("player")
@@ -967,6 +1087,7 @@ def build(cfg: dict) -> tuple[str, str]:
     else:
         cheats.pop("hostileEnemies", None)
     apply_cheats(m, wing, cheats, air=block == "armada")
+    apply_hotkeys(m, wing, cheats, block == "armada", cfg.get("hotkeyTexts"), unit.get("tm"))
 
     # ---- template units given another vehicle in the editor: the mission declares them itself
     eu = (cfg.get("edits") or {}).get("units") or {}
