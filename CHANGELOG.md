@@ -4,7 +4,7 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Unreleased (experimental branch)
+## 0.20.0 — not released yet
 
 - **In-mission keys** (Cheats → In-mission keys): switch options while you play with the game's *Quick radio
   messages* (give them keys in the game's controls): #1 invulnerable, #2 no reload, #3 passive targets, #4 repair,
@@ -23,6 +23,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   when the shell has one, else the formulas the game uses (DeMarre for full-calibre shells, Lanz-Odermatt for
   long rods), about ±5 %. APCR / APDS without a table are not shown.
 - **Drones**: the game's FPV / recon drones are listed (non-playable units) with a *Drone* type.
+- **Downloads named after the version**: `WTFTD-0.20.0.exe` (Windows) and `WTFTD-0.20.0.zip` (macOS), each with
+  its `.sha256`. Built from a branch other than `main`, the branch is added to the name.
 - Air starts on the bare and battle maps use a speed that suits the aircraft: drones 100 km/h, helicopters 150,
   propeller planes 450, early jets (rank V and below) 700, later jets 1000.
 

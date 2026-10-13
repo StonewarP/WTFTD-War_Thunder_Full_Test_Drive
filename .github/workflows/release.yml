@@ -1,6 +1,6 @@
 name: Build the apps
 
-# Publishing a release builds WTFTD-<version>.exe (Windows) and WTFTD-macOS.zip (WTFTD.app, Apple silicon) from
+# Publishing a release builds WTFTD-<version>.exe (Windows) and WTFTD-<version>.zip (WTFTD.app, Apple silicon) from
 # the tagged code on GitHub's servers and attaches them to the release with their SHA-256, so anyone
 # can check that the download comes from this source code.
 on:
@@ -72,15 +72,16 @@ jobs:
         run: ./build_app.sh
       - name: Attach the app and its SHA-256 to the release
         run: |
+          zip="WTFTD-$(python3 -c "import wtftd; print(wtftd.__version__)").zip"  # build_app.sh's name (tag: no branch)
           cd dist
-          hash=$(shasum -a 256 WTFTD-macOS.zip | cut -d' ' -f1)
-          echo "$hash  WTFTD-macOS.zip" > WTFTD-macOS.zip.sha256
-          gh release upload "$TAG" WTFTD-macOS.zip WTFTD-macOS.zip.sha256 --clobber
+          hash=$(shasum -a 256 "$zip" | cut -d' ' -f1)
+          echo "$hash  $zip" > "$zip.sha256"
+          gh release upload "$TAG" "$zip" "$zip.sha256" --clobber
           body=$(gh release view "$TAG" --json body -q .body)
           case "$body" in
-            *"SHA-256** of WTFTD-macOS.zip"*) ;;  # the notes may name the zip: look for this very line
+            *"SHA-256** of $zip"*) ;;  # the notes may name the zip: look for this very line
             *) gh release edit "$TAG" --notes "$body
 
-          **SHA-256** of WTFTD-macOS.zip (built by GitHub Actions from this tag): \`$hash\`
-          Check it in Terminal: \`shasum -a 256 WTFTD-macOS.zip\`" ;;
+          **SHA-256** of $zip (built by GitHub Actions from this tag): \`$hash\`
+          Check it in Terminal: \`shasum -a 256 $zip\`" ;;
           esac

@@ -25,7 +25,7 @@ triggers and respawn logic), puts your vehicle and setup in it, and writes it to
 ## Download
 
 **[⬇ Download WTFTD-&lt;version&gt;.exe](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/releases)** (Windows 10/11) or
-**WTFTD-macOS.zip** (macOS, Apple silicon) — nothing to install: double-click it, the app opens in its own
+**WTFTD-&lt;version&gt;.zip** (macOS, Apple silicon) — nothing to install: double-click it, the app opens in its own
 window and finds your game by itself (Steam or standalone). Close the window to quit.
 
 - **First launch**: a welcome screen says where WTFTD keeps its files and what it downloads from where;
@@ -37,10 +37,10 @@ window and finds your game by itself (Steam or standalone). Close the window to 
 - Your settings, missions and the game database live in `%LOCALAPPDATA%\WTFTD` (Windows) or
   `~/Library/Application Support/WTFTD` (macOS).
 - The apps are not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**. On macOS,
-  unzip `WTFTD-macOS.zip`, move `WTFTD.app` to *Applications*, open it once, then allow it in **System Settings →
+  unzip `WTFTD-<version>.zip`, move `WTFTD.app` to *Applications*, open it once, then allow it in **System Settings →
   Privacy & Security → Open Anyway**. Both are built by GitHub Actions from the released source code, and each
   release lists their **SHA-256**: check your download with `Get-FileHash WTFTD-<version>.exe` in PowerShell or
-  `shasum -a 256 WTFTD-macOS.zip` in Terminal.
+  `shasum -a 256 WTFTD-<version>.zip` in Terminal.
 - The app window uses Edge or Chrome (on macOS: Chrome, Edge, Brave or Chromium) in app mode; without one,
   WTFTD opens in your default browser.
 - When a new version is released, the app tells you (a *New version* button at the top) — download the new version
@@ -250,7 +250,7 @@ python -m wtftd
 `python -m wtftd --browser` uses your default browser instead of an app window.
 
 To build `dist\WTFTD-<version>.exe` yourself, run **`build_exe.bat`** on Windows (from a branch other than
-`main`, the branch is added: `WTFTD-<version>-<branch>.exe`); for `dist/WTFTD.app` (and `dist/WTFTD-macOS.zip`),
+`main`, the branch is added: `WTFTD-<version>-<branch>.exe`); for `dist/WTFTD.app` (and `dist/WTFTD-<version>.zip`),
 run **`./build_app.sh`** on a Mac. Both install PyInstaller in `.cache/build-venv`.
 
 ## Game data & automatic updates
