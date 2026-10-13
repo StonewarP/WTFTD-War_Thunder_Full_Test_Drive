@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 16  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 17  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -712,7 +712,7 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
             if st.get("hp"):
                 out["pw"] = _r1(st["hp"] / (st["mass"] / 1000))
         for key, src in (("armT", "armorThicknessTurret"), ("armH", "armorThicknessHull")):
-            if isinstance(shop.get(src), list) and shop[src]:
+            if isinstance(shop.get(src), list) and any(shop[src][:3]):  # all zeros in some cards: unknown, not 0 mm
                 out[key] = [round(x) for x in shop[src][:3]]
         ts = wp.get("turretSpeed")
         if isinstance(ts, list) and ts and isinstance(ts[0], (int, float)) and ts[0] > 0:
