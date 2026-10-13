@@ -24,7 +24,7 @@ triggers and respawn logic), puts your vehicle and setup in it, and writes it to
 
 ## Download
 
-**[⬇ Download WTFTD.exe](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/releases)** (Windows 10/11) or
+**[⬇ Download WTFTD-&lt;version&gt;.exe](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/releases)** (Windows 10/11) or
 **WTFTD-macOS.zip** (macOS, Apple silicon) — nothing to install: double-click it, the app opens in its own
 window and finds your game by itself (Steam or standalone). Close the window to quit.
 
@@ -39,7 +39,7 @@ window and finds your game by itself (Steam or standalone). Close the window to 
 - The apps are not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**. On macOS,
   unzip `WTFTD-macOS.zip`, move `WTFTD.app` to *Applications*, open it once, then allow it in **System Settings →
   Privacy & Security → Open Anyway**. Both are built by GitHub Actions from the released source code, and each
-  release lists their **SHA-256**: check your download with `Get-FileHash WTFTD.exe` in PowerShell or
+  release lists their **SHA-256**: check your download with `Get-FileHash WTFTD-<version>.exe` in PowerShell or
   `shasum -a 256 WTFTD-macOS.zip` in Terminal.
 - The app window uses Edge or Chrome (on macOS: Chrome, Edge, Brave or Chromium) in app mode; without one,
   WTFTD opens in your default browser.
@@ -249,8 +249,9 @@ python -m wtftd
 
 `python -m wtftd --browser` uses your default browser instead of an app window.
 
-To build `dist\WTFTD.exe` yourself, run **`build_exe.bat`** on Windows; for `dist/WTFTD.app` (and
-`dist/WTFTD-macOS.zip`), run **`./build_app.sh`** on a Mac. Both install PyInstaller in `.cache/build-venv`.
+To build `dist\WTFTD-<version>.exe` yourself, run **`build_exe.bat`** on Windows (from a branch other than
+`main`, the branch is added: `WTFTD-<version>-<branch>.exe`); for `dist/WTFTD.app` (and `dist/WTFTD-macOS.zip`),
+run **`./build_app.sh`** on a Mac. Both install PyInstaller in `.cache/build-venv`.
 
 ## Game data & automatic updates
 
@@ -288,7 +289,7 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
 ## Layout
 
 ```
-start.bat / build_exe.bat   run from source / build WTFTD.exe (Windows)
+start.bat / build_exe.bat   run from source / build WTFTD-<version>.exe (Windows)
 start.command / build_app.sh run from source / build WTFTD.app (macOS)
 wtftd_app.py                entry point of the packaged app
 wtftd/                      Python backend (stdlib only)
