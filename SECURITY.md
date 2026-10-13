@@ -24,7 +24,7 @@ Only the latest release is supported: fixes ship in a new version.
   (with your Git, or the official portable MinGit from git-for-windows), vehicle images from the
   [War Thunder wiki](https://wiki.warthunder.com/), and the release list of this repository (new version alert).
 - **What it sends:** nothing. No account, no telemetry, no analytics.
-- **The apps** (WTFTD.exe, WTFTD-macOS.zip) are built by GitHub Actions from the released source code; each
-  release lists their SHA-256 (check with `Get-FileHash WTFTD.exe` in PowerShell or
+- **The apps** (WTFTD-<version>.exe, WTFTD-macOS.zip) are built by GitHub Actions from the released source code; each
+  release lists their SHA-256 (check with `Get-FileHash WTFTD-<version>.exe` in PowerShell or
   `shasum -a 256 WTFTD-macOS.zip` in Terminal). They aren't code-signed yet, hence the SmartScreen / Gatekeeper
   warnings.
