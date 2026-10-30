@@ -16,9 +16,9 @@ import json
 import math
 import re
 
-from .builder import DATA, DM, NUKES, ICON_VOTES, Lang, aslist, first_str, humanize, load, log, report
+from . import builder
+from .builder import DATA, NUKES, ICON_VOTES, Lang, aslist, first_str, humanize, load, log, report
 
-W = DM / "aces.vromfs.bin_u" / "gamedata" / "weapons"
 FOLDERS = ("rocketguns", "bombguns", "torpedoes", "groundmodels_weapons", "navalmodels_weapons")
 SURFACE = ("groundmodels_weapons", "navalmodels_weapons")
 SKIP_TYPES = re.compile(r"^(flare|chaff|smoke|.*grenade)")
@@ -260,13 +260,13 @@ def _name(lang: Lang, iid: str, stem: str) -> None:
 def build_armament(lang: Lang, vehicles: list, progress=None) -> dict:
     log("Building the weapons page...", progress)
     report(progress, 0.88)
-    ex = load(DM / "aces.vromfs.bin_u" / "gamedata" / "damage_model" / "explosive.blkx") or {}
+    ex = load(builder.DM / "aces.vromfs.bin_u" / "gamedata" / "damage_model" / "explosive.blkx") or {}
     tnt_eq = {k.lower(): _n((v or {}).get("strengthEquivalent")) or 1.0
               for k, v in (ex.get("explosiveTypes") or {}).items() if isinstance(v, dict)}
     items: dict[str, dict] = {}
     by_file: dict[str, set] = {}  # weapon file key -> armament ids it fires
     for folder in FOLDERS:
-        for f in sorted((W / folder).glob("*.blkx")):
+        for f in sorted((builder.DM / "aces.vromfs.bin_u" / "gamedata" / "weapons" / folder).glob("*.blkx")):
             d = load(f)
             if not isinstance(d, dict):
                 continue

@@ -27,7 +27,7 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Tests
         run: python -m unittest discover -s tests -t .
       - name: Version matches the tag
@@ -35,6 +35,8 @@ jobs:
         run: |
           $v = python -c "import wtftd; print(wtftd.__version__)"
           if ($env:TAG -notlike "v$v*") { throw "Tag $env:TAG does not match wtftd.__version__ $v" }
+      - name: Reading the game's files works (compression.zstd)
+        run: python -c "import compression.zstd"
       - name: Build WTFTD-<version>.exe
         shell: cmd
         run: build_exe.bat < NUL
@@ -65,9 +67,11 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Tests
         run: python -m unittest discover -s tests -t .
+      - name: Reading the game's files works (compression.zstd)
+        run: python -c "import compression.zstd"
       - name: Build WTFTD.app
         run: ./build_app.sh
       - name: Attach the app and its SHA-256 to the release

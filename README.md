@@ -28,12 +28,17 @@ triggers and respawn logic), puts your vehicle and setup in it, and writes it to
 **WTFTD-&lt;version&gt;.zip** (macOS, Apple silicon) — nothing to install: double-click it, the app opens in its own
 window and finds your game by itself (Steam or standalone). Close the window to quit.
 
-- **First launch**: a welcome screen says where WTFTD keeps its files and what it downloads from where;
-  nothing is downloaded before you click *Accept and download*. WTFTD then fetches the game data once (≈1 GB
-  from the community [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine), 2–5 minutes)
-  and builds its database on your PC. No game data is shipped with WTFTD. If Git isn't installed, the
-  official portable MinGit (git-for-windows) is fetched automatically. The data then updates itself after
-  each game patch.
+- **First launch**: a welcome screen says where WTFTD keeps its files and what it downloads from where, and
+  asks where the game data should come from. Nothing starts before you accept.
+  - *Read my installed game*: no download. WTFTD unpacks the game's own files on your PC (≈650 MB on disk, about
+    3 minutes), always at your game's exact version, offline.
+  - *Download the community datamine*: ≈1 GB from the community
+    [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine) (2–5 minutes). It works without the
+    game, but it's community data and can be ahead of or behind your game. If Git isn't installed, the official
+    portable MinGit (git-for-windows) is fetched automatically.
+
+  Either way WTFTD builds its database on your PC (no game data is shipped with it), and updates it after each game
+  patch. Change the source at any time in **Settings → Game data**.
 - Your settings, missions and the game database live in `%LOCALAPPDATA%\WTFTD` (Windows) or
   `~/Library/Application Support/WTFTD` (macOS).
 - The apps are not code-signed: if Windows SmartScreen warns you, click **More info → Run anyway**. On macOS,
@@ -236,12 +241,13 @@ To uninstall: **Settings → Uninstall WTFTD…** removes everything, or only th
 files in the game, missions, cache, game database, your settings and library, the app itself).
 
 **Does WTFTD collect anything?**
-No: no account, no telemetry. It downloads the datamine, wiki images and this repository's release list,
-and sends nothing. See [SECURITY.md](SECURITY.md).
+No: no account, no telemetry. It downloads the datamine (unless you read your installed game instead), wiki images
+and this repository's release list, and sends nothing. See [SECURITY.md](SECURITY.md).
 
 ## Run from source
 
-Needs Python 3.10+ (no extra packages). Double-click **`start.bat`** (Windows) or **`start.command`** (macOS), or:
+Needs Python 3.10+ (no extra packages); reading the installed game instead of the datamine needs Python 3.14+.
+Double-click **`start.bat`** (Windows) or **`start.command`** (macOS), or:
 
 ```bash
 python -m wtftd
@@ -251,16 +257,26 @@ python -m wtftd
 
 To build `dist\WTFTD-<version>.exe` yourself, run **`build_exe.bat`** on Windows (from a branch other than
 `main`, the branch is added: `WTFTD-<version>-<branch>.exe`); for `dist/WTFTD.app` (and `dist/WTFTD-<version>.zip`),
-run **`./build_app.sh`** on a Mac. Both install PyInstaller in `.cache/build-venv`.
+run **`./build_app.sh`** on a Mac. Both install PyInstaller in `.cache/build-venv`. Build with Python 3.14+, or the
+app can't offer to read the installed game (both scripts warn you).
 
 ## Game data & automatic updates
 
-The game database (`data/`, not in this repository) is generated on your PC from the community datamine
-([gszabi99/War-Thunder-Datamine](https://github.com/gszabi99/War-Thunder-Datamine)): first download ≈1 GB
-into `.cache/datamine`, with your Git or an automatically fetched MinGit (Windows). On macOS, WTFTD uses
-Homebrew's Git or Apple's, and offers to install Apple's Command Line Tools if there is none. Every 3 hours (and at start-up)
-WTFTD checks the datamine's game version and rebuilds after a patch. Manual update: **Settings → Update
-game data**, or `python -m wtftd.builder`.
+The game database (`data/`, not in this repository) is generated on your PC from one of two sources, chosen on
+the welcome screen and in **Settings → Game data** (`dataSource` in `user/settings.json`):
+
+- **The installed game**: WTFTD reads `aces`, `char`, `lang` and `mis.vromfs.bin` (never writing to them) and unpacks
+  what it needs into `.cache/gamefiles` (≈650 MB). No network, no Git, and always your game's version. Built from the
+  same game version, the database is identical to the datamine's. Needs Python 3.14+ (the packaged apps have it).
+- **The community datamine** ([gszabi99/War-Thunder-Datamine](https://github.com/gszabi99/War-Thunder-Datamine)):
+  first download ≈1 GB into `.cache/datamine`, with your Git or an automatically fetched MinGit (Windows). On macOS,
+  WTFTD uses Homebrew's Git or Apple's, and offers to install Apple's Command Line Tools if there is none. It works
+  without the game, and it follows the datamine's latest build, which can be ahead of or behind your game.
+
+Every 3 hours (and at start-up) WTFTD checks the version of its source and rebuilds after a patch. Switching source
+rebuilds the database and keeps your setups, missions and settings; the datamine copy stays until you remove it in
+Settings. Manual update: **Settings → Update game data**, or `python -m wtftd.builder` (`--game` for the installed
+game).
 
 ## Translations
 
@@ -297,7 +313,8 @@ wtftd/                      Python backend (stdlib only)
   mission.py                official scenario + your setup -> .blk mission
   cdk.py                    custom vehicle files (userVehicles + @override modifications)
   maptex.py / terrain.py    tactical maps and heightmaps from the game files
-  builder.py                datamine -> data/*.json
+  builder.py                datamine or game files -> data/*.json
+  vromfs.py                 the game's own files: .vromfs.bin containers, binary BLK
   armament.py               Weapons page data (missiles, bombs, rockets, torpedoes)
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations

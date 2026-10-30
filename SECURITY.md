@@ -20,8 +20,11 @@ Only the latest release is supported: fixes ship in a new version.
   - with custom vehicles on: new files under `War Thunder\content\pkg_local` and `content\pkg_user` only —
     never a path that replaces a game file. Every file is listed in `user\cdk_manifest.json` and
     *Settings → Remove custom vehicle files* deletes them.
-- **What it downloads:** the community [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine)
-  (with your Git, or the official portable MinGit from git-for-windows), vehicle images from the
+- **What it reads:** with *Read my installed game*, the game's `aces`, `char`, `lang` and `mis.vromfs.bin` files, read
+  only, instead of downloading the datamine.
+- **What it downloads:** unless you read your installed game, the community
+  [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine)
+  (with your Git, or the official portable MinGit from git-for-windows); vehicle images from the
   [War Thunder wiki](https://wiki.warthunder.com/), and the release list of this repository (new version alert).
 - **What it sends:** nothing. No account, no telemetry, no analytics.
 - **The apps** (WTFTD-<version>.exe, WTFTD-<version>.zip) are built by GitHub Actions from the released source code; each
