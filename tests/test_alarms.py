@@ -2,11 +2,12 @@
 import json
 import re
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from wtftd import alarms, builder
+from wtftd import alarms, builder, flightlog
 
 SU30 = {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400, 9400], "eng": 2}
 J10 = {"v": 1543, "m": 2.1, "gear": 620, "flaps": [[0.1, 550], [1, 400]], "fuel": [5945, 6220.02], "eng": 1}
@@ -377,14 +378,167 @@ class Lines(unittest.TestCase):
     def test_conditions(self):
         cfg = alarms.clean(None, WORDS)
         cfg["lines"] = [{"text": w, "when": w, "alarm": "", "color": "", "size": 0} for w in alarms.WHEN]
-        shown = lambda st, on: [x[0] for x in alarms.lines_for(cfg, st, {}, SU30, on, WORDS)]
+        shown = lambda values, on: [x[0] for x in alarms.lines_for(cfg, values, on)]
         self.assertEqual(shown({}, []), ["always"])
-        self.assertEqual(shown({"gear, %": 1, "flaps, %": 1, "airbrake, %": 1}, ["gear"]), list(alarms.WHEN))
+        self.assertEqual(shown({"gear, %": 1, "flaps, %": 1, "airbrake, %": 1, "rec": 1}, ["gear"]), list(alarms.WHEN))
 
     def test_a_line_keeps_its_own_size_and_colour(self):
         cfg = alarms.clean(None, WORDS)
         cfg["lines"] = [{"text": "x", "when": "always", "alarm": "", "color": "#123456", "size": 90}]
-        self.assertEqual(alarms.lines_for(cfg, {}, {}, None, [], WORDS), [("x", "#123456", 90)])
+        self.assertEqual(alarms.lines_for(cfg, {}, []), [("x", "#123456", 90)])
+
+
+class Computed(unittest.TestCase):
+    def test_a_level_turn(self):  # 2 G at 100 m/s
+        out = alarms.computed(None, {"TAS, km/h": 360, "Ny": 2}, WORDS)
+        self.assertAlmostEqual(out["turn_radius"], 588.8, 0)
+        self.assertAlmostEqual(out["turn_rate"], 9.74, 1)
+        self.assertAlmostEqual(out["turn"], 37, 0)
+
+    def test_no_turn_flying_straight(self):
+        self.assertNotIn("turn", alarms.computed(None, {"TAS, km/h": 360, "Ny": 1.02}, WORDS))
+
+    def test_horizontal_speed(self):
+        self.assertAlmostEqual(alarms.computed(None, {"TAS, km/h": 360, "Vy, m/s": 60}, WORDS)["hspeed"], 288)
+
+    def test_thrust_adds_up_and_mass_is_empty_plus_fuel(self):
+        lim = dict(SU30, mass=17520)
+        out = alarms.computed(lim, {"thrust 1, kgs": 1874, "thrust 2, kgs": 1874, "Mfuel, kg": 9400}, WORDS)
+        self.assertEqual((out["thrust_total"], out["mass"]), (3748, 26920))
+        self.assertAlmostEqual(out["twr"], 0.139, 3)
+
+    def test_no_mass_no_ratio(self):
+        self.assertNotIn("twr", alarms.computed(SU30, {"thrust 1, kgs": 1874}, WORDS))
+
+    def test_endurance_and_range(self):
+        out = alarms.computed(None, {"Mfuel, kg": 500, "TAS, km/h": 720}, WORDS, {"burn": 100})
+        self.assertEqual(out["fuel_time"], "5:00")
+        self.assertEqual(out["range"], 60)
+
+    def test_nothing_burning(self):
+        self.assertNotIn("fuel_time", alarms.computed(None, {"Mfuel, kg": 500}, WORDS, {"burn": 0}))
+
+    def test_excess_power(self):
+        out = alarms.computed(None, {"TAS, km/h": 360, "Vy, m/s": 10}, WORDS, {"accel": alarms.G})
+        self.assertAlmostEqual(out["sep"], 110)
+
+    def test_trend(self):
+        trend = alarms.Trend()
+        for t in range(0, 41, 10):  # 2 kg a second
+            trend.add(t, {"Mfuel, kg": 1000 - 2 * t, "TAS, km/h": (100 + t) * 3.6})
+        self.assertAlmostEqual(trend.rates()["burn"], 120)
+        self.assertEqual(len(trend.points), 4)  # older than BURN_S: gone
+
+    def test_acceleration_over_the_last_seconds(self):
+        trend = alarms.Trend()
+        for t, v in ((0, 100), (9, 100), (10, 120), (11, 140)):
+            trend.add(t, {"TAS, km/h": v * 3.6})
+        self.assertAlmostEqual(trend.rates()["accel"], 20)
+
+    def test_a_first_reading_has_no_rates(self):
+        trend = alarms.Trend()
+        trend.add(0, {"Mfuel, kg": 10})
+        self.assertEqual(trend.rates(), {})
+
+    def test_refuelling_is_no_negative_burn(self):
+        trend = alarms.Trend()
+        trend.add(0, {"Mfuel, kg": 10})
+        trend.add(10, {"Mfuel, kg": 100})
+        self.assertEqual(trend.rates()["burn"], 0)
+
+    def test_every_value_has_its_own_log_column(self):
+        columns = [alarms.column(name) for name in alarms.SERIES]
+        self.assertEqual(len(columns), len(set(columns)))
+
+
+class Recording(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.folder = Path(self.tmp.name) / "logs"
+        self.reply = json.dumps(state(**{"TAS, km/h": 700})).encode()
+        self.watch = alarms.Watch(lambda path: self.reply if path == "/state" else None, lambda: details(),
+                                  save=lambda: None, logs=self.folder)
+        self.watch.model = lambda: "j_10c"
+
+    def tearDown(self):
+        self.watch.set_log(False)
+        self.tmp.cleanup()
+
+    def names(self):
+        return {alarms.column(n): n for n in alarms.SERIES}
+
+    def test_not_read_when_nobody_wants_it(self):
+        self.watch.get = mock.Mock(return_value=self.reply)
+        self.watch.tick()
+        self.watch.get.assert_not_called()
+
+    def test_the_tab_being_open_is_enough(self):
+        self.watch.viewed = time.monotonic()
+        with mock.patch.object(alarms, "beep") as beep:
+            self.watch.tick()
+        self.assertEqual(self.watch.trace[-1]["ias"], 500)
+        self.assertEqual(self.watch.display, [])  # the overlay stays off
+        beep.assert_not_called()
+
+    def test_a_reading_a_second(self):
+        self.watch.viewed = time.monotonic()
+        for _ in range(3):
+            self.watch.tick()
+        self.assertEqual(len(self.watch.trace), 1)
+        self.watch._sampled -= 2 * alarms.SAMPLE_S
+        self.watch.tick()
+        self.assertEqual([r["n"] for r in self.watch.trace], [1, 2])
+
+    def test_a_log(self):
+        self.watch.viewed = time.monotonic()
+        self.watch.tick()
+        self.watch.set_log(True)
+        name = self.watch.log.name
+        self.assertTrue(name.startswith("j_10c-"))
+        self.watch._sampled -= 2 * alarms.SAMPLE_S
+        self.watch.tick()
+        self.watch.set_log(False)
+        raw = (self.folder / name).read_bytes()
+        self.assertTrue(raw.startswith(b"\xef\xbb\xbf"), "BOM for Excel")
+        self.assertIn('"Time, s","IAS, km/h"', raw.decode("utf-8-sig"))
+        rows = flightlog.read_log(self.folder, name, self.names())["rows"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["ias"], rows[0]["vne"]), (500, 1543))
+
+    def test_recording_is_shown_by_its_line(self):
+        self.watch.enabled = True
+        self.watch.tick()
+        self.assertNotIn("REC", [x[0] for x in self.watch.display])
+        self.watch.set_log(True)
+        self.watch.tick()
+        self.assertIn("REC", [x[0] for x in self.watch.display])
+
+    def test_logs_listed_and_deleted(self):
+        self.folder.mkdir()
+        for name in ("a.csv", "b.csv"):
+            (self.folder / name).write_text("x", encoding="utf-8")
+        self.assertEqual({x["name"] for x in flightlog.list_logs(self.folder)}, {"a.csv", "b.csv"})
+        self.assertTrue(flightlog.delete_log(self.folder, "a.csv"))
+        self.assertFalse(flightlog.delete_log(self.folder, "a.csv"))
+
+    def test_names_from_the_page_stay_in_the_folder(self):
+        self.folder.mkdir()
+        outside = self.folder.parent / "x.csv"
+        outside.write_text("Time, s\n1\n", encoding="utf-8")
+        for name in ("../x.csv", "..\\x.csv", "C:/x.csv", "x.txt", ""):
+            self.assertIsNone(flightlog.read_log(self.folder, name, {}), name)
+            self.assertFalse(flightlog.delete_log(self.folder, name), name)
+        self.assertTrue(outside.exists())
+
+    def test_a_broken_log_is_refused(self):
+        self.folder.mkdir()
+        (self.folder / "bad.csv").write_text('"Time, s"\nabc\n', encoding="utf-8")
+        self.assertIsNone(flightlog.read_log(self.folder, "bad.csv", {}))
+
+    def test_a_name_is_made_safe(self):
+        log = flightlog.Log(self.folder, "a/b:c", ["x"])
+        log.close()
+        self.assertTrue(log.name.startswith("a_b_c-"))
 
 
 class Configuration(unittest.TestCase):
@@ -434,7 +588,7 @@ class Configuration(unittest.TestCase):
         page = (alarms.WEB / "overlay.js").read_text(encoding="utf-8")
         names = set(re.findall(r"'(\w+)'", page[page.index("OV_VALUES = {"):page.index("function ovShow")]))
         self.assertTrue(names)
-        self.assertLessEqual(names, set(alarms.FIELDS) | set(alarms.COMPUTED) | {"swept"})
+        self.assertLessEqual(names, set(alarms.FIELDS) | set(alarms.COMPUTED) | {"swept", "fuel_time"})
 
 
 class Preview(unittest.TestCase):

@@ -72,6 +72,7 @@
     <button class="tab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
     <button class="tab" data-view="myweapons" role="tab"><span data-i18n="nav.myWeapons"></span><span class="tab-count" id="myWeaponCount"></span></button>
     <button class="tab hidden" data-view="overlay" role="tab"><span data-i18n="nav.overlay"></span></button>
+    <button class="tab hidden" data-view="flight" role="tab"><span data-i18n="nav.flight"></span></button>
   </nav>
   <label class="search">
     <svg class="ic"><use href="#i-search"/></svg>
@@ -225,12 +226,30 @@
           <label class="switch"><input type="checkbox" data-ov="bold"><span class="sw"></span><span data-i18n="ov.bold"></span></label>
           <label class="switch"><input type="checkbox" data-ov="show"><span class="sw"></span><span data-i18n="ov.show"></span></label>
           <div class="field"><label for="ovHotkey" data-i18n="ov.hotkey"></label>
-            <input id="ovHotkey" type="text" readonly data-i18n-ph="ov.hotkeyPh"><small class="muted" data-i18n="ov.hotkeyHint"></small></div>
+            <input id="ovHotkey" type="text" readonly data-ovkey="hotkey" data-i18n-ph="ov.hotkeyPh"><small class="muted" data-i18n="ov.hotkeyHint"></small></div>
+          <div class="field"><label for="ovLogKey" data-i18n="ov.logKey"></label>
+            <input id="ovLogKey" type="text" readonly data-ovkey="logKey" data-i18n-ph="ov.hotkeyPh"></div>
           <h3 class="ov-h" data-i18n="ov.alarms"></h3>
           <div id="ovAlarms"></div>
           <div class="field"><label for="ovRepeat" data-i18n="ov.repeat"></label><input id="ovRepeat" type="number" data-ov="repeat" min="100" max="10000" step="50"></div>
         </aside>
       </div>
+    </div>
+
+    <div class="view hidden" id="view-flight">
+      <div class="page-head"><div><h2 data-i18n="fl.title"></h2><p class="muted" data-i18n="fl.hint"></p></div>
+        <div class="row gap">
+          <button class="btn" id="flRecord"><span id="flRecordLabel"></span></button>
+          <button class="btn btn-ghost" id="flFolder"><svg class="ic-sm"><use href="#i-folder"/></svg><span data-i18n="fl.folder"></span></button>
+        </div></div>
+      <div class="fl-bar">
+        <select id="flSource" aria-label="Log"></select>
+        <button class="icon-btn btn-danger hidden" id="flDelete" data-i18n-title="action.delete"><svg class="ic"><use href="#i-trash"/></svg></button>
+        <div class="seg" id="flSpan"><button data-s="60">1 min</button><button data-s="300">5 min</button><button data-s="1800">30 min</button><button data-s="0" data-i18n="fl.all"></button></div>
+        <small class="muted" id="flState"></small>
+      </div>
+      <div class="fl-chart"><canvas id="flCanvas" class="hidden"></canvas><div class="empty hidden" id="flEmpty"><p data-i18n="fl.empty"></p></div></div>
+      <div class="ov-values" id="flValues"></div>
     </div>
 
     <div class="view hidden" id="view-mymaps">
@@ -509,6 +528,7 @@
 <script src="weapons.js"></script>
 <script src="myweapons.js"></script>
 <script src="overlay.js"></script>
+<script src="flight.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 </body>

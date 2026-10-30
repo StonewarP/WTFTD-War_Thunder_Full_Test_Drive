@@ -33,7 +33,8 @@ Rebuild the data by hand with `python -m wtftd.builder --no-pull` (without downl
 | `wtftd/armament.py` | Weapons page data (missiles, bombs, rockets, torpedoes) |
 | `wtftd/mission.py` | Official scenario + your setup → `.blk` user mission |
 | `wtftd/cdk.py` | Custom vehicle files (`userVehicles` + `@override`) |
-| `wtftd/alarms.py` | In-flight alarms and overlay (Windows): game's `/state` + flight model limits; UI in `web/overlay.js` |
+| `wtftd/alarms.py` | In-flight values, alarms and overlay (Windows): game's `/state` + flight model limits; UI in `web/overlay.js` |
+| `wtftd/flightlog.py` | CSV flight logs (`user/logs`); curves in `web/flight.js` |
 | `wtftd/blk.py` | BLK text format writer / reader |
 | `web/` | UI: plain HTML / CSS / JavaScript, no build step |
 | `web/locales/` | UI translations |

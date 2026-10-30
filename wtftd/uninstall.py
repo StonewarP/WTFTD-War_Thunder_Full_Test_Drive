@@ -5,7 +5,7 @@ only what WTFTD added to it (the custom vehicle files of its manifest, the missi
   missions  missions created by WTFTD in the game's UserMissions (wtftd_*.blk, and the other names it saved a setup for)
   cache     .cache: the datamine copy, pictures, maps, logs (the app window's profile goes once WTFTD has closed)
   data      data: the game database built from the game files
-  user      user: settings, My vehicles / maps / missions (the custom vehicle manifest stays unless cdk goes too)
+  user      user: settings, My vehicles / maps / missions, flight logs (the custom vehicle manifest stays unless cdk goes too)
   app       the app itself (packaged app only: WTFTD.exe, WTFTD.app), once WTFTD has closed
 """
 from __future__ import annotations

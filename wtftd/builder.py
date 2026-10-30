@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 18  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 19  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -754,7 +754,8 @@ def engine_count(fm: dict) -> int:
 def flight_limits(fm: dict, cat: str) -> dict:
     """Breaking limits of an aircraft for the in-flight alarms (speeds: km/h, indicated). v, m: airframe speed and
     Mach; sw: variable sweep [[sweep, v, m], ...], v and m being then the swept-back limits; gear: 0 = none;
-    flaps: [[position 0..1, speed], ...]; fuel: MaxFuelMass0 and the tanks' sum, /state's Mfuel0 is one or the other."""
+    flaps: [[position 0..1, speed], ...]; fuel: MaxFuelMass0 and the tanks' sum, /state's Mfuel0 is one or the other;
+    mass: empty, kg."""
     aero, mass = fm.get("Aerodynamics") or {}, fm.get("Mass") or {}
     strength = (aero.get("WingPlane") or {}).get("Strength") or {}
     sweeps = [aero[k] for k in aero if re.fullmatch(r"WingPlaneSweep\d+", k)]
@@ -777,6 +778,7 @@ def flight_limits(fm: dict, cat: str) -> dict:
     tanks = sum(x for k, v in (mass.get("Parts") or {}).items() if k.endswith("_capacity") for x in aslist(v))
     out["fuel"] = [round(x, 2) for x in (mass.get("MaxFuelMass0", 0), tanks) if x]
     out["eng"] = engine_count(fm)
+    out["mass"] = _numval(mass.get("EmptyMass")) or 0
     return out
 
 

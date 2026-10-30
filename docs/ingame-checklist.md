@@ -337,6 +337,22 @@ Turn them on first: tab My overlay → Turn on the overlay and alarms (off by de
   the same aircraft: alarms are back.
 - [ ] **Packaged exe**, not only the sources: overlay shown, and no crash message on closing WTFTD.
 
+## 2n. Flight data and recording (new)
+
+Checked in a real flight on 2026-10-30 (Su-30MKK): live curves, a recording (BOM, columns, values), its replay and
+deletion, dark and light themes, a 1280 px wide window.
+
+- [ ] **Turn time** against the game: hold a level turn at a steady G and time a full circle with a stopwatch. It
+  assumes a level turn; climbing or diving it's only indicative.
+- [ ] **Fuel use and fuel time left**: without unlimited fuel, the minutes left against what really happens. The burn
+  is an average over 30 s.
+- [ ] **Thrust/weight**: compare with the stat card; the mass leaves out weapons and ammunition.
+- [ ] **SEP and acceleration** in a level acceleration and a climb: sensible signs and sizes?
+- [ ] **Record key** (My overlay): starts and stops in flight, `REC` shows on the overlay while it records.
+- [ ] A **CSV opened in Excel**: accents fine; with a French Excel, does it need Data → From text (comma separator)?
+- [ ] A **recording across two flights**: the curve breaks between them rather than joining them.
+- [ ] **Helicopter**: the values it doesn't send show N/A, nothing breaks.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

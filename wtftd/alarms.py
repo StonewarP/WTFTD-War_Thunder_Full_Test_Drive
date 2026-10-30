@@ -7,7 +7,8 @@ Its speed is then compared to the breaking limits of its flight model (st["lim"]
 builder.flight_limits): in doubt there is no alarm, never a guess.
 
 What is shown and heard is the player's (My overlay tab, settings.json "overlay", see clean): the window's look, each
-line's text ("IAS {ias} / {vne} km/h", see FIELDS) and when it shows, the alarms' thresholds and sounds.
+line's text ("IAS {ias} / {vne} km/h", see FIELDS) and when it shows, the alarms' thresholds and sounds. The same values
+go to the Flight data tab's curves and, on demand, to a CSV log (flightlog.py).
 
 The overlay is a separate click-through window above the game: nothing is injected, nothing touches the game.
 """
@@ -15,13 +16,15 @@ from __future__ import annotations
 
 import gc
 import json
+import math
 import re
 import sys
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
-from . import sights
+from . import flightlog, sights
 from .paths import WEB
 
 ALARMS = {"airframe": (93, 1400), "gear": (90, 1000), "flaps": (90, 700)}  # default: % of the limit, beep in Hz
@@ -30,22 +33,40 @@ IDLE_S = 1.0  # not flying: nothing to read fast
 REPEAT_MS = 300
 BEEP_MS = 150
 UNKNOWN_BEEP = (300, 500)
+SAMPLE_S = 1.0  # curves and logs: a reading a second
+TRACE_MAX = 3600  # an hour of curves
+VIEW_S = 5  # the Flight data tab asks every second: without it for this long, nobody is looking
+BURN_S, BURN_MIN_S = 30, 5  # fuel burn: over this long at most, once there is this much (the game gives whole kg)
+ACCEL_S = 2
+TURN_G = 1.05  # below, a turn of several minutes is only level flight's noise
+G = 9.80665
 SAVED_MODEL = re.compile(r'selectedAir\s*\{\s*current_model:t="([^"]+)"')
 
 # what an overlay line can show: {name} -> field of /state or /indicators, decimals; "{mach:3}" sets the decimals.
 # Any other field the game sends works under its own name: "{RPM 2}", "{bank}"
 FIELDS = {"ias": ("IAS, km/h", 0), "tas": ("TAS, km/h", 0), "mach": ("M", 2), "alt": ("H, m", 0), "vy": ("Vy, m/s", 1),
           "aoa": ("AoA, deg", 1), "aos": ("AoS, deg", 1), "g": ("Ny", 1), "g_max": ("g_meter_max", 1),
-          "roll": ("Wx, deg/s", 0), "heading": ("compass", 0), "fuel": ("Mfuel, kg", 0), "fuel_max": ("Mfuel0, kg", 0),
+          "roll": ("Wx, deg/s", 0), "heading": ("compass", 0), "pitch": ("aviahorizon_pitch", 1),
+          "bank": ("aviahorizon_roll", 1), "fuel": ("Mfuel, kg", 0), "fuel_max": ("Mfuel0, kg", 0),
           "throttle": ("throttle 1, %", 0), "rpm": ("RPM 1", 0), "thrust": ("thrust 1, kgs", 0),
           "power": ("power 1, hp", 0), "oil": ("oil temp 1, C", 0), "gear": ("gear, %", 0), "flaps": ("flaps, %", 0),
           "airbrake": ("airbrake, %", 0)}
 COMPUTED = {"vne": 0, "mne": 2, "gear_max": 0, "flaps_max": 0, "margin": 0, "airframe_pct": 0, "gear_pct": 0,
-            "flaps_pct": 0, "fuel_pct": 0}  # see computed(): name -> decimals
+            "flaps_pct": 0, "fuel_pct": 0, "hspeed": 0, "turn": 1, "turn_rate": 1, "turn_radius": 0, "accel": 1, "sep": 1,
+            "burn": 0, "range": 0, "mass": 0, "thrust_total": 0, "twr": 2}  # see computed(): name -> decimals
+SERIES = [*FIELDS, *COMPUTED]  # the numbers curves and logs follow
+# their columns in a log, when the game's field name isn't one
+COLUMNS = {"heading": "Heading, deg", "g_max": "Max G", "pitch": "Pitch, deg", "bank": "Bank, deg", "vne": "Max speed, km/h",
+           "mne": "Max Mach", "gear_max": "Gear max speed, km/h", "flaps_max": "Flaps max speed, km/h",
+           "margin": "Speed left, km/h", "airframe_pct": "Airframe limit, %", "gear_pct": "Gear limit, %",
+           "flaps_pct": "Flaps limit, %", "fuel_pct": "Fuel, %", "hspeed": "Horizontal speed, km/h", "turn": "Turn, s",
+           "turn_rate": "Turn rate, deg/s", "turn_radius": "Turn radius, m", "accel": "Acceleration, m/s2", "sep": "SEP, m/s",
+           "burn": "Fuel consumption, kg/min", "range": "Range, km", "mass": "Mass without weapons, kg",
+           "thrust_total": "Thrust, kgf", "twr": "Thrust/weight"}
 FIELD = re.compile(r"\{([^{}:]+)(?::(\d))?\}")
 NO_VALUE = "N/A"  # what the game doesn't send, what the aircraft doesn't have
 
-WHEN = {"always": None, "alarm": None, "gear": "gear, %", "flaps": "flaps, %", "airbrake": "airbrake, %"}  # shown if out
+WHEN = {"always": None, "alarm": None, "gear": "gear, %", "flaps": "flaps, %", "airbrake": "airbrake, %", "log": "rec"}  # shown if on
 MAX_LINES = 30
 MAX_TEXT = 120
 COLOR = re.compile(r"#[0-9a-fA-F]{6}")
@@ -64,6 +85,14 @@ OVERLAY_KEY = "#010101"  # the colour made see-through
 
 def available() -> bool:
     return sys.platform == "win32"
+
+
+def column(name: str) -> str:
+    return COLUMNS.get(name) or FIELDS[name][0]
+
+
+def units() -> dict:
+    return {name: column(name).rpartition(", ")[2] if ", " in column(name) else "" for name in SERIES}
 
 
 def screen() -> tuple:
@@ -100,10 +129,11 @@ def defaults(words: dict) -> dict:
 
     return {"x": round(700 * scale), "y": round(55 * scale), "font": "Consolas", "size": round(40 * scale), "bold": False,
             "color": "#E6E6E6", "alert": "#FF0000", "opacity": 100, "show": True, "hotkey": [], "hotkeyName": "",
-            "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS} for n, (at, hz) in ALARMS.items()},
+            "logKey": [], "logKeyName": "", "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS} for n, (at, hz) in ALARMS.items()},
             "lines": [line("IAS", "{ias} / {vne} km/h {swept}", alarm="airframe"), line("MACH", "{mach} / {mne}", alarm="airframe"),
                       line(words["gear"], "{ias} / {gear_max} km/h", "gear", "gear"),
-                      line(words["flaps"], "{ias} / {flaps_max} km/h", "flaps", "flaps")]}
+                      line(words["flaps"], "{ias} / {flaps_max} km/h", "flaps", "flaps"),
+                      {"text": "REC", "when": "log", "alarm": "", "color": "#FF0000", "size": 0}]}
 
 
 def _num(v, default, lo, hi):
@@ -124,6 +154,13 @@ def _line(line: dict) -> dict:
             "size": _num(line.get("size"), 0, 0, 400)}
 
 
+def _keys(cfg: dict, key: str, name: str) -> dict:
+    keys = cfg.get(key)
+    if isinstance(keys, list) and 0 < len(keys) < 5 and all(type(k) is int and 0 < k < 255 for k in keys):
+        return {key: keys, name: str(cfg.get(name, ""))[:32]}
+    return {key: [], name: ""}
+
+
 def clean(cfg, words: dict) -> dict:
     """A complete overlay configuration from what was saved or sent by the page: what's missing or odd gets the default."""
     base = defaults(words)
@@ -135,10 +172,8 @@ def clean(cfg, words: dict) -> dict:
            "size": _num(cfg.get("size"), base["size"], 6, 400), "bold": _flag(cfg.get("bold"), base["bold"]),
            "color": _color(cfg.get("color"), base["color"]), "alert": _color(cfg.get("alert"), base["alert"]),
            "opacity": _num(cfg.get("opacity"), base["opacity"], 10, 100), "show": _flag(cfg.get("show"), base["show"]),
-           "repeat": _num(cfg.get("repeat"), base["repeat"], 100, 10000), "hotkey": [], "hotkeyName": "", "alarms": {}}
-    keys = cfg.get("hotkey")
-    if isinstance(keys, list) and 0 < len(keys) < 5 and all(type(k) is int and 0 < k < 255 for k in keys):
-        out["hotkey"], out["hotkeyName"] = keys, str(cfg.get("hotkeyName", ""))[:32]
+           "repeat": _num(cfg.get("repeat"), base["repeat"], 100, 10000), "alarms": {},
+           **_keys(cfg, "hotkey", "hotkeyName"), **_keys(cfg, "logKey", "logKeyName")}
     for name, std in base["alarms"].items():
         a = alarms.get(name) if isinstance(alarms.get(name), dict) else {}
         out["alarms"][name] = {"on": _flag(a.get("on"), std["on"]), "at": _num(a.get("at"), std["at"], 1, 200),
@@ -174,13 +209,55 @@ def active(values: dict, alarms: dict) -> list:
     return [name for name, value in values.items() if alarms[name]["on"] and value >= alarms[name]["at"]]
 
 
-def computed(lim: dict | None, state: dict, words: dict) -> dict:
-    """The values that come from the limits: unknown aircraft, none of them. margin: km/h left to the nearest airframe limit."""
-    out = {"swept": words["swept"] if lim and "sw" in lim else ""}
+class Trend:
+    """What only shows over time: fuel burn and acceleration."""
+
+    def __init__(self):
+        self.points = deque()
+
+    def add(self, now: float, state: dict):
+        self.points.append((now, state.get("Mfuel, kg") or 0, (state.get("TAS, km/h") or 0) / 3.6))
+        while now - self.points[0][0] > BURN_S:
+            self.points.popleft()
+
+    def rates(self) -> dict:
+        """burn: kg/min, accel: m/s2 along the flight path."""
+        first, last, out = self.points[0], self.points[-1], {}
+        if last[0] - first[0] >= BURN_MIN_S:
+            out["burn"] = max(first[1] - last[1], 0) / (last[0] - first[0]) * 60
+        recent = next(p for p in self.points if last[0] - p[0] <= ACCEL_S)
+        if last[0] > recent[0]:
+            out["accel"] = (last[2] - recent[2]) / (last[0] - recent[0])
+        return out
+
+
+def computed(lim: dict | None, state: dict, words: dict, rates: dict | None = None) -> dict:
+    """The values the game doesn't send. Unknown aircraft: none of those from the limits. margin: km/h left to the
+    nearest airframe limit. turn (s), turn_rate, turn_radius: a level turn at this load factor and TAS. mass: empty +
+    fuel, the game doesn't tell the weapons' (shortcut: so twr reads high when loaded, until /state gives the real mass)."""
+    out = {"swept": words["swept"] if lim and "sw" in lim else "", **(rates or {})}
+    tas, climb, load, fuel = (state.get("TAS, km/h") or 0) / 3.6, state.get("Vy, m/s") or 0, state.get("Ny") or 0, state.get("Mfuel, kg") or 0
+    thrust = [v for k, v in state.items() if k.startswith("thrust ") and isinstance(v, (int, float))]
     if state.get("Mfuel0, kg"):
-        out["fuel_pct"] = (state.get("Mfuel, kg") or 0) / state["Mfuel0, kg"] * 100
+        out["fuel_pct"] = fuel / state["Mfuel0, kg"] * 100
+    if thrust:
+        out["thrust_total"] = sum(thrust)
+    if tas:
+        out["hspeed"] = math.sqrt(max(tas * tas - climb * climb, 0)) * 3.6
+    if tas and abs(load) > TURN_G:
+        pull = G * math.sqrt(load * load - 1)
+        out.update(turn_rate=math.degrees(pull / tas), turn=2 * math.pi * tas / pull, turn_radius=tas * tas / pull)
+    if "accel" in out:
+        out["sep"] = climb + tas * out["accel"] / G
+    if out.get("burn") and fuel:
+        left = fuel / out["burn"] * 60
+        out.update(fuel_time=f"{int(left) // 60}:{int(left) % 60:02d}", range=tas * left / 1000)
     if not lim:
         return out
+    if lim.get("mass"):
+        out["mass"] = lim["mass"] + fuel
+        if thrust:
+            out["twr"] = sum(thrust) / out["mass"]
     ias, mach = state.get("IAS, km/h") or 0, state.get("M") or 0
     out.update({f"{name}_pct": value for name, value in percents(lim, state).items()})
     out.update(vne=lim["v"], mne=lim["m"] or None, gear_max=lim.get("gear") or None,
@@ -204,17 +281,27 @@ def fill(text: str, values: dict) -> str:
     return FIELD.sub(one, text).rstrip()
 
 
-def shown(line: dict, state: dict, on: list) -> bool:
+def shown(line: dict, values: dict, on: list) -> bool:
     if line["when"] == "alarm":
         return bool(on)
-    return line["when"] == "always" or (state.get(WHEN[line["when"]]) or 0) > 0
+    return line["when"] == "always" or (values.get(WHEN[line["when"]]) or 0) > 0
 
 
-def lines_for(cfg: dict, state: dict, indicators: dict, lim: dict | None, on: list, words: dict) -> list:
+def lines_for(cfg: dict, values: dict, on: list) -> list:
     """[(text, colour, size), ...] of the overlay: a line goes to the alert colour with the alarm it follows."""
-    values = {**indicators, **state, **computed(lim, state, words)}
     return [(fill(line["text"], values), cfg["alert"] if line["alarm"] in on else line["color"] or cfg["color"],
-             line["size"] or cfg["size"]) for line in cfg["lines"] if shown(line, state, on)]
+             line["size"] or cfg["size"]) for line in cfg["lines"] if shown(line, values, on)]
+
+
+def numbers(values: dict) -> dict:
+    """A reading's values for curves and logs, under their names."""
+    out = {}
+    for name in SERIES:
+        source, places = FIELDS.get(name, (name, COMPUTED.get(name)))
+        v = values.get(source)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            out[name] = round(v, places + 1)
+    return out
 
 
 def answer(raw: bytes | None) -> dict:
@@ -285,8 +372,9 @@ class Watch:
     get: bytes of a game API path; details: () -> data/details.json; mission_on_map: () -> is the map of the mission
     generated last the one loaded in the game?; save: () -> path of global.blk."""
 
-    def __init__(self, get, details, mission_on_map=lambda: False, save=save_file, lang="en"):
+    def __init__(self, get, details, mission_on_map=lambda: False, save=save_file, lang="en", logs=None):
         self.get, self.details, self.mission_on_map, self.save = get, details, mission_on_map, save
+        self.logs = logs  # folder of the CSV logs
         self.words = labels(lang)
         self.cfg = clean(None, self.words)
         self.enabled = False
@@ -294,6 +382,13 @@ class Watch:
         self.hidden = False  # the show / hide key
         self.mission = None  # {"id", "fuel", "unbreakable"}: set when a mission is generated
         self.display = []
+        self.flying = False
+        self.viewed = -VIEW_S  # when the Flight data tab last asked
+        self.trace = deque(maxlen=TRACE_MAX)  # the last readings, for the curves: {"n": number, "t": time, values...}
+        self.log = None
+        self.log_lock = threading.Lock()
+        self.trend = Trend()
+        self._seq, self._sampled, self._flight = 0, 0.0, "flight"
         self.stopping = threading.Event()
         self.overlay = None
         self._details, self._planes = None, {}
@@ -322,9 +417,30 @@ class Watch:
         if self.preview:
             self.display = self.sample()
 
+    def set_log(self, on: bool):
+        with self.log_lock:
+            if on and not self.log:
+                self.log = flightlog.Log(self.logs, self._flight, [column(n) for n in SERIES])
+            elif self.log and not on:
+                self.log.close()
+                self.log = None
+
     def sample(self) -> list:
-        return lines_for(self.cfg, SAMPLE_STATE, {}, SAMPLE_LIM, active(percents(SAMPLE_LIM, SAMPLE_STATE), self.cfg["alarms"]),
-                         self.words)
+        values = {**SAMPLE_STATE, **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, {"burn": 95, "accel": 1.2})}
+        return lines_for(self.cfg, values, active(percents(SAMPLE_LIM, SAMPLE_STATE), self.cfg["alarms"]))
+
+    def record(self, values: dict):
+        """A reading a second for the curves and the log."""
+        now = time.monotonic()
+        if now - self._sampled < SAMPLE_S:
+            return
+        self._sampled = now
+        row = numbers(values)
+        self._seq += 1
+        self.trace.append({"n": self._seq, "t": round(time.time(), 1), **row})
+        with self.log_lock:
+            if self.log:
+                self.log.write([row.get(name, "") for name in SERIES])
 
     def planes(self) -> dict:
         details = self.details()
@@ -351,30 +467,40 @@ class Watch:
         if key == self._key:
             return
         self._key = key
+        self._flight = reported or model or "flight"
         m, lim = self.mission, None
         if m and m["id"] in planes and matches(planes[m["id"]], state, m.get("fuel")) and self.mission_on_map():
             lim = planes[m["id"]]  # what WTFTD generated first: custom vehicles keep the name of no real aircraft
         self._unbreakable = bool(lim and m.get("unbreakable"))
         self._lim = lim or planes.get(reported) or recognise(planes, state, model)
         print(f"Alarms: Mfuel0={key[0]}, reported={reported}, saved model={model}, limits={self._lim}", flush=True)
-        if not self._lim:
+        if not self._lim and self.enabled:
             beep(*UNKNOWN_BEEP)
 
     def tick(self) -> float:
         """One reading of /state; returns the time until the next one."""
-        state = flying(self.get("/state")) if self.enabled else None
+        wanted = self.enabled or self.log or time.monotonic() - self.viewed < VIEW_S
+        state = flying(self.get("/state")) if wanted else None
+        self.flying = state is not None
         if state is None:
             self.display = self.sample() if self.preview else []
             self._key = None  # the next spawn may be another aircraft, or the same one elsewhere
+            self.trend = Trend()
             return IDLE_S
         cfg = self.cfg
         indicators = answer(self.get("/indicators"))  # every time: it may only start answering mid-flight
         self.aircraft(state, reported_type(indicators))
         lim = self._lim
+        self.trend.add(time.monotonic(), state)
+        values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates()), "rec": 1 if self.log else 0}
+        self.record(values)
+        if not self.enabled:
+            self.display = self.sample() if self.preview else []
+            return POLL_S
         on = active(percents(lim, state), cfg["alarms"]) if lim and not self._unbreakable else []
         status = [(self.words["unknown"], cfg["alert"], cfg["size"])] if not lim else \
             [(self.words["unbreakable"], cfg["color"], cfg["size"])] if self._unbreakable else []
-        self.display = status + lines_for(cfg, state, indicators, lim, on, self.words)
+        self.display = status + lines_for(cfg, values, on)
         if on and time.monotonic() - self._last_beep >= cfg["repeat"] / 1000:
             self._last_beep = time.monotonic()
             for name in on:
@@ -390,6 +516,7 @@ class Watch:
             time.sleep(wait)
 
     def stop(self):
+        self.set_log(False)
         self.stopping.set()
         if self.overlay:
             self.overlay.join(1)
@@ -423,6 +550,10 @@ def run_overlay(watch: Watch):
             user32.GetClassNameW(user32.GetForegroundWindow(), name, len(name))
             return name.value == GAME_WINDOW_CLASS
 
+        def pressed(keys: list) -> bool:
+            return bool(keys and user32.GetAsyncKeyState(keys[-1]) & 1 and game_focused()
+                        and all(user32.GetAsyncKeyState(k) & 0x8000 for k in keys[:-1]))
+
         def draw(cfg: dict, lines: list):
             root.geometry(f"+{cfg['x']}+{cfg['y']}")
             root.attributes("-alpha", cfg["opacity"] / 100)
@@ -443,10 +574,10 @@ def run_overlay(watch: Watch):
             if (cfg, lines) != drawn:
                 drawn = cfg, lines
                 draw(cfg, lines)
-            keys = cfg["hotkey"]
-            if keys and user32.GetAsyncKeyState(keys[-1]) & 1 and game_focused() \
-                    and all(user32.GetAsyncKeyState(k) & 0x8000 for k in keys[:-1]):
+            if pressed(cfg["hotkey"]):
                 watch.hidden = not watch.hidden
+            if pressed(cfg["logKey"]):
+                watch.set_log(not watch.log)
             on_game = cfg["show"] and not watch.hidden and game_focused()
             # ShowWindow rather than Tk: Tk would take the focus
             user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE if lines and (watch.preview or on_game) else SW_HIDE)

@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, builder, cdk, game, maptex, mission, sights, terrain, uninstall
+from . import DONATE, REPO, __version__, alarms, builder, cdk, flightlog, game, maptex, mission, sights, terrain, uninstall
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -505,6 +505,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(read_json(USER / "combos.json", []))
         if route == "overlay":
             return self.send_json(overlay_status())
+        if route.startswith("flight/"):
+            return self.send_json(flight_status(int(route.split("/", 1)[1]) if route.split("/", 1)[1].isdigit() else 0))
+        if route == "flight-logs":
+            return self.send_json(flightlog.list_logs(LOGS))
+        if route.startswith("flight-logs/"):
+            log = flightlog.read_log(LOGS, route.split("/", 1)[1], {alarms.column(n): n for n in alarms.SERIES})
+            return self.send_json(log) if log is not None else self.send_json({"error": "not found"}, 404)
         if route == "myweapons":  # My weapons: modified copies of the game's pylon weapons
             return self.send_json(read_json(USER / "weapons.json", []))
         if route == "weapon-keys":  # Weapons tab rows -> the pylon weapon they can be modified from
@@ -656,6 +663,16 @@ class Handler(BaseHTTPRequestHandler):
             STATE.save_settings(s)
             apply_alarm_settings()
             return self.send_json(overlay_status())
+        if route == "flight-log":  # record the flight data to a CSV file, or stop
+            WATCH.set_log(body.get("on") is True)
+            return self.send_json(flight_status(10 ** 12))
+        if route == "flight-log-delete":
+            return self.send_json({"ok": flightlog.delete_log(LOGS, str(body.get("name", ""))),
+                                   "logs": flightlog.list_logs(LOGS)})
+        if route == "flight-logs-open":
+            LOGS.mkdir(parents=True, exist_ok=True)
+            game.open_folder(LOGS)
+            return self.send_json({"ok": True})
         if route == "overlay-preview":  # show it on the screen now, without the game
             WATCH.set_preview(alarms.available() and body.get("on") is True)
             return self.send_json(overlay_status())
@@ -990,7 +1007,8 @@ def mission_on_map() -> bool:
     return bool(hint and info.get("valid") and _matches(read_json(DATA / "levels.json", {}).get(hint["level"], {}), mn, mx))
 
 
-WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map)
+LOGS = USER / "logs"
+WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS)
 
 
 def apply_alarm_settings():
@@ -998,6 +1016,13 @@ def apply_alarm_settings():
     WATCH.words = alarms.labels(str(s.get("lang") or "en"))
     WATCH.set_config(alarms.clean(s.get("overlay"), WATCH.words))
     WATCH.set_enabled(alarms.available() and s.get("alarms") is True)
+
+
+def flight_status(after: int) -> dict:
+    """The Flight data tab: the readings after this one (the tab asking keeps them coming, see Watch.tick)."""
+    WATCH.viewed = time.monotonic()
+    return {"rows": [r for r in list(WATCH.trace) if r["n"] > after], "flying": WATCH.flying,
+            "log": WATCH.log.name if WATCH.log else None, "units": alarms.units()}
 
 
 def overlay_status() -> dict:

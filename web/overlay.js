@@ -4,14 +4,14 @@
 'use strict';
 
 const OV = { cfg: null, screen: [3840, 2160], lines: [], input: null, timer: 0 };
-const OV_WHEN = ['always', 'gear', 'flaps', 'airbrake', 'alarm'];
+const OV_WHEN = ['always', 'gear', 'flaps', 'airbrake', 'alarm', 'log'];
 const OV_ALARMS = { airframe: 1540, gear: 700, flaps: 600 };  // the example under each threshold, km/h
 const OV_FONTS = ['Consolas', 'Cascadia Mono', 'Courier New', 'Lucida Console', 'Segoe UI', 'Bahnschrift', 'Arial', 'Tahoma', 'Verdana', 'Impact'];
 const OV_VALUES = {
-  speed: ['ias', 'tas', 'mach', 'vne', 'mne', 'margin', 'airframe_pct', 'swept'],
+  speed: ['ias', 'tas', 'mach', 'hspeed', 'accel', 'sep', 'vne', 'mne', 'margin', 'airframe_pct', 'swept'],
   gearflaps: ['gear', 'gear_max', 'gear_pct', 'flaps', 'flaps_max', 'flaps_pct', 'airbrake'],
-  flight: ['alt', 'vy', 'aoa', 'aos', 'g', 'g_max', 'roll', 'heading'],
-  engine: ['throttle', 'rpm', 'thrust', 'power', 'oil', 'fuel', 'fuel_max', 'fuel_pct'],
+  flight: ['alt', 'vy', 'aoa', 'aos', 'g', 'g_max', 'turn', 'turn_rate', 'turn_radius', 'roll', 'pitch', 'bank', 'heading'],
+  engine: ['throttle', 'rpm', 'thrust', 'thrust_total', 'twr', 'mass', 'power', 'oil', 'fuel', 'fuel_max', 'fuel_pct', 'burn', 'fuel_time', 'range'],
 };
 
 function ovShow(st) {
@@ -87,7 +87,7 @@ function ovRender(st) {
     if (el.type === 'checkbox') el.checked = OV.cfg[el.dataset.ov];
     else el.value = OV.cfg[el.dataset.ov];
   });
-  $('#ovHotkey').value = OV.cfg.hotkeyName;
+  $$('#view-overlay [data-ovkey]').forEach(el => { el.value = OV.cfg[el.dataset.ovkey + 'Name']; });
   ovRenderLines();
   ovRenderAlarms();
   ovShow(st);
@@ -183,16 +183,15 @@ function bindOverlay() {
     try { ovRender(await api('overlay', { reset: true })); } catch (e) { return toastErr(e); }
     toast({ title: t('ov.resetDone'), actions: [{ label: t('ov.undo'), run: async () => ovRender(await api('overlay', { cfg: before })) }] });
   });
-  const hotkey = $('#ovHotkey');
-  hotkey.addEventListener('keydown', e => {
+  $$('#view-overlay [data-ovkey]').forEach(field => field.addEventListener('keydown', e => {
     e.preventDefault();
     if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
     const mods = [[e.ctrlKey, 17, 'Ctrl'], [e.shiftKey, 16, 'Shift'], [e.altKey, 18, 'Alt']].filter(m => m[0]);
-    const none = e.key === 'Escape' || e.key === 'Backspace';
-    OV.cfg.hotkey = none ? [] : [...mods.map(m => m[1]), e.keyCode];
-    OV.cfg.hotkeyName = none ? '' : [...mods.map(m => m[2]), e.code.replace(/^(Key|Digit)/, '')].join('+');
-    hotkey.value = OV.cfg.hotkeyName;
+    const none = e.key === 'Escape' || e.key === 'Backspace', key = field.dataset.ovkey;
+    OV.cfg[key] = none ? [] : [...mods.map(m => m[1]), e.keyCode];
+    OV.cfg[key + 'Name'] = none ? '' : [...mods.map(m => m[2]), e.code.replace(/^(Key|Digit)/, '')].join('+');
+    field.value = OV.cfg[key + 'Name'];
     ovSave();
-  });
+  }));
   addEventListener('resize', () => { if (OV.cfg && !$('#view-overlay').classList.contains('hidden')) ovDraw(); });
 }

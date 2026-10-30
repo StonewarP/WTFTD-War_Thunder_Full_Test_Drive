@@ -21,6 +21,13 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
     engines and the model the game saved (read only): in doubt the overlay says `AIRCRAFT UNKNOWN` and stays silent,
     it never guesses. Variable-sweep wings: the limit shown is the swept-back one (the game doesn't send the wing
     position). Unbreakable airframe: the overlay says so, no alarm.
+- **Flight data** (new tab, Windows): what the game reports in flight, as live curves, one strip per value on a shared
+  time axis, with the value under the mouse. **Record** a flight to a CSV file that opens in Excel (`user/logs`, also
+  from a key in flight), replay it here, delete it.
+- New values for the overlay, the curves and the logs: turn time, rate and radius, horizontal speed, acceleration,
+  specific excess power, total thrust, thrust/weight, fuel use, fuel time and range left, pitch, bank. The mass leaves
+  the weapons out (the game doesn't tell it), so thrust/weight reads a little high when loaded. Pitch, bank and heading
+  come from `/indicators`: `N/A` while it's blank. A `REC` line shows while recording.
 - Tornado and some F-16 AM (21 aircraft) lost their mass, fuel and thrust stats, and "Unbreakable airframe" did
   nothing on them: their flight model's path is spelled differently in the game files.
 

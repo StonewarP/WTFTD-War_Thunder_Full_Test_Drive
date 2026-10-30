@@ -45,11 +45,11 @@ class ReferenceWeapons(unittest.TestCase):
 class ReferenceLimits(unittest.TestCase):
     def test_su_30mkk(self):
         self.assertEqual(flight_limits(load(FM / "su_30mkk.blkx"), "air"),
-                         {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400, 9400], "eng": 2})
+                         {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400, 9400], "eng": 2, "mass": 17520})
 
     def test_j_10c(self):
         self.assertEqual(flight_limits(load(FM / "j_10c.blkx"), "air"),
-                         {"v": 1543, "m": 2.1, "gear": 620, "flaps": [[0.1, 550], [1, 400]], "fuel": [5945, 6220.02], "eng": 1})
+                         {"v": 1543, "m": 2.1, "gear": 620, "flaps": [[0.1, 550], [1, 400]], "fuel": [5945, 6220.02], "eng": 1, "mass": 9045})
 
     def test_f_14a_variable_sweep(self):
         lim = flight_limits(load(FM / "f_14a_early.blkx"), "air")
