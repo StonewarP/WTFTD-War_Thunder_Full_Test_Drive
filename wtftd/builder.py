@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 17  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 18  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -744,7 +744,48 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
     return out
 
 
-def base_stats(udata: dict, cat: str) -> dict:
+def engine_count(fm: dict) -> int:
+    """Engines of a flight model as /state lists them: take-off rockets (A-4, Mirage III...) are Engine<n> too."""
+    engines = [v for k, v in fm.items() if re.fullmatch(r"Engine\d+", k) and isinstance(v, dict)]
+    kinds = [((fm.get(f"EngineType{e.get('Type')}") or e).get("Main") or {}).get("Type") for e in engines]
+    return sum(k != "Rocket" for k in kinds) or len(engines)  # or: rocket planes (Me 163)
+
+
+def flight_limits(fm: dict, cat: str) -> dict:
+    """Breaking limits of an aircraft for the in-flight alarms (speeds: km/h, indicated). v, m: airframe speed and
+    Mach; sw: variable sweep [[sweep, v, m], ...], v and m being then the swept-back limits; gear: 0 = none;
+    flaps: [[position 0..1, speed], ...]; fuel: MaxFuelMass0 and the tanks' sum, /state's Mfuel0 is one or the other."""
+    aero, mass = fm.get("Aerodynamics") or {}, fm.get("Mass") or {}
+    strength = (aero.get("WingPlane") or {}).get("Strength") or {}
+    sweeps = [aero[k] for k in aero if re.fullmatch(r"WingPlaneSweep\d+", k)]
+    out = {}
+    if sweeps:
+        out["sw"] = sorted([s.get("Sweep", 0), s["Strength"]["VNE"], s["Strength"]["MNE"]] for s in sweeps)
+    out["v"] = fm.get("Vne") or strength.get("VNE") or max((s[1] for s in out.get("sw", ())), default=0)
+    out["m"] = fm.get("VneMach") or strength.get("MNE") or max((s[2] for s in out.get("sw", ())), default=0)
+    if not out["v"]:
+        return {}
+    out["gear"] = max(mass.get("GearDestructionIndSpeed") or 0, 0)
+    if cat == "air":  # helicopters have flap entries too, with made-up values
+        pairs = []
+        for k, v in mass.items():
+            if re.fullmatch(r"FlapsDestructionIndSpeedP\d*", k):  # P: flat list; P0, P1...: a pair, or pairs when repeated
+                v = v if isinstance(v, list) else [0, v]  # a lone speed (I-16): any position
+                pairs += v if isinstance(v[0], list) else [v[i:i + 2] for i in range(0, len(v), 2)]
+        if pairs:
+            out["flaps"] = sorted(pairs)
+    tanks = sum(x for k, v in (mass.get("Parts") or {}).items() if k.endswith("_capacity") for x in aslist(v))
+    out["fuel"] = [round(x, 2) for x in (mass.get("MaxFuelMass0", 0), tanks) if x]
+    out["eng"] = engine_count(fm)
+    return out
+
+
+def fm_file(fm_path: str) -> Path:
+    """'fm/su_30mkk.blk' -> datamine path to the flight model. Also seen: no .blk (F-16 AM), a leading / (Tornado)."""
+    return DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / (fm_path.lower().strip("/").removesuffix(".blk") + ".blkx")
+
+
+def base_stats(vid: str, udata: dict, cat: str) -> dict:
     """Editable vehicle values with their stock value (used by the Modifications step)."""
     st = {}
     if cat == "ground":
@@ -757,9 +798,12 @@ def base_stats(udata: dict, cat: str) -> dict:
                 st[key] = val
     elif cat in ("air", "heli"):
         fm_path = first_str(udata.get("fmFile"))
+        fm = load(fm_file(fm_path or f"fm/{vid}")) or {}  # no fmFile: the flight model is named after the aircraft
+        limits = flight_limits(fm, cat)
+        if limits:
+            st["lim"] = limits
         if fm_path:
             st["fm"] = fm_path
-            fm = load(DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / (fm_path.lower().replace(".blk", ".blkx"))) or {}
             mass = fm.get("Mass") or {}
             for key, src in (("mass", mass.get("EmptyMass")), ("fuel", mass.get("MaxFuelMass0"))):
                 val = _numval(src)
@@ -1020,7 +1064,7 @@ def build_vehicles(lang: Lang, progress=None):
             "b": UNIT_BLOCK[cat],
             "pr": presets,
             "am": vehicle_ammo(udata, cat, mods, wc),
-            "st": base_stats(udata, cat),
+            "st": base_stats(vid, udata, cat),
         }
         if cat in ("air", "heli"):
             sl = weapon_slots(udata, wc)

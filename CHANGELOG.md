@@ -4,6 +4,26 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.21.0 — not released yet
+
+- **My overlay** (new tab, Windows, off until you turn it on there): while you fly, WTFTD beeps near your aircraft's
+  breaking speeds and shows what you choose in a small click-through window over the game, hidden in the hangar and
+  when the game isn't in front. By default: your speed against each limit, `IAS 1284 / 1540 km/h`, Mach, and gear and
+  flaps when they are out.
+  - Everything is yours: write the lines (`ALT {alt} m  {margin} km/h left`, 30 values one click away, and any field
+    the game sends), when each one shows, its size and colour, which alarm turns it to the alert colour.
+  - Drag the text on a to-scale picture of your screen, or show it on your real screen with sample values. Font,
+    size, colours, opacity, a show / hide key.
+  - Each alarm (airframe, gear, flaps): on or off, threshold (93 %, 90 %, 90 % by default), pitch, length, with a Test
+    button, and how often they repeat.
+  - Speeds come from the game's `/state`. The aircraft comes from the mission WTFTD generated, then from the game's
+    `/indicators`, and as a fallback when that one is blank (seen on 2.59 until a game restart) from its fuel capacity,
+    engines and the model the game saved (read only): in doubt the overlay says `AIRCRAFT UNKNOWN` and stays silent,
+    it never guesses. Variable-sweep wings: the limit shown is the swept-back one (the game doesn't send the wing
+    position). Unbreakable airframe: the overlay says so, no alarm.
+- Tornado and some F-16 AM (21 aircraft) lost their mass, fuel and thrust stats, and "Unbreakable airframe" did
+  nothing on them: their flight model's path is spelled differently in the game files.
+
 ## 0.20.0 — 2026-10-13
 
 - **In-mission keys** (Cheats → In-mission keys): switch options while you play with the game's *Quick radio

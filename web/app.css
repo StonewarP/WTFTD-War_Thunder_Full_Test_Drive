@@ -1166,3 +1166,40 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 .sight-field .field-row { display: flex; gap: 6px; align-items: center; }
 .sight-field select { flex: 1; min-width: 0; }
 .sight-field small.warn { display: block; color: var(--warn); margin-top: 4px; }
+
+/* ------------------------------------------------------------------ My overlay */
+.ov-bar { display: flex; flex-wrap: wrap; gap: 6px 28px; margin-bottom: 12px; }
+.ov-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+.ov-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; align-items: stretch; }
+.ov-main > .btn { align-self: flex-start; }
+.ov-side { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.ov-side input[type=text], .ov-side input[type=number] { width: 100%; }
+.ov-side input[type=color], .ov-swatch input { width: 100%; height: 32px; padding: 2px; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 6px; cursor: pointer; }
+.ov-h { margin: 14px 0 6px; font: 700 14px var(--font-display); }
+.ov-side .ov-h:first-child { margin-top: 0; }
+/* the player's screen, to scale: always a game-like sky, whatever the app's theme */
+.ov-top { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 10px; align-items: stretch; }
+.ov-screen, .ov-zoom { border-radius: 10px; border: 1px solid var(--line-2); background: linear-gradient(#55779c, #a8bdd0 62%, #6d7a5c 62%, #4f5c45); }
+.ov-screen { position: relative; overflow: hidden; }
+.ov-zoom { padding: 12px; overflow: hidden; white-space: pre; line-height: 1.17; }
+.ov-text { position: absolute; cursor: move; white-space: pre; line-height: 1.17; user-select: none; touch-action: none; outline: 1px dashed rgba(255,255,255,.35); outline-offset: 3px; }
+.ov-lines { display: flex; flex-direction: column; gap: 6px; }
+.ov-line { display: grid; grid-template-columns: auto minmax(180px, 1fr) 118px 118px 58px 46px 26px auto; gap: 6px; align-items: end; padding: 6px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.ov-line .icon-btn { width: 26px; height: 26px; }
+.ov-move { display: flex; flex-direction: column; }
+.ov-move .icon-btn { height: 16px; font-size: 9px; border: 0; }
+.ov-move .icon-btn:disabled { opacity: .3; cursor: default; }
+.ov-tpl { font-family: Consolas, monospace; width: 100%; }
+.ov-mini { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); min-width: 0; }
+.ov-mini select, .ov-mini input[type=number] { width: 100%; min-width: 0; }
+.ov-values { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.ov-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ov-group b { width: 100%; font-size: 12px; color: var(--text-2); }
+.ov-chip { border: 0; cursor: pointer; }
+.ov-chip:hover { color: var(--text); background: var(--line-2); }
+.ov-alarm { padding: 4px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.ov-alarm-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 4px; }
+@media (max-width: 1250px) {
+  .ov-grid { grid-template-columns: minmax(0, 1fr); }
+  .ov-line { grid-template-columns: auto minmax(0, 1fr) 118px 118px; }
+}

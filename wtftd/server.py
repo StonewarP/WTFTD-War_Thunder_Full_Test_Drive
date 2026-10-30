@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, builder, cdk, game, maptex, mission, sights, terrain, uninstall
+from . import DONATE, REPO, __version__, alarms, builder, cdk, game, maptex, mission, sights, terrain, uninstall
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -231,6 +231,7 @@ def api_status():
         "home": str(HOME),  # where WTFTD keeps its files (the welcome screen says so before the first download)
         "oodle": oodle_dll(gd),
         "settings": STATE.settings(),
+        "alarms": alarms.available(),
         "cdk": {"enabled": STATE.cdk_enabled(), "defaultHosts": cdk.DEFAULT_HOSTS,
                 "airMethod": STATE.settings().get("airMethod") or "custom",
                 **cdk.status(gd, USER)},
@@ -502,6 +503,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(read_json(USER / "variants.json", []))
         if route == "combos":  # saved missions: a vehicle setup + a map
             return self.send_json(read_json(USER / "combos.json", []))
+        if route == "overlay":
+            return self.send_json(overlay_status())
         if route == "myweapons":  # My weapons: modified copies of the game's pylon weapons
             return self.send_json(read_json(USER / "weapons.json", []))
         if route == "weapon-keys":  # Weapons tab rows -> the pylon weapon they can be modified from
@@ -585,6 +588,9 @@ class Handler(BaseHTTPRequestHandler):
                     set_capture_hint(su["level"], float(pl.get("x", me["x"])), float(pl.get("z", me["z"])))
             except (mission.MissionError, ValueError, TypeError):
                 pass
+            WATCH.mission = {"id": str(body.get("vehicle", "")),  # mods only apply to custom vehicles (files)
+                             "fuel": cdk._num(body.get("mods") or {}, "fuel", 0, 1_000_000) if files else None,
+                             "unbreakable": bool(files and (body.get("cheats") or {}).get("noOverload"))}
             um = game.user_missions_dir(gd)
             um.mkdir(exist_ok=True)
             out = um / name
@@ -638,7 +644,26 @@ class Handler(BaseHTTPRequestHandler):
             if s.get("oodleDll") and maptex.oodle_version(Path(s["oodleDll"]).name) is None:
                 return self.send_json({"error": "Pick an Oodle runtime file: oo2core_<version>_win64.dll (Windows) or liboo2core*.dylib (macOS)."}, 400)
             STATE.save_settings(s)
+            apply_alarm_settings()
             return self.send_json(api_status())
+        if route == "overlay":  # My overlay: every change is saved, the window follows at once; reset: the defaults
+            s = STATE.settings()
+            s.pop("overlay", None)
+            if not body.get("reset"):
+                s["overlay"] = alarms.clean(body.get("cfg"), WATCH.words)
+            if "enabled" in body:
+                s["alarms"] = body["enabled"] is True
+            STATE.save_settings(s)
+            apply_alarm_settings()
+            return self.send_json(overlay_status())
+        if route == "overlay-preview":  # show it on the screen now, without the game
+            WATCH.set_preview(alarms.available() and body.get("on") is True)
+            return self.send_json(overlay_status())
+        if route == "overlay-test":  # hear an alarm
+            a = WATCH.cfg["alarms"].get(str(body.get("alarm")))
+            if a and alarms.available():
+                alarms.beep(a["hz"], a["ms"])
+            return self.send_json({"ok": bool(a)})
         if route == "combos":
             if not isinstance(body.get("combos"), list):
                 return self.send_json({"error": "combos must be a list"}, 400)
@@ -901,7 +926,7 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
         # the flight model itself (datamine): breaking limits, jets' thrust table
         fm = str((det.get("st") or {}).get("fm") or "")
         if fm:
-            fm_data = builder.load(builder.DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / (fm.lower() + "x"))
+            fm_data = builder.load(builder.fm_file(fm))
     if isinstance(body.get("pylons"), dict):
         body["pylons"] = custom_weapons(body["pylons"])
     non_std = any(isinstance(v, dict) for v in (body.get("pylons") or {}).values())
@@ -951,6 +976,34 @@ def _matches(level_info: dict, mn, mx) -> bool:
             if all(abs(level_info[a][i] - mn[i]) < 2 and abs(level_info[b][i] - mx[i]) < 2 for i in (0, 1)):
                 return True
     return False
+
+
+def mission_on_map() -> bool:
+    """Is the map of the mission generated last the one loaded in the game?
+    Tells it from a real battle fought in the same aircraft, where "Unbreakable airframe" must not silence the alarms."""
+    hint = _capture["hint"]
+    try:
+        info = json.loads((_wt_get("/map_info.json") or b"{}").decode("utf-8", "ignore"))
+        mn, mx = [float(c) for c in info["map_min"]], [float(c) for c in info["map_max"]]
+    except (ValueError, KeyError, TypeError):
+        return False
+    return bool(hint and info.get("valid") and _matches(read_json(DATA / "levels.json", {}).get(hint["level"], {}), mn, mx))
+
+
+WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map)
+
+
+def apply_alarm_settings():
+    s = STATE.settings()
+    WATCH.words = alarms.labels(str(s.get("lang") or "en"))
+    WATCH.set_config(alarms.clean(s.get("overlay"), WATCH.words))
+    WATCH.set_enabled(alarms.available() and s.get("alarms") is True)
+
+
+def overlay_status() -> dict:
+    """The My overlay tab: the configuration, the screen it's placed on, its lines with sample values."""
+    return {"cfg": WATCH.cfg, "screen": alarms.screen(), "lines": WATCH.sample(), "onScreen": WATCH.preview,
+            "enabled": STATE.settings().get("alarms") is True}
 
 
 def capture_once():
@@ -1059,4 +1112,7 @@ def serve(port: int = 8777) -> tuple[ThreadingHTTPServer, str]:
     threading.Thread(target=auto_update_loop, daemon=True).start()
     threading.Thread(target=map_capture_loop, daemon=True).start()
     threading.Thread(target=warm_weapon_icons, daemon=True).start()
+    if alarms.available():
+        apply_alarm_settings()
+        threading.Thread(target=WATCH.run, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}/"

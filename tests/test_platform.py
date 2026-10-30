@@ -1,11 +1,12 @@
-"""Windows / macOS differences: where the game files are, which Oodle runtime file names count."""
+"""Windows / macOS differences: where the game files are, which Oodle runtime file names count, the alarms."""
+import importlib
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from wtftd import game, maptex
+from wtftd import alarms, game, maptex, server
 
 
 class GameFolder(unittest.TestCase):
@@ -75,6 +76,34 @@ class Standalone(unittest.TestCase):
         with mock.patch.object(game, "_open") as op:
             self.assertEqual(game.launch(steam), "steam")
         op.assert_called_once_with(f"steam://rungameid/{game.STEAM_APP_ID}")
+
+
+class Alarms(unittest.TestCase):
+    """Windows only (winsound, user32): off on macOS, without a trace in the app."""
+
+    def test_mac_has_no_alarms(self):
+        with mock.patch.object(sys, "platform", "darwin"):
+            self.assertFalse(alarms.available())
+            with mock.patch.object(server.WATCH, "set_enabled") as switch:
+                server.apply_alarm_settings()
+            switch.assert_called_once_with(False)
+
+    def test_off_until_the_player_turns_them_on(self):
+        for saved, on in (({}, False), ({"alarms": False}, False), ({"alarms": True}, True)):
+            with mock.patch.object(sys, "platform", "win32"), mock.patch.object(server.STATE, "settings", return_value=saved), \
+                    mock.patch.object(server.WATCH, "set_enabled") as switch:
+                server.apply_alarm_settings()
+            switch.assert_called_once_with(on)
+
+    def test_loads_without_windows_modules(self):
+        with mock.patch.dict(sys.modules, {"winsound": None, "tkinter": None}):
+            importlib.reload(alarms)
+
+    def test_no_overlay_while_off(self):
+        w = alarms.Watch(lambda path: None, dict)
+        w.set_enabled(False)
+        self.assertIsNone(w.overlay)
+        w.stop()
 
 
 class OodleNames(unittest.TestCase):

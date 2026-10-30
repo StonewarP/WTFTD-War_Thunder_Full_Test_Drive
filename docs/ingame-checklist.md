@@ -297,6 +297,46 @@ Checked out of game: unit tests (`tests/test_experimental.py`), the app's panels
   modern APFSDS): within a few %?
 - [ ] **Drones**: UAV Raven's Eye and the FPV strike drone on a bare map (air start, 100 km/h): do they load?
 
+## 2m. Flight alarms and overlay (new)
+
+Checked out of game: unit tests (`tests/test_alarms.py`), the limits of every flight model, the overlay window against
+a fake `/state` (click-through, keeps the focus, hides, closes cleanly). `.cache/wtftd.log` (packaged app) or the
+console lists each recognition: `Alarms: Mfuel0=…, reported=…, saved model=…, limits=…`.
+
+Turn them on first: tab My overlay → Turn on the overlay and alarms (off by default).
+
+- [x] **Real values in flight** (2026-10-30): captured on screen in a flight, `IAS 1154 / 1540 km/h`, `MACH 1.92 / 2.10`,
+  with a custom font and opacity.
+- [ ] **Off by default**: on a fresh install no beep and no overlay in flight until the switch is on.
+- [ ] **My overlay**: a line per condition (gear, flaps, airbrake, during an alarm) comes and goes at the right time;
+  a line's own colour and size; the alert colour only on the line of that alarm; `{margin}` falls to 0 at the limit.
+- [ ] **Show / hide key** (Ctrl+F12 for instance) with the game in front; the beeps go on while the window is hidden.
+- [ ] **Each alarm's** threshold, pitch and length heard in flight; switched off, no beep and no alert colour.
+- [ ] **Position**: placed in the tab, it lands at the same spot in game (full screen and windowed).
+- [x] **`/indicators` format**: answers again after a game restart (2026-10-30, Su-30MKK at 1,284 km/h): `"valid": true,
+  "army": "air", "type": "su_30mkk"`, the vehicle id. What makes it go blank (seen on 2.59) is unknown.
+- [ ] When it answers, `reported=` wins over the fallback, including on a look-alike and with external tanks. When it's
+  blank, `reported=None` and the fallback does the work.
+- [ ] **Su-30MKK and J-10C** recognised: full tank, then a partial fuel load (Mfuel0 should stay the capacity).
+- [ ] **Change aircraft in the hangar**, fly again: is the new one recognised? (When does the game write
+  `global.blk`? It didn't change during a 10-minute flight.)
+- [ ] **Spawn on another slot in a battle**, the hangar selection unchanged: `AIRCRAFT UNKNOWN`, or the wrong aircraft?
+  Worst case: the new one has the same fuel and engines as the old one (391 of 1,134 aircraft have such a look-alike)
+  but other limits: then the old one's limits would be kept without warning. If so, `/hudmsg` is the lead to follow.
+- [ ] **External fuel tanks**: does `Mfuel0` change? If it does, the aircraft becomes `AIRCRAFT UNKNOWN`.
+- [ ] **Alarms heard at the right threshold**: airframe (dive, 93 %, high beep), gear (90 %), flaps (90 %, low beep).
+  The flap limit is interpolated between the flight model's points: an interpretation of the data, to confirm.
+- [ ] **Overlay**: shown in flight, gone on Alt+Tab, back afterwards, never takes the focus, clicks go through it.
+  Beeps go on during an Alt+Tab.
+- [ ] **A-4 or Mirage III** (take-off rockets counted out of the engines): recognised? How many `throttle` fields
+  does `/state` send with the rockets fitted?
+- [ ] **Variable sweep (F-14, MiG-23, Tornado)**: the IAS line says `(swept limit)`; no alarm wings forward.
+- [ ] **Helicopter**: airframe line and alarm; the gear line on fixed skids: useful or noise?
+- [ ] **WTFTD mission with a custom vehicle**, with changed fuel: recognised through the mission.
+- [ ] **Unbreakable airframe** in that mission: the overlay says so, no beep. Then a real battle on another map with
+  the same aircraft: alarms are back.
+- [ ] **Packaged exe**, not only the sources: overlay shown, and no crash message on closing WTFTD.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

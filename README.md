@@ -141,6 +141,9 @@ window and finds your game by itself (Steam or standalone). Close the window to 
   invulnerability, instant reload and passive targets, repair, bring the targets back or go back to the start
   while you play (the game's Quick radio messages)
 - **Custom sights** for ground vehicles: a sight of your UserSights folder or a `.blk` file you add
+- **My overlay** (Windows, off until you turn it on): your own lines over the game in a click-through window (speed
+  against the limit, altitude, fuel, any value the game sends), and beeps near your aircraft's breaking speeds with
+  your thresholds and sounds; it reads the game's local data only, nothing is added to the game
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
   简体中文, 日本語 — picked from your Windows language on first launch (or on the welcome screen), vehicle,
   weapon and map names follow the game's own translations. UI translations
@@ -299,6 +302,7 @@ wtftd/                      Python backend (stdlib only)
   maptex.py / terrain.py    tactical maps and heightmaps from the game files
   builder.py                datamine -> data/*.json
   armament.py               Weapons page data (missiles, bombs, rockets, torpedoes)
+  alarms.py                 in-flight speed alarms and overlay (Windows)
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,

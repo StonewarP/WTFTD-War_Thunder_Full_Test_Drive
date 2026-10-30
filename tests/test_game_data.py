@@ -4,9 +4,10 @@ import json
 import unittest
 
 from wtftd import armament as A
-from wtftd.builder import DM
+from wtftd.builder import DM, base_stats, flight_limits, load
 
 W = DM / "aces.vromfs.bin_u" / "gamedata" / "weapons"
+FM = DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / "fm"
 
 
 def item(folder, stem, cat):
@@ -21,7 +22,7 @@ class ReferenceWeapons(unittest.TestCase):
     def test_r73_tracking_gate(self):
         s = item("rocketguns", "su_r_73", "aam_ir")
         self.assertEqual(s["ccmt"], "g")
-        self.assertEqual(s["gl"], 40)
+        self.assertEqual(s["gl"], 60)
 
     def test_magic2_has_irccm(self):
         self.assertIn("ccm", item("rocketguns", "fr_r_550_magic_2", "aam_ir"))
@@ -38,6 +39,44 @@ class ReferenceWeapons(unittest.TestCase):
 
     def test_b61_yield(self):
         self.assertEqual(item("bombguns", "us_b61_30kt", "nuke")["yld"], 30.0)
+
+
+@unittest.skipUnless(FM.exists(), "game data not downloaded")
+class ReferenceLimits(unittest.TestCase):
+    def test_su_30mkk(self):
+        self.assertEqual(flight_limits(load(FM / "su_30mkk.blkx"), "air"),
+                         {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400, 9400], "eng": 2})
+
+    def test_j_10c(self):
+        self.assertEqual(flight_limits(load(FM / "j_10c.blkx"), "air"),
+                         {"v": 1543, "m": 2.1, "gear": 620, "flaps": [[0.1, 550], [1, 400]], "fuel": [5945, 6220.02], "eng": 1})
+
+    def test_f_14a_variable_sweep(self):
+        lim = flight_limits(load(FM / "f_14a_early.blkx"), "air")
+        self.assertEqual(lim["sw"], [[0, 1021, 0.96], [0.5, 1360, 2.0], [1, 1555, 2.25]])
+        self.assertEqual((lim["v"], lim["m"]), (1555, 2.25))
+
+    def test_a_4_has_one_engine(self):
+        self.assertEqual(flight_limits(load(FM / "a_4e_early.blkx"), "air")["eng"], 1)
+
+    def test_helicopter(self):
+        lim = flight_limits(load(FM / "ah_1g.blkx"), "heli")
+        self.assertEqual((lim["v"], lim["gear"], lim["eng"]), (450, 420, 1))
+        self.assertNotIn("flaps", lim)
+
+    def test_flight_model_named_after_the_aircraft(self):  # il-10 has no fmFile
+        self.assertIn("lim", base_stats("il-10", {}, "air"))
+
+    def test_fm_file_without_extension(self):
+        st = base_stats("f_16a_block_10_norway", {"fmFile": "fm/f_16a_block_10_norway"}, "air")
+        self.assertIn("lim", st)
+        self.assertIn("mass", st)
+
+    def test_every_flight_model_reads(self):
+        for path in FM.glob("*.blkx"):
+            fm = load(path)
+            if isinstance(fm, dict) and fm.get("Mass"):
+                self.assertTrue(flight_limits(fm, "air"), path.stem)
 
 
 if __name__ == "__main__":

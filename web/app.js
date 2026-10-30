@@ -184,6 +184,7 @@ async function boot() {
   bindCompare();
   bindWeapons();
   bindMyWeapons();
+  bindOverlay();
   bindMaps();
   bindLibrary();
   showView('vehicles');
@@ -569,6 +570,8 @@ function showView(name) {
   if (name === 'setups') renderSetups();
   if (name === 'mymaps') renderMyMaps();
   if (name === 'myweapons') renderMyWeapons();
+  if (name === 'overlay') openOverlayView();
+  else leaveOverlayView();
 }
 
 // ------------------------------------------------------------------ vehicle drawer

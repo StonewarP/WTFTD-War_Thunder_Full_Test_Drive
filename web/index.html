@@ -71,6 +71,7 @@
     <button class="tab" data-view="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
     <button class="tab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
     <button class="tab" data-view="myweapons" role="tab"><span data-i18n="nav.myWeapons"></span><span class="tab-count" id="myWeaponCount"></span></button>
+    <button class="tab hidden" data-view="overlay" role="tab"><span data-i18n="nav.overlay"></span></button>
   </nav>
   <label class="search">
     <svg class="ic"><use href="#i-search"/></svg>
@@ -183,6 +184,53 @@
     <div class="view hidden" id="view-myweapons">
       <div class="page-head"><div><h2 data-i18n="myw.title"></h2><p class="muted" data-i18n="myw.hint"></p></div></div>
       <div class="list" id="myWeaponList"></div>
+    </div>
+
+    <div class="view hidden" id="view-overlay">
+      <div class="page-head"><div><h2 data-i18n="ov.title"></h2><p class="muted" data-i18n="ov.hint"></p></div>
+        <button class="btn" id="ovReset"><svg class="ic-sm"><use href="#i-refresh"/></svg><span data-i18n="ov.reset"></span></button></div>
+      <div class="ov-bar">
+        <label class="switch"><input type="checkbox" id="ovEnabled"><span class="sw"></span><span data-i18n="ov.enable"></span></label>
+        <label class="switch"><input type="checkbox" id="ovOnScreen"><span class="sw"></span><span data-i18n="ov.onScreen"></span></label>
+      </div>
+      <div class="ov-grid">
+        <div class="ov-main">
+          <div class="ov-top">
+            <div class="ov-screen" id="ovScreen"><div class="ov-text" id="ovText"></div></div>
+            <div class="ov-zoom" id="ovZoom"></div>
+          </div>
+          <small class="muted" data-i18n="ov.dragHint"></small>
+          <h3 class="ov-h" data-i18n="ov.lines"></h3>
+          <small class="muted" data-i18n="ov.linesHint"></small>
+          <div class="ov-lines" id="ovLines"></div>
+          <button class="btn btn-sm" id="ovAddLine"><span data-i18n="ov.addLine"></span></button>
+          <div class="ov-values" id="ovValues"></div>
+        </div>
+        <aside class="ov-side">
+          <h3 class="ov-h" data-i18n="ov.look"></h3>
+          <div class="field"><label for="ovFont" data-i18n="ov.font"></label>
+            <input id="ovFont" type="text" data-ov="font" list="ovFonts" spellcheck="false"><datalist id="ovFonts"></datalist></div>
+          <div class="field-row">
+            <div class="field"><label for="ovSize" data-i18n="ov.textSize"></label><input id="ovSize" type="number" data-ov="size" min="6" max="400"></div>
+            <div class="field"><label for="ovOpacity" data-i18n="ov.opacity"></label><input id="ovOpacity" type="number" data-ov="opacity" min="10" max="100"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label for="ovColor" data-i18n="ov.textColor"></label><input id="ovColor" type="color" data-ov="color"></div>
+            <div class="field"><label for="ovAlert" data-i18n="ov.alertColor"></label><input id="ovAlert" type="color" data-ov="alert"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label for="ovX">X</label><input id="ovX" type="number" data-ov="x"></div>
+            <div class="field"><label for="ovY">Y</label><input id="ovY" type="number" data-ov="y"></div>
+          </div>
+          <label class="switch"><input type="checkbox" data-ov="bold"><span class="sw"></span><span data-i18n="ov.bold"></span></label>
+          <label class="switch"><input type="checkbox" data-ov="show"><span class="sw"></span><span data-i18n="ov.show"></span></label>
+          <div class="field"><label for="ovHotkey" data-i18n="ov.hotkey"></label>
+            <input id="ovHotkey" type="text" readonly data-i18n-ph="ov.hotkeyPh"><small class="muted" data-i18n="ov.hotkeyHint"></small></div>
+          <h3 class="ov-h" data-i18n="ov.alarms"></h3>
+          <div id="ovAlarms"></div>
+          <div class="field"><label for="ovRepeat" data-i18n="ov.repeat"></label><input id="ovRepeat" type="number" data-ov="repeat" min="100" max="10000" step="50"></div>
+        </aside>
+      </div>
     </div>
 
     <div class="view hidden" id="view-mymaps">
@@ -460,6 +508,7 @@
 <script src="compare.js"></script>
 <script src="weapons.js"></script>
 <script src="myweapons.js"></script>
+<script src="overlay.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 </body>
