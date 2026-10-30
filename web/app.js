@@ -186,6 +186,7 @@ async function boot() {
   bindMyWeapons();
   bindOverlay();
   bindFlight();
+  bindBattle();
   bindMaps();
   bindLibrary();
   showView('vehicles');
@@ -567,6 +568,7 @@ function bindUI() {
 
 function showView(name) {
   $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  $('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
   document.body.classList.toggle('view-weapons', name === 'weapons');
   document.body.classList.toggle('view-maps', name === 'maps');
@@ -581,6 +583,7 @@ function showView(name) {
   if (name === 'overlay') openOverlayView();
   else leaveOverlayView();
   if (name === 'flight') openFlightView();
+  if (name === 'battle') openBattleView();
 }
 
 // ------------------------------------------------------------------ vehicle drawer
@@ -843,6 +846,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
         <div class="hero-full">${esc(I18N.unitFull(v.id))} · <code>${esc(v.id)}</code></div>
         <div class="hero-stats">${brs}</div>
         ${statsBlockHTML(v)}
+        ${limitsHTML(d.st?.lim)}
       </div>
       ${S.ai ? `<div class="ai-banner">${icon('target', 'ic-sm')}<div><b>${esc(t('ai.title'))}</b>${esc(t('ai.hint'))}</div></div>` : ''}
       ${stepHTML('loadout', 1, t('step.loadout'), esc(c.pylons ? t('loadout.customShort', { n: Object.keys(c.pylons).length }) : preset ? presetLabel(v, preset) : t('loadout.default')), () => loadoutBody(v, d))}

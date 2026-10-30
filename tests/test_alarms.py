@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from wtftd import alarms, builder, flightlog
+from wtftd import alarms, battle, builder, flightlog
 
 SU30 = {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400, 9400], "eng": 2}
 J10 = {"v": 1543, "m": 2.1, "gear": 620, "flaps": [[0.1, 550], [1, 400]], "fuel": [5945, 6220.02], "eng": 1}
@@ -209,7 +209,7 @@ class Watching(unittest.TestCase):
         self.assertEqual([x[1] for x in self.watch.display], [cfg["color"], cfg["color"], cfg["alert"]])
 
     def test_thresholds_and_sounds_are_the_players(self):
-        self.watch.cfg = alarms.clean({"alarms": {"airframe": {"at": 30, "hz": 500, "ms": 80}}}, WORDS)
+        self.watch.set_config(alarms.clean({"alarms": {"airframe": {"at": 30, "hz": 500, "ms": 80}}}, WORDS), {})
         self.fly()
         self.beep.assert_called_once_with(500, 80)
 
@@ -597,22 +597,113 @@ class Preview(unittest.TestCase):
         self.watch.start_overlay = lambda: None
 
     def test_sample_lines_show_all_with_an_alarm_on(self):
-        lines = self.watch.sample()
+        lines = self.watch.sample(self.watch.cfg)
         self.assertEqual(len(lines), 4)
         self.assertEqual(lines[2], ("GEAR   640 / 700 km/h", self.watch.cfg["alert"], self.watch.cfg["size"]))
 
     def test_shown_without_the_game_then_taken_off(self):
-        self.watch.set_preview(True)
+        self.watch.set_preview(self.watch.cfg)
         self.watch.tick()
-        self.assertEqual(self.watch.display, self.watch.sample())
-        self.watch.set_preview(False)
+        self.assertEqual(self.watch.display, self.watch.sample(self.watch.cfg))
+        self.watch.set_preview(None)
         self.watch.tick()
         self.assertEqual(self.watch.display, [])
 
-    def test_follows_the_configuration(self):
-        self.watch.set_preview(True)
-        self.watch.set_config(alarms.clean({"lines": [{"text": "hello"}]}, WORDS))
+    def test_shows_the_overlay_being_edited(self):
+        self.watch.set_preview(alarms.clean({"lines": [{"text": "hello"}]}, WORDS))
         self.assertEqual(self.watch.display[0][0], "hello")
+
+
+class Profiles(unittest.TestCase):
+    def setUp(self):
+        self.jet = alarms.clean({"lines": [{"text": "J-10"}]}, WORDS)
+        self.fighters = alarms.clean({"lines": [{"text": "fighter"}]}, WORDS)
+        self.reply = json.dumps(state()).encode()
+        self.indicators = b'{"valid": true, "type": "j_10c"}'
+        kinds = {"j_10c": "fighter", "j_10a": "fighter", "su_30mkk": "bomber"}
+        self.watch = alarms.Watch(lambda path: self.indicators if path == "/indicators" else self.reply, details,
+                                  save=lambda: None, kind=kinds.get)
+        self.watch.enabled = True
+        self.watch.start_overlay = lambda: None
+
+    def texts(self):
+        return [x[0] for x in self.watch.display]
+
+    def test_the_aircraft_s_own_comes_first(self):
+        self.watch.set_config(self.watch.base, {"j_10c": self.jet, "type:fighter": self.fighters})
+        self.watch.tick()
+        self.assertEqual((self.watch.current, self.watch.profile, self.texts()), ("j_10c", "j_10c", ["J-10"]))
+
+    def test_then_its_type(self):
+        self.watch.set_config(self.watch.base, {"type:fighter": self.fighters})
+        self.watch.tick()
+        self.assertEqual((self.watch.profile, self.texts()), ("type:fighter", ["fighter"]))
+
+    def test_then_the_one_for_all_aircraft(self):
+        self.watch.set_config(self.watch.base, {"su_30mkk": self.jet, "type:bomber": self.fighters})
+        self.watch.tick()
+        self.assertEqual(self.watch.profile, "")
+        self.assertEqual(self.texts()[0], "IAS    500 / 1543 km/h")
+
+    def test_alarms_are_the_profile_s_too(self):
+        self.watch.set_config(self.watch.base, {"j_10c": alarms.clean({"alarms": {"airframe": {"at": 30, "hz": 500, "ms": 80}}}, WORDS)})
+        with mock.patch.object(alarms, "beep") as beep:
+            self.watch.tick()
+        beep.assert_called_once_with(500, 80)
+
+    def test_back_in_the_hangar(self):
+        self.watch.set_config(self.watch.base, {"j_10c": self.jet})
+        self.watch.tick()
+        self.reply = b'{"valid": false}'
+        self.watch.tick()
+        self.assertEqual((self.watch.current, self.watch.profile, self.watch.cfg), (None, "", self.watch.base))
+
+    def test_changed_while_flying(self):
+        self.watch.tick()
+        self.watch.set_config(self.watch.base, {"j_10c": self.jet})
+        self.watch.tick()
+        self.assertEqual(self.texts(), ["J-10"])
+
+    def test_profile_names(self):
+        for good in ("j_10c", "a-20g", "type:fighter"):
+            self.assertTrue(alarms.PROFILE.fullmatch(good), good)
+        for bad in ("", "../x", "a b", "type:", "x:y"):
+            self.assertFalse(alarms.PROFILE.fullmatch(bad), bad)
+
+
+class Battle(unittest.TestCase):
+    def get(self, path):
+        self.asked.append(path)
+        return self.answers.get(path.split("?")[0])
+
+    def setUp(self):
+        self.asked = []
+        self.answers = {
+            "/gamechat": json.dumps([{"id": 7, "msg": "<color=#ff0000>hi</color> <b>there", "sender": "Bob\ue001", "enemy": True,
+                                      "mode": "All", "time": 12}]).encode(),
+            "/hudmsg": json.dumps({"events": [], "damage": [{"id": 3, "msg": "=FrEB= Pilot (\u2417Su-30MKK) s'est \u00e9cras\u00e9.",
+                                                             "sender": "", "enemy": False, "mode": "", "time": 1417}]}).encode()}
+
+    def test_asks_after_the_page_s_last_look(self):
+        battle.news(self.get, 7, 2, 3)
+        self.assertEqual(self.asked, ["/gamechat?lastId=7", "/hudmsg?lastEvt=2&lastDmg=3"])
+
+    def test_text_comes_clean(self):
+        out = battle.news(self.get, 0, 0, 0)
+        self.assertEqual(out["chat"], [{"id": 7, "time": 12, "text": "hi there", "sender": "Bob", "enemy": True, "mode": "All"}])
+        self.assertEqual(out["damage"][0]["text"], "=FrEB= Pilot (Su-30MKK) s'est \u00e9cras\u00e9.")
+        self.assertTrue(out["up"])
+
+    def test_game_closed(self):
+        self.answers = {}
+        self.assertEqual(battle.news(self.get, 1, 2, 3), {"up": False, "chat": [], "events": [], "damage": []})
+
+    def test_bad_answers(self):
+        self.answers = {"/gamechat": b"not json", "/hudmsg": b"[1, 2]"}
+        self.assertEqual(battle.news(self.get, 0, 0, 0)["damage"], [])
+        self.answers = {"/gamechat": b'{"a": 1}', "/hudmsg": b'{"damage": ["x", 3]}'}
+        out = battle.news(self.get, 0, 0, 0)
+        self.assertEqual((out["chat"], out["damage"]), ([], []))
 
 
 class Labels(unittest.TestCase):

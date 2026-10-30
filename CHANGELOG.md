@@ -28,6 +28,13 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   specific excess power, total thrust, thrust/weight, fuel use, fuel time and range left, pitch, bank. The mass leaves
   the weapons out (the game doesn't tell it), so thrust/weight reads a little high when loaded. Pitch, bank and heading
   come from `/indicators`: `N/A` while it's blank. A `REC` line shows while recording.
+- **Battle** (new tab): the game's chat and battle log, live, in their own window, handy on a second screen: filter,
+  text size. WTFTD only reads them.
+- **Overlays per aircraft or type** (My overlay): an aircraft's own overlay comes first, then its type's (fighters,
+  attackers, bombers, helicopters), then the one for all aircraft, with their own lines, look and alarms. The right
+  one loads by itself when the aircraft is recognised.
+- **Breaking limits** in the vehicle panel of aircraft and helicopters (speed, Mach, gear, flaps, variable sweep), and a
+  sheet of the aircraft you're flying in Flight data.
 - Tornado and some F-16 AM (21 aircraft) lost their mass, fuel and thrust stats, and "Unbreakable airframe" did
   nothing on them: their flight model's path is spelled differently in the game files.
 - **Read the installed game instead of downloading the datamine**: on the welcome screen and in Settings → Game data,

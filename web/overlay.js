@@ -3,7 +3,8 @@
    lines back filled with sample values, so the preview here is what the window draws. */
 'use strict';
 
-const OV = { cfg: null, screen: [3840, 2160], lines: [], input: null, timer: 0 };
+const OV = { cfg: null, screen: [3840, 2160], lines: [], input: null, timer: 0, profile: '', keys: new Map() };
+const OV_TYPES = ['fighter', 'assault', 'bomber', 'helicopter'];
 const OV_WHEN = ['always', 'gear', 'flaps', 'airbrake', 'alarm', 'log'];
 const OV_ALARMS = { airframe: 1540, gear: 700, flaps: 600 };  // the example under each threshold, km/h
 const OV_FONTS = ['Consolas', 'Cascadia Mono', 'Courier New', 'Lucida Console', 'Segoe UI', 'Bahnschrift', 'Arial', 'Tahoma', 'Verdana', 'Impact'];
@@ -27,7 +28,8 @@ function ovSave() {
 }
 async function ovFlush(extra = {}) {
   clearTimeout(OV.timer);
-  try { ovShow(await api('overlay', { cfg: OV.cfg, ...extra })); } catch (e) { toastErr(e); }
+  OV.timer = 0;
+  try { ovShow(await api('overlay', { cfg: OV.cfg, profile: OV.profile, ...extra })); } catch (e) { toastErr(e); }
 }
 
 function ovDraw() {
@@ -79,8 +81,18 @@ function ovExamples() {
   });
 }
 
+const ovProfileName = key => (!key ? t('ov.profile.all') : key.startsWith('type:') ? t('ov.type.' + key.slice(5)) : I18N.unit(key));
+
+function ovRenderProfiles(st) {
+  OV.profile = st.profile;
+  $('#ovProfile').innerHTML = ['', ...st.profiles].map(k => `<option value="${esc(k)}"${k === st.profile ? ' selected' : ''}>${esc(ovProfileName(k))}</option>`).join('');
+  $('#ovProfileDelete').classList.toggle('hidden', !st.profile);
+  $('#ovActive').textContent = st.aircraft ? t('ov.active', { aircraft: I18N.unit(st.aircraft), profile: ovProfileName(st.active) }) : '';
+}
+
 function ovRender(st) {
   OV.cfg = st.cfg;
+  ovRenderProfiles(st);
   $('#ovEnabled').checked = st.enabled;
   $('#ovOnScreen').checked = st.onScreen;
   $$('#view-overlay [data-ov]').forEach(el => {
@@ -94,7 +106,7 @@ function ovRender(st) {
 }
 
 async function openOverlayView() {
-  try { ovRender(await api('overlay')); } catch (e) { toastErr(e); }
+  try { ovRender(await api('overlay/' + encodeURIComponent(OV.profile))); } catch (e) { toastErr(e); }
 }
 
 // leaving the tab takes the sample off the screen
@@ -134,6 +146,27 @@ function ovDrag() {
 
 function bindOverlay() {
   $('[data-view="overlay"]').classList.toggle('hidden', !S.status?.alarms);  // Windows only
+  OV.keys = new Map([...OV_TYPES.map(k => [t('ov.type.' + k), 'type:' + k]),
+                     ...S.vehicles.filter(v => v.c === 'air' || v.c === 'heli').map(v => [I18N.unit(v.id), v.id])]);
+  $('#ovNewList').innerHTML = [...OV.keys.keys()].map(n => `<option value="${esc(n)}">`).join('');
+  $('#ovProfile').addEventListener('change', async e => {
+    if (OV.timer) await ovFlush();  // what was being typed goes to the overlay it was typed for
+    OV.profile = e.target.value;
+    ovRender(await api('overlay/' + encodeURIComponent(OV.profile)));
+    if ($('#ovOnScreen').checked) api('overlay-preview', { on: true, profile: OV.profile }).catch(toastErr);
+  });
+  $('#ovProfileAdd').addEventListener('click', async () => {
+    const field = $('#ovNewProfile'), key = OV.keys.get(field.value.trim());
+    if (!key) return toast({ title: t('ov.noSuch'), err: true });
+    OV.profile = key;  // starts as a copy of the overlay on screen
+    try { ovRender(await api('overlay', { cfg: OV.cfg, profile: key })); } catch (e) { return toastErr(e); }
+    field.value = '';
+  });
+  $('#ovProfileDelete').addEventListener('click', async () => {
+    const key = OV.profile, before = OV.cfg;
+    try { OV.profile = ''; ovRender(await api('overlay-profile-delete', { profile: key })); } catch (e) { return toastErr(e); }
+    toast({ title: t('ov.profileDeleted', { name: ovProfileName(key) }), actions: [{ label: t('ov.undo'), run: async () => { OV.profile = key; ovRender(await api('overlay', { cfg: before, profile: key })); } }] });
+  });
   $('#ovFonts').innerHTML = OV_FONTS.map(f => `<option value="${esc(f)}">`).join('');
   $('#ovValues').innerHTML = Object.entries(OV_VALUES).map(([group, names]) => `<div class="ov-group"><b>${esc(t('ov.g.' + group))}</b>${names.map(n => `<button class="chip ov-chip" data-ovv="${n}" title="{${n}}">${esc(t('ov.v.' + n))}</button>`).join('')}</div>`).join('');
   ovDrag();
@@ -162,7 +195,7 @@ function bindOverlay() {
     if (!b) return;
     const row = b.closest('.ov-line'), i = row ? +row.dataset.i : -1, lines = OV.cfg.lines;
     if (b.dataset.ovv) return ovInsert(b.dataset.ovv);
-    if (b.dataset.ovtest) { await ovFlush(); return api('overlay-test', { alarm: b.dataset.ovtest }).catch(toastErr); }
+    if (b.dataset.ovtest) { await ovFlush(); return api('overlay-test', { alarm: b.dataset.ovtest, profile: OV.profile }).catch(toastErr); }
     if (b.dataset.ovmove) { const to = i + +b.dataset.ovmove; [lines[i], lines[to]] = [lines[to], lines[i]]; }
     else if ('ovdel' in b.dataset) lines.splice(i, 1);
     else if ('ovnocolor' in b.dataset) lines[i].color = '';
@@ -177,11 +210,12 @@ function bindOverlay() {
     ovSave();
   });
   $('#ovEnabled').addEventListener('change', e => ovFlush({ enabled: e.target.checked }));
-  $('#ovOnScreen').addEventListener('change', e => api('overlay-preview', { on: e.target.checked }).catch(toastErr));
+  $('#ovOnScreen').addEventListener('change', e => api('overlay-preview', { on: e.target.checked, profile: OV.profile }).catch(toastErr));
   $('#ovReset').addEventListener('click', async () => {
     const before = OV.cfg;
-    try { ovRender(await api('overlay', { reset: true })); } catch (e) { return toastErr(e); }
-    toast({ title: t('ov.resetDone'), actions: [{ label: t('ov.undo'), run: async () => ovRender(await api('overlay', { cfg: before })) }] });
+    const profile = OV.profile;
+    try { ovRender(await api('overlay', { reset: true, profile })); } catch (e) { return toastErr(e); }
+    toast({ title: t('ov.resetDone'), actions: [{ label: t('ov.undo'), run: async () => ovRender(await api('overlay', { cfg: before, profile })) }] });
   });
   $$('#view-overlay [data-ovkey]').forEach(field => field.addEventListener('keydown', e => {
     e.preventDefault();

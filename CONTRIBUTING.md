@@ -11,7 +11,7 @@ Thanks for helping! Bug reports, ideas, translation fixes and code are all welco
 
 Windows 10/11 or macOS, Python 3.10+ — no extra package needed (standard library only). Reading the installed game
 needs Python 3.14+ (`compression.zstd`, in the standard library from that version): below it the app runs as usual and
-the option is shown disabled. Releases are built with 3.14, and `build_exe.bat` / `build_app.sh` warn when they aren't.
+the option is shown disabled. The apps are built with a full 3.14 (the exe carries its Python, the overlay needs its tkinter): `build_exe.bat` refuses less, `build_app.sh` warns.
 
 ```bash
 git clone https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive.git
@@ -38,6 +38,7 @@ then builds `data/`. Rebuild the data by hand with `python -m wtftd.builder --no
 | `wtftd/cdk.py` | Custom vehicle files (`userVehicles` + `@override`) |
 | `wtftd/alarms.py` | In-flight values, alarms and overlay (Windows): game's `/state` + flight model limits; UI in `web/overlay.js` |
 | `wtftd/flightlog.py` | CSV flight logs (`user/logs`); curves in `web/flight.js` |
+| `wtftd/battle.py` | The game's chat and battle log; UI in `web/battle.js` |
 | `wtftd/blk.py` | BLK text format writer / reader |
 | `web/` | UI: plain HTML / CSS / JavaScript, no build step |
 | `web/locales/` | UI translations |

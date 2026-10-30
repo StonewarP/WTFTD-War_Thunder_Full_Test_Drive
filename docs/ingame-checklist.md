@@ -353,6 +353,18 @@ deletion, dark and light themes, a 1280 px wide window.
 - [ ] A **recording across two flights**: the curve breaks between them rather than joining them.
 - [ ] **Helicopter**: the values it doesn't send show N/A, nothing breaks.
 
+## 2o. Battle, overlays per aircraft (new)
+
+Checked in a real flight on 2026-10-30 (Su-30MKK): the battle log (131 lines, the game's icons removed), the sheet of the
+aircraft flown, an overlay per type then per aircraft picked up live. The game had no chat lines at the time.
+
+- [ ] **Chat** in a real battle: team, all, squad lines, the sender, enemy names in their colour.
+- [ ] **Battle log** with kills and damage, in French and in English, and `events` lines (never seen so far).
+- [ ] **Restart the game** with the tab open: the numbering starts over, the old lines go and the new ones come.
+- [ ] A **second screen**: the app's Battle tab next to the game.
+- [ ] **Profile by type**: bomber, attacker and helicopter each take their own overlay on spawn, on a slot change too.
+- [ ] **Custom vehicle** with a profile: which overlay does it take (the vehicle's id comes from the mission)?
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

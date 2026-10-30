@@ -73,6 +73,7 @@
     <button class="tab" data-view="myweapons" role="tab"><span data-i18n="nav.myWeapons"></span><span class="tab-count" id="myWeaponCount"></span></button>
     <button class="tab hidden" data-view="overlay" role="tab"><span data-i18n="nav.overlay"></span></button>
     <button class="tab hidden" data-view="flight" role="tab"><span data-i18n="nav.flight"></span></button>
+    <button class="tab" data-view="battle" role="tab"><span data-i18n="nav.battle"></span></button>
   </nav>
   <label class="search">
     <svg class="ic"><use href="#i-search"/></svg>
@@ -194,6 +195,15 @@
         <label class="switch"><input type="checkbox" id="ovEnabled"><span class="sw"></span><span data-i18n="ov.enable"></span></label>
         <label class="switch"><input type="checkbox" id="ovOnScreen"><span class="sw"></span><span data-i18n="ov.onScreen"></span></label>
       </div>
+      <div class="ov-profiles">
+        <label for="ovProfile" data-i18n="ov.profile"></label>
+        <select id="ovProfile"></select>
+        <button class="icon-btn btn-danger hidden" id="ovProfileDelete" data-i18n-title="ov.profileDelete"><svg class="ic"><use href="#i-trash"/></svg></button>
+        <input id="ovNewProfile" type="text" list="ovNewList" spellcheck="false" data-i18n-ph="ov.profileNew"><datalist id="ovNewList"></datalist>
+        <button class="btn btn-sm" id="ovProfileAdd"><span data-i18n="ov.profileAdd"></span></button>
+        <small class="muted" id="ovActive"></small>
+      </div>
+      <small class="muted ov-profile-hint" data-i18n="ov.profileHint"></small>
       <div class="ov-grid">
         <div class="ov-main">
           <div class="ov-top">
@@ -248,8 +258,23 @@
         <div class="seg" id="flSpan"><button data-s="60">1 min</button><button data-s="300">5 min</button><button data-s="1800">30 min</button><button data-s="0" data-i18n="fl.all"></button></div>
         <small class="muted" id="flState"></small>
       </div>
+      <div class="fl-sheet hidden" id="flSheet"></div>
       <div class="fl-chart"><canvas id="flCanvas" class="hidden"></canvas><div class="empty hidden" id="flEmpty"><p data-i18n="fl.empty"></p></div></div>
       <div class="ov-values" id="flValues"></div>
+    </div>
+
+    <div class="view hidden" id="view-battle">
+      <div class="page-head"><div><h2 data-i18n="bt.title"></h2><p class="muted" data-i18n="bt.hint"></p></div>
+        <button class="btn" id="btClear"><svg class="ic-sm"><use href="#i-trash"/></svg><span data-i18n="bt.clear"></span></button></div>
+      <div class="fl-bar">
+        <input id="btFilter" type="text" spellcheck="false" data-i18n-ph="bt.filter">
+        <label class="bt-size"><span data-i18n="bt.size"></span><input id="btSize" type="range" min="11" max="26"></label>
+        <small class="muted" id="btState"></small>
+      </div>
+      <div class="bt-grid">
+        <section><h3 class="ov-h" data-i18n="bt.chat"></h3><div class="bt-log" id="btChat" role="log"></div></section>
+        <section><h3 class="ov-h" data-i18n="bt.log"></h3><div class="bt-log" id="btLog" role="log"></div></section>
+      </div>
     </div>
 
     <div class="view hidden" id="view-mymaps">
@@ -532,6 +557,7 @@
 <script src="myweapons.js"></script>
 <script src="overlay.js"></script>
 <script src="flight.js"></script>
+<script src="battle.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 </body>

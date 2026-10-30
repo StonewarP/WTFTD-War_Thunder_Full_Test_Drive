@@ -1214,3 +1214,34 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 .fl-chart canvas { display: block; width: 100%; cursor: crosshair; }
 .fl-chart canvas.hidden { display: none; }
 .ov-chip.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* ------------------------------------------------------------------ My overlay: profiles */
+.ov-profiles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ov-profiles label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.ov-profiles select { min-width: 200px; }
+.ov-profiles input[type=text] { width: 240px; }
+.ov-profile-hint { display: block; margin: 6px 0 14px; }
+/* ------------------------------------------------------------------ Breaking limits */
+.lim { margin-top: 10px; }
+.lim-title { font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 6px; }
+.lim-wide { font-size: 12.5px; margin-top: 6px; color: var(--text); }
+.lim-wide span { display: block; font-size: 11px; color: var(--muted); }
+.fl-sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
+/* ------------------------------------------------------------------ Battle */
+.bt-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.bt-grid .ov-h { margin-top: 0; }
+.bt-log { height: calc(100vh - 290px); min-height: 280px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: var(--bt-size, 14px); line-height: 1.35; }
+.bt-line { padding: 1px 0; overflow-wrap: anywhere; }
+.bt-line time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; font-size: .85em; }
+.bt-line i { color: var(--muted); margin-right: 6px; font-style: normal; font-size: .85em; }
+.bt-line b { margin-right: 6px; color: var(--info); }
+.bt-line.enemy b { color: var(--warn); }
+.bt-none { padding: 6px 0; }
+.bt-size { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
+#btFilter { width: 240px; }
+@media (max-width: 1000px) { .bt-grid { grid-template-columns: minmax(0, 1fr); } .bt-log { height: 320px; } }
+@media (max-width: 1500px) { .topbar .search kbd { display: none; } }
+/* many tabs on a narrow window, longer in some languages: they scroll, the search and the buttons stay on screen */
+.topbar .tabs { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.topbar .tab { flex: none; white-space: nowrap; }
+.topbar .search { min-width: 38px; }

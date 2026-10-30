@@ -20,8 +20,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, builder, cdk, flightlog, game, maptex, mission, sights, terrain, uninstall, \
-    vromfs
+from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, sights, terrain, \
+    uninstall, vromfs
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -520,6 +520,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(read_json(USER / "combos.json", []))
         if route == "overlay":
             return self.send_json(overlay_status())
+        if route.startswith("overlay/"):
+            return self.send_json(overlay_status(route.split("/", 1)[1]))
+        if route.startswith("battle/"):  # battle/<last chat id>/<last event>/<last damage>
+            ids = route.split("/")[1:]
+            if len(ids) == 3 and all(x.isdigit() for x in ids):
+                return self.send_json(battle.news(_wt_get, *map(int, ids)))
+            return self.send_json({"error": "not found"}, 404)
         if route.startswith("flight/"):
             return self.send_json(flight_status(int(route.split("/", 1)[1]) if route.split("/", 1)[1].isdigit() else 0))
         if route == "flight-logs":
@@ -673,12 +680,29 @@ class Handler(BaseHTTPRequestHandler):
             apply_alarm_settings()
             return self.send_json(api_status())
         if route == "overlay":  # My overlay: every change is saved, the window follows at once; reset: the defaults
+            key = str(body.get("profile") or "")
+            if key and not alarms.PROFILE.fullmatch(key):
+                return self.send_json({"error": "Invalid profile"}, 400)
             s = STATE.settings()
-            s.pop("overlay", None)
-            if not body.get("reset"):
-                s["overlay"] = alarms.clean(body.get("cfg"), WATCH.words)
+            cfg = None if body.get("reset") else alarms.clean(body.get("cfg"), WATCH.words)
+            if key:
+                profiles = s["overlayProfiles"] = s.get("overlayProfiles") if isinstance(s.get("overlayProfiles"), dict) else {}
+                profiles[key] = cfg or alarms.defaults(WATCH.words)
+            elif cfg:
+                s["overlay"] = cfg
+            else:
+                s.pop("overlay", None)
             if "enabled" in body:
                 s["alarms"] = body["enabled"] is True
+            STATE.save_settings(s)
+            apply_alarm_settings()
+            if WATCH.preview:
+                WATCH.set_preview(WATCH.profiles.get(key, WATCH.base))
+            return self.send_json(overlay_status(key))
+        if route == "overlay-profile-delete":
+            s = STATE.settings()
+            if isinstance(s.get("overlayProfiles"), dict):
+                s["overlayProfiles"].pop(str(body.get("profile")), None)
             STATE.save_settings(s)
             apply_alarm_settings()
             return self.send_json(overlay_status())
@@ -693,10 +717,11 @@ class Handler(BaseHTTPRequestHandler):
             game.open_folder(LOGS)
             return self.send_json({"ok": True})
         if route == "overlay-preview":  # show it on the screen now, without the game
-            WATCH.set_preview(alarms.available() and body.get("on") is True)
-            return self.send_json(overlay_status())
+            on = alarms.available() and body.get("on") is True
+            WATCH.set_preview(WATCH.profiles.get(str(body.get("profile") or ""), WATCH.base) if on else None)
+            return self.send_json(overlay_status(str(body.get("profile") or "")))
         if route == "overlay-test":  # hear an alarm
-            a = WATCH.cfg["alarms"].get(str(body.get("alarm")))
+            a = WATCH.profiles.get(str(body.get("profile") or ""), WATCH.base)["alarms"].get(str(body.get("alarm")))
             if a and alarms.available():
                 alarms.beep(a["hz"], a["ms"])
             return self.send_json({"ok": bool(a)})
@@ -1032,27 +1057,33 @@ def mission_on_map() -> bool:
 
 
 LOGS = USER / "logs"
-WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS)
+WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS,
+                     kind=lambda vid: (STATE.get_vehicles().get(vid) or {}).get("k"))
 
 
 def apply_alarm_settings():
     s = STATE.settings()
     WATCH.words = alarms.labels(str(s.get("lang") or "en"))
-    WATCH.set_config(alarms.clean(s.get("overlay"), WATCH.words))
+    saved = s.get("overlayProfiles") if isinstance(s.get("overlayProfiles"), dict) else {}
+    WATCH.set_config(alarms.clean(s.get("overlay"), WATCH.words),
+                     {k: alarms.clean(v, WATCH.words) for k, v in saved.items() if alarms.PROFILE.fullmatch(k)})
     WATCH.set_enabled(alarms.available() and s.get("alarms") is True)
 
 
 def flight_status(after: int) -> dict:
     """The Flight data tab: the readings after this one (the tab asking keeps them coming, see Watch.tick)."""
     WATCH.viewed = time.monotonic()
-    return {"rows": [r for r in list(WATCH.trace) if r["n"] > after], "flying": WATCH.flying,
+    return {"rows": [r for r in list(WATCH.trace) if r["n"] > after], "flying": WATCH.flying, "aircraft": WATCH.current,
             "log": WATCH.log.name if WATCH.log else None, "units": alarms.units()}
 
 
-def overlay_status() -> dict:
-    """The My overlay tab: the configuration, the screen it's placed on, its lines with sample values."""
-    return {"cfg": WATCH.cfg, "screen": alarms.screen(), "lines": WATCH.sample(), "onScreen": WATCH.preview,
-            "enabled": STATE.settings().get("alarms") is True}
+def overlay_status(profile: str = "") -> dict:
+    """The My overlay tab: an overlay (the one for all aircraft, or a profile), the screen it's placed on, its lines with
+    sample values."""
+    cfg = WATCH.profiles.get(profile, WATCH.base)
+    return {"cfg": cfg, "screen": alarms.screen(), "lines": WATCH.sample(cfg), "onScreen": WATCH.preview is not None,
+            "enabled": STATE.settings().get("alarms") is True, "profile": profile if profile in WATCH.profiles else "",
+            "profiles": sorted(WATCH.profiles), "active": WATCH.profile, "aircraft": WATCH.current}
 
 
 def capture_once():

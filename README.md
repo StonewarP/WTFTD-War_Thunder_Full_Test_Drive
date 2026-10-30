@@ -146,9 +146,10 @@ window and finds your game by itself (Steam or standalone). Close the window to 
   invulnerability, instant reload and passive targets, repair, bring the targets back or go back to the start
   while you play (the game's Quick radio messages)
 - **Custom sights** for ground vehicles: a sight of your UserSights folder or a `.blk` file you add
-- **My overlay** (Windows, off until you turn it on): your own lines over the game in a click-through window (speed
+- **My overlay** (Windows, off until you turn it on; per aircraft or type if you like): your own lines over the game in a click-through window (speed
   against the limit, altitude, fuel, any value the game sends), and beeps near your aircraft's breaking speeds with
   your thresholds and sounds; it reads the game's local data only, nothing is added to the game
+- **Battle**: the game's chat and battle log, live, in their own window, handy on a second screen
 - **Flight data** (Windows): live curves of what the game reports in flight (speed, altitude, G, turn time, fuel use...),
   and a recorder: CSV logs for Excel, replayed in the app
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
@@ -262,8 +263,9 @@ python -m wtftd
 
 To build `dist\WTFTD-<version>.exe` yourself, run **`build_exe.bat`** on Windows (from a branch other than
 `main`, the branch is added: `WTFTD-<version>-<branch>.exe`); for `dist/WTFTD.app` (and `dist/WTFTD-<version>.zip`),
-run **`./build_app.sh`** on a Mac. Both install PyInstaller in `.cache/build-venv`. Build with Python 3.14+, or the
-app can't offer to read the installed game (both scripts warn you).
+run **`./build_app.sh`** on a Mac. Both install PyInstaller in `.cache/build-venv`. The app carries the Python it's
+built with: use a full Python 3.14+ (reading the installed game needs it, the overlay needs its tkinter).
+`build_exe.bat` refuses anything less, `build_app.sh` warns.
 
 ## Game data & automatic updates
 
@@ -322,6 +324,7 @@ wtftd/                      Python backend (stdlib only)
   vromfs.py                 the game's own files: .vromfs.bin containers, binary BLK
   armament.py               Weapons page data (missiles, bombs, rockets, torpedoes)
   alarms.py / flightlog.py  in-flight values, alarms and overlay (Windows) / CSV flight logs
+  battle.py                 the game's chat and battle log
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,

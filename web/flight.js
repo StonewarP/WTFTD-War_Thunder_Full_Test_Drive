@@ -4,13 +4,38 @@
 'use strict';
 
 const FL = { rows: [], seq: 0, units: {}, sel: store.get('flightSel', ['ias', 'alt', 'g', 'fuel']), span: store.get('flightSpan', 300),
-             log: '', timer: 0, mouse: null, recording: null, flying: false };
+             log: '', timer: 0, mouse: null, recording: null, flying: false, aircraft: null };
 const FL_GAP_S = 5;  // no reading for this long: the line breaks instead of joining two flights
 const FL_STRIP = 96, FL_AXIS = 24, FL_HEAD = 20, FL_LEFT = 60;  // FL_LEFT: the strips' lowest and highest numbers
 const FL_STEPS = [5, 10, 30, 60, 120, 300, 600, 1800, 3600];
 
 const flNum = v => v.toLocaleString(I18N.code, { maximumFractionDigits: Math.abs(v) >= 100 ? 0 : 2 });
 const flTime = s => `${s < 0 ? '-' : ''}${Math.floor(Math.abs(s) / 60)}:${String(Math.floor(Math.abs(s) % 60)).padStart(2, '0')}`;
+
+// an aircraft's breaking limits: the vehicle panel, and the sheet of the one flown
+function limitsHTML(lim) {
+  if (!lim) return '';
+  const kmh = v => `${flNum(v)} km/h`, pos = p => `${Math.round(p * 100)} %`;
+  const rows = [['speed', kmh(lim.v)], ['mach', flNum(lim.m)], ['gear', lim.gear ? kmh(lim.gear) : t('lim.none')],
+                ['eng', lim.eng], ['fuel', `${flNum(Math.max(...lim.fuel))} kg`], ['mass', `${flNum(lim.mass)} kg`]];
+  const wide = [[t('lim.flaps'), lim.flaps?.map(([p, v]) => `${pos(p)}: ${kmh(v)}`).join(' · ')],
+                [t('lim.sweep'), lim.sw?.map(([p, v, m]) => `${pos(p)}: ${kmh(v)}, M ${flNum(m)}`).join(' · ')]].filter(x => x[1]);
+  return `<div class="lim"><div class="lim-title">${esc(t('lim.title'))}</div>
+    <div class="vstats">${rows.map(([k, v]) => `<div class="vstat"><span>${esc(t('lim.' + k))}</span><b>${esc(v)}</b></div>`).join('')}</div>
+    ${wide.map(([k, v]) => `<div class="lim-wide"><span>${esc(k)}</span>${esc(v)}</div>`).join('')}</div>`;
+}
+
+async function flSheet(id) {
+  FL.aircraft = id;
+  const el = $('#flSheet');
+  el.classList.toggle('hidden', !id);
+  if (!id) return;
+  try {
+    const d = await api('vehicle/' + encodeURIComponent(id));
+    el.innerHTML = `<div class="row-between"><div><small class="muted">${esc(t('fl.current'))}</small> <b>${esc(I18N.unit(id))}</b></div>
+      <button class="btn btn-sm" data-flopen="${esc(id)}">${esc(t('fl.open'))}</button></div>${limitsHTML(d.st?.lim)}`;
+  } catch { el.classList.add('hidden'); }
+}
 
 function flShown() {
   if (FL.log || !FL.span || !FL.rows.length) return FL.rows;
@@ -132,6 +157,7 @@ async function flPoll() {
     FL.units = st.units;
     FL.flying = st.flying;
     FL.recording = st.log;
+    if (st.aircraft !== FL.aircraft) flSheet(st.aircraft);
     if (st.rows.length && !FL.log) {
       FL.rows = FL.rows.concat(st.rows).slice(-3600);
       FL.seq = st.rows.at(-1).n;
@@ -211,4 +237,8 @@ function bindFlight() {
     flSource('');
   });
   $('#flFolder').addEventListener('click', () => api('flight-logs-open', {}).catch(toastErr));
+  $('#flSheet').addEventListener('click', e => {
+    const id = e.target.closest('[data-flopen]')?.dataset.flopen;
+    if (id) { showView('vehicles'); openVehicle(id); }
+  });
 }

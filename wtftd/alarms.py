@@ -7,8 +7,9 @@ Its speed is then compared to the breaking limits of its flight model (st["lim"]
 builder.flight_limits): in doubt there is no alarm, never a guess.
 
 What is shown and heard is the player's (My overlay tab, settings.json "overlay", see clean): the window's look, each
-line's text ("IAS {ias} / {vne} km/h", see FIELDS) and when it shows, the alarms' thresholds and sounds. The same values
-go to the Flight data tab's curves and, on demand, to a CSV log (flightlog.py).
+line's text ("IAS {ias} / {vne} km/h", see FIELDS) and when it shows, the alarms' thresholds and sounds, for all aircraft
+or per aircraft or type (settings.json "overlayProfiles", see Watch.pick). The same values go to the Flight data tab's
+curves and, on demand, to a CSV log (flightlog.py).
 
 The overlay is a separate click-through window above the game: nothing is injected, nothing touches the game.
 """
@@ -69,6 +70,7 @@ NO_VALUE = "N/A"  # what the game doesn't send, what the aircraft doesn't have
 WHEN = {"always": None, "alarm": None, "gear": "gear, %", "flaps": "flaps, %", "airbrake": "airbrake, %", "log": "rec"}  # shown if on
 MAX_LINES = 30
 MAX_TEXT = 120
+PROFILE = re.compile(r"(type:)?[\w.\-]{1,120}")  # the overlay of an aircraft (its id) or a type (type:fighter)
 COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 FONT = re.compile(r"[\w .+-]{1,64}")
 
@@ -372,13 +374,17 @@ class Watch:
     get: bytes of a game API path; details: () -> data/details.json; mission_on_map: () -> is the map of the mission
     generated last the one loaded in the game?; save: () -> path of global.blk."""
 
-    def __init__(self, get, details, mission_on_map=lambda: False, save=save_file, lang="en", logs=None):
-        self.get, self.details, self.mission_on_map, self.save = get, details, mission_on_map, save
+    def __init__(self, get, details, mission_on_map=lambda: False, save=save_file, lang="en", logs=None,
+                 kind=lambda vid: None):
+        self.get, self.details, self.mission_on_map, self.save, self.kind = get, details, mission_on_map, save, kind
         self.logs = logs  # folder of the CSV logs
         self.words = labels(lang)
-        self.cfg = clean(None, self.words)
+        self.base = self.cfg = clean(None, self.words)  # the overlay for all aircraft, the one in use
+        self.profiles = {}  # {aircraft id or "type:<class>": its overlay}
+        self.profile = ""  # the one in use, "" = base
+        self.current = None  # the aircraft flown
         self.enabled = False
-        self.preview = False  # My overlay's "show it on my screen": without the game, with sample values
+        self.preview = None  # My overlay's "show it on my screen": its configuration, shown without the game
         self.hidden = False  # the show / hide key
         self.mission = None  # {"id", "fuel", "unbreakable"}: set when a mission is generated
         self.display = []
@@ -406,16 +412,20 @@ class Watch:
         if on:
             self.start_overlay()
 
-    def set_preview(self, on: bool):
-        self.preview = on
-        if on:
+    def set_preview(self, cfg: dict | None):
+        self.preview = cfg
+        if cfg:
             self.start_overlay()
-        self.display = self.sample() if on else []
+        self.display = self.sample(cfg) if cfg else []
 
-    def set_config(self, cfg: dict):
-        self.cfg = cfg
-        if self.preview:
-            self.display = self.sample()
+    def set_config(self, base: dict, profiles: dict):
+        self.base, self.profiles = base, profiles
+        self.pick()
+
+    def pick(self):
+        """The overlay of the aircraft flown: its own, else its type's, else the one for all aircraft."""
+        self.profile = next((k for k in (self.current, f"type:{self.kind(self.current)}") if k in self.profiles), "")
+        self.cfg = self.profiles.get(self.profile, self.base)
 
     def set_log(self, on: bool):
         with self.log_lock:
@@ -425,9 +435,9 @@ class Watch:
                 self.log.close()
                 self.log = None
 
-    def sample(self) -> list:
+    def sample(self, cfg: dict) -> list:
         values = {**SAMPLE_STATE, **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, {"burn": 95, "accel": 1.2})}
-        return lines_for(self.cfg, values, active(percents(SAMPLE_LIM, SAMPLE_STATE), self.cfg["alarms"]))
+        return lines_for(cfg, values, active(percents(SAMPLE_LIM, SAMPLE_STATE), cfg["alarms"]))
 
     def record(self, values: dict):
         """A reading a second for the curves and the log."""
@@ -473,6 +483,8 @@ class Watch:
             lim = planes[m["id"]]  # what WTFTD generated first: custom vehicles keep the name of no real aircraft
         self._unbreakable = bool(lim and m.get("unbreakable"))
         self._lim = lim or planes.get(reported) or recognise(planes, state, model)
+        self.current = next((vid for vid, x in planes.items() if x is self._lim), None)
+        self.pick()
         print(f"Alarms: Mfuel0={key[0]}, reported={reported}, saved model={model}, limits={self._lim}", flush=True)
         if not self._lim and self.enabled:
             beep(*UNKNOWN_BEEP)
@@ -483,19 +495,20 @@ class Watch:
         state = flying(self.get("/state")) if wanted else None
         self.flying = state is not None
         if state is None:
-            self.display = self.sample() if self.preview else []
+            self.display = self.sample(self.preview) if self.preview else []
             self._key = None  # the next spawn may be another aircraft, or the same one elsewhere
             self.trend = Trend()
+            self.current = None
+            self.pick()
             return IDLE_S
-        cfg = self.cfg
         indicators = answer(self.get("/indicators"))  # every time: it may only start answering mid-flight
         self.aircraft(state, reported_type(indicators))
-        lim = self._lim
+        cfg, lim = self.preview or self.cfg, self._lim
         self.trend.add(time.monotonic(), state)
         values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates()), "rec": 1 if self.log else 0}
         self.record(values)
         if not self.enabled:
-            self.display = self.sample() if self.preview else []
+            self.display = self.sample(self.preview) if self.preview else []
             return POLL_S
         on = active(percents(lim, state), cfg["alarms"]) if lim and not self._unbreakable else []
         status = [(self.words["unknown"], cfg["alert"], cfg["size"])] if not lim else \
@@ -564,13 +577,14 @@ def run_overlay(watch: Watch):
                 rows[i].pack(anchor="w")
             for row in rows[len(lines):]:
                 row.pack_forget()
+            root.update_idletasks()  # now: shown before that, a first drawing stays at (0, 0)
 
         def refresh():
             nonlocal drawn
             if watch.stopping.is_set():
                 root.destroy()
                 return
-            cfg, lines = watch.cfg, watch.display
+            cfg, lines = watch.preview or watch.cfg, watch.display
             if (cfg, lines) != drawn:
                 drawn = cfg, lines
                 draw(cfg, lines)
