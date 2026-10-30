@@ -431,6 +431,7 @@
   "ov.v.burn": "Spotřeba",
   "ov.v.fuel_time": "Zbývající čas",
   "ov.v.range": "Zbývající dolet",
+  "nav.inFlight": "Za letu",
   "nav.overlay": "Můj overlay",
   "ov.title": "Můj overlay",
   "ov.hint": "Co v letu vidíte a slyšíte: malé okno nad hrou, kterým procházejí kliknutí, a pípání poblíž rychlostí, které letoun zničí. Čte jen místní data hry; do hry se nic nepřidává. Změny platí hned.",

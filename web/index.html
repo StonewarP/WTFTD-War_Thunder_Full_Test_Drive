@@ -64,16 +64,11 @@
     <div class="brand-text"><b data-i18n="app.title">WTFTD</b><span data-i18n="app.tagline"></span></div>
   </div>
   <nav class="tabs" role="tablist">
-    <button class="tab active" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
-    <button class="tab" data-view="setups" role="tab"><span data-i18n="nav.myVehicles"></span><span class="tab-count" id="setupCount"></span></button>
-    <button class="tab" data-view="maps" role="tab"><span data-i18n="nav.maps"></span></button>
-    <button class="tab" data-view="mymaps" role="tab"><span data-i18n="nav.myMaps"></span><span class="tab-count" id="myMapCount"></span></button>
-    <button class="tab" data-view="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
-    <button class="tab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
-    <button class="tab" data-view="myweapons" role="tab"><span data-i18n="nav.myWeapons"></span><span class="tab-count" id="myWeaponCount"></span></button>
-    <button class="tab hidden" data-view="overlay" role="tab"><span data-i18n="nav.overlay"></span></button>
-    <button class="tab hidden" data-view="flight" role="tab"><span data-i18n="nav.flight"></span></button>
-    <button class="tab" data-view="battle" role="tab"><span data-i18n="nav.battle"></span></button>
+    <button class="tab active" data-menu="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
+    <button class="tab" data-menu="maps" role="tab"><span data-i18n="nav.maps"></span></button>
+    <button class="tab" data-menu="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
+    <button class="tab" data-menu="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
+    <button class="tab" data-menu="inflight" role="tab"><span data-i18n="nav.inFlight"></span></button>
   </nav>
   <label class="search">
     <svg class="ic"><use href="#i-search"/></svg>
@@ -88,6 +83,17 @@
     <button class="icon-btn" id="btnSettings" data-i18n-title="settings.title"><svg class="ic"><use href="#i-gear"/></svg></button>
   </div>
 </header>
+<nav class="subtabs" role="tablist">
+  <button class="subtab" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
+  <button class="subtab" data-view="setups" role="tab"><span data-i18n="nav.myVehicles"></span><span class="tab-count" id="setupCount"></span></button>
+  <button class="subtab" data-view="maps" role="tab"><span data-i18n="nav.maps"></span></button>
+  <button class="subtab" data-view="mymaps" role="tab"><span data-i18n="nav.myMaps"></span><span class="tab-count" id="myMapCount"></span></button>
+  <button class="subtab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
+  <button class="subtab" data-view="myweapons" role="tab"><span data-i18n="nav.myWeapons"></span><span class="tab-count" id="myWeaponCount"></span></button>
+  <button class="subtab hidden" data-view="overlay" role="tab"><span data-i18n="nav.overlay"></span></button>
+  <button class="subtab hidden" data-view="flight" role="tab"><span data-i18n="nav.flight"></span></button>
+  <button class="subtab" data-view="battle" role="tab"><span data-i18n="nav.battle"></span></button>
+</nav>
 
 <div class="update-banner hidden" id="updateBanner"></div>
 <main class="layout">

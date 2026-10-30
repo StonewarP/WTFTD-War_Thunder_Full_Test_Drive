@@ -6,7 +6,9 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## 0.21.0 — not released yet
 
-- **My overlay** (new tab, Windows, off until you turn it on there): while you fly, WTFTD beeps near your aircraft's
+- **A shorter top menu**: Vehicles, Maps, Weapons, My missions and In flight. Your own vehicles, maps and weapons are
+  now sub-tabs of those menus, and My overlay, Flight data and Battle sit under In flight.
+- **My overlay** (In flight, Windows, off until you turn it on there): while you fly, WTFTD beeps near your aircraft's
   breaking speeds and shows what you choose in a small click-through window over the game, hidden in the hangar and
   when the game isn't in front. By default: your speed against each limit, `IAS 1284 / 1540 km/h`, Mach, and gear and
   flaps when they are out.
@@ -21,14 +23,14 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
     engines and the model the game saved (read only): in doubt the overlay says `AIRCRAFT UNKNOWN` and stays silent,
     it never guesses. Variable-sweep wings: the limit shown is the swept-back one (the game doesn't send the wing
     position). Unbreakable airframe: the overlay says so, no alarm.
-- **Flight data** (new tab, Windows): what the game reports in flight, as live curves, one strip per value on a shared
+- **Flight data** (In flight, Windows): what the game reports in flight, as live curves, one strip per value on a shared
   time axis, with the value under the mouse. **Record** a flight to a CSV file that opens in Excel (`user/logs`, also
   from a key in flight), replay it here, delete it.
 - New values for the overlay, the curves and the logs: turn time, rate and radius, horizontal speed, acceleration,
   specific excess power, total thrust, thrust/weight, fuel use, fuel time and range left, pitch, bank. The mass leaves
   the weapons out (the game doesn't tell it), so thrust/weight reads a little high when loaded. Pitch, bank and heading
   come from `/indicators`: `N/A` while it's blank. A `REC` line shows while recording.
-- **Battle** (new tab): the game's chat and battle log, live, in their own window, handy on a second screen: filter,
+- **Battle** (In flight): the game's chat and battle log, live, in their own window, handy on a second screen: filter,
   text size. WTFTD only reads them.
 - **Overlays per aircraft or type** (My overlay): an aircraft's own overlay comes first, then its type's (fighters,
   attackers, bombers, helicopters), then the one for all aircraft, with their own lines, look and alarms. The right

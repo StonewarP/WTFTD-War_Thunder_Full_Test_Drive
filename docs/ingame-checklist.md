@@ -303,7 +303,7 @@ Checked out of game: unit tests (`tests/test_alarms.py`), the limits of every fl
 a fake `/state` (click-through, keeps the focus, hides, closes cleanly). `.cache/wtftd.log` (packaged app) or the
 console lists each recognition: `Alarms: Mfuel0=…, reported=…, saved model=…, limits=…`.
 
-Turn them on first: tab My overlay → Turn on the overlay and alarms (off by default).
+Turn them on first: In flight → My overlay → Turn on the overlay and alarms (off by default).
 
 - [x] **Real values in flight** (2026-10-30): captured on screen in a flight, `IAS 1154 / 1540 km/h`, `MACH 1.92 / 2.10`,
   with a custom font and opacity.

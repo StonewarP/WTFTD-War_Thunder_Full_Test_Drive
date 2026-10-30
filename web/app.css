@@ -26,7 +26,9 @@
   --font: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
   --font-display: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, sans-serif;
   --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
-  --top-h: 60px;
+  --bar-h: 60px;
+  --sub-h: 40px;
+  --top-h: var(--bar-h);
   --side-w: 248px;
   --drawer-w: 500px;
   --line-hover: #3a4658;
@@ -107,7 +109,7 @@ svg.ic-xl { width: 42px; height: 42px; fill: none; stroke: currentColor; stroke-
 
 /* ------------------------------------------------------------------ topbar */
 .topbar {
-  height: var(--top-h); display: flex; align-items: center; gap: 18px;
+  height: var(--bar-h); display: flex; align-items: center; gap: 18px;
   padding: 0 16px 0 18px; border-bottom: 1px solid var(--line);
   background: var(--topbar-bg);
   position: relative; z-index: 20;
@@ -1230,7 +1232,7 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 /* ------------------------------------------------------------------ Battle */
 .bt-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .bt-grid .ov-h { margin-top: 0; }
-.bt-log { height: calc(100vh - 290px); min-height: 280px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: var(--bt-size, 14px); line-height: 1.35; }
+.bt-log { height: calc(100vh - 330px); min-height: 280px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: var(--bt-size, 14px); line-height: 1.35; }
 .bt-line { padding: 1px 0; overflow-wrap: anywhere; }
 .bt-line time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; font-size: .85em; }
 .bt-line i { color: var(--muted); margin-right: 6px; font-style: normal; font-size: .85em; }
@@ -1245,3 +1247,11 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 .topbar .tabs { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
 .topbar .tab { flex: none; white-space: nowrap; }
 .topbar .search { min-width: 38px; }
+/* the sub-tabs of the menu in use, under the top bar */
+.subtabs { display: none; height: var(--sub-h); align-items: center; gap: 2px; padding: 0 18px; border-bottom: 1px solid var(--line); background: var(--bg-2); overflow-x: auto; scrollbar-width: thin; }
+body.sub-on { --top-h: calc(var(--bar-h) + var(--sub-h)); }
+body.sub-on .subtabs { display: flex; }
+.subtab { flex: none; height: 28px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-weight: 600; font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; transition: color .15s, background .15s; }
+.subtab:hover { color: var(--text); }
+.subtab.active { background: var(--surface-3); color: var(--text); }
+.subtab.off { display: none; }

@@ -431,6 +431,7 @@
   "ov.v.burn": "Fuel use",
   "ov.v.fuel_time": "Fuel time left",
   "ov.v.range": "Range left",
+  "nav.inFlight": "In flight",
   "nav.overlay": "My overlay",
   "ov.title": "My overlay",
   "ov.hint": "What you see and hear in flight: a small click-through window over the game, and beeps near your aircraft's breaking speeds. It only reads the game's local data; nothing is added to the game. Changes apply at once.",

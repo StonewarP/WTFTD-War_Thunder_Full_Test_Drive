@@ -431,6 +431,7 @@
   "ov.v.burn": "Zużycie paliwa",
   "ov.v.fuel_time": "Pozostały czas",
   "ov.v.range": "Pozostały zasięg",
+  "nav.inFlight": "W locie",
   "nav.overlay": "Moja nakładka",
   "ov.title": "Moja nakładka",
   "ov.hint": "To, co widzisz i słyszysz w locie: małe okno nad grą, przepuszczające kliknięcia, i sygnały blisko prędkości niszczących samolot. Czytane są tylko lokalne dane gry; nic nie jest dodawane do gry. Zmiany działają od razu.",

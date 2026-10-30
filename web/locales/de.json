@@ -431,6 +431,7 @@
   "ov.v.burn": "Verbrauch",
   "ov.v.fuel_time": "Restflugzeit",
   "ov.v.range": "Restreichweite",
+  "nav.inFlight": "Im Flug",
   "nav.overlay": "Mein Overlay",
   "ov.title": "Mein Overlay",
   "ov.hint": "Was du im Flug siehst und hörst: ein kleines, klickdurchlässiges Fenster über dem Spiel und Pieptöne nahe den Bruchgeschwindigkeiten deines Flugzeugs. Es liest nur die lokalen Spieldaten; dem Spiel wird nichts hinzugefügt. Änderungen gelten sofort.",

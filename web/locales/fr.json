@@ -431,6 +431,7 @@
   "ov.v.burn": "Consommation",
   "ov.v.fuel_time": "Autonomie (temps)",
   "ov.v.range": "Autonomie (distance)",
+  "nav.inFlight": "En vol",
   "nav.overlay": "Mon overlay",
   "ov.title": "Mon overlay",
   "ov.hint": "Ce que vous voyez et entendez en vol : une petite fenêtre sur le jeu, que les clics traversent, et des bips près des vitesses de rupture de votre avion. Seules les données locales du jeu sont lues ; rien n'est ajouté au jeu. Les changements s'appliquent aussitôt.",

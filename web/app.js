@@ -12,6 +12,9 @@ const CAT_ICON = { all: 'all', ground: 'ground', air: 'air', heli: 'heli', boat:
 const NATIONS = ['usa', 'germany', 'ussr', 'britain', 'japan', 'china', 'italy', 'france', 'sweden', 'israel'];
 const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', britain: '#2f8a63', japan: '#d65a5a', china: '#e2a92b', italy: '#2fa262', france: '#4766dd', sweden: '#f0c637', israel: '#4fa6e3', other: '#5b6b84' };
 const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
+// the top menu: each menu's pages, shown as sub-tabs under it when it has several
+const MENUS = { vehicles: ['vehicles', 'setups'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
+                inflight: ['overlay', 'flight', 'battle'] };
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
 const WEATHERS = ['clear', 'good', 'hazy', 'thin_clouds', 'cloudy', 'cloudy_windy', 'overcast', 'poor', 'rain', 'thunder', 'blind'];
 const AMMO_COLORS = ['#f3b33d', '#5ab8ff', '#5fcf8a', '#d482ff'];
@@ -24,6 +27,7 @@ const store = {
 
 const S = {
   status: null,
+  menuPage: {},
   vehicles: [],
   byId: new Map(),
   scenarios: [],
@@ -534,7 +538,8 @@ function bindUI() {
   $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', stats: {}, wsel: [], roles: [] }));
   $('#search').addEventListener('input', debounce(e => { S.f.q = e.target.value; applyFilters(); }, 90));
 
-  $$('.tab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+  $$('.tab').forEach(b => b.addEventListener('click', () => showView(S.menuPage[b.dataset.menu] || menuPages(b.dataset.menu)[0])));
+  $$('.subtab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
   $('#btnSettings').addEventListener('click', openSettings);
   $('#btnLaunchTop').addEventListener('click', launchGame);
   $('#btnOpenFolder').addEventListener('click', () => api('open-folder', {}).catch(toastErr));
@@ -566,9 +571,15 @@ function bindUI() {
   $('#setupList').addEventListener('click', onSetupListClick);
 }
 
+const menuPages = menu => MENUS[menu].filter(v => !$(`.subtab[data-view="${v}"]`)?.classList.contains('hidden'));  // Windows only pages
+
 function showView(name) {
-  $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  const menu = Object.keys(MENUS).find(m => MENUS[m].includes(name)), pages = menuPages(menu);
+  S.menuPage[menu] = name;  // the menu comes back to it
+  $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.menu === menu));
   $('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  $$('.subtab').forEach(b => { b.classList.toggle('active', b.dataset.view === name); b.classList.toggle('off', !pages.includes(b.dataset.view)); });
+  document.body.classList.toggle('sub-on', pages.length > 1);
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
   document.body.classList.toggle('view-weapons', name === 'weapons');
   document.body.classList.toggle('view-maps', name === 'maps');
