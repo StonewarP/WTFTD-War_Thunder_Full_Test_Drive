@@ -15,9 +15,10 @@ class Uninstall(unittest.TestCase):
         root = Path(tmp.name)
         self.home, self.game = root / "home", root / "War Thunder"
         self.cache, self.data, self.user = self.home / ".cache", self.home / "data", self.home / "user"
-        for d in (self.cache / "datamine", self.cache / "app-window", self.data, self.user / "missions", self.game / "UserMissions"):
+        for d in (self.cache / "datamine", self.cache / "gamefiles", self.cache / "app-window", self.data, self.user / "missions", self.game / "UserMissions"):
             d.mkdir(parents=True)
         (self.cache / "datamine" / "a.blkx").write_text("x" * 100)
+        (self.cache / "gamefiles" / "b.blkx").write_text("x" * 100)
         (self.cache / "app-window" / "Preferences").write_text("{}")
         (self.data / "vehicles.json").write_text("[]")
         (self.user / "settings.json").write_text("{}")
@@ -41,7 +42,7 @@ class Uninstall(unittest.TestCase):
     def test_info(self):
         i = uninstall.info(self.game)
         self.assertEqual(i["missions"]["files"], 2)
-        self.assertEqual(i["cache"]["bytes"], 102)
+        self.assertEqual(i["cache"]["bytes"], 202)
         self.assertFalse(i["app"]["available"])  # from the source code: the app is never removed
 
     def test_parts(self):
@@ -50,6 +51,7 @@ class Uninstall(unittest.TestCase):
         self.assertEqual(res["removed"]["missions"], 2)
         self.assertTrue((self.game / "UserMissions" / "someone_elses.blk").exists())
         self.assertFalse((self.cache / "datamine").exists())
+        self.assertFalse((self.cache / "gamefiles").exists())
         self.assertTrue((self.cache / "app-window").exists())  # in use while the app window is open
         self.assertTrue(self.data.exists())  # not chosen
         # the custom vehicle files stay in the game: their manifest stays too, to remove them later

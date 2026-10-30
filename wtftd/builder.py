@@ -1,6 +1,7 @@
-"""Builds the app database from the community War Thunder datamine.
+"""Builds the app database from the community War Thunder datamine, or from the installed game's own files.
 
-Source: https://github.com/gszabi99/War-Thunder-Datamine (sparse git clone, ~1 GB on disk).
+Source: https://github.com/gszabi99/War-Thunder-Datamine (sparse git clone, ~1 GB on disk),
+or the game's .vromfs.bin files, unpacked with the same layout (vromfs.py, needs Python 3.14).
 Output (in ./data):
   meta.json          game version + build date
   vehicles.json      compact vehicle list for the browser grid
@@ -12,6 +13,7 @@ Output (in ./data):
 
 Run:  python -m wtftd.builder            (clone or update the datamine, then build)
       python -m wtftd.builder --no-pull  (build from the existing clone)
+      python -m wtftd.builder --game     (unpack the installed game, then build; --no-pull: from the last unpack)
 """
 from __future__ import annotations
 
@@ -31,6 +33,7 @@ import zipfile
 from collections import defaultdict
 from pathlib import Path
 
+from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
 SCHEMA = 19  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
@@ -47,6 +50,8 @@ SPARSE = [
     "aces.vromfs.bin_u/config",
     "aces.vromfs.bin_u/levels",
 ]
+DATAMINE = DM
+GAMEFILES = CACHE / "gamefiles"  # the installed game's files, unpacked with the datamine's layout
 
 # CSV column -> short language code used by the app
 LANG_COLUMNS = {
@@ -109,6 +114,10 @@ def load(path: Path):
             return json.load(f)
     except (OSError, ValueError):
         return None
+
+
+if (load(DATA / "meta.json") or {}).get("source") == "game":
+    DM = GAMEFILES  # the app reads the files its data was built from: build() changes it when that build succeeds
 
 
 def build_bullet_icons() -> dict:
@@ -246,6 +255,33 @@ def fetch_datamine(progress=None):
         git("fetch", "--depth", "1", "origin", "master", cwd=DM)
         git("reset", "--hard", "origin/master", cwd=DM)
     report(progress, 0.45)
+
+
+def fetch_gamefiles(game_dir: Path | None, progress=None):
+    """Unpacks the installed game (read only) next to the last unpack, which it replaces once complete."""
+    if not vromfs.available():
+        raise RuntimeError(vromfs.NO_ZSTD)
+    if not game_dir:
+        raise RuntimeError("War Thunder folder not found. Set it in Settings.")
+    log(f"Reading the game files (War Thunder {vromfs.version(game_dir)})...", progress)
+    report(progress, 0.03)
+    tmp = GAMEFILES.with_name("gamefiles.tmp")
+    shutil.rmtree(tmp, ignore_errors=True)
+    try:
+        vromfs.unpack(game_dir, tmp, SPARSE, lambda frac: report(progress, 0.03 + 0.42 * frac))
+        shutil.rmtree(GAMEFILES, ignore_errors=True)
+        tmp.replace(GAMEFILES)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)  # after a failure: don't leave 650 MB behind
+    report(progress, 0.45)
+
+
+def remove_datamine():
+    """Settings: the player no longer wants the datamine copy. Git's own files are read-only."""
+    for root, _, files in os.walk(DATAMINE):
+        for name in files:
+            os.chmod(os.path.join(root, name), 0o700)
+    shutil.rmtree(DATAMINE, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------- languages
@@ -2072,10 +2108,25 @@ def apply_rarity(vehicles: list, trees: dict):
 
 # --------------------------------------------------------------------------- main
 
-def build(pull: bool = True, progress=None):
+def build(pull: bool = True, progress=None, source: str = "datamine", game_dir: Path | None = None):
+    """source: "datamine", or "game" to read the install in game_dir. After a failure, the app keeps reading the
+    files of the data it has."""
+    global DM
+    before, DM = DM, GAMEFILES if source == "game" else DATAMINE
+    try:
+        if pull:
+            fetch_gamefiles(game_dir, progress) if source == "game" else fetch_datamine(progress)
+        meta = _build(progress, source)
+    except BaseException:
+        DM = before
+        raise
+    if source == "datamine":
+        shutil.rmtree(GAMEFILES, ignore_errors=True)  # made again from the game in a minute or two; the datamine isn't
+    return meta
+
+
+def _build(progress, source: str):
     t0 = time.time()
-    if pull:
-        fetch_datamine(progress)
     if not DM.exists():
         raise RuntimeError("Datamine not found. Run without --no-pull first.")
     DATA.mkdir(exist_ok=True)
@@ -2104,7 +2155,7 @@ def build(pull: bool = True, progress=None):
         json.dump(build_bullet_icons(), f, separators=(",", ":"))
     codes = lang.write()
     version = (DM / "version").read_text().strip() if (DM / "version").exists() else "?"
-    meta = {"version": version, "schema": SCHEMA, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}
+    meta = {"version": version, "schema": SCHEMA, "source": source, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}
     with open(DATA / "meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=1)
     report(progress, 1.0)
@@ -2113,4 +2164,7 @@ def build(pull: bool = True, progress=None):
 
 
 if __name__ == "__main__":
-    build(pull="--no-pull" not in sys.argv)
+    from .game import detect_game_dir
+    use_game = "--game" in sys.argv
+    build(pull="--no-pull" not in sys.argv, source="game" if use_game else "datamine",
+          game_dir=detect_game_dir() if use_game else None)

@@ -14,11 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.12", "3.14"]  # 3.14: reading the game's files (compression.zstd); 3.12: the app without it
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
       # stdlib only: nothing to install. Tests that need the game files are skipped here.
       - run: python -m unittest discover -s tests -t . -v
+      - if: matrix.python == '3.14'  # the synthetic containers must have run, not been skipped
+        run: python -c "import compression.zstd"

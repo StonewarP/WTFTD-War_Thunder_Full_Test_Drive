@@ -20,7 +20,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, builder, cdk, flightlog, game, maptex, mission, sights, terrain, uninstall
+from . import DONATE, REPO, __version__, alarms, builder, cdk, flightlog, game, maptex, mission, sights, terrain, uninstall, \
+    vromfs
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -84,6 +85,9 @@ class State:
             if self.catalog is None:
                 self.catalog = read_json(DATA / "weapons.json", {})
             return self.catalog
+
+    def data_source(self) -> str:
+        return "game" if self.settings().get("dataSource") == "game" else "datamine"
 
     def cdk_enabled(self) -> bool:
         return self.settings().get("cdk", True) is not False
@@ -228,6 +232,9 @@ def api_status():
         "levels": sorted(game.installed_levels(gd)),
         "data": meta,
         "dataReady": (DATA / "vehicles.json").exists(),
+        "dataSource": STATE.data_source(),
+        "gameSourceIssue": "python" if not vromfs.available() else None if gd else "game",
+        "datamineCopy": builder.DATAMINE.is_dir(),
         "home": str(HOME),  # where WTFTD keeps its files (the welcome screen says so before the first download)
         "oodle": oodle_dll(gd),
         "settings": STATE.settings(),
@@ -329,7 +336,7 @@ def run_update():
     progress = Progress()
 
     try:
-        meta = builder.build(pull=True, progress=progress)
+        meta = builder.build(pull=True, progress=progress, source=STATE.data_source(), game_dir=STATE.game_dir())
         STATE.reload()
         # vehicles added since last build may now have a wiki image: retry the ones marked missing
         for miss in (IMG_CACHE / "unit").glob("*.missing"):
@@ -337,7 +344,7 @@ def run_update():
                 miss.unlink()
             except OSError:
                 pass
-        st["after"] = meta.get("version")
+        st["after"], st["source"] = meta.get("version"), meta.get("source")
         st["newVehicles"] = max(0, int(meta.get("vehicles", 0)) - int(before.get("vehicles", 0) or 0))
         st["done"] = True
         threading.Thread(target=warm_weapon_icons, daemon=True).start()  # weapons new in this patch
@@ -348,6 +355,13 @@ def run_update():
 
 
 def remote_version() -> str | None:
+    """The newest game data there is: the installed game's version, or the published datamine's."""
+    if STATE.data_source() == "game":
+        gd = STATE.game_dir()
+        try:
+            return vromfs.version(gd) if gd else None
+        except vromfs.VromfsError:  # mid-update: the next check sees it
+            return None
     try:
         req = urllib.request.Request(REMOTE_VERSION_URL, headers={"User-Agent": UA})
         with urllib.request.urlopen(req, timeout=10) as r:
@@ -358,14 +372,15 @@ def remote_version() -> str | None:
 
 
 def check_for_update(start: bool = True) -> dict:
-    """Compares the published datamine version with ours; rebuilds in the background when newer."""
+    """Compares the game data's version (remote_version) with ours; rebuilds in the background when it changed."""
     st = STATE.update
     remote = remote_version()
     st["remote"], st["checked"] = remote, int(time.time())
     meta = read_json(DATA / "meta.json", {})
     local = meta.get("version")
-    # newer game patch, or data built by an older WTFTD that lacks fields this version needs
-    st["available"] = bool(remote and remote != local) or (bool(meta) and meta.get("schema", 1) < builder.SCHEMA)
+    # newer game patch, data built by an older WTFTD that lacks fields this version needs, or from the other source
+    st["available"] = (bool(remote and remote != local) or (bool(meta) and meta.get("schema", 1) < builder.SCHEMA)
+                       or (bool(meta) and meta.get("source", "datamine") != STATE.data_source()))
     # a first install (no data yet) downloads only once the user agreed on the welcome screen (route "update")
     if start and st["available"] and meta and not st["running"]:
         threading.Thread(target=run_update, daemon=True).start()
@@ -643,13 +658,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": bool(gd)})
         if route == "settings":
             s = STATE.settings()
-            for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll"):
+            for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll", "dataSource"):
                 if k in body:
                     s[k] = body[k]
             if s.get("gameDir") and not game.resolve_game_dir(Path(s["gameDir"]).expanduser()):
                 return self.send_json({"error": "This folder does not look like a War Thunder install."}, 400)
             if s.get("oodleDll") and maptex.oodle_version(Path(s["oodleDll"]).name) is None:
                 return self.send_json({"error": "Pick an Oodle runtime file: oo2core_<version>_win64.dll (Windows) or liboo2core*.dylib (macOS)."}, 400)
+            if s.get("dataSource", "datamine") not in ("datamine", "game"):
+                return self.send_json({"error": "Unknown game data source."}, 400)
+            if body.get("dataSource") == "game" and not vromfs.available():
+                return self.send_json({"error": vromfs.NO_ZSTD}, 400)
             STATE.save_settings(s)
             apply_alarm_settings()
             return self.send_json(api_status())
@@ -721,6 +740,11 @@ class Handler(BaseHTTPRequestHandler):
             elif "data" in parts:
                 STATE.reload()
             return self.send_json(res)
+        if route == "remove-datamine":  # never on its own: the player asked, and the data no longer comes from it
+            if builder.DM == builder.DATAMINE or STATE.update["running"]:
+                return self.send_json({"error": "The game data still needs the datamine copy."}, 400)
+            builder.remove_datamine()
+            return self.send_json(api_status())
         if route == "update-check":
             return self.send_json(check_for_update(start=bool(body.get("start", True))))
         if route == "update":
@@ -827,7 +851,7 @@ _weapon_keys: dict = {"for": None, "map": {}}
 
 def weapon_keys() -> dict:
     """{Weapons tab id: pylon catalog key}. A Weapons tab row is named after its projectile (bulletName, e.g.
-    "pl_5e2"), the catalog after its file ("su_pl5e2"): read once from the local datamine (0.3 s), again after an
+    "pl_5e2"), the catalog after its file ("su_pl5e2"): read once from the local game files (0.3 s), again after an
     update. Files that aren't "_default" variants win."""
     catalog = STATE.get_catalog()
     if _weapon_keys["for"] is not catalog:
@@ -854,7 +878,7 @@ def weapon_keys() -> dict:
 
 
 def weapon_base(key: str) -> dict | None:
-    """A pylon weapon's own values (local datamine copy): what My weapons' editor starts from."""
+    """A pylon weapon's own values (local game files): what My weapons' editor starts from."""
     w = STATE.get_catalog().get(key)
     if not w or not SAFE_ID.match(key) or w.get("pod"):
         return None
@@ -940,7 +964,7 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     if (body.get("cheats") or {}).get("noOverload") and veh["c"] in ("air", "heli"):
         mods["noStructural"] = True  # unbreakable airframe: the flight model's breaking limits raised
     if veh["c"] in ("air", "heli") and (mods.get("noStructural") or mods.get("thrustMul") or mods.get("superMobility")):
-        # the flight model itself (datamine): breaking limits, jets' thrust table
+        # the flight model itself (local game files): breaking limits, jets' thrust table
         fm = str((det.get("st") or {}).get("fm") or "")
         if fm:
             fm_data = builder.load(builder.fm_file(fm))
@@ -948,7 +972,7 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
         body["pylons"] = custom_weapons(body["pylons"])
     non_std = any(isinstance(v, dict) for v in (body.get("pylons") or {}).values())
     if mods.get("invulnerable") or non_std:
-        # needs the local datamine copy (damage model, pylon layout for non-standard weapons)
+        # needs the local game files (damage model, pylon layout for non-standard weapons)
         unit_data = builder.load(builder.unit_file(vid, veh["c"]))
     try:
         files, preset, unit_class, pkg = cdk.build_files(vid, veh["c"], det, mods, host,

@@ -454,7 +454,8 @@ option { background: var(--surface); }
 .onboard-info ul + b { margin-top: 12px; }
 .onboard-info ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
 .onboard-info code { font: 500 11.5px var(--mono); color: var(--text); word-break: break-all; }
-.onboard-card.busy .onboard-info, .onboard-card.busy #btnOnboard, .onboard-card.busy .onboard-lead { display: none; }
+.onboard-source { margin: 12px 0 14px; text-align: left; }
+.onboard-card.busy .onboard-info, .onboard-card.busy #btnOnboard, .onboard-card.busy .onboard-lead, .onboard-card.busy .onboard-source { display: none; }
 .onboard-wait { display: none; }
 .onboard-card.busy .onboard-wait { display: block; }
 .onboard-lead, .onboard-wait { margin-top: -4px; }

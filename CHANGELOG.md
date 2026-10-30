@@ -30,6 +30,16 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   come from `/indicators`: `N/A` while it's blank. A `REC` line shows while recording.
 - Tornado and some F-16 AM (21 aircraft) lost their mass, fuel and thrust stats, and "Unbreakable airframe" did
   nothing on them: their flight model's path is spelled differently in the game files.
+- **Read the installed game instead of downloading the datamine**: on the welcome screen and in Settings → Game data,
+  choose where the game data comes from. *Read my installed game* needs no download, no Git and no network: WTFTD
+  unpacks the game's own files on your PC (≈650 MB, about 3 minutes), stays at your game's exact version, and rebuilds
+  by itself after a game patch. The community datamine stays available (it works without the game), and stays the
+  source of existing installs unless you change it. Built from the same game version, both give the same database.
+- Switching source rebuilds the database and keeps your setups, missions and settings. The datamine copy stays until
+  you remove it (Settings → Game data). If the game is updating or a file is damaged, the update stops with a message
+  and the data you have keeps working.
+- The apps are now built with Python 3.14. From source, reading the game needs Python 3.14 or newer; on an older one
+  the datamine works as before and the option is shown disabled.
 
 ## 0.20.0 — 2026-10-13
 

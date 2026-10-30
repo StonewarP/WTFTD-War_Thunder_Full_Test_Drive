@@ -289,10 +289,11 @@
     <img class="brand-logo big" src="logo.svg?v=3" alt="">
     <h2 data-i18n="onboard.title"></h2>
     <p class="muted" data-i18n="onboard.text"></p>
+    <div class="opt-list onboard-source" id="onboardSource"></div>
     <p class="muted onboard-lead" data-i18n="onboard.lead"></p>
     <p class="muted onboard-wait" data-i18n="onboard.wait"></p>
     <div class="onboard-info" id="onboardInfo"></div>
-    <button class="btn btn-primary" id="btnOnboard"><svg class="ic"><use href="#i-check"/></svg><span data-i18n="onboard.button"></span></button>
+    <button class="btn btn-primary" id="btnOnboard"><svg class="ic"><use href="#i-check"/></svg><span id="btnOnboardText"></span></button>
     <div class="pbar hidden" id="onboardBar"><div class="pbar-track"><i></i></div><div class="pbar-text"><span></span><b></b></div></div>
     <pre class="log hidden" id="onboardLog"></pre>
   </div>
@@ -335,8 +336,10 @@
       <div class="field">
         <label data-i18n="settings.data"></label>
         <small class="muted" data-i18n="settings.dataHint"></small>
+        <div class="opt-list" id="setSource"></div>
         <label class="switch"><input type="checkbox" id="setAutoUpdate"><span class="sw"></span><span data-i18n="settings.autoUpdate"></span></label>
         <div class="row gap"><button type="button" class="btn btn-ghost" id="btnUpdate"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="settings.update"></span></button><small class="muted" id="dataVersion"></small></div>
+        <div class="row gap hidden" id="rowDatamine"><button type="button" class="btn btn-ghost" id="btnRemoveDatamine"><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="settings.removeDatamine"></span></button><small class="muted" data-i18n="settings.removeDatamineHint"></small></div>
         <pre class="log hidden" id="updateLog"></pre>
       </div>
       <div class="field">
