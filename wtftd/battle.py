@@ -23,6 +23,12 @@ def _json(raw):
         return None
 
 
+def damage_lines(get, after: int) -> list:
+    """What's new in the battle log's lines, for the crash detection."""
+    log = _json(get(f"/hudmsg?lastEvt=0&lastDmg={after}"))
+    return _lines(log.get("damage")) if isinstance(log, dict) else []
+
+
 def news(get, chat: int, event: int, damage: int) -> dict:
     """get: bytes of a game API path, None when the game isn't there (up: False, its numbering starts over next time)."""
     said, log = _json(get(f"/gamechat?lastId={chat}")), _json(get(f"/hudmsg?lastEvt={event}&lastDmg={damage}"))

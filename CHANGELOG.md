@@ -35,6 +35,11 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Overlays per aircraft or type** (My overlay): an aircraft's own overlay comes first, then its type's (fighters,
   attackers, bombers, helicopters), then the one for all aircraft, with their own lines, look and alarms. The right
   one loads by itself when the aircraft is recognised.
+- **Crash detection**: when the aircraft hits the ground the alarms stop at once, and the overlay can hide too (My
+  overlay → Hide the overlay after a crash). It watches what the game's numbers do at an impact: every engine's RPM and
+  throttle at 0 from one reading to the next, on the ground or in water. Landings, belly landings and 11 G pulls don't
+  trigger it. An aircraft breaking up in the air keeps its engines running: there the battle log tells, once your first
+  impact of the session has shown which name is yours, so another player's crash never silences your alarms.
 - **Breaking limits** in the vehicle panel of aircraft and helicopters (speed, Mach, gear, flaps, variable sweep), and a
   sheet of the aircraft you're flying in Flight data.
 - Tornado and some F-16 AM (21 aircraft) lost their mass, fuel and thrust stats, and "Unbreakable airframe" did

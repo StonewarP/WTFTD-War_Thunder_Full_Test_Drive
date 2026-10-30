@@ -465,6 +465,7 @@
   "ov.alertColor": "Alarm",
   "ov.bold": "Fett",
   "ov.show": "Fenster im Flug zeigen (sonst nur Pieptöne)",
+  "ov.hideCrash": "Overlay nach einem Absturz ausblenden (die Pieptöne enden immer)",
   "ov.hotkey": "Taste Ein-/Ausblenden",
   "ov.hotkeyPh": "Hier klicken, dann eine Taste drücken",
   "ov.hotkeyHint": "Funktioniert mit dem Spiel im Vordergrund. Esc entfernt die Taste.",

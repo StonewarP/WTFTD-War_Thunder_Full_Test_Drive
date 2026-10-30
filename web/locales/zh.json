@@ -465,6 +465,7 @@
   "ov.alertColor": "警报",
   "ov.bold": "粗体",
   "ov.show": "飞行时显示窗口(否则仅蜂鸣)",
+  "ov.hideCrash": "坠毁后隐藏叠加层(蜂鸣总会停止)",
   "ov.hotkey": "显示/隐藏按键",
   "ov.hotkeyPh": "点击此处,然后按下按键",
   "ov.hotkeyHint": "仅在游戏处于前台时有效。Esc 移除按键。",

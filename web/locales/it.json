@@ -465,6 +465,7 @@
   "ov.alertColor": "Allarme",
   "ov.bold": "Grassetto",
   "ov.show": "Mostra la finestra in volo (altrimenti solo segnali)",
+  "ov.hideCrash": "Nascondi l'overlay dopo uno schianto (i segnali si fermano sempre)",
   "ov.hotkey": "Tasto mostra / nascondi",
   "ov.hotkeyPh": "Clicca qui, poi premi un tasto",
   "ov.hotkeyHint": "Funziona col gioco in primo piano. Esc rimuove il tasto.",

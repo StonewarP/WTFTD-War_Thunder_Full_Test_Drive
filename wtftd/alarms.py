@@ -25,7 +25,7 @@ import time
 from collections import deque
 from pathlib import Path
 
-from . import flightlog, sights
+from . import battle, flightlog, sights
 from .paths import WEB
 
 ALARMS = {"airframe": (93, 1400), "gear": (90, 1000), "flaps": (90, 700)}  # default: % of the limit, beep in Hz
@@ -40,6 +40,9 @@ VIEW_S = 5  # the Flight data tab asks every second: without it for this long, n
 BURN_S, BURN_MIN_S = 30, 5  # fuel burn: over this long at most, once there is this much (the game gives whole kg)
 ACCEL_S = 2
 TURN_G = 1.05  # below, a turn of several minutes is only level flight's noise
+RUNNING_RPM = 500  # an engine really running, not one winding down
+LOG_EVERY = 3  # readings between two looks at the battle log
+BREAK_UP_S = 5  # a break-up in the air: silent this long, the next spawn comes within it
 G = 9.80665
 SAVED_MODEL = re.compile(r'selectedAir\s*\{\s*current_model:t="([^"]+)"')
 
@@ -131,7 +134,7 @@ def defaults(words: dict) -> dict:
 
     return {"x": round(700 * scale), "y": round(55 * scale), "font": "Consolas", "size": round(40 * scale), "bold": False,
             "color": "#E6E6E6", "alert": "#FF0000", "opacity": 100, "show": True, "hotkey": [], "hotkeyName": "",
-            "logKey": [], "logKeyName": "", "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS} for n, (at, hz) in ALARMS.items()},
+            "logKey": [], "logKeyName": "", "hideCrash": False, "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS} for n, (at, hz) in ALARMS.items()},
             "lines": [line("IAS", "{ias} / {vne} km/h {swept}", alarm="airframe"), line("MACH", "{mach} / {mne}", alarm="airframe"),
                       line(words["gear"], "{ias} / {gear_max} km/h", "gear", "gear"),
                       line(words["flaps"], "{ias} / {flaps_max} km/h", "flaps", "flaps"),
@@ -174,6 +177,7 @@ def clean(cfg, words: dict) -> dict:
            "size": _num(cfg.get("size"), base["size"], 6, 400), "bold": _flag(cfg.get("bold"), base["bold"]),
            "color": _color(cfg.get("color"), base["color"]), "alert": _color(cfg.get("alert"), base["alert"]),
            "opacity": _num(cfg.get("opacity"), base["opacity"], 10, 100), "show": _flag(cfg.get("show"), base["show"]),
+           "hideCrash": _flag(cfg.get("hideCrash"), base["hideCrash"]),
            "repeat": _num(cfg.get("repeat"), base["repeat"], 100, 10000), "alarms": {},
            **_keys(cfg, "hotkey", "hotkeyName"), **_keys(cfg, "logKey", "logKeyName")}
     for name, std in base["alarms"].items():
@@ -327,6 +331,26 @@ def reported_type(indicators: dict) -> str | None:
     return kind if isinstance(kind, str) else None
 
 
+def _engines(state: dict) -> tuple:
+    return ([v for k, v in state.items() if k.startswith("RPM ") and isinstance(v, (int, float))],
+            [v for k, v in state.items() if k.startswith("throttle ") and isinstance(v, (int, float))])
+
+
+def crashed(before: dict | None, state: dict) -> bool:
+    """A crash, as the game's numbers show it (recorded on real ones): from one reading to the next every engine's RPM and
+    throttle fall to 0. /state then stays valid, wreck included, until the next spawn. It takes that drop: a shot or
+    stopped engine winds down and keeps its throttle, a hard pull only slows the aircraft."""
+    rpm, throttle = _engines(state)
+    return bool(before and rpm and max(_engines(before)[0], default=0) >= RUNNING_RPM and not any(rpm) and not any(throttle))
+
+
+def crash_name(line: str, words: list) -> str | None:
+    """Who a battle log line says crashed: "=TAG= Name (aircraft) has crashed." (words: see builder.build_battle_words)."""
+    if " (" in line and any("".join(line.split()).endswith(w) for w in words):
+        return line.split(" (", 1)[0]
+    return None
+
+
 def matches(lim: dict, state: dict, fuel: float | None = None) -> bool:
     """Do this aircraft's fuel capacity (one of its two values, or the mission's own) and engines fit /state?"""
     capacity = state["Mfuel0, kg"]
@@ -375,8 +399,9 @@ class Watch:
     generated last the one loaded in the game?; save: () -> path of global.blk."""
 
     def __init__(self, get, details, mission_on_map=lambda: False, save=save_file, lang="en", logs=None,
-                 kind=lambda vid: None):
+                 kind=lambda vid: None, crash_words=list):
         self.get, self.details, self.mission_on_map, self.save, self.kind = get, details, mission_on_map, save, kind
+        self.crash_words = crash_words
         self.logs = logs  # folder of the CSV logs
         self.words = labels(lang)
         self.base = self.cfg = clean(None, self.words)  # the overlay for all aircraft, the one in use
@@ -389,6 +414,10 @@ class Watch:
         self.mission = None  # {"id", "fuel", "unbreakable"}: set when a mission is generated
         self.display = []
         self.flying = False
+        self.crash = False  # in the wreck, until the next spawn
+        self.pilot = None  # the player's name in the battle log, see read_log
+        self._before = None  # the last reading in the air
+        self._log_id, self._readings, self._silent = None, 0, 0.0
         self.viewed = -VIEW_S  # when the Flight data tab last asked
         self.trace = deque(maxlen=TRACE_MAX)  # the last readings, for the curves: {"n": number, "t": time, values...}
         self.log = None
@@ -470,6 +499,22 @@ class Watch:
             self._saved = (modified, read_model(path))
         return self._saved[1]
 
+    def read_log(self):
+        """The battle log (/hudmsg), a few times a second: an aircraft breaking up in the air keeps its engines running, only
+        this says it's gone. Nothing local gives the player's name and the log names everybody: it's the name on the line
+        that comes with an impact of ours, so that nobody else's crash can ever silence the alarms."""
+        self._readings += 1
+        if self._readings % LOG_EVERY:
+            return
+        lines = battle.damage_lines(self.get, self._log_id or 0)
+        first, self._log_id = self._log_id is None, lines[-1]["id"] if lines else self._log_id or 0
+        words = self.crash_words() if lines and not first else []  # the first look is the past
+        for name in filter(None, (crash_name(x["text"], words) for x in lines)):
+            if self.crash:
+                self.pilot = name
+            elif name == self.pilot:
+                self._silent = time.monotonic() + BREAK_UP_S
+
     def aircraft(self, state: dict, reported: str | None):
         """Works out the aircraft when what it depends on changes. Beeps once if it is unknown."""
         model, planes = self.model(), self.planes()
@@ -500,7 +545,12 @@ class Watch:
             self.trend = Trend()
             self.current = None
             self.pick()
+            self.crash, self._before, self._log_id = False, None, None  # a game started again numbers its log from 1
             return IDLE_S
+        self.crash = crashed(self._before, state) or (self.crash and not any(_engines(state)[0]))
+        self._before = state
+        self.read_log()
+        wreck = self.crash or time.monotonic() < self._silent
         indicators = answer(self.get("/indicators"))  # every time: it may only start answering mid-flight
         self.aircraft(state, reported_type(indicators))
         cfg, lim = self.preview or self.cfg, self._lim
@@ -510,10 +560,10 @@ class Watch:
         if not self.enabled:
             self.display = self.sample(self.preview) if self.preview else []
             return POLL_S
-        on = active(percents(lim, state), cfg["alarms"]) if lim and not self._unbreakable else []
+        on = active(percents(lim, state), cfg["alarms"]) if lim and not self._unbreakable and not wreck else []
         status = [(self.words["unknown"], cfg["alert"], cfg["size"])] if not lim else \
             [(self.words["unbreakable"], cfg["color"], cfg["size"])] if self._unbreakable else []
-        self.display = status + lines_for(cfg, values, on)
+        self.display = [] if wreck and cfg["hideCrash"] else status + lines_for(cfg, values, on)
         if on and time.monotonic() - self._last_beep >= cfg["repeat"] / 1000:
             self._last_beep = time.monotonic()
             for name in on:

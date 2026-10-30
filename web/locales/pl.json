@@ -465,6 +465,7 @@
   "ov.alertColor": "Alarm",
   "ov.bold": "Pogrubienie",
   "ov.show": "Pokazuj okno w locie (inaczej tylko sygnały)",
+  "ov.hideCrash": "Ukryj nakładkę po rozbiciu (sygnały zawsze cichną)",
   "ov.hotkey": "Klawisz pokaż / ukryj",
   "ov.hotkeyPh": "Kliknij tutaj, potem naciśnij klawisz",
   "ov.hotkeyHint": "Działa, gdy gra jest na wierzchu. Esc usuwa klawisz.",

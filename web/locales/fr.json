@@ -465,6 +465,7 @@
   "ov.alertColor": "Alerte",
   "ov.bold": "Gras",
   "ov.show": "Afficher la fenêtre en vol (sinon : bips seuls)",
+  "ov.hideCrash": "Masquer l'overlay après un crash (les bips s'arrêtent toujours)",
   "ov.hotkey": "Touche afficher / masquer",
   "ov.hotkeyPh": "Cliquez ici, puis appuyez sur une touche",
   "ov.hotkeyHint": "Marche avec le jeu au premier plan. Échap retire la touche.",

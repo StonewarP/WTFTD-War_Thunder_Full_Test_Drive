@@ -465,6 +465,7 @@
   "ov.alertColor": "Alerta",
   "ov.bold": "Negrita",
   "ov.show": "Mostrar la ventana en vuelo (si no: solo pitidos)",
+  "ov.hideCrash": "Ocultar el overlay tras un accidente (los pitidos siempre paran)",
   "ov.hotkey": "Tecla mostrar / ocultar",
   "ov.hotkeyPh": "Haz clic aquí y pulsa una tecla",
   "ov.hotkeyHint": "Funciona con el juego en primer plano. Esc quita la tecla.",

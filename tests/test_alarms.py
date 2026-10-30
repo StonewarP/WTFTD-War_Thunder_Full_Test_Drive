@@ -706,6 +706,187 @@ class Battle(unittest.TestCase):
         self.assertEqual((out["chat"], out["damage"]), ([], []))
 
 
+class Crash(unittest.TestCase):
+    """Numbers recorded on real crashes and hard flying (Su-30MKK, 10 readings a second)."""
+    FLYING = {"RPM 1": 13300, "RPM 2": 13300, "throttle 1, %": 110, "throttle 2, %": 110}
+    DEAD = {"RPM 1": 0, "RPM 2": 0, "throttle 1, %": 0, "throttle 2, %": 0}
+
+    def setUp(self):
+        self.reply = None
+        self.watch = alarms.Watch(lambda path: self.reply if path == "/state" else None, details, save=lambda: None)
+        self.watch.enabled = True
+        self.watch.start_overlay = lambda: None
+        self.watch.model = lambda: "j_10c"
+        patcher = mock.patch.object(alarms, "beep")
+        self.beep = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def fly(self, **fields):
+        self.reply = json.dumps(state(**{"throttle 1, %": 110, "RPM 1": 13300, **fields})).encode()
+        self.watch.tick()
+
+    def test_into_the_ground(self):  # IAS 151 -> 50
+        self.assertTrue(alarms.crashed({**self.FLYING, "IAS, km/h": 151}, {**self.DEAD, "IAS, km/h": 50}))
+
+    def test_speed_is_not_what_tells_it(self):  # IAS 1140 -> 1137: the reading that had the impact
+        self.assertTrue(alarms.crashed({**self.FLYING, "IAS, km/h": 1140}, {**self.DEAD, "IAS, km/h": 1137}))
+
+    def test_a_hard_pull_is_no_crash(self):  # 11 G: 40 km/h lost every reading
+        self.assertFalse(alarms.crashed({**self.FLYING, "IAS, km/h": 855}, {**self.FLYING, "IAS, km/h": 816, "Ny": 11.3}))
+
+    def test_one_engine_lost_is_no_crash(self):
+        self.assertFalse(alarms.crashed(self.FLYING, {**self.DEAD, "RPM 2": 13300, "throttle 2, %": 110}))
+
+    def test_an_engine_shut_down_keeps_winding_down(self):
+        self.assertFalse(alarms.crashed(self.FLYING, {**self.DEAD, "RPM 1": 12000, "RPM 2": 12000}))
+
+    def test_a_dead_engine_stopping_is_no_crash(self):  # gliding, throttle closed
+        self.assertFalse(alarms.crashed({**self.DEAD, "RPM 1": 300, "RPM 2": 300}, self.DEAD))
+
+    def test_throttle_closed_with_the_engine_stopped_by_the_game(self):
+        self.assertFalse(alarms.crashed(self.FLYING, {**self.FLYING, "RPM 1": 0, "RPM 2": 0}))
+
+    def test_nothing_to_compare_with(self):
+        self.assertFalse(alarms.crashed(None, self.DEAD))
+        self.assertFalse(alarms.crashed({}, self.DEAD))
+        self.assertFalse(alarms.crashed(self.FLYING, {}))
+
+    def test_beeps_stop_in_the_wreck(self):
+        self.fly(**{"IAS, km/h": 1500})
+        self.assertEqual(self.beep.call_count, 1)
+        self.watch._last_beep = 0
+        self.fly(**{"IAS, km/h": 1500, "throttle 1, %": 0, "RPM 1": 0})
+        self.assertTrue(self.watch.crash)
+        self.assertEqual(self.beep.call_count, 1)
+        self.assertNotIn(self.watch.cfg["alert"], [x[1] for x in self.watch.display])
+
+    def test_the_overlay_stays_unless_asked(self):
+        self.fly()
+        self.fly(**{"throttle 1, %": 0, "RPM 1": 0})
+        self.assertTrue(self.watch.display)
+        self.watch.set_config(alarms.clean({"hideCrash": True}, WORDS), {})
+        self.fly(**{"throttle 1, %": 0, "RPM 1": 0})
+        self.assertTrue(self.watch.crash)
+        self.assertEqual(self.watch.display, [])
+
+    def test_the_next_spawn_ends_it(self):
+        self.fly()
+        self.fly(**{"throttle 1, %": 0, "RPM 1": 0})
+        self.fly(**{"throttle 1, %": 0, "RPM 1": 0, "IAS, km/h": 40})
+        self.assertTrue(self.watch.crash)
+        self.fly(**{"throttle 1, %": 100, "RPM 1": 13008, "IAS, km/h": 527})
+        self.assertFalse(self.watch.crash)
+
+    def test_a_wreck_at_rest_ends_it(self):  # IAS 0: /state stops counting as flying
+        self.fly()
+        self.fly(**{"throttle 1, %": 0, "RPM 1": 0})
+        self.fly(**{"throttle 1, %": 0, "RPM 1": 0, "IAS, km/h": 0})
+        self.assertFalse(self.watch.crash)
+        self.assertEqual(self.watch.display, [])
+
+    def test_recording_goes_on(self):
+        self.watch.viewed = time.monotonic()
+        self.fly()
+        self.watch._sampled -= 2 * alarms.SAMPLE_S
+        self.fly(**{"throttle 1, %": 0, "RPM 1": 0})
+        self.assertEqual(len(self.watch.trace), 2)
+
+
+class BattleLog(unittest.TestCase):
+    """Real lines of the battle log: the only sign of a break-up in the air, engines still running."""
+    WORDS = ["hascrashed.", "s'estécrasé.", "разбился"]
+    MINE = "=FrEB= StonewarP (\u2417Su-30MKK) s'est \u00e9cras\u00e9."
+    OTHER = "=XX= Wingman (\u2417Su-30MKK) s'est \u00e9cras\u00e9."
+
+    def setUp(self):
+        self.reply, self.log = json.dumps(state(**{"RPM 1": 13300, "IAS, km/h": 1500})).encode(), []
+        self.watch = alarms.Watch(self.get, details, save=lambda: None, crash_words=lambda: self.WORDS)
+        self.watch.enabled = True
+        self.watch.start_overlay = lambda: None
+        self.watch.model = lambda: "j_10c"
+        patcher = mock.patch.object(alarms, "beep")
+        self.beep = patcher.start()
+        self.addCleanup(patcher.stop)
+        for _ in range(alarms.LOG_EVERY):  # the first look at the log only sets where it starts
+            self.watch.tick()
+        self.beep.reset_mock()
+
+    def get(self, path):
+        if path.startswith("/hudmsg"):
+            after = int(path.rsplit("=", 1)[1])
+            return json.dumps({"events": [], "damage": [{"id": n, "msg": m, "sender": "", "enemy": False, "mode": "", "time": n}
+                                                        for n, m in enumerate(self.log, 1) if n > after]}).encode()
+        return self.reply if path == "/state" else None
+
+    def look(self):
+        for _ in range(alarms.LOG_EVERY):
+            self.watch._last_beep = 0
+            self.watch.tick()
+
+    def test_the_line(self):
+        self.assertEqual(alarms.crash_name(alarms.battle.clean(self.MINE), self.WORDS), "=FrEB= StonewarP")
+        self.assertEqual(alarms.crash_name("Bob (Yak-9) разбился", self.WORDS), "Bob")
+
+    def test_other_lines(self):
+        for line in ("Surchauffe du moteur", "MiG-29 abattu =FrEB= StonewarP", "s'est \u00e9cras\u00e9.", ""):
+            self.assertIsNone(alarms.crash_name(line, self.WORDS), line)
+
+    def test_the_name_comes_with_an_impact(self):
+        self.log = [self.OTHER]
+        self.look()
+        self.assertIsNone(self.watch.pilot)  # no impact of ours: not us
+        self.reply = json.dumps(state(**{"RPM 1": 0, "throttle 1, %": 0, "IAS, km/h": 300})).encode()
+        self.watch.tick()
+        self.assertTrue(self.watch.crash)
+        self.log.append(self.MINE)
+        self.look()
+        self.assertEqual(self.watch.pilot, "=FrEB= StonewarP")
+
+    def learnt(self):
+        self.watch.pilot = "=FrEB= StonewarP"
+
+    def test_break_up_in_the_air_stops_the_beeps(self):
+        self.learnt()
+        self.look()
+        self.assertTrue(self.beep.called)
+        self.beep.reset_mock()
+        self.log.append(self.MINE)
+        self.look()
+        self.beep.reset_mock()
+        self.look()
+        self.beep.assert_not_called()
+
+    def test_it_lasts_until_the_next_spawn_at_most(self):
+        self.learnt()
+        self.log.append(self.MINE)
+        self.look()
+        self.watch._silent = time.monotonic() - 1
+        self.beep.reset_mock()
+        self.look()
+        self.assertTrue(self.beep.called)
+
+    def test_somebody_else_s_crash_changes_nothing(self):
+        self.learnt()
+        self.log.append(self.OTHER)
+        self.beep.reset_mock()
+        self.look()
+        self.assertTrue(self.beep.called)
+
+    def test_nothing_before_the_name_is_known(self):
+        self.log.append(self.MINE)
+        self.beep.reset_mock()
+        self.look()
+        self.assertTrue(self.beep.called)
+
+    def test_old_lines_don_t_count(self):
+        self.log = [self.MINE] * 3
+        self.watch._log_id = None
+        self.learnt()
+        self.beep.reset_mock()
+        self.look()
+        self.assertTrue(self.beep.called)
+
+
 class Labels(unittest.TestCase):
     def test_every_language_has_every_word(self):
         en = alarms.labels("en")

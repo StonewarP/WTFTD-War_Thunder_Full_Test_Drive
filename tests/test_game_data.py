@@ -4,7 +4,7 @@ import json
 import unittest
 
 from wtftd import armament as A
-from wtftd.builder import DM, base_stats, flight_limits, load
+from wtftd.builder import DM, base_stats, build_battle_words, flight_limits, load
 
 W = DM / "aces.vromfs.bin_u" / "gamedata" / "weapons"
 FM = DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / "fm"
@@ -71,6 +71,12 @@ class ReferenceLimits(unittest.TestCase):
         st = base_stats("f_16a_block_10_norway", {"fmFile": "fm/f_16a_block_10_norway"}, "air")
         self.assertIn("lim", st)
         self.assertIn("mass", st)
+
+    def test_the_battle_log_s_crash_line(self):
+        words = build_battle_words()["crashed"]
+        self.assertIn("hascrashed.", words)
+        self.assertIn("s'est\u00e9cras\u00e9.", words)
+        self.assertGreater(len(words), 10)
 
     def test_every_flight_model_reads(self):
         for path in FM.glob("*.blkx"):

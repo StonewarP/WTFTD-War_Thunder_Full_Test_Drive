@@ -465,6 +465,7 @@
   "ov.alertColor": "Alert",
   "ov.bold": "Bold",
   "ov.show": "Show the window in flight (off: beeps only)",
+  "ov.hideCrash": "Hide the overlay after a crash (the beeps always stop)",
   "ov.hotkey": "Show / hide key",
   "ov.hotkeyPh": "Click here, then press a key",
   "ov.hotkeyHint": "Works with the game in front. Esc removes the key.",

@@ -1058,7 +1058,8 @@ def mission_on_map() -> bool:
 
 LOGS = USER / "logs"
 WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS,
-                     kind=lambda vid: (STATE.get_vehicles().get(vid) or {}).get("k"))
+                     kind=lambda vid: (STATE.get_vehicles().get(vid) or {}).get("k"),
+                     crash_words=lambda: read_json(DATA / "battle_words.json", {}).get("crashed", []))
 
 
 def apply_alarm_settings():

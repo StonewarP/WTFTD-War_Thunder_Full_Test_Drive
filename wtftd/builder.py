@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 19  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 20  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -126,6 +126,15 @@ def build_bullet_icons() -> dict:
     gui = load(DM / "aces.vromfs.bin_u" / "config" / "gui.blkx") or {}
     icons = gui.get("bullet_icons") if isinstance(gui, dict) else None
     return {"icons": {k: v for k, v in (icons or {}).items() if isinstance(v, str)}}
+
+
+def build_battle_words() -> dict:
+    """The battle log's "has crashed" in every language, without spaces: the game writes it in its own language."""
+    try:
+        row = read_lang_csv("ui.csv").get("NET_PLAYER_HAS_CRASHED") or {}
+    except OSError:
+        return {"crashed": []}
+    return {"crashed": sorted({"".join(v.replace("\\t", "").split()) for v in row.values()})}
 
 
 def first_str(v) -> str:
@@ -2153,6 +2162,8 @@ def _build(progress, source: str):
         json.dump(scenarios, f, separators=(",", ":"))
     with open(DATA / "bullet_icons.json", "w", encoding="utf-8") as f:
         json.dump(build_bullet_icons(), f, separators=(",", ":"))
+    with open(DATA / "battle_words.json", "w", encoding="utf-8") as f:
+        json.dump(build_battle_words(), f, ensure_ascii=False, separators=(",", ":"))
     codes = lang.write()
     version = (DM / "version").read_text().strip() if (DM / "version").exists() else "?"
     meta = {"version": version, "schema": SCHEMA, "source": source, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}

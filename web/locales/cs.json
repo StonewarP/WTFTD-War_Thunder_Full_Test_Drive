@@ -465,6 +465,7 @@
   "ov.alertColor": "Alarm",
   "ov.bold": "Tučně",
   "ov.show": "Zobrazit okno v letu (jinak jen pípání)",
+  "ov.hideCrash": "Skrýt overlay po havárii (pípání vždy ustane)",
   "ov.hotkey": "Klávesa zobrazit / skrýt",
   "ov.hotkeyPh": "Klikněte sem a stiskněte klávesu",
   "ov.hotkeyHint": "Funguje, když je hra v popředí. Esc klávesu odstraní.",

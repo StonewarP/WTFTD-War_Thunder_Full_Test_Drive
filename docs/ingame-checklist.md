@@ -365,6 +365,28 @@ aircraft flown, an overlay per type then per aircraft picked up live. The game h
 - [ ] **Profile by type**: bomber, attacker and helicopter each take their own overlay on spawn, on a slot change too.
 - [ ] **Custom vehicle** with a profile: which overlay does it take (the vehicle's id comes from the mission)?
 
+## 2p. Crash detection (new)
+
+Worked out on real flights on 2026-10-31 (Su-30MKK, 10 readings a second): at an impact every engine's RPM and throttle
+fall to 0 from one reading to the next, and `/state` stays valid until the next spawn. Replayed on those recordings and
+checked against the game's own log (`onAircraftDead`, `water_explosion_big`): 2 impacts on the ground and 1 in a lake
+found within 0.1 s; no false alarm on a landing, a belly landing, 11 G pulls and 20 minutes of flying.
+
+A break-up in the air (wings gone at 1,607 km/h, 23 G) keeps the engines running: the battle log (`/hudmsg`, live) tells
+it, from `NET_PLAYER_HAS_CRASHED` in the game's language files. The log names everybody and nothing local gives the
+player's name: it's taken from the line that comes with an impact of ours, then only that name counts. Replayed on the
+same flight: the name learnt 0.4 s after the first impact, the beeps of the break-up stopped.
+
+- [x] **Into water**: same numbers, at high speed in the Surobi lake (Afghanistan).
+- [ ] **Slowly into water**: when the aircraft floats, then sinks?
+- [ ] **Propeller aircraft and multi-engine ones**: single engine, four engines.
+- [ ] **Helicopter**: does `RPM` read above 500 at all? Below that nothing is detected.
+- [ ] **Engine shot out, then gliding to the ground**: no engine left to fall to 0, so no detection: acceptable?
+- [ ] **Hide the overlay after a crash** on: gone at the impact, back at the next spawn.
+- [ ] **Break-up in the air** as the first crash of the session: no name yet, so the beeps go on for those few seconds.
+- [ ] **A real battle**: another player's crash, in the same aircraft too, doesn't silence the alarms.
+- [ ] The game in **another language** (English, Russian, Japanese): the name gets learnt.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

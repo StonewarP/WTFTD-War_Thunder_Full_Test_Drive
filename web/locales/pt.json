@@ -465,6 +465,7 @@
   "ov.alertColor": "Alerta",
   "ov.bold": "Negrito",
   "ov.show": "Mostrar a janela em voo (senão: só bipes)",
+  "ov.hideCrash": "Ocultar o overlay após uma queda (os bipes sempre param)",
   "ov.hotkey": "Tecla mostrar / ocultar",
   "ov.hotkeyPh": "Clique aqui e pressione uma tecla",
   "ov.hotkeyHint": "Funciona com o jogo em primeiro plano. Esc remove a tecla.",
