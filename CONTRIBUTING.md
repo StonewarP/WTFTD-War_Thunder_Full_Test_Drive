@@ -9,7 +9,9 @@ Thanks for helping! Bug reports, ideas, translation fixes and code are all welco
 
 ## Run from source
 
-Windows 10/11 or macOS, Python 3.10+ — no extra package needed (standard library only).
+Windows 10/11 or macOS, Python 3.10+ — no extra package needed (standard library only). Reading the installed game
+needs Python 3.14+ (`compression.zstd`, in the standard library from that version): below it the app runs as usual and
+the option is shown disabled. The apps are built with a full 3.14 (the exe carries its Python, the overlay needs its tkinter): `build_exe.bat` refuses less, `build_app.sh` warns.
 
 ```bash
 git clone https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive.git
@@ -17,10 +19,10 @@ cd WTFTD-War_Thunder_Full_Test_Drive
 python -m wtftd
 ```
 
-The first launch downloads the game data (≈1 GB from the community
-[War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine)) into `.cache/` and builds `data/`.
-Rebuild the data by hand with `python -m wtftd.builder --no-pull` (without downloading) or
-`python -m wtftd.builder` (with an update).
+The first launch asks where the game data comes from: the installed game (unpacked into `.cache/gamefiles`) or the
+community [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine) (≈1 GB into `.cache/datamine`),
+then builds `data/`. Rebuild the data by hand with `python -m wtftd.builder --no-pull` (without downloading) or
+`python -m wtftd.builder` (with an update); add `--game` to use the installed game.
 
 `python -m wtftd --browser` opens the app in your default browser, handy with the browser's developer tools.
 
@@ -29,10 +31,14 @@ Rebuild the data by hand with `python -m wtftd.builder --no-pull` (without downl
 | Path | What it does |
 |---|---|
 | `wtftd/server.py` | Local HTTP server and API (127.0.0.1 only) |
-| `wtftd/builder.py` | Datamine → `data/*.json` (vehicles, scenarios, trees, translations) |
+| `wtftd/builder.py` | Datamine or game files → `data/*.json` (vehicles, scenarios, trees, translations) |
+| `wtftd/vromfs.py` | The game's own files: `.vromfs.bin` containers and binary BLK → the datamine's JSON |
 | `wtftd/armament.py` | Weapons page data (missiles, bombs, rockets, torpedoes) |
 | `wtftd/mission.py` | Official scenario + your setup → `.blk` user mission |
 | `wtftd/cdk.py` | Custom vehicle files (`userVehicles` + `@override`) |
+| `wtftd/alarms.py` | In-flight values, alarms and overlay (Windows): game's `/state` + flight model limits; UI in `web/overlay.js` |
+| `wtftd/flightlog.py` | CSV flight logs (`user/logs`); curves in `web/flight.js` |
+| `wtftd/battle.py` | The game's chat and battle log; UI in `web/battle.js` |
 | `wtftd/blk.py` | BLK text format writer / reader |
 | `web/` | UI: plain HTML / CSS / JavaScript, no build step |
 | `web/locales/` | UI translations |
@@ -48,8 +54,8 @@ python -m unittest discover -s tests -t .
 ```
 
 They run on GitHub for every push and pull request. Tests that need the real game files
-(`tests/test_game_data.py`) only run on a PC where the datamine has been downloaded. Add a test with any fix
-to the data extraction: a reference value from the game files is enough.
+(`tests/test_game_data.py`, the comparison in `tests/test_vromfs.py`) only run on a PC that has them, the comparison
+with Python 3.14. Add a test with any fix to the data extraction: a reference value from the game files is enough.
 
 ## Translations
 
@@ -72,5 +78,5 @@ from the game's own translations and don't need translating.
 
 1. Bump `__version__` in `wtftd/__init__.py` and add the version to `CHANGELOG.md`.
 2. Commit, push, then publish a release with the tag `v<version>-beta` (notes = the changelog entry).
-3. GitHub Actions builds `WTFTD-<version>.exe` and `WTFTD-macOS.zip` from that tag and attaches them to the release with
+3. GitHub Actions builds `WTFTD-<version>.exe` and `WTFTD-<version>.zip` from that tag and attaches them to the release with
    their SHA-256.

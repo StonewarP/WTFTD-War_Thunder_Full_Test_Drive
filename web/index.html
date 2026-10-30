@@ -64,13 +64,11 @@
     <div class="brand-text"><b data-i18n="app.title">WTFTD</b><span data-i18n="app.tagline"></span></div>
   </div>
   <nav class="tabs" role="tablist">
-    <button class="tab active" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
-    <button class="tab" data-view="setups" role="tab"><span data-i18n="nav.myVehicles"></span><span class="tab-count" id="setupCount"></span></button>
-    <button class="tab" data-view="maps" role="tab"><span data-i18n="nav.maps"></span></button>
-    <button class="tab" data-view="mymaps" role="tab"><span data-i18n="nav.myMaps"></span><span class="tab-count" id="myMapCount"></span></button>
-    <button class="tab" data-view="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
-    <button class="tab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
-    <button class="tab" data-view="myweapons" role="tab"><span data-i18n="nav.myWeapons"></span><span class="tab-count" id="myWeaponCount"></span></button>
+    <button class="tab active" data-menu="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
+    <button class="tab" data-menu="maps" role="tab"><span data-i18n="nav.maps"></span></button>
+    <button class="tab" data-menu="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
+    <button class="tab" data-menu="missions" role="tab"><span data-i18n="nav.missions"></span><span class="tab-count" id="missionCount"></span></button>
+    <button class="tab" data-menu="inflight" role="tab"><span data-i18n="nav.inFlight"></span></button>
   </nav>
   <label class="search">
     <svg class="ic"><use href="#i-search"/></svg>
@@ -85,6 +83,17 @@
     <button class="icon-btn" id="btnSettings" data-i18n-title="settings.title"><svg class="ic"><use href="#i-gear"/></svg></button>
   </div>
 </header>
+<nav class="subtabs" role="tablist">
+  <button class="subtab" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
+  <button class="subtab" data-view="setups" role="tab"><span data-i18n="nav.myVehicles"></span><span class="tab-count" id="setupCount"></span></button>
+  <button class="subtab" data-view="maps" role="tab"><span data-i18n="nav.maps"></span></button>
+  <button class="subtab" data-view="mymaps" role="tab"><span data-i18n="nav.myMaps"></span><span class="tab-count" id="myMapCount"></span></button>
+  <button class="subtab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
+  <button class="subtab" data-view="myweapons" role="tab"><span data-i18n="nav.myWeapons"></span><span class="tab-count" id="myWeaponCount"></span></button>
+  <button class="subtab hidden" data-view="overlay" role="tab"><span data-i18n="nav.overlay"></span></button>
+  <button class="subtab hidden" data-view="flight" role="tab"><span data-i18n="nav.flight"></span></button>
+  <button class="subtab" data-view="battle" role="tab"><span data-i18n="nav.battle"></span></button>
+</nav>
 
 <div class="update-banner hidden" id="updateBanner"></div>
 <main class="layout">
@@ -185,6 +194,96 @@
       <div class="list" id="myWeaponList"></div>
     </div>
 
+    <div class="view hidden" id="view-overlay">
+      <div class="page-head"><div><h2 data-i18n="ov.title"></h2><p class="muted" data-i18n="ov.hint"></p></div>
+        <button class="btn" id="ovReset"><svg class="ic-sm"><use href="#i-refresh"/></svg><span data-i18n="ov.reset"></span></button></div>
+      <div class="ov-bar">
+        <label class="switch"><input type="checkbox" id="ovEnabled"><span class="sw"></span><span data-i18n="ov.enable"></span></label>
+        <label class="switch"><input type="checkbox" id="ovOnScreen"><span class="sw"></span><span data-i18n="ov.onScreen"></span></label>
+      </div>
+      <div class="ov-profiles">
+        <label for="ovProfile" data-i18n="ov.profile"></label>
+        <select id="ovProfile"></select>
+        <button class="icon-btn btn-danger hidden" id="ovProfileDelete" data-i18n-title="ov.profileDelete"><svg class="ic"><use href="#i-trash"/></svg></button>
+        <input id="ovNewProfile" type="text" list="ovNewList" spellcheck="false" data-i18n-ph="ov.profileNew"><datalist id="ovNewList"></datalist>
+        <button class="btn btn-sm" id="ovProfileAdd"><span data-i18n="ov.profileAdd"></span></button>
+        <small class="muted" id="ovActive"></small>
+      </div>
+      <small class="muted ov-profile-hint" data-i18n="ov.profileHint"></small>
+      <div class="ov-grid">
+        <div class="ov-main">
+          <div class="ov-top">
+            <div class="ov-screen" id="ovScreen"><div class="ov-text" id="ovText"></div></div>
+            <div class="ov-zoom" id="ovZoom"></div>
+          </div>
+          <small class="muted" data-i18n="ov.dragHint"></small>
+          <h3 class="ov-h" data-i18n="ov.lines"></h3>
+          <small class="muted" data-i18n="ov.linesHint"></small>
+          <div class="ov-lines" id="ovLines"></div>
+          <button class="btn btn-sm" id="ovAddLine"><span data-i18n="ov.addLine"></span></button>
+          <div class="ov-values" id="ovValues"></div>
+        </div>
+        <aside class="ov-side">
+          <h3 class="ov-h" data-i18n="ov.look"></h3>
+          <div class="field"><label for="ovFont" data-i18n="ov.font"></label>
+            <input id="ovFont" type="text" data-ov="font" list="ovFonts" spellcheck="false"><datalist id="ovFonts"></datalist></div>
+          <div class="field-row">
+            <div class="field"><label for="ovSize" data-i18n="ov.textSize"></label><input id="ovSize" type="number" data-ov="size" min="6" max="400"></div>
+            <div class="field"><label for="ovOpacity" data-i18n="ov.opacity"></label><input id="ovOpacity" type="number" data-ov="opacity" min="10" max="100"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label for="ovColor" data-i18n="ov.textColor"></label><input id="ovColor" type="color" data-ov="color"></div>
+            <div class="field"><label for="ovAlert" data-i18n="ov.alertColor"></label><input id="ovAlert" type="color" data-ov="alert"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label for="ovX">X</label><input id="ovX" type="number" data-ov="x"></div>
+            <div class="field"><label for="ovY">Y</label><input id="ovY" type="number" data-ov="y"></div>
+          </div>
+          <label class="switch"><input type="checkbox" data-ov="bold"><span class="sw"></span><span data-i18n="ov.bold"></span></label>
+          <label class="switch"><input type="checkbox" data-ov="show"><span class="sw"></span><span data-i18n="ov.show"></span></label>
+          <label class="switch"><input type="checkbox" data-ov="hideCrash"><span class="sw"></span><span data-i18n="ov.hideCrash"></span></label>
+          <div class="field"><label for="ovHotkey" data-i18n="ov.hotkey"></label>
+            <input id="ovHotkey" type="text" readonly data-ovkey="hotkey" data-i18n-ph="ov.hotkeyPh"><small class="muted" data-i18n="ov.hotkeyHint"></small></div>
+          <div class="field"><label for="ovLogKey" data-i18n="ov.logKey"></label>
+            <input id="ovLogKey" type="text" readonly data-ovkey="logKey" data-i18n-ph="ov.hotkeyPh"></div>
+          <h3 class="ov-h" data-i18n="ov.alarms"></h3>
+          <div id="ovAlarms"></div>
+          <div class="field"><label for="ovRepeat" data-i18n="ov.repeat"></label><input id="ovRepeat" type="number" data-ov="repeat" min="100" max="10000" step="50"></div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="view hidden" id="view-flight">
+      <div class="page-head"><div><h2 data-i18n="fl.title"></h2><p class="muted" data-i18n="fl.hint"></p></div>
+        <div class="row gap">
+          <button class="btn" id="flRecord"><span id="flRecordLabel"></span></button>
+          <button class="btn btn-ghost" id="flFolder"><svg class="ic-sm"><use href="#i-folder"/></svg><span data-i18n="fl.folder"></span></button>
+        </div></div>
+      <div class="fl-bar">
+        <select id="flSource" aria-label="Log"></select>
+        <button class="icon-btn btn-danger hidden" id="flDelete" data-i18n-title="action.delete"><svg class="ic"><use href="#i-trash"/></svg></button>
+        <div class="seg" id="flSpan"><button data-s="60">1 min</button><button data-s="300">5 min</button><button data-s="1800">30 min</button><button data-s="0" data-i18n="fl.all"></button></div>
+        <small class="muted" id="flState"></small>
+      </div>
+      <div class="fl-sheet hidden" id="flSheet"></div>
+      <div class="fl-chart"><canvas id="flCanvas" class="hidden"></canvas><div class="empty hidden" id="flEmpty"><p data-i18n="fl.empty"></p></div></div>
+      <div class="ov-values" id="flValues"></div>
+    </div>
+
+    <div class="view hidden" id="view-battle">
+      <div class="page-head"><div><h2 data-i18n="bt.title"></h2><p class="muted" data-i18n="bt.hint"></p></div>
+        <button class="btn" id="btClear"><svg class="ic-sm"><use href="#i-trash"/></svg><span data-i18n="bt.clear"></span></button></div>
+      <div class="fl-bar">
+        <input id="btFilter" type="text" spellcheck="false" data-i18n-ph="bt.filter">
+        <label class="bt-size"><span data-i18n="bt.size"></span><input id="btSize" type="range" min="11" max="26"></label>
+        <small class="muted" id="btState"></small>
+      </div>
+      <div class="bt-grid">
+        <section><h3 class="ov-h" data-i18n="bt.chat"></h3><div class="bt-log" id="btChat" role="log"></div></section>
+        <section><h3 class="ov-h" data-i18n="bt.log"></h3><div class="bt-log" id="btLog" role="log"></div></section>
+      </div>
+    </div>
+
     <div class="view hidden" id="view-mymaps">
       <div class="page-head"><div><h2 data-i18n="mymaps.title"></h2><p class="muted" data-i18n="mymaps.hint"></p></div>
         <button class="btn" id="btnImportMaps"><svg class="ic-sm"><use href="#i-share"/></svg><span data-i18n="share.import"></span></button></div>
@@ -222,10 +321,11 @@
     <img class="brand-logo big" src="logo.svg?v=3" alt="">
     <h2 data-i18n="onboard.title"></h2>
     <p class="muted" data-i18n="onboard.text"></p>
+    <div class="opt-list onboard-source" id="onboardSource"></div>
     <p class="muted onboard-lead" data-i18n="onboard.lead"></p>
     <p class="muted onboard-wait" data-i18n="onboard.wait"></p>
     <div class="onboard-info" id="onboardInfo"></div>
-    <button class="btn btn-primary" id="btnOnboard"><svg class="ic"><use href="#i-check"/></svg><span data-i18n="onboard.button"></span></button>
+    <button class="btn btn-primary" id="btnOnboard"><svg class="ic"><use href="#i-check"/></svg><span id="btnOnboardText"></span></button>
     <div class="pbar hidden" id="onboardBar"><div class="pbar-track"><i></i></div><div class="pbar-text"><span></span><b></b></div></div>
     <pre class="log hidden" id="onboardLog"></pre>
   </div>
@@ -268,8 +368,10 @@
       <div class="field">
         <label data-i18n="settings.data"></label>
         <small class="muted" data-i18n="settings.dataHint"></small>
+        <div class="opt-list" id="setSource"></div>
         <label class="switch"><input type="checkbox" id="setAutoUpdate"><span class="sw"></span><span data-i18n="settings.autoUpdate"></span></label>
         <div class="row gap"><button type="button" class="btn btn-ghost" id="btnUpdate"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="settings.update"></span></button><small class="muted" id="dataVersion"></small></div>
+        <div class="row gap hidden" id="rowDatamine"><button type="button" class="btn btn-ghost" id="btnRemoveDatamine"><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="settings.removeDatamine"></span></button><small class="muted" data-i18n="settings.removeDatamineHint"></small></div>
         <pre class="log hidden" id="updateLog"></pre>
       </div>
       <div class="field">
@@ -460,6 +562,9 @@
 <script src="compare.js"></script>
 <script src="weapons.js"></script>
 <script src="myweapons.js"></script>
+<script src="overlay.js"></script>
+<script src="flight.js"></script>
+<script src="battle.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 </body>

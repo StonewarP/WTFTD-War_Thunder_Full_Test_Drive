@@ -16,7 +16,7 @@ import webbrowser
 from pathlib import Path
 
 from .paths import CACHE, FROZEN, prepare
-from .server import ROOT, page_closed, serve, wait_page_gone
+from .server import ROOT, WATCH, page_closed, serve, wait_page_gone
 
 # macOS: Chromium browsers that support app windows (--app), executable inside the bundle
 MAC_BROWSERS = ("Google Chrome.app/Contents/MacOS/Google Chrome", "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
@@ -87,6 +87,7 @@ def main():
     port = 8777
     if "--port" in sys.argv:
         port = int(sys.argv[sys.argv.index("--port") + 1])
+    size = window_args()  # in logical pixels, like the browser's: before the overlay makes this process DPI-aware
     httpd, url = serve(port)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     print(f"WTFTD running at {url}  (Ctrl+C to quit)")
@@ -102,7 +103,7 @@ def main():
                 except OSError:
                     pass
             no_translate(profile)
-            proc = subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", *window_args(),
+            proc = subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", *size,
                                      "--no-first-run", "--no-default-browser-check", "--disable-features=Translate"])
             if sys.platform == "darwin":
                 # the browser outlives its closed window on macOS: quit when the page says bye
@@ -127,6 +128,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        WATCH.stop()
         httpd.shutdown()
 
 

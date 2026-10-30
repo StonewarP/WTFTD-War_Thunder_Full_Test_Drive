@@ -14,6 +14,7 @@
   --accent-2: #ffcf6e;
   --accent-ink: #1b1305;
   --accent-soft: rgba(243, 179, 61, .12);
+  --chart-line: var(--accent);
   --info: #5ab8ff;
   --ok: #5fcf8a;
   --warn: #ffb547;
@@ -25,7 +26,9 @@
   --font: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
   --font-display: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, sans-serif;
   --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
-  --top-h: 60px;
+  --bar-h: 60px;
+  --sub-h: 40px;
+  --top-h: var(--bar-h);
   --side-w: 248px;
   --drawer-w: 500px;
   --line-hover: #3a4658;
@@ -106,7 +109,7 @@ svg.ic-xl { width: 42px; height: 42px; fill: none; stroke: currentColor; stroke-
 
 /* ------------------------------------------------------------------ topbar */
 .topbar {
-  height: var(--top-h); display: flex; align-items: center; gap: 18px;
+  height: var(--bar-h); display: flex; align-items: center; gap: 18px;
   padding: 0 16px 0 18px; border-bottom: 1px solid var(--line);
   background: var(--topbar-bg);
   position: relative; z-index: 20;
@@ -453,7 +456,8 @@ option { background: var(--surface); }
 .onboard-info ul + b { margin-top: 12px; }
 .onboard-info ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
 .onboard-info code { font: 500 11.5px var(--mono); color: var(--text); word-break: break-all; }
-.onboard-card.busy .onboard-info, .onboard-card.busy #btnOnboard, .onboard-card.busy .onboard-lead { display: none; }
+.onboard-source { margin: 12px 0 14px; text-align: left; }
+.onboard-card.busy .onboard-info, .onboard-card.busy #btnOnboard, .onboard-card.busy .onboard-lead, .onboard-card.busy .onboard-source { display: none; }
 .onboard-wait { display: none; }
 .onboard-card.busy .onboard-wait { display: block; }
 .onboard-lead, .onboard-wait { margin-top: -4px; }
@@ -628,6 +632,7 @@ option { background: var(--surface); }
   --accent-2: #a7650a;
   --accent-ink: #1b1305;
   --accent-soft: rgba(227, 154, 32, .14);
+  --chart-line: var(--accent-2);
   --info: #1d72c4;
   --ok: #1d9450;
   --warn: #b8730b;
@@ -1166,3 +1171,87 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 .sight-field .field-row { display: flex; gap: 6px; align-items: center; }
 .sight-field select { flex: 1; min-width: 0; }
 .sight-field small.warn { display: block; color: var(--warn); margin-top: 4px; }
+
+/* ------------------------------------------------------------------ My overlay */
+.ov-bar { display: flex; flex-wrap: wrap; gap: 6px 28px; margin-bottom: 12px; }
+.ov-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+.ov-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; align-items: stretch; }
+.ov-main > .btn { align-self: flex-start; }
+.ov-side { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.ov-side input[type=text], .ov-side input[type=number] { width: 100%; }
+.ov-side input[type=color], .ov-swatch input { width: 100%; height: 32px; padding: 2px; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 6px; cursor: pointer; }
+.ov-h { margin: 14px 0 6px; font: 700 14px var(--font-display); }
+.ov-side .ov-h:first-child { margin-top: 0; }
+/* the player's screen, to scale: always a game-like sky, whatever the app's theme */
+.ov-top { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 10px; align-items: stretch; }
+.ov-screen, .ov-zoom { border-radius: 10px; border: 1px solid var(--line-2); background: linear-gradient(#55779c, #a8bdd0 62%, #6d7a5c 62%, #4f5c45); }
+.ov-screen { position: relative; overflow: hidden; }
+.ov-zoom { padding: 12px; overflow: hidden; white-space: pre; line-height: 1.17; }
+.ov-text { position: absolute; cursor: move; white-space: pre; line-height: 1.17; user-select: none; touch-action: none; outline: 1px dashed rgba(255,255,255,.35); outline-offset: 3px; }
+.ov-lines { display: flex; flex-direction: column; gap: 6px; }
+.ov-line { display: grid; grid-template-columns: auto minmax(180px, 1fr) 118px 118px 58px 46px 26px auto; gap: 6px; align-items: end; padding: 6px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.ov-line .icon-btn { width: 26px; height: 26px; }
+.ov-move { display: flex; flex-direction: column; }
+.ov-move .icon-btn { height: 16px; font-size: 9px; border: 0; }
+.ov-move .icon-btn:disabled { opacity: .3; cursor: default; }
+.ov-tpl { font-family: Consolas, monospace; width: 100%; }
+.ov-mini { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); min-width: 0; }
+.ov-mini select, .ov-mini input[type=number] { width: 100%; min-width: 0; }
+.ov-values { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.ov-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ov-group b { width: 100%; font-size: 12px; color: var(--text-2); }
+.ov-chip { border: 0; cursor: pointer; }
+.ov-chip:hover { color: var(--text); background: var(--line-2); }
+.ov-alarm { padding: 4px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.ov-alarm-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 4px; }
+@media (max-width: 1250px) {
+  .ov-grid { grid-template-columns: minmax(0, 1fr); }
+  .ov-line { grid-template-columns: auto minmax(0, 1fr) 118px 118px; }
+}
+
+/* ------------------------------------------------------------------ Flight data */
+.fl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.fl-bar select { max-width: 420px; }
+.fl-chart { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 14px; min-height: 120px; }
+.fl-chart canvas { display: block; width: 100%; cursor: crosshair; }
+.fl-chart canvas.hidden { display: none; }
+.ov-chip.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* ------------------------------------------------------------------ My overlay: profiles */
+.ov-profiles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ov-profiles label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.ov-profiles select { min-width: 200px; }
+.ov-profiles input[type=text] { width: 240px; }
+.ov-profile-hint { display: block; margin: 6px 0 14px; }
+/* ------------------------------------------------------------------ Breaking limits */
+.lim { margin-top: 10px; }
+.lim-title { font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 6px; }
+.lim-wide { font-size: 12.5px; margin-top: 6px; color: var(--text); }
+.lim-wide span { display: block; font-size: 11px; color: var(--muted); }
+.fl-sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
+/* ------------------------------------------------------------------ Battle */
+.bt-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.bt-grid .ov-h { margin-top: 0; }
+.bt-log { height: calc(100vh - 330px); min-height: 280px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: var(--bt-size, 14px); line-height: 1.35; }
+.bt-line { padding: 1px 0; overflow-wrap: anywhere; }
+.bt-line time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; font-size: .85em; }
+.bt-line i { color: var(--muted); margin-right: 6px; font-style: normal; font-size: .85em; }
+.bt-line b { margin-right: 6px; color: var(--info); }
+.bt-line.enemy b { color: var(--warn); }
+.bt-none { padding: 6px 0; }
+.bt-size { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
+#btFilter { width: 240px; }
+@media (max-width: 1000px) { .bt-grid { grid-template-columns: minmax(0, 1fr); } .bt-log { height: 320px; } }
+@media (max-width: 1500px) { .topbar .search kbd { display: none; } }
+/* many tabs on a narrow window, longer in some languages: they scroll, the search and the buttons stay on screen */
+.topbar .tabs { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.topbar .tab { flex: none; white-space: nowrap; }
+.topbar .search { min-width: 38px; }
+/* the sub-tabs of the menu in use, under the top bar */
+.subtabs { display: none; height: var(--sub-h); align-items: center; gap: 2px; padding: 0 18px; border-bottom: 1px solid var(--line); background: var(--bg-2); overflow-x: auto; scrollbar-width: thin; }
+body.sub-on { --top-h: calc(var(--bar-h) + var(--sub-h)); }
+body.sub-on .subtabs { display: flex; }
+.subtab { flex: none; height: 28px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-weight: 600; font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; transition: color .15s, background .15s; }
+.subtab:hover { color: var(--text); }
+.subtab.active { background: var(--surface-3); color: var(--text); }
+.subtab.off { display: none; }

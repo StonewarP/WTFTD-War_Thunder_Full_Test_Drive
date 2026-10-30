@@ -297,6 +297,96 @@ Checked out of game: unit tests (`tests/test_experimental.py`), the app's panels
   modern APFSDS): within a few %?
 - [ ] **Drones**: UAV Raven's Eye and the FPV strike drone on a bare map (air start, 100 km/h): do they load?
 
+## 2m. Flight alarms and overlay (new)
+
+Checked out of game: unit tests (`tests/test_alarms.py`), the limits of every flight model, the overlay window against
+a fake `/state` (click-through, keeps the focus, hides, closes cleanly). `.cache/wtftd.log` (packaged app) or the
+console lists each recognition: `Alarms: Mfuel0=…, reported=…, saved model=…, limits=…`.
+
+Turn them on first: In flight → My overlay → Turn on the overlay and alarms (off by default).
+
+- [x] **Real values in flight** (2026-10-30): captured on screen in a flight, `IAS 1154 / 1540 km/h`, `MACH 1.92 / 2.10`,
+  with a custom font and opacity.
+- [ ] **Off by default**: on a fresh install no beep and no overlay in flight until the switch is on.
+- [ ] **My overlay**: a line per condition (gear, flaps, airbrake, during an alarm) comes and goes at the right time;
+  a line's own colour and size; the alert colour only on the line of that alarm; `{margin}` falls to 0 at the limit.
+- [ ] **Show / hide key** (Ctrl+F12 for instance) with the game in front; the beeps go on while the window is hidden.
+- [ ] **Each alarm's** threshold, pitch and length heard in flight; switched off, no beep and no alert colour.
+- [ ] **Position**: placed in the tab, it lands at the same spot in game (full screen and windowed).
+- [x] **`/indicators` format**: answers again after a game restart (2026-10-30, Su-30MKK at 1,284 km/h): `"valid": true,
+  "army": "air", "type": "su_30mkk"`, the vehicle id. What makes it go blank (seen on 2.59) is unknown.
+- [ ] When it answers, `reported=` wins over the fallback, including on a look-alike and with external tanks. When it's
+  blank, `reported=None` and the fallback does the work.
+- [ ] **Su-30MKK and J-10C** recognised: full tank, then a partial fuel load (Mfuel0 should stay the capacity).
+- [ ] **Change aircraft in the hangar**, fly again: is the new one recognised? (When does the game write
+  `global.blk`? It didn't change during a 10-minute flight.)
+- [ ] **Spawn on another slot in a battle**, the hangar selection unchanged: `AIRCRAFT UNKNOWN`, or the wrong aircraft?
+  Worst case: the new one has the same fuel and engines as the old one (391 of 1,134 aircraft have such a look-alike)
+  but other limits: then the old one's limits would be kept without warning. If so, `/hudmsg` is the lead to follow.
+- [ ] **External fuel tanks**: does `Mfuel0` change? If it does, the aircraft becomes `AIRCRAFT UNKNOWN`.
+- [ ] **Alarms heard at the right threshold**: airframe (dive, 93 %, high beep), gear (90 %), flaps (90 %, low beep).
+  The flap limit is interpolated between the flight model's points: an interpretation of the data, to confirm.
+- [ ] **Overlay**: shown in flight, gone on Alt+Tab, back afterwards, never takes the focus, clicks go through it.
+  Beeps go on during an Alt+Tab.
+- [ ] **A-4 or Mirage III** (take-off rockets counted out of the engines): recognised? How many `throttle` fields
+  does `/state` send with the rockets fitted?
+- [ ] **Variable sweep (F-14, MiG-23, Tornado)**: the IAS line says `(swept limit)`; no alarm wings forward.
+- [ ] **Helicopter**: airframe line and alarm; the gear line on fixed skids: useful or noise?
+- [ ] **WTFTD mission with a custom vehicle**, with changed fuel: recognised through the mission.
+- [ ] **Unbreakable airframe** in that mission: the overlay says so, no beep. Then a real battle on another map with
+  the same aircraft: alarms are back.
+- [ ] **Packaged exe**, not only the sources: overlay shown, and no crash message on closing WTFTD.
+
+## 2n. Flight data and recording (new)
+
+Checked in a real flight on 2026-10-30 (Su-30MKK): live curves, a recording (BOM, columns, values), its replay and
+deletion, dark and light themes, a 1280 px wide window.
+
+- [ ] **Turn time** against the game: hold a level turn at a steady G and time a full circle with a stopwatch. It
+  assumes a level turn; climbing or diving it's only indicative.
+- [ ] **Fuel use and fuel time left**: without unlimited fuel, the minutes left against what really happens. The burn
+  is an average over 30 s.
+- [ ] **Thrust/weight**: compare with the stat card; the mass leaves out weapons and ammunition.
+- [ ] **SEP and acceleration** in a level acceleration and a climb: sensible signs and sizes?
+- [ ] **Record key** (My overlay): starts and stops in flight, `REC` shows on the overlay while it records.
+- [ ] A **CSV opened in Excel**: accents fine; with a French Excel, does it need Data → From text (comma separator)?
+- [ ] A **recording across two flights**: the curve breaks between them rather than joining them.
+- [ ] **Helicopter**: the values it doesn't send show N/A, nothing breaks.
+
+## 2o. Battle, overlays per aircraft (new)
+
+Checked in a real flight on 2026-10-30 (Su-30MKK): the battle log (131 lines, the game's icons removed), the sheet of the
+aircraft flown, an overlay per type then per aircraft picked up live. The game had no chat lines at the time.
+
+- [ ] **Chat** in a real battle: team, all, squad lines, the sender, enemy names in their colour.
+- [ ] **Battle log** with kills and damage, in French and in English, and `events` lines (never seen so far).
+- [ ] **Restart the game** with the tab open: the numbering starts over, the old lines go and the new ones come.
+- [ ] A **second screen**: the app's Battle tab next to the game.
+- [ ] **Profile by type**: bomber, attacker and helicopter each take their own overlay on spawn, on a slot change too.
+- [ ] **Custom vehicle** with a profile: which overlay does it take (the vehicle's id comes from the mission)?
+
+## 2p. Crash detection (new)
+
+Worked out on real flights on 2026-10-31 (Su-30MKK, 10 readings a second): at an impact every engine's RPM and throttle
+fall to 0 from one reading to the next, and `/state` stays valid until the next spawn. Replayed on those recordings and
+checked against the game's own log (`onAircraftDead`, `water_explosion_big`): 2 impacts on the ground and 1 in a lake
+found within 0.1 s; no false alarm on a landing, a belly landing, 11 G pulls and 20 minutes of flying.
+
+A break-up in the air (wings gone at 1,607 km/h, 23 G) keeps the engines running: the battle log (`/hudmsg`, live) tells
+it, from `NET_PLAYER_HAS_CRASHED` in the game's language files. The log names everybody and nothing local gives the
+player's name: it's taken from the line that comes with an impact of ours, then only that name counts. Replayed on the
+same flight: the name learnt 0.4 s after the first impact, the beeps of the break-up stopped.
+
+- [x] **Into water**: same numbers, at high speed in the Surobi lake (Afghanistan).
+- [ ] **Slowly into water**: when the aircraft floats, then sinks?
+- [ ] **Propeller aircraft and multi-engine ones**: single engine, four engines.
+- [ ] **Helicopter**: does `RPM` read above 500 at all? Below that nothing is detected.
+- [ ] **Engine shot out, then gliding to the ground**: no engine left to fall to 0, so no detection: acceptable?
+- [ ] **Hide the overlay after a crash** on: gone at the impact, back at the next spawn.
+- [ ] **Break-up in the air** as the first crash of the session: no name yet, so the beeps go on for those few seconds.
+- [ ] **A real battle**: another player's crash, in the same aircraft too, doesn't silence the alarms.
+- [ ] The game in **another language** (English, Russian, Japanese): the name gets learnt.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

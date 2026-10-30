@@ -4,7 +4,58 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Unreleased (experimental branch)
+## 0.21.0 — not released yet
+
+- **A shorter top menu**: Vehicles, Maps, Weapons, My missions and In flight. Your own vehicles, maps and weapons are
+  now sub-tabs of those menus, and My overlay, Flight data and Battle sit under In flight.
+- **My overlay** (In flight, Windows, off until you turn it on there): while you fly, WTFTD beeps near your aircraft's
+  breaking speeds and shows what you choose in a small click-through window over the game, hidden in the hangar and
+  when the game isn't in front. By default: your speed against each limit, `IAS 1284 / 1540 km/h`, Mach, and gear and
+  flaps when they are out.
+  - Everything is yours: write the lines (`ALT {alt} m  {margin} km/h left`, 30 values one click away, and any field
+    the game sends), when each one shows, its size and colour, which alarm turns it to the alert colour.
+  - Drag the text on a to-scale picture of your screen, or show it on your real screen with sample values. Font,
+    size, colours, opacity, a show / hide key.
+  - Each alarm (airframe, gear, flaps): on or off, threshold (93 %, 90 %, 90 % by default), pitch, length, with a Test
+    button, and how often they repeat.
+  - Speeds come from the game's `/state`. The aircraft comes from the mission WTFTD generated, then from the game's
+    `/indicators`, and as a fallback when that one is blank (seen on 2.59 until a game restart) from its fuel capacity,
+    engines and the model the game saved (read only): in doubt the overlay says `AIRCRAFT UNKNOWN` and stays silent,
+    it never guesses. Variable-sweep wings: the limit shown is the swept-back one (the game doesn't send the wing
+    position). Unbreakable airframe: the overlay says so, no alarm.
+- **Flight data** (In flight, Windows): what the game reports in flight, as live curves, one strip per value on a shared
+  time axis, with the value under the mouse. **Record** a flight to a CSV file that opens in Excel (`user/logs`, also
+  from a key in flight), replay it here, delete it.
+- New values for the overlay, the curves and the logs: turn time, rate and radius, horizontal speed, acceleration,
+  specific excess power, total thrust, thrust/weight, fuel use, fuel time and range left, pitch, bank. The mass leaves
+  the weapons out (the game doesn't tell it), so thrust/weight reads a little high when loaded. Pitch, bank and heading
+  come from `/indicators`: `N/A` while it's blank. A `REC` line shows while recording.
+- **Battle** (In flight): the game's chat and battle log, live, in their own window, handy on a second screen: filter,
+  text size. WTFTD only reads them.
+- **Overlays per aircraft or type** (My overlay): an aircraft's own overlay comes first, then its type's (fighters,
+  attackers, bombers, helicopters), then the one for all aircraft, with their own lines, look and alarms. The right
+  one loads by itself when the aircraft is recognised.
+- **Crash detection**: when the aircraft hits the ground the alarms stop at once, and the overlay can hide too (My
+  overlay → Hide the overlay after a crash). It watches what the game's numbers do at an impact: every engine's RPM and
+  throttle at 0 from one reading to the next, on the ground or in water. Landings, belly landings and 11 G pulls don't
+  trigger it. An aircraft breaking up in the air keeps its engines running: there the battle log tells, once your first
+  impact of the session has shown which name is yours, so another player's crash never silences your alarms.
+- **Breaking limits** in the vehicle panel of aircraft and helicopters (speed, Mach, gear, flaps, variable sweep), and a
+  sheet of the aircraft you're flying in Flight data.
+- Tornado and some F-16 AM (21 aircraft) lost their mass, fuel and thrust stats, and "Unbreakable airframe" did
+  nothing on them: their flight model's path is spelled differently in the game files.
+- **Read the installed game instead of downloading the datamine**: on the welcome screen and in Settings → Game data,
+  choose where the game data comes from. *Read my installed game* needs no download, no Git and no network: WTFTD
+  unpacks the game's own files on your PC (≈650 MB, about 3 minutes), stays at your game's exact version, and rebuilds
+  by itself after a game patch. The community datamine stays available (it works without the game), and stays the
+  source of existing installs unless you change it. Built from the same game version, both give the same database.
+- Switching source rebuilds the database and keeps your setups, missions and settings. The datamine copy stays until
+  you remove it (Settings → Game data). If the game is updating or a file is damaged, the update stops with a message
+  and the data you have keeps working.
+- The apps are now built with Python 3.14. From source, reading the game needs Python 3.14 or newer; on an older one
+  the datamine works as before and the option is shown disabled.
+
+## 0.20.0 — 2026-10-13
 
 - **In-mission keys** (Cheats → In-mission keys): switch options while you play with the game's *Quick radio
   messages* (give them keys in the game's controls): #1 invulnerable, #2 no reload, #3 passive targets, #4 repair,
@@ -23,6 +74,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   when the shell has one, else the formulas the game uses (DeMarre for full-calibre shells, Lanz-Odermatt for
   long rods), about ±5 %. APCR / APDS without a table are not shown.
 - **Drones**: the game's FPV / recon drones are listed (non-playable units) with a *Drone* type.
+- **Downloads named after the version**: `WTFTD-0.20.0.exe` (Windows) and `WTFTD-0.20.0.zip` (macOS), each with
+  its `.sha256`. Built from a branch other than `main`, the branch is added to the name.
 - Air starts on the bare and battle maps use a speed that suits the aircraft: drones 100 km/h, helicopters 150,
   propeller planes 450, early jets (rank V and below) 700, later jets 1000.
 

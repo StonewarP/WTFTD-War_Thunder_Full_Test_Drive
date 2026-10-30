@@ -20,7 +20,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, builder, cdk, game, maptex, mission, sights, terrain, uninstall
+from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, sights, terrain, \
+    uninstall, vromfs
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -84,6 +85,9 @@ class State:
             if self.catalog is None:
                 self.catalog = read_json(DATA / "weapons.json", {})
             return self.catalog
+
+    def data_source(self) -> str:
+        return "game" if self.settings().get("dataSource") == "game" else "datamine"
 
     def cdk_enabled(self) -> bool:
         return self.settings().get("cdk", True) is not False
@@ -228,9 +232,13 @@ def api_status():
         "levels": sorted(game.installed_levels(gd)),
         "data": meta,
         "dataReady": (DATA / "vehicles.json").exists(),
+        "dataSource": STATE.data_source(),
+        "gameSourceIssue": "python" if not vromfs.available() else None if gd else "game",
+        "datamineCopy": builder.DATAMINE.is_dir(),
         "home": str(HOME),  # where WTFTD keeps its files (the welcome screen says so before the first download)
         "oodle": oodle_dll(gd),
         "settings": STATE.settings(),
+        "alarms": alarms.available(),
         "cdk": {"enabled": STATE.cdk_enabled(), "defaultHosts": cdk.DEFAULT_HOSTS,
                 "airMethod": STATE.settings().get("airMethod") or "custom",
                 **cdk.status(gd, USER)},
@@ -328,7 +336,7 @@ def run_update():
     progress = Progress()
 
     try:
-        meta = builder.build(pull=True, progress=progress)
+        meta = builder.build(pull=True, progress=progress, source=STATE.data_source(), game_dir=STATE.game_dir())
         STATE.reload()
         # vehicles added since last build may now have a wiki image: retry the ones marked missing
         for miss in (IMG_CACHE / "unit").glob("*.missing"):
@@ -336,7 +344,7 @@ def run_update():
                 miss.unlink()
             except OSError:
                 pass
-        st["after"] = meta.get("version")
+        st["after"], st["source"] = meta.get("version"), meta.get("source")
         st["newVehicles"] = max(0, int(meta.get("vehicles", 0)) - int(before.get("vehicles", 0) or 0))
         st["done"] = True
         threading.Thread(target=warm_weapon_icons, daemon=True).start()  # weapons new in this patch
@@ -347,6 +355,13 @@ def run_update():
 
 
 def remote_version() -> str | None:
+    """The newest game data there is: the installed game's version, or the published datamine's."""
+    if STATE.data_source() == "game":
+        gd = STATE.game_dir()
+        try:
+            return vromfs.version(gd) if gd else None
+        except vromfs.VromfsError:  # mid-update: the next check sees it
+            return None
     try:
         req = urllib.request.Request(REMOTE_VERSION_URL, headers={"User-Agent": UA})
         with urllib.request.urlopen(req, timeout=10) as r:
@@ -357,14 +372,15 @@ def remote_version() -> str | None:
 
 
 def check_for_update(start: bool = True) -> dict:
-    """Compares the published datamine version with ours; rebuilds in the background when newer."""
+    """Compares the game data's version (remote_version) with ours; rebuilds in the background when it changed."""
     st = STATE.update
     remote = remote_version()
     st["remote"], st["checked"] = remote, int(time.time())
     meta = read_json(DATA / "meta.json", {})
     local = meta.get("version")
-    # newer game patch, or data built by an older WTFTD that lacks fields this version needs
-    st["available"] = bool(remote and remote != local) or (bool(meta) and meta.get("schema", 1) < builder.SCHEMA)
+    # newer game patch, data built by an older WTFTD that lacks fields this version needs, or from the other source
+    st["available"] = (bool(remote and remote != local) or (bool(meta) and meta.get("schema", 1) < builder.SCHEMA)
+                       or (bool(meta) and meta.get("source", "datamine") != STATE.data_source()))
     # a first install (no data yet) downloads only once the user agreed on the welcome screen (route "update")
     if start and st["available"] and meta and not st["running"]:
         threading.Thread(target=run_update, daemon=True).start()
@@ -502,6 +518,22 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(read_json(USER / "variants.json", []))
         if route == "combos":  # saved missions: a vehicle setup + a map
             return self.send_json(read_json(USER / "combos.json", []))
+        if route == "overlay":
+            return self.send_json(overlay_status())
+        if route.startswith("overlay/"):
+            return self.send_json(overlay_status(route.split("/", 1)[1]))
+        if route.startswith("battle/"):  # battle/<last chat id>/<last event>/<last damage>
+            ids = route.split("/")[1:]
+            if len(ids) == 3 and all(x.isdigit() for x in ids):
+                return self.send_json(battle.news(_wt_get, *map(int, ids)))
+            return self.send_json({"error": "not found"}, 404)
+        if route.startswith("flight/"):
+            return self.send_json(flight_status(int(route.split("/", 1)[1]) if route.split("/", 1)[1].isdigit() else 0))
+        if route == "flight-logs":
+            return self.send_json(flightlog.list_logs(LOGS))
+        if route.startswith("flight-logs/"):
+            log = flightlog.read_log(LOGS, route.split("/", 1)[1], {alarms.column(n): n for n in alarms.SERIES})
+            return self.send_json(log) if log is not None else self.send_json({"error": "not found"}, 404)
         if route == "myweapons":  # My weapons: modified copies of the game's pylon weapons
             return self.send_json(read_json(USER / "weapons.json", []))
         if route == "weapon-keys":  # Weapons tab rows -> the pylon weapon they can be modified from
@@ -585,6 +617,9 @@ class Handler(BaseHTTPRequestHandler):
                     set_capture_hint(su["level"], float(pl.get("x", me["x"])), float(pl.get("z", me["z"])))
             except (mission.MissionError, ValueError, TypeError):
                 pass
+            WATCH.mission = {"id": str(body.get("vehicle", "")),  # mods only apply to custom vehicles (files)
+                             "fuel": cdk._num(body.get("mods") or {}, "fuel", 0, 1_000_000) if files else None,
+                             "unbreakable": bool(files and (body.get("cheats") or {}).get("noOverload"))}
             um = game.user_missions_dir(gd)
             um.mkdir(exist_ok=True)
             out = um / name
@@ -630,15 +665,66 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": bool(gd)})
         if route == "settings":
             s = STATE.settings()
-            for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll"):
+            for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll", "dataSource"):
                 if k in body:
                     s[k] = body[k]
             if s.get("gameDir") and not game.resolve_game_dir(Path(s["gameDir"]).expanduser()):
                 return self.send_json({"error": "This folder does not look like a War Thunder install."}, 400)
             if s.get("oodleDll") and maptex.oodle_version(Path(s["oodleDll"]).name) is None:
                 return self.send_json({"error": "Pick an Oodle runtime file: oo2core_<version>_win64.dll (Windows) or liboo2core*.dylib (macOS)."}, 400)
+            if s.get("dataSource", "datamine") not in ("datamine", "game"):
+                return self.send_json({"error": "Unknown game data source."}, 400)
+            if body.get("dataSource") == "game" and not vromfs.available():
+                return self.send_json({"error": vromfs.NO_ZSTD}, 400)
             STATE.save_settings(s)
+            apply_alarm_settings()
             return self.send_json(api_status())
+        if route == "overlay":  # My overlay: every change is saved, the window follows at once; reset: the defaults
+            key = str(body.get("profile") or "")
+            if key and not alarms.PROFILE.fullmatch(key):
+                return self.send_json({"error": "Invalid profile"}, 400)
+            s = STATE.settings()
+            cfg = None if body.get("reset") else alarms.clean(body.get("cfg"), WATCH.words)
+            if key:
+                profiles = s["overlayProfiles"] = s.get("overlayProfiles") if isinstance(s.get("overlayProfiles"), dict) else {}
+                profiles[key] = cfg or alarms.defaults(WATCH.words)
+            elif cfg:
+                s["overlay"] = cfg
+            else:
+                s.pop("overlay", None)
+            if "enabled" in body:
+                s["alarms"] = body["enabled"] is True
+            STATE.save_settings(s)
+            apply_alarm_settings()
+            if WATCH.preview:
+                WATCH.set_preview(WATCH.profiles.get(key, WATCH.base))
+            return self.send_json(overlay_status(key))
+        if route == "overlay-profile-delete":
+            s = STATE.settings()
+            if isinstance(s.get("overlayProfiles"), dict):
+                s["overlayProfiles"].pop(str(body.get("profile")), None)
+            STATE.save_settings(s)
+            apply_alarm_settings()
+            return self.send_json(overlay_status())
+        if route == "flight-log":  # record the flight data to a CSV file, or stop
+            WATCH.set_log(body.get("on") is True)
+            return self.send_json(flight_status(10 ** 12))
+        if route == "flight-log-delete":
+            return self.send_json({"ok": flightlog.delete_log(LOGS, str(body.get("name", ""))),
+                                   "logs": flightlog.list_logs(LOGS)})
+        if route == "flight-logs-open":
+            LOGS.mkdir(parents=True, exist_ok=True)
+            game.open_folder(LOGS)
+            return self.send_json({"ok": True})
+        if route == "overlay-preview":  # show it on the screen now, without the game
+            on = alarms.available() and body.get("on") is True
+            WATCH.set_preview(WATCH.profiles.get(str(body.get("profile") or ""), WATCH.base) if on else None)
+            return self.send_json(overlay_status(str(body.get("profile") or "")))
+        if route == "overlay-test":  # hear an alarm
+            a = WATCH.profiles.get(str(body.get("profile") or ""), WATCH.base)["alarms"].get(str(body.get("alarm")))
+            if a and alarms.available():
+                alarms.beep(a["hz"], a["ms"])
+            return self.send_json({"ok": bool(a)})
         if route == "combos":
             if not isinstance(body.get("combos"), list):
                 return self.send_json({"error": "combos must be a list"}, 400)
@@ -679,6 +765,11 @@ class Handler(BaseHTTPRequestHandler):
             elif "data" in parts:
                 STATE.reload()
             return self.send_json(res)
+        if route == "remove-datamine":  # never on its own: the player asked, and the data no longer comes from it
+            if builder.DM == builder.DATAMINE or STATE.update["running"]:
+                return self.send_json({"error": "The game data still needs the datamine copy."}, 400)
+            builder.remove_datamine()
+            return self.send_json(api_status())
         if route == "update-check":
             return self.send_json(check_for_update(start=bool(body.get("start", True))))
         if route == "update":
@@ -785,7 +876,7 @@ _weapon_keys: dict = {"for": None, "map": {}}
 
 def weapon_keys() -> dict:
     """{Weapons tab id: pylon catalog key}. A Weapons tab row is named after its projectile (bulletName, e.g.
-    "pl_5e2"), the catalog after its file ("su_pl5e2"): read once from the local datamine (0.3 s), again after an
+    "pl_5e2"), the catalog after its file ("su_pl5e2"): read once from the local game files (0.3 s), again after an
     update. Files that aren't "_default" variants win."""
     catalog = STATE.get_catalog()
     if _weapon_keys["for"] is not catalog:
@@ -812,7 +903,7 @@ def weapon_keys() -> dict:
 
 
 def weapon_base(key: str) -> dict | None:
-    """A pylon weapon's own values (local datamine copy): what My weapons' editor starts from."""
+    """A pylon weapon's own values (local game files): what My weapons' editor starts from."""
     w = STATE.get_catalog().get(key)
     if not w or not SAFE_ID.match(key) or w.get("pod"):
         return None
@@ -898,15 +989,15 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     if (body.get("cheats") or {}).get("noOverload") and veh["c"] in ("air", "heli"):
         mods["noStructural"] = True  # unbreakable airframe: the flight model's breaking limits raised
     if veh["c"] in ("air", "heli") and (mods.get("noStructural") or mods.get("thrustMul") or mods.get("superMobility")):
-        # the flight model itself (datamine): breaking limits, jets' thrust table
+        # the flight model itself (local game files): breaking limits, jets' thrust table
         fm = str((det.get("st") or {}).get("fm") or "")
         if fm:
-            fm_data = builder.load(builder.DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / (fm.lower() + "x"))
+            fm_data = builder.load(builder.fm_file(fm))
     if isinstance(body.get("pylons"), dict):
         body["pylons"] = custom_weapons(body["pylons"])
     non_std = any(isinstance(v, dict) for v in (body.get("pylons") or {}).values())
     if mods.get("invulnerable") or non_std:
-        # needs the local datamine copy (damage model, pylon layout for non-standard weapons)
+        # needs the local game files (damage model, pylon layout for non-standard weapons)
         unit_data = builder.load(builder.unit_file(vid, veh["c"]))
     try:
         files, preset, unit_class, pkg = cdk.build_files(vid, veh["c"], det, mods, host,
@@ -951,6 +1042,49 @@ def _matches(level_info: dict, mn, mx) -> bool:
             if all(abs(level_info[a][i] - mn[i]) < 2 and abs(level_info[b][i] - mx[i]) < 2 for i in (0, 1)):
                 return True
     return False
+
+
+def mission_on_map() -> bool:
+    """Is the map of the mission generated last the one loaded in the game?
+    Tells it from a real battle fought in the same aircraft, where "Unbreakable airframe" must not silence the alarms."""
+    hint = _capture["hint"]
+    try:
+        info = json.loads((_wt_get("/map_info.json") or b"{}").decode("utf-8", "ignore"))
+        mn, mx = [float(c) for c in info["map_min"]], [float(c) for c in info["map_max"]]
+    except (ValueError, KeyError, TypeError):
+        return False
+    return bool(hint and info.get("valid") and _matches(read_json(DATA / "levels.json", {}).get(hint["level"], {}), mn, mx))
+
+
+LOGS = USER / "logs"
+WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS,
+                     kind=lambda vid: (STATE.get_vehicles().get(vid) or {}).get("k"),
+                     crash_words=lambda: read_json(DATA / "battle_words.json", {}).get("crashed", []))
+
+
+def apply_alarm_settings():
+    s = STATE.settings()
+    WATCH.words = alarms.labels(str(s.get("lang") or "en"))
+    saved = s.get("overlayProfiles") if isinstance(s.get("overlayProfiles"), dict) else {}
+    WATCH.set_config(alarms.clean(s.get("overlay"), WATCH.words),
+                     {k: alarms.clean(v, WATCH.words) for k, v in saved.items() if alarms.PROFILE.fullmatch(k)})
+    WATCH.set_enabled(alarms.available() and s.get("alarms") is True)
+
+
+def flight_status(after: int) -> dict:
+    """The Flight data tab: the readings after this one (the tab asking keeps them coming, see Watch.tick)."""
+    WATCH.viewed = time.monotonic()
+    return {"rows": [r for r in list(WATCH.trace) if r["n"] > after], "flying": WATCH.flying, "aircraft": WATCH.current,
+            "log": WATCH.log.name if WATCH.log else None, "units": alarms.units()}
+
+
+def overlay_status(profile: str = "") -> dict:
+    """The My overlay tab: an overlay (the one for all aircraft, or a profile), the screen it's placed on, its lines with
+    sample values."""
+    cfg = WATCH.profiles.get(profile, WATCH.base)
+    return {"cfg": cfg, "screen": alarms.screen(), "lines": WATCH.sample(cfg), "onScreen": WATCH.preview is not None,
+            "enabled": STATE.settings().get("alarms") is True, "profile": profile if profile in WATCH.profiles else "",
+            "profiles": sorted(WATCH.profiles), "active": WATCH.profile, "aircraft": WATCH.current}
 
 
 def capture_once():
@@ -1059,4 +1193,7 @@ def serve(port: int = 8777) -> tuple[ThreadingHTTPServer, str]:
     threading.Thread(target=auto_update_loop, daemon=True).start()
     threading.Thread(target=map_capture_loop, daemon=True).start()
     threading.Thread(target=warm_weapon_icons, daemon=True).start()
+    if alarms.available():
+        apply_alarm_settings()
+        threading.Thread(target=WATCH.run, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}/"

@@ -12,6 +12,9 @@ const CAT_ICON = { all: 'all', ground: 'ground', air: 'air', heli: 'heli', boat:
 const NATIONS = ['usa', 'germany', 'ussr', 'britain', 'japan', 'china', 'italy', 'france', 'sweden', 'israel'];
 const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', britain: '#2f8a63', japan: '#d65a5a', china: '#e2a92b', italy: '#2fa262', france: '#4766dd', sweden: '#f0c637', israel: '#4fa6e3', other: '#5b6b84' };
 const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
+// the top menu: each menu's pages, shown as sub-tabs under it when it has several
+const MENUS = { vehicles: ['vehicles', 'setups'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
+                inflight: ['overlay', 'flight', 'battle'] };
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
 const WEATHERS = ['clear', 'good', 'hazy', 'thin_clouds', 'cloudy', 'cloudy_windy', 'overcast', 'poor', 'rain', 'thunder', 'blind'];
 const AMMO_COLORS = ['#f3b33d', '#5ab8ff', '#5fcf8a', '#d482ff'];
@@ -24,6 +27,7 @@ const store = {
 
 const S = {
   status: null,
+  menuPage: {},
   vehicles: [],
   byId: new Map(),
   scenarios: [],
@@ -184,6 +188,9 @@ async function boot() {
   bindCompare();
   bindWeapons();
   bindMyWeapons();
+  bindOverlay();
+  bindFlight();
+  bindBattle();
   bindMaps();
   bindLibrary();
   showView('vehicles');
@@ -531,7 +538,8 @@ function bindUI() {
   $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', stats: {}, wsel: [], roles: [] }));
   $('#search').addEventListener('input', debounce(e => { S.f.q = e.target.value; applyFilters(); }, 90));
 
-  $$('.tab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+  $$('.tab').forEach(b => b.addEventListener('click', () => showView(S.menuPage[b.dataset.menu] || menuPages(b.dataset.menu)[0])));
+  $$('.subtab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
   $('#btnSettings').addEventListener('click', openSettings);
   $('#btnLaunchTop').addEventListener('click', launchGame);
   $('#btnOpenFolder').addEventListener('click', () => api('open-folder', {}).catch(toastErr));
@@ -541,6 +549,13 @@ function bindUI() {
   $('#dlgUninstall').addEventListener('click', onUninstallClick);
   $('#dlgUninstall').addEventListener('change', renderUninstallState);
   $('#btnUpdate').addEventListener('click', () => startUpdate($('#updateLog'), $('#btnUpdate')));
+  $('#btnRemoveDatamine').addEventListener('click', async () => {
+    try {
+      S.status = await api('remove-datamine', {});
+      $('#rowDatamine').classList.add('hidden');
+      toast({ title: t('settings.datamineRemoved') });
+    } catch (e) { toastErr(e); }
+  });
   $('#btnCopyPreview').addEventListener('click', async () => {
     await navigator.clipboard.writeText($('#previewText').textContent);
     $('#btnCopyPreview').textContent = t('action.copied');
@@ -556,8 +571,15 @@ function bindUI() {
   $('#setupList').addEventListener('click', onSetupListClick);
 }
 
+const menuPages = menu => MENUS[menu].filter(v => !$(`.subtab[data-view="${v}"]`)?.classList.contains('hidden'));  // Windows only pages
+
 function showView(name) {
-  $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  const menu = Object.keys(MENUS).find(m => MENUS[m].includes(name)), pages = menuPages(menu);
+  S.menuPage[menu] = name;  // the menu comes back to it
+  $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.menu === menu));
+  $('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  $$('.subtab').forEach(b => { b.classList.toggle('active', b.dataset.view === name); b.classList.toggle('off', !pages.includes(b.dataset.view)); });
+  document.body.classList.toggle('sub-on', pages.length > 1);
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
   document.body.classList.toggle('view-weapons', name === 'weapons');
   document.body.classList.toggle('view-maps', name === 'maps');
@@ -569,6 +591,10 @@ function showView(name) {
   if (name === 'setups') renderSetups();
   if (name === 'mymaps') renderMyMaps();
   if (name === 'myweapons') renderMyWeapons();
+  if (name === 'overlay') openOverlayView();
+  else leaveOverlayView();
+  if (name === 'flight') openFlightView();
+  if (name === 'battle') openBattleView();
 }
 
 // ------------------------------------------------------------------ vehicle drawer
@@ -831,6 +857,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
         <div class="hero-full">${esc(I18N.unitFull(v.id))} · <code>${esc(v.id)}</code></div>
         <div class="hero-stats">${brs}</div>
         ${statsBlockHTML(v)}
+        ${limitsHTML(d.st?.lim)}
       </div>
       ${S.ai ? `<div class="ai-banner">${icon('target', 'ic-sm')}<div><b>${esc(t('ai.title'))}</b>${esc(t('ai.hint'))}</div></div>` : ''}
       ${stepHTML('loadout', 1, t('step.loadout'), esc(c.pylons ? t('loadout.customShort', { n: Object.keys(c.pylons).length }) : preset ? presetLabel(v, preset) : t('loadout.default')), () => loadoutBody(v, d))}
@@ -1494,7 +1521,7 @@ function renderUpdateBanner(st) {
     const last = (st.log || []).at(-1) || '';
     el.className = 'update-banner';
     el.innerHTML = `<span class="spin"></span><b>${esc(t('update.running', { v: st.remote || '' }))}</b><span class="muted">${esc(last)}</span>`;
-  } else if (st.done && st.after && st.after !== S.status?.data?.version) {
+  } else if (st.done && st.after && (st.after !== S.status?.data?.version || st.source !== (S.status?.data?.source || 'datamine'))) {
     el.className = 'update-banner done';
     el.innerHTML = `${icon('check', 'ic-sm')}<b>${esc(t('update.done', { v: st.after }))}</b>
       ${st.newVehicles ? `<span class="muted">${esc(t('update.newVehicles', { n: st.newVehicles }))}</span>` : ''}
@@ -1543,7 +1570,9 @@ async function openSettings() {
   $('#setAirMethod').value = st.cdk?.airMethod || 'custom';
   $('#setAutoUpdate').checked = st.settings?.autoUpdate !== false;
   $('#setTheme').value = themePref();
-  $('#dataVersion').textContent = st.data?.version ? t('settings.version', { version: st.data.version, date: new Date(st.data.built * 1000).toLocaleDateString(I18N.code) }) : '';
+  $('#dataVersion').textContent = st.data?.version ? `${t('settings.version', { version: st.data.version, date: new Date(st.data.built * 1000).toLocaleDateString(I18N.code) })} · ${t('source.from.' + (st.data.source || 'datamine'))}` : '';
+  renderSource($('#setSource'), st.dataSource);
+  $('#rowDatamine').classList.toggle('hidden', !(st.datamineCopy && st.data?.source === 'game'));
   $('#dlgSettings').showModal();
 }
 
@@ -1552,7 +1581,11 @@ async function saveSettings() {
   try {
     const hosts = {};
     $$('#setHosts select').forEach(s => { if (s.value) hosts[s.dataset.host] = s.value; });
-    S.status = await api('settings', { gameDir: $('#setGameDir').value.trim(), lang, cdk: $('#setCdk').checked, hosts, airMethod: $('#setAirMethod').value, autoUpdate: $('#setAutoUpdate').checked, theme: $('#setTheme').value, oodleDll: $('#setOodle').value.trim() });
+    const source = $('#setSource').dataset.source;
+    S.status = await api('settings', { gameDir: $('#setGameDir').value.trim(), lang, cdk: $('#setCdk').checked, hosts, airMethod: $('#setAirMethod').value, autoUpdate: $('#setAutoUpdate').checked, theme: $('#setTheme').value, oodleDll: $('#setOodle').value.trim(), dataSource: source });
+    // another source: rebuilt now, the banner shows it. On the welcome screen, nothing starts before its button
+    if (S.status.dataReady && source !== (S.status.data?.source || 'datamine')) { await api('update', {}); watchUpdates(); }
+    if (!S.status.dataReady) renderOnboardInfo();
     applyTheme($('#setTheme').value);
     if (S.sel) renderDrawer();
     store.set('lang', lang);
@@ -1578,7 +1611,7 @@ async function startUpdate(logEl, btn, barEl = null) {
         barEl.classList.remove('hidden');
         barEl.querySelector('i').style.width = (f * 100).toFixed(1) + '%';
         const left = f > 0.08 && f < 1 ? Math.max(5, Math.round(s / f - s)) : null;
-        barEl.querySelector('span').textContent = t(f < 0.45 ? 'onboard.stepDownload' : 'onboard.stepBuild');
+        barEl.querySelector('span').textContent = t(f >= 0.45 ? 'onboard.stepBuild' : S.status.dataSource === 'game' ? 'onboard.stepUnpack' : 'onboard.stepDownload');
         barEl.querySelector('b').textContent = `${Math.round(f * 100)} %` + (left ? ` · ${t('onboard.left', { t: left > 90 ? Math.round(left / 60) + ' min' : left + ' s' })}` : '');
       }
       if (st.running) return setTimeout(poll, 700);
@@ -1604,7 +1637,8 @@ function showOnboarding() {
   });
   renderOnboardInfo();
   // nothing is downloaded before the user agreed: where WTFTD keeps its files, what it writes in the game, what it fetches
-  $('#btnOnboard').addEventListener('click', () => {
+  $('#btnOnboard').addEventListener('click', async () => {
+    try { S.status = await api('settings', { dataSource: $('#onboardSource').dataset.source }); } catch (e) { toastErr(e); return; }
     $('#onboard .onboard-card').classList.add('busy');
     startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar'));
   });
@@ -1615,17 +1649,40 @@ function showOnboarding() {
     if (up.running) { $('#onboard .onboard-card').classList.add('busy'); startUpdate($('#onboardLog'), $('#btnOnboard'), $('#onboardBar')); }
   }).catch(() => {});
 }
+// where the game data comes from: the welcome screen and Settings. The choice stays in el.dataset.source
+function renderSource(el, current, onPick) {
+  const issue = S.status.gameSourceIssue;
+  el.dataset.source = current;
+  el.innerHTML = ['game', 'datamine'].map(src => {
+    const off = src === 'game' && issue;
+    return `<button type="button" class="opt${off ? ' disabled' : ''}${src === current ? ' active' : ''}" data-source="${src}"${off ? ' disabled' : ''}>
+      <span class="opt-main"><span class="opt-title">${esc(t('source.' + src))}</span>
+      <span class="opt-sub">${esc(t(off ? 'source.issue.' + issue : `source.${src}Hint`))}</span></span>
+      <span class="opt-radio"></span></button>`;
+  }).join('');
+  el.onclick = e => {
+    const b = e.target.closest('[data-source]');
+    if (!b || b.disabled) return;
+    renderSource(el, b.dataset.source, onPick);
+    onPick?.();
+  };
+}
 function renderOnboardInfo() {
   const st = S.status;
   const code = s => `<code>${esc(s)}</code>`;
+  const pick = $('#onboardSource');
+  // the game's own files when they can be read: no download, and the same version as the game
+  const src = st.gameSourceIssue ? 'datamine' : (pick.dataset.source || st.settings?.dataSource || 'game');
+  renderSource(pick, src, renderOnboardInfo);
+  $('#btnOnboardText').textContent = t(src === 'game' ? 'onboard.buttonGame' : 'onboard.button');
   // every place WTFTD downloads from (builder.REPO, server.IMAGE_SOURCES / image_urls / REMOTE_VERSION_URL, app_version)
   $('#onboardInfo').innerHTML = `<b>${esc(t('onboard.where'))}</b><ul>
     <li>${t('onboard.whereApp', { path: code(st.home || '') })}</li>
     <li>${t('onboard.whereGame', { path: code(st.gameDir || t('onboard.gameNotFound')) })}</li>
     <li>${esc(t('onboard.whereRemove'))}</li></ul>
     <b>${esc(t('onboard.sources'))}</b><ul>
-    <li>${t('onboard.srcData', { url: code('github.com/gszabi99/War-Thunder-Datamine') })}</li>
-    ${st.platform === 'win32' ? `<li>${t('onboard.srcGit', { url: code('github.com/git-for-windows/git') })}</li>` : ''}
+    ${src === 'game' ? `<li>${esc(t('onboard.srcDataGame'))}</li>` : `<li>${t('onboard.srcData', { url: code('github.com/gszabi99/War-Thunder-Datamine') })}</li>
+    ${st.platform === 'win32' ? `<li>${t('onboard.srcGit', { url: code('github.com/git-for-windows/git') })}</li>` : ''}`}
     <li>${t('onboard.srcImages', { a: code('static.encyclopedia.warthunder.com'), b: code('wiki.warthunder.com') })}</li>
     <li>${t('onboard.srcApp', { url: code('github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive') })}</li>
     <li>${esc(t('onboard.srcNone'))}</li></ul>`;
