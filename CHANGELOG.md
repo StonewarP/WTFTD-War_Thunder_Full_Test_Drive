@@ -4,7 +4,7 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## 0.21.0 — not released yet
+## 0.21.0 — 2026-10-31
 
 - **Feedback button** (top bar): write a few words, and GitHub opens with the bug or idea form filled in (WTFTD and game
   versions, vehicle, setup code). You read it and send it with your own account: WTFTD posts nothing by itself.
