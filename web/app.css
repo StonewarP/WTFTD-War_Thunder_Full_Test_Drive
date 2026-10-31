@@ -1255,3 +1255,13 @@ body.sub-on .subtabs { display: flex; }
 .subtab:hover { color: var(--text); }
 .subtab.active { background: var(--surface-3); color: var(--text); }
 .subtab.off { display: none; }
+/* the map of the screen: an outline of the game's HUD, or the player's own screenshot */
+.ov-screen { background-size: 100% 100%; }
+.ov-hud { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ov-screen.has-bg .ov-hud { display: none; }
+.ov-hud-text { font: 38px Consolas, monospace; fill: rgba(255, 255, 255, .8); }
+.ov-hud-line { fill: none; stroke: rgba(255, 255, 255, .6); stroke-width: 5; }
+.ov-hud-green { fill: rgba(30, 160, 60, .28); stroke: #3fdc62; stroke-width: 5; }
+.ov-shot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ov-shot label { cursor: pointer; }
+.ov-style { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--text-2); }
