@@ -294,8 +294,8 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
 
 - Stats come from the game's own stat cards (aircraft, armor) or are computed from the vehicle files (tank top
   speed from the gearbox, ±10 %). Armor-piercing penetration is the shell's own table when its file has one,
-  else computed with the formulas the game uses (DeMarre, Lanz-Odermatt), about ±5 %; APCR / APDS without a table
-  aren't shown.
+  else computed from the shell's file with the formulas the game uses (DeMarre, Lanz-Odermatt) and the speed left at
+  each distance: within 1 mm of the official wiki on the shells compared.
 - Without custom vehicles, aircraft use the official presets and the vehicle must be owned.
 - For aircraft and ships, belts are matched to gun groups in order (best effort).
 - A few scenarios pick their spawn / enemies from your vehicle's nation (Mozdok heli / UCAV, Denmark

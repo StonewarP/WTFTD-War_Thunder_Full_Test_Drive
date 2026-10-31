@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 22  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 23  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -479,6 +479,7 @@ class WeaponCache:
     def __init__(self, lang: Lang):
         self.lang = lang
         self.cache: dict[str, dict | None] = {}
+        self.blast = blast_tables()
 
     def get(self, blk: str):
         key = blk.lower()
@@ -528,7 +529,12 @@ class WeaponCache:
                         types.append(bt)
                         self.lang.put("btypes", bt, f"{bt}/name/short", f"{bt}_ball/name/short", fallback=bt.upper())
             out = {"b": names, "t": types}
-            st = shell_stats(first)
+            st = shell_stats(first, self.blast)
+            belt = [pen_curve(x, self.blast) for x in aslist(b.get("bullet")) if isinstance(x, dict)]
+            if len(belt) > 1:  # a belt pierces what its best round does
+                rows, computed = max(belt, key=lambda c: c[0][0][1] if c[0] else 0)
+                st.pop("pe", None)
+                st.update({"pc": rows, **({"pe": 1} if computed else {})} if rows else {})
             if st:
                 out["s"] = st
             return out
@@ -546,23 +552,32 @@ def _numval(v):
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
-# Kinetic penetration (mm, flat armor, at the muzzle): the shell's own table when the game file has one, else the
-# formulas the game uses for shells without one - Lanz-Odermatt for long rods (APFSDS: working length, density,
-# material), DeMarre for full-calibre AP shells (the exponents and coefficient are in the shell's file).
+# Penetration (mm, flat armor): an armor-piercing shell's own table when the game file has one, else the formulas the
+# game uses - Lanz-Odermatt for long rods (APFSDS: working length, density, material), DeMarre for the others (the
+# exponents and coefficient are in the shell's file; sub-calibre shells count the core's caliber, and its mass plus a
+# part of the rest). At the speed left at a distance, these give the game's own figures: within 1 mm of the
+# official wiki's tables on 27 shells (M829A2, 3BM46, PzGr 39, BR-471, M93, BR-365P, PzGr 40, Shot Mk.3, L28A1...).
 _LO = {"tungsten": (0.994, 134.5, -0.148), "depletedUranium": (0.825, 90.0, -0.0849)}  # a, c0, c1 (longrods.ch)
+_LO_STEEL = (1.104, 9874.0, 0.3598, -0.2342)  # a, c, k, n: steel has its own law, with the rod's hardness
 _RHA_BHN, _RHA_DENSITY = 260.0, 7850.0
 _DEMARRE_KFBR = 1900.0
+_AIR_DENSITY = 1.225  # kg/m3, sea level: the game's penetration figures are there
+_DEFAULT_CX = 0.35  # of a shell whose file has none (M79, M318, M74B1 match the wiki with it)
+_PEN_AT = (10, 100, 500, 1000, 1500, 2000, 3000, 4000)  # distances of a computed curve (m)
+_NO_PEN = ("smoke", "flr", "chff", "napalm", "practice", "snowball", "football")  # bullet types that pierce nothing
 # explosive filler (% of the shell's mass) -> penetration factor, linear in between
 _FILLER = ((0.65, 1.0), (1.6, 0.93), (2.0, 0.9), (3.0, 0.85), (4.0, 0.75))
+# core's share of a sub-calibre shell's mass -> share of the rest that counts (damage_system.blkx, subcaliberDamageMass)
+_SUBCALIBRE = ((0.0, 0.25), (0.15, 0.4), (0.3, 0.5), (0.4, 0.75))
 
 
-def _filler_factor(pct: float) -> float:
-    if pct <= _FILLER[0][0]:
-        return 1.0
-    for (x0, y0), (x1, y1) in zip(_FILLER, _FILLER[1:]):
-        if pct <= x1:
-            return y0 + (pct - x0) * (y1 - y0) / (x1 - x0)
-    return _FILLER[-1][1]
+def _linear(points: tuple, x: float) -> float:
+    if x <= points[0][0]:
+        return points[0][1]
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        if x <= x1:
+            return y0 + (x - x0) * (y1 - y0) / (x1 - x0)
+    return points[-1][1]
 
 
 def _is_ap(b: dict) -> bool:
@@ -579,53 +594,131 @@ def _pen_table(b: dict) -> list:
                   if isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) for c in v))
 
 
-def kinetic_pen(b: dict) -> float | None:
-    """Penetration of an armor-piercing shell (mm, 0°, muzzle velocity); None for other shells or when the
-    game's files don't give what the formulas need (sub-calibre AP without a table, steel rods)."""
-    if not _is_ap(b):
+def speed_at(b: dict, d: float) -> float | None:
+    """Speed left after d metres: air drag alone, on the ballistic caliber (a dart's own, not the barrel's)."""
+    v, m = _numval(b.get("speed")), _numval(b.get("mass"))
+    cal = _numval(b.get("ballisticCaliber")) or _numval(b.get("caliber"))
+    if not v or not m or not cal:
         return None
-    rows = _pen_table(b)
-    if rows:
-        return round(rows[0][1])
+    cx = _numval(b.get("Cx")) or _DEFAULT_CX
+    return v * math.exp(-_AIR_DENSITY * cx * math.pi * cal * cal / (8.0 * m) * d)
+
+
+def _formula_pen(b: dict) -> float | None:
+    """The formulas alone, at the shell's "speed"; None when its file doesn't give what they need."""
     kin = (b.get("damage") or {}).get("kinetic") if isinstance(b.get("damage"), dict) else None
     v, m = _numval(b.get("speed")), _numval(b.get("mass"))
     if not isinstance(kin, dict) or not v or not m:
         return None
     if kin.get("lanzOdermattWorkingLength") is not None:
-        lo = _LO.get(str(kin.get("lanzOdermattMaterial")))
+        material, hard = str(kin.get("lanzOdermattMaterial")), _numval(kin.get("lanzOdermattBrinellHardnessNumber"))
         length, rho, d = _numval(kin.get("lanzOdermattWorkingLength")), _numval(kin.get("lanzOdermattDensity")), _numval(b.get("damageCaliber"))
-        if not lo or not length or not rho or not d:
+        if not length or not rho or not d or not (material in _LO or (material == "steel" and hard)):
             return None
-        a, c0, c1 = lo
+        if material == "steel":
+            a, c, ek, en = _LO_STEEL
+            resist = c * _RHA_BHN ** ek * hard ** en
+        else:
+            a, c0, c1 = _LO[material]
+            resist = (c0 + c1 * _RHA_BHN) * _RHA_BHN
         vk = v / 1000.0
         p = length * a / math.tanh(0.283 + 0.0656 * length / (d * 1000.0)) * math.sqrt(rho / _RHA_DENSITY) \
-            * math.exp(-(c0 + c1 * _RHA_BHN) * _RHA_BHN / (rho * vk * vk))
+            * math.exp(-resist / (rho * vk * vk))
         return round(p)
     k = _numval(kin.get("demarrePenetrationK"))
-    if k is None or _numval(b.get("damageCaliber")):
-        return None  # sub-calibre (APCR / APDS): the game uses the core, not in the files
-    cal = _numval(b.get("caliber"))
+    core, cal = _numval(b.get("damageMass")), _numval(b.get("damageCaliber"))
+    if k is None or (cal and not core):
+        return None
+    cal = cal or _numval(b.get("caliber"))
     if not cal:
         return None
+    hit = core + _linear(_SUBCALIBRE, core / m) * (m - core) if core else m
     sp, mp, cp = (_numval(kin.get(x)) or dflt for x, dflt in (("demarreSpeedPow", 1.43), ("demarreMassPow", 0.71),
                                                                 ("demarreCaliberPow", 1.07)))
-    p = v ** sp * m ** mp / (_DEMARRE_KFBR ** sp * (cal * 10.0) ** cp) * 100.0 * k
-    return round(p * _filler_factor(100.0 * (_numval(b.get("explosiveMass")) or 0.0) / m))
+    p = v ** sp * hit ** mp / (_DEMARRE_KFBR ** sp * (cal * 10.0) ** cp) * 100.0 * k
+    return round(p * _linear(_FILLER, 100.0 * (_numval(b.get("explosiveMass")) or 0.0) / m))
 
 
-def shell_stats(b: dict | None) -> dict:
+def kinetic_pen(b: dict) -> float | None:
+    """Penetration of an armor-piercing shell (mm, 0°, at its "speed"); None for other shells."""
+    if not _is_ap(b):
+        return None
+    rows = _pen_table(b)
+    return round(rows[0][1]) if rows else _formula_pen(b)
+
+
+def blast_tables() -> dict:
+    """What blast_pen needs from the game's explosive.blkx."""
+    e = load(DM / "aces.vromfs.bin_u" / "gamedata" / "damage_model" / "explosive.blkx") or {}
+    return {"tnt": {k.lower(): _numval((v or {}).get("strengthEquivalent")) or 1.0 for k, v in (e.get("explosiveTypes") or {}).items()},
+            "pen": game_curve((e.get("explosiveTypeToSplashParams") or {}).get("explosiveMassToPenetration"))}
+
+
+def blast_pen(b: dict, blast: dict | None) -> float:
+    """What a shell's explosion pierces (mm), from its TNT equivalent."""
+    e = _numval(b.get("explosiveMass"))
+    if not e or not blast or not blast["pen"]:
+        return 0.0
+    return _linear(blast["pen"], e * blast["tnt"].get(first_str(b.get("explosiveType")).lower(), 1.0))
+
+
+def _heat(b: dict) -> float | None:
+    """A shaped charge's penetration (mm), a guided missile's in its "rocket" block: the same at any distance."""
+    for x in (b, b.get("rocket")):
+        cum = x.get("cumulativeDamage") if isinstance(x, dict) else None
+        if isinstance(cum, dict) and _numval(cum.get("armorPower")):
+            return _numval(cum.get("armorPower"))
+    return None
+
+
+def _missile_table(rocket: dict) -> list:
+    """A kinetic missile's own figures, [(m, mm)...]: it speeds up, so they rise before they fall. guiArmorpower holds the
+    first ones as [mm at 0°, 30°, 60°, distance], armorpower the rest."""
+    near = rocket.get("guiArmorpower")
+    if not isinstance(near, dict):
+        return []
+    rows = {v[-1]: v[0] for v in near.values() if isinstance(v, list) and len(v) == 4}
+    return sorted({**dict(_pen_table(rocket)), **rows}.items())
+
+
+def pen_curve(b: dict, blast: dict | None = None) -> tuple:
+    """Any shell's penetration by distance: ([[m, mm], ...], computed?), ([], False) if it pierces nothing we can tell.
+    An armor-piercing shell's table, a shaped charge's one value, else the formulas at the speed left; an explosive shell
+    pierces the better of that and its explosion (3OF26, 3OF11, Sprgr L/4.5 match the wiki)."""
+    ap = _is_ap(b)
+    table = _pen_table(b) if ap else []
+    if len(table) > 1:
+        return [[round(d), round(p)] for d, p in table], False
+    heat = _heat(b)
+    if heat:
+        return [[_PEN_AT[0], round(heat)], [_PEN_AT[-1], round(heat)]], False
+    if table or first_str(b.get("bulletType")).lower().startswith(_NO_PEN):
+        return [], False
+    missile = b.get("rocket") if isinstance(b.get("rocket"), dict) else b  # a missile's warhead is in its "rocket" block
+    floor = 0.0 if ap else blast_pen(missile, blast)
+    own = _missile_table(missile)
+    if own:
+        return [[round(d), round(max(p, floor))] for d, p in own], False
+    rows = [[d, round(max(_formula_pen({**b, "speed": speed_at(b, d)}) or 0, floor))] for d in _PEN_AT]
+    return (rows, True) if rows[0][1] else ([], False)
+
+
+def shell_stats(b: dict | None, blast: dict | None = None) -> dict:
     """Editable shell values: v speed (m/s), m mass (kg), e explosive mass (kg), h HEAT penetration (mm),
-    l APFSDS rod working length (mm); and, shown only, k kinetic penetration (mm, kinetic_pen) and pc its table
-    by distance [[m, mm], ...] when the shell's file has one."""
+    l APFSDS rod working length (mm); and, shown only, k armor-piercing penetration at 10 m (mm) and pc any shell's
+    penetration by distance, [[m, mm], ...] (pen_curve; pe: 1 when computed)."""
     if not isinstance(b, dict):
         return {}
     out = {}
     pen = kinetic_pen(b)
+    rows, computed = pen_curve(b, blast)
+    if rows:
+        out["pc"] = rows
+    if computed:
+        out["pe"] = 1
+        pen = pen and rows[0][1]
     if pen:
         out["k"] = pen
-    rows = _pen_table(b) if _is_ap(b) else []
-    if len(rows) > 1:
-        out["pc"] = [[round(d), round(p)] for d, p in rows]
     for key, src in (("v", b.get("speed")), ("m", b.get("mass")), ("e", b.get("explosiveMass"))):
         val = _numval(src)
         if val is not None:
