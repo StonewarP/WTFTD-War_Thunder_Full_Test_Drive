@@ -1265,3 +1265,6 @@ body.sub-on .subtabs { display: flex; }
 .ov-shot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ov-shot label { cursor: pointer; }
 .ov-style { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--text-2); }
+/* feedback */
+#fbText { width: 100%; min-height: 120px; resize: vertical; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--bg-2); color: var(--text); font: inherit; }
+.fb-added { display: block; margin-top: 6px; overflow-wrap: anywhere; }

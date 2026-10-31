@@ -1,5 +1,6 @@
 """Windows / macOS differences: where the game files are, which Oodle runtime file names count, the alarms."""
 import importlib
+import re
 import sys
 import tempfile
 import unittest
@@ -104,6 +105,17 @@ class Alarms(unittest.TestCase):
         w.set_enabled(False)
         self.assertIsNone(w.overlay)
         w.stop()
+
+
+class Feedback(unittest.TestCase):
+    """The app fills the GitHub issue forms by their field ids: renaming one would silently empty it."""
+
+    def test_the_fields_exist_in_the_forms(self):
+        forms = Path(__file__).parent.parent / ".github" / "ISSUE_TEMPLATE"
+        ids = {f: set(re.findall(r"^\s+id: (\w+)", (forms / f).read_text(encoding="utf-8"), re.M))
+               for f in ("bug_report.yml", "feature_request.yml")}
+        self.assertLessEqual({"version", "game", "what", "vehicle", "share"}, ids["bug_report.yml"])
+        self.assertIn("idea", ids["feature_request.yml"])
 
 
 class OodleNames(unittest.TestCase):

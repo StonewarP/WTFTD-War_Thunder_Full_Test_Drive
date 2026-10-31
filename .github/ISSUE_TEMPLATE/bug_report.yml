@@ -23,6 +23,7 @@ body:
       options:
         - In WTFTD (the app)
         - In game, in the mission WTFTD created
+        - In flight (overlay, alarms, flight data, battle)
         - First launch / game data download
         - Other
     validations:
