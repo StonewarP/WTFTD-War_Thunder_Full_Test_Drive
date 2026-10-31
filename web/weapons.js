@@ -15,12 +15,12 @@ const AR_COLS = {
   cal: { better: 0, f: x => `${x} mm` }, pf: { better: 1, f: x => `${x} m` }, burn: { better: 1, f: x => `${x} s` },
   yld: { better: 1, f: kt }, bh: { better: 0, f: x => `${x} m` }, br: { better: 0, f: fmtBR }, nv: { better: 0, f: x => I18N.num(x) },
 };
-// Bombing a base (data/bases.json, wtftd/builder.py build_bases): the game's own HP of a bombing area by the battle's BR,
-// in tonnes of TNT equivalent (HP x the game's factor), and how many of each weapon that takes. Nominal: players need
-// less in practice, and the game's multipliers per weapon type aren't in its files (yours go in the box, 1 by default).
+// Bombing a target (data/bases.json, wtftd/builder.py build_bases): the game's HP of a bombing area by the battle's BR,
+// what one weapon takes off it (the game's explosion table, from its TNT equivalent) and how many that makes.
 const AR_BASE_CATS = ['bomb', 'gbomb', 'agm', 'rocket'];
+AR_COLS.hit = { better: 1, f: x => `${I18N.num(x)} HP` };
 AR_COLS.need = { better: -1, f: x => `× ${I18N.num(x)}` };
-const arBaseState = () => (AR.base ||= { kind: 'base', mode: 'real', n: 12, spawns: 1, mult: {}, ...(store.get('wbase', {}) || {}) });
+const arBaseState = () => (AR.base ||= { kind: 'base', mode: 'real', n: 12, spawns: 1, ...(store.get('wbase', {}) || {}) });
 const arBrOfLevel = n => Math.round((1 + n / 3) * 10) / 10;  // balance level = economic rank: BR = 1 + level / 3
 
 function arBaseHP() {
@@ -30,10 +30,14 @@ function arBaseHP() {
   return band[2] * (s.mode === 'arcade' ? band[3] ?? 1 : kind.respawns ? s.spawns : 1);
 }
 
+function arHit(it) {
+  if (!AR.bases || !AR_BASE_CATS.includes(it.c) || it.nap || !it.tnt) return null;
+  return curveAt(AR.bases.damage, Math.min(it.tnt, AR.bases.damage.at(-1)[0]));
+}
+
 function arNeed(it) {
-  const hp = AR_BASE_CATS.includes(it.c) ? arBaseHP() : null;
-  if (hp == null || it.nap || !it.tnt) return null;
-  return Math.ceil(hp * AR.bases.tnt * 1000 / (it.tnt * (arBaseState().mult[it.c] || 1)));
+  const hp = arBaseHP(), hit = arHit(it);
+  return hp != null && hit ? Math.ceil(hp / hit) : null;
 }
 
 function renderBasePanel() {
@@ -47,9 +51,7 @@ function renderBasePanel() {
     ${sel('mode', [['arcade', t('arm.base.arcade')], ['real', t('arm.base.real')]], s.mode)}
     <label>${esc(t('arm.base.br'))} ${sel('n', Array.from({ length: 40 }, (_, n) => [n, fmtBR(arBrOfLevel(n))]), s.n)}</label>
     ${s.mode === 'real' && kind.respawns ? `<label>${esc(t('arm.base.spawns'))} ${sel('spawns', [1, 2, 3, 4].map(n => [n, n]), s.spawns)}</label>` : ''}
-    <label title="${esc(t('arm.base.multHint'))}">${esc(t('arm.base.mult', { cat: t('arm.cat.' + AR.cat) }))}
-      <input type="number" data-arbase="mult" min="0.01" step="0.1" value="${s.mult[AR.cat] || 1}"></label>
-    <span class="ar-base-res">${esc(t('arm.base.result', { hp: I18N.num(hp), t: I18N.num(+(hp * AR.bases.tnt).toFixed(2)) }))}</span>
+    <span class="ar-base-res">${esc(AR_COLS.hit.f(hp))}</span>
     <small class="muted">${esc(t('arm.base.note', { n: AR.bases.napalm }))}</small>`;
 }
 
@@ -59,8 +61,7 @@ function bindBasePanel() {
   $('#arBase').addEventListener('change', e => {
     const k = e.target.dataset.arbase, s = arBaseState();
     if (!k) return;
-    if (k === 'mult') s.mult = { ...s.mult, [AR.cat]: Math.max(0.01, +e.target.value || 1) };
-    else s[k] = k === 'kind' || k === 'mode' ? e.target.value : +e.target.value;
+    s[k] = k === 'kind' || k === 'mode' ? e.target.value : +e.target.value;
     store.set('wbase', s);
     renderBasePanel();
     renderWeaponTable();
@@ -83,19 +84,19 @@ const AR_CATS = {
     uses: { range: { rng: .5, v: .3, gl: .2 }, agile: { gl: .5, v: .3, pf: .2 }, ff: { ff2: .6, rng: .2, v: .2 } } },
   atgm: { cols: ['pen', 'v', 'rng', 'tnt', 'm'],
     uses: { tank: { pen: .6, v: .2, tnt: .2 }, standoff: { rng: .5, v: .3, ff: .2 }, ff: { ff: .5, rng: .25, pen: .25 }, fast: { v: .7, rng: .3 } } },
-  agm: { cols: ['v', 'rng', 'pen', 'tnt', 'm', 'need'],
+  agm: { cols: ['v', 'rng', 'pen', 'tnt', 'm', 'hit', 'need'],
     uses: { standoff: { rng: .6, v: .2, ff: .2 }, ff: { ff: .5, rng: .3, tnt: .2 }, heavy: { tnt: .7, rng: .3 }, tank: { pen: .5, tnt: .3, v: .2 } } },
-  gbomb: { cols: ['m', 'tnt', 'rng', 'need'],
+  gbomb: { cols: ['m', 'tnt', 'rng', 'hit', 'need'],
     uses: { heavy: { tnt: 1 }, ff: { ff: .6, tnt: .4 }, standoff: { rng: .7, tnt: .3 } } },
-  bomb: { cols: ['m', 'e', 'tnt', 'need'], uses: { heavy: { tnt: 1 }, eff: { eff: 1 } } },
+  bomb: { cols: ['m', 'e', 'tnt', 'hit', 'need'], uses: { heavy: { tnt: 1 }, eff: { eff: 1 } } },
   nuke: { cols: ['yld', 'bh', 'm'], uses: { power: { yld: 1 }, effn: { eff: 1 } } },
-  rocket: { cols: ['cal', 'pen', 'v', 'tnt', 'm', 'need'], uses: { tank: { pen: .7, v: .3 }, blast: { tnt: .8, v: .2 } } },
+  rocket: { cols: ['cal', 'pen', 'v', 'tnt', 'm', 'hit', 'need'], uses: { tank: { pen: .7, v: .3 }, blast: { tnt: .8, v: .2 } } },
   torpedo: { cols: ['v', 'rng', 'tnt', 'm'], uses: { fast: { v: .7, tnt: .3 }, range: { rng: .7, v: .3 }, heavy: { tnt: 1 } } },
 };
 const AR_FLAGS = ['ccm', 'act', 'ins', 'dl', 'loft', 'ff', 'wire', 'iw'];
 
 const arName = it => I18N.arm(it.id) + (it.c === 'nuke' && it.yld ? ` (${kt(it.yld)})` : '');
-const arVal = (it, k) => k === 'need' ? arNeed(it) : k === 'eff' ?(it.c === 'nuke' ? (it.yld && it.m ? it.yld / it.m : null) : it.tnt && it.m ? it.tnt / it.m : null) : k === 'ff2' ? (it.g === 'ir' || it.g === 'arh' ? 1 : 0)
+const arVal = (it, k) => k === 'hit' ? arHit(it) : k === 'need' ? arNeed(it) : k === 'eff' ? (it.c === 'nuke' ? (it.yld && it.m ? it.yld / it.m : null) : it.tnt && it.m ? it.tnt / it.m : null) : k === 'ff2' ? (it.g === 'ir' || it.g === 'arh' ? 1 : 0)
   : k === 'ccm' ? (it.ccm || 0) : AR_FLAGS.includes(k) ? (it[k] ? 1 : 0) : (typeof it[k] === 'number' ? it[k] : null);
 
 function arFmt(k, x, c) {
@@ -205,8 +206,9 @@ function renderWeaponGuide(inCat) {
 
 function renderWeaponTable() {
   const list = arItems();
-  const cols = AR_CATS[AR.cat].cols.filter(k => k === 'need' ? AR.bases && arBaseHP() != null : list.some(it => it[k] != null));
-  const cell = (k, it) => k === 'need' && it.nap ? `<span title="${esc(t('arm.colh.napalm'))}">${esc(t('arm.napalm', { n: AR.bases.napalm }))}</span>` : esc(arFmt(k, k === 'need' ? arNeed(it) : it[k], it.c));
+  const worked = k => k === 'hit' || k === 'need';  // not a field of the weapon: worked out from the panel above the table
+  const cols = AR_CATS[AR.cat].cols.filter(k => worked(k) ? AR.bases && arBaseHP() != null : list.some(it => it[k] != null));
+  const cell = (k, it) => k === 'need' && it.nap ? `<span title="${esc(t('arm.colh.napalm', { n: AR.bases.napalm }))}">${esc(t('arm.napalm'))}</span>` : esc(arFmt(k, worked(k) ? arVal(it, k) : it[k], it.c));
   const th = (k, label, title = '') => `<th class="sortable${AR.sort === k ? ' sorted' : ''}" data-arsort="${k}" title="${esc(title)}">${esc(label)}${AR.sort === k ? (AR.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
   const max = AR.use ? arBest(AR.cat, AR.use) : 1;  // 100 = best of the category, whatever the filters
   $('#arCount').textContent = t('arm.count', { n: I18N.num(list.length) });

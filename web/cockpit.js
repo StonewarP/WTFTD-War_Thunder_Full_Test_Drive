@@ -52,7 +52,7 @@ function show(now) {
     const v = now[k], cell = $(`#c-${k}`);
     $(`#c-${k} b`).textContent = v == null ? '—' : v > 1 ? `${Math.round(v)} %` : 'UP';
     cell.classList.toggle('on', v > 1);
-    cell.classList.toggle('alert', v > 1 && k !== 'airbrake' && now.margin != null && now.margin < 0);
+    cell.classList.toggle('alert', now[k + '_pct'] >= 100);  // gear_pct, flaps_pct: past their limit speed
   }
 }
 

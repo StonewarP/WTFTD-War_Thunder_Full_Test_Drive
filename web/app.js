@@ -799,14 +799,14 @@ function presetChips(p) {
   }).join('');
 }
 
-function ammoLabel(o, belt = false) {
+function ammoLabel(o, belt = false, showPen = true) {
   const types = o.t.map(x => I18N.btype(x)).join(' / ');
   if (belt) {
     const m = o.id ? I18N.mod(o.id) : t('ammo.default');
     return `${m || o.id.replace(/_/g, ' ')}${types ? ` (${types})` : ''}`;
   }
   const names = o.b.map(b => I18N.bullet(b)).join(', ');
-  const pen = o.s?.k || o.s?.h;  // armor-piercing (≈ for those without a table in the game files) / HEAT
+  const pen = showPen && (o.s?.k || o.s?.h);  // armor-piercing (≈ for those without a table in the game files) / HEAT
   return `${types || '?'}${names ? ' · ' + names : ''}${pen ? ' · ' + t('ammo.pen', { mm: Math.round(pen) }) : ''}${o.id ? '' : ' — ' + t('ammo.default')}`;
 }
 
@@ -814,13 +814,13 @@ function ammoLabel(o, belt = false) {
 // where the shell's file has one; the others only have their muzzle value (a formula), so no curve.
 const PEN_COLORS = [...AMMO_COLORS, '#ff7a6b', '#7de3d6'];
 const PEN_DIST = [100, 500, 1000, 2000];
-function penAt(pc, d) {
+function curveAt(pc, d) {  // [[x, y], ...] by x, in straight lines; null beyond its end
   if (d <= pc[0][0]) return pc[0][1];
   for (let i = 1; i < pc.length; i++) {
     const [d0, p0] = pc[i - 1], [d1, p1] = pc[i];
     if (d <= d1) return Math.round(p0 + (p1 - p0) * (d - d0) / (d1 - d0));
   }
-  return null;  // beyond the table
+  return null;
 }
 
 function penChart(g, loaded, belt = false) {
@@ -829,7 +829,7 @@ function penChart(g, loaded, belt = false) {
   const shells = belt ? curves : g.opts.filter(o => o.s?.k && (S.showUnofficial || !o.x));  // belts: only those with a curve
   const W = 300, H = 130, L = 32, R = 8, T = 8, B = 18;
   const dmax = Math.min(4000, Math.max(...curves.map(o => o.s.pc.at(-1)[0])));  // the tables end with far-off 0 mm rows
-  const clip = pc => [...pc.filter(([d]) => d <= dmax), ...(pc.at(-1)[0] > dmax && pc.some(([d]) => d < dmax) ? [[dmax, penAt(pc, dmax)]] : [])];
+  const clip = pc => [...pc.filter(([d]) => d <= dmax), ...(pc.at(-1)[0] > dmax && pc.some(([d]) => d < dmax) ? [[dmax, curveAt(pc, dmax)]] : [])];
   const top = Math.ceil(Math.max(...shells.map(o => o.s.k)) / 50) * 50;
   const X = d => L + d / dmax * (W - L - R), Y = p => H - B - p / top * (H - B - T);
   const color = o => PEN_COLORS[shells.indexOf(o) % PEN_COLORS.length];
@@ -837,8 +837,8 @@ function penChart(g, loaded, belt = false) {
   const xs = [0, .25, .5, .75, 1].map(f => `<text x="${X(dmax * f)}" y="${H - 4}" text-anchor="middle">${Math.round(dmax * f)}</text>`).join('');
   const lines = curves.map(o => `<polyline fill="none" stroke="${color(o)}" stroke-width="${loaded.has(o.id) ? 2.5 : 1.5}" points="${clip(o.s.pc).map(([d, p]) => `${X(d)},${Y(p)}`).join(' ')}"/>`
     + clip(o.s.pc).map(([d, p]) => `<circle cx="${X(d)}" cy="${Y(p)}" r="3" fill="${color(o)}"><title>${esc(ammoLabel(o, belt))} · ${d} m: ${p} mm</title></circle>`).join('')).join('');
-  const rows = shells.map(o => `<tr><td><i style="background:${color(o)}"></i>${esc(ammoLabel(o, belt).replace(/ · \d+ mm pen\.| — .*$/g, ''))}${loaded.has(o.id) ? ' ●' : ''}</td><td>${Math.round(o.s.k)}</td>${PEN_DIST.map(d => {
-    const p = o.s.pc ? penAt(o.s.pc, d) : null;
+  const rows = shells.map(o => `<tr><td><i style="background:${color(o)}"></i>${esc(ammoLabel(o, belt, false))}${loaded.has(o.id) ? ' ●' : ''}</td><td>${Math.round(o.s.k)}</td>${PEN_DIST.map(d => {
+    const p = o.s.pc ? curveAt(o.s.pc, d) : null;
     return `<td>${p == null ? '<span class="muted">—</span>' : p}</td>`;
   }).join('')}</tr>`).join('');
   return `<div class="pen-chart"><div class="pen-title">${esc(t('ammo.penChart'))}</div>

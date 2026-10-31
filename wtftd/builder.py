@@ -137,14 +137,24 @@ def build_battle_words() -> dict:
     return {"crashed": sorted({"".join(v.replace("\\t", "").split()) for v in row.values()})}
 
 
-# Base durability. The game sets the HP of a bombing area in its mission templates, by the mission's balance level
+# Bombing a target. The game sets the HP of a bombing area in its mission templates, by the mission's balance level
 # (the economic rank of the battle: BR = 1 + level / 3), then x a multiplier in arcade, x the mission's respawns
-# otherwise. A zone's HP is worth gameparams' bombingZoneHpToTntEquivalentTons tonnes of TNT equivalent.
+# otherwise. An explosion takes off the splash damage of its TNT equivalent (explosive.blkx), which isn't proportional:
+# many small bombs beat one big one. Checked on what players report: 3 Mk 83 kill a base, 6 one that respawns at
+# 25,900 HP; 9 x 60 kg do at 10,000 HP and an 800 kg bomb doesn't; 28 SC50 + 2 SC250 kill a 32,000 HP airfield.
 BASE_KINDS = {  # kind: (template, HP variable, arcade multiplier variable, balance level variable, x respawns outside arcade)
     "base": ("destroy_bomb_areas_template", "baseHP", "arcade_HP_mul", "bomb_areas_balance_level", True),
-    "ec": ("enduring_confrontation/bdt_bases_destroy_template", "bdt_base_hp", None, "bdt_balance_level", False),
-}  # shortcut: no airfields. Their templates (destroy_airfield_zone_template) give 10 to 70 t of TNT, far above what players
-# report, so the HP -> TNT factor doesn't hold there; add them once that is understood
+    "respawn": ("enduring_confrontation/bdt_bases_destroy_template", "bdt_base_hp", None, "bdt_balance_level", False),
+    "airfield": ("destroy_airfield_zone_template", "dazt_airfield_max_hp", "dazt_arcade_hp_mul", "dazt_balance_level", True),
+}
+
+
+def game_curve(block) -> list:
+    """One of the game's tables, {"p0": [x, y], ...}, as [[x, y], ...] by x: a repeated key comes as a list of pairs."""
+    out = []
+    for v in (block or {}).values():
+        out += v if isinstance(v, list) and v and isinstance(v[0], list) else [v]
+    return sorted(out)
 
 
 def hp_bands(doc: dict, hp_var: str, mul_var: str | None, level_var: str) -> list:
@@ -158,7 +168,8 @@ def hp_bands(doc: dict, hp_var: str, mul_var: str | None, level_var: str) -> lis
             hp = next((s.get("value") for s in sets if s.get("var") == hp_var), None)
             if isinstance(hp, (int, float)):
                 lo, hi = 0, None
-                for c in aslist((o.get("conditions") or {}).get("varCompareInt")):
+                conditions = o.get("conditions") if isinstance(o.get("conditions"), dict) else {}
+                for c in aslist(conditions.get("varCompareInt")):
                     if isinstance(c, dict) and c.get("var_value") == level_var and isinstance(c.get("value"), (int, float)):
                         if c.get("comparasion_func") == "less":
                             hi = c["value"] - 1 if hi is None else min(hi, c["value"] - 1)
@@ -177,20 +188,21 @@ def hp_bands(doc: dict, hp_var: str, mul_var: str | None, level_var: str) -> lis
 
 
 def build_bases() -> dict:
-    """Base destruction data for the Weapons page: HP by balance level per kind of target, the HP -> TNT tonnes factor and
-    the napalm multiplier of a bombing zone. {} when the game files don't have them."""
+    """Bombing data for the Weapons page: HP by balance level per kind of target, damage by TNT equivalent (kg) and the
+    napalm multiplier of a bombing zone. {} when the game files don't have them."""
     base = DM / "mis.vromfs.bin_u" / "gamedata" / "missions" / "templates"
     kinds = {}
     for kind, (template, hp_var, mul_var, level_var, respawns) in BASE_KINDS.items():
         bands = hp_bands(load(base / f"{template}.blkx") or {}, hp_var, mul_var, level_var)
         if bands:
             kinds[kind] = {"bands": bands, "respawns": respawns}
-    params = load(DM / "aces.vromfs.bin_u" / "config" / "gameparams.blkx") or {}
-    zone = (load(DM / "aces.vromfs.bin_u" / "gamedata" / "damage_model" / "armor_classes.blkx") or {}).get("bombing_zone") or {}
-    tnt = _numval(params.get("bombingZoneHpToTntEquivalentTons"))
-    if not kinds or not tnt:
+    model = DM / "aces.vromfs.bin_u" / "gamedata" / "damage_model"
+    splash = (load(model / "explosive.blkx") or {}).get("explosiveTypeToSplashParams") or {}
+    zone = (load(model / "armor_classes.blkx") or {}).get("bombing_zone") or {}
+    damage = game_curve(splash.get("explosiveMassToDamage"))
+    if not kinds or not damage:
         return {}
-    return {"tnt": tnt, "napalm": _numval(zone.get("napalmDamageMult")), "kinds": kinds}
+    return {"damage": damage, "napalm": _numval(zone.get("napalmDamageMult")), "kinds": kinds}
 
 
 def first_str(v) -> str:

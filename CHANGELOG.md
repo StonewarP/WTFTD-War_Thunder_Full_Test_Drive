@@ -8,17 +8,15 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 - **Penetration by distance** (vehicle panel → Ammunition, ground vehicles): a curve per armor-piercing shell of the
   gun, from the game's own table, with the values at 100, 500, 1000 and 2000 m. Shells whose file has no table
-  (computed by formula) only show their muzzle value. Data schema 21.
+  (computed by formula) only show their muzzle value.
 - **Research and purchase cost** (vehicle panel, sort, filter and comparison): the game's own RP and SL cost of each
   vehicle, and a *Research path* that adds them up along the line, from the first vehicle to the one you picked.
   Modules, crew training and the rank requirements are not counted.
-- **Bombing a base** (Weapons → bombs, guided bombs, air-to-surface, rockets): the game's own HP of a base by the
-  battle's BR, arcade or not, in tonnes of TNT equivalent (HP × the game's factor), and a new column: how many of each
-  weapon destroy it. The HP come from the game's mission templates (balance level = BR, then × a multiplier in arcade,
-  × your respawns otherwise). Napalm and incendiary bombs hurt a base through a separate multiplier (× 13) and show
-  as such. Nominal: players report needing less in practice. The game's files don't say how much more or less
-  a missile or a rocket hurts a base than its explosive suggests: you can enter a multiplier per type. Airfields are
-  not covered yet. Data schema 22.
+- **Bombing a target** (Weapons → bombs, guided bombs, air-to-surface, rockets): pick a base that doesn't come back, a
+  base that respawns or an airfield, arcade or not, and the battle's BR: the target's HP from the game's mission
+  templates, and two new columns: what one weapon takes off it, from its TNT equivalent and the game's explosion table,
+  and how many it takes. That table isn't proportional, so several small bombs beat one big one, as in game. Napalm and
+  incendiary bombs hurt a zone through their own multiplier and get no count. Data schema 22.
 - **Flight report** (In flight → Flight data, with a recorded log picked): top speed, Mach, altitude, best climb rate,
   highest G, best turn rate, best **sustained turn** (level, speed steady, over 1.5 G, 3 s or more), time to climb to
   1 000 … 11 000 m and fuel used, each with the speed and altitude it happened at. Fly a test, record it, read it.
