@@ -6,6 +6,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## 0.21.0 — not released yet
 
+- **Feedback button** (top bar): write a few words, and GitHub opens with the bug or idea form filled in (WTFTD and game
+  versions, vehicle, setup code). You read it and send it with your own account: WTFTD posts nothing by itself.
 - **A shorter top menu**: Vehicles, Maps, Weapons, My missions and In flight. Your own vehicles, maps and weapons are
   now sub-tabs of those menus, and My overlay, Flight data and Battle sit under In flight.
 - **My overlay** (In flight, Windows, off until you turn it on there): while you fly, WTFTD beeps near your aircraft's
