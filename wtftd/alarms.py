@@ -87,6 +87,9 @@ SAMPLE_STATE = {"IAS, km/h": 640, "TAS, km/h": 790, "M": 0.75, "H, m": 3200, "Vy
 
 GAME_WINDOW_CLASS = "DagorWClass"
 OVERLAY_KEY = "#010101"  # the colour made see-through
+GLOW_BAND = 0.18  # how far the glow reaches into the screen, share of its height
+GLOW_ALPHA = 180  # its opacity at the very edge, out of 255
+GLOW_STEP = 4  # worked out one pixel in 4: a 4K screen has 8 million, too many for Python, and a soft fade doesn't show it
 
 
 def available() -> bool:
@@ -135,7 +138,7 @@ def defaults(words: dict) -> dict:
 
     return {"x": round(700 * scale), "y": round(55 * scale), "font": "Consolas", "size": round(40 * scale), "bold": False,
             "color": "#E6E6E6", "alert": "#FF0000", "opacity": 100, "show": True, "hotkey": [], "hotkeyName": "",
-            "logKey": [], "logKeyName": "", "hideCrash": False, "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS} for n, (at, hz) in ALARMS.items()},
+            "logKey": [], "logKeyName": "", "hideCrash": False, "glow": False, "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS} for n, (at, hz) in ALARMS.items()},
             "lines": [line("IAS", "{ias} / {vne} km/h {swept}", alarm="airframe"), line("MACH", "{mach} / {mne}", alarm="airframe"),
                       line(words["gear"], "{ias} / {gear_max} km/h", "gear", "gear"),
                       line(words["flaps"], "{ias} / {flaps_max} km/h", "flaps", "flaps"),
@@ -178,7 +181,7 @@ def clean(cfg, words: dict) -> dict:
            "size": _num(cfg.get("size"), base["size"], 6, 400), "bold": _flag(cfg.get("bold"), base["bold"]),
            "color": _color(cfg.get("color"), base["color"]), "alert": _color(cfg.get("alert"), base["alert"]),
            "opacity": _num(cfg.get("opacity"), base["opacity"], 10, 100), "show": _flag(cfg.get("show"), base["show"]),
-           "hideCrash": _flag(cfg.get("hideCrash"), base["hideCrash"]),
+           "hideCrash": _flag(cfg.get("hideCrash"), base["hideCrash"]), "glow": _flag(cfg.get("glow"), base["glow"]),
            "repeat": _num(cfg.get("repeat"), base["repeat"], 100, 10000), "alarms": {},
            **_keys(cfg, "hotkey", "hotkeyName"), **_keys(cfg, "logKey", "logKeyName")}
     for name, std in base["alarms"].items():
@@ -340,10 +343,13 @@ def read_indicators(raw: bytes | None) -> dict:
     return data
 
 
-def flying(raw: bytes | None) -> dict | None:
-    """/state while in the air, else None: in the hangar it is valid with zeros."""
+def flying(raw: bytes | None, in_mission=lambda: True) -> dict | None:
+    """/state while in the air, else None. In the hangar it is valid too, without fuel, and the aircraft on show flickers
+    between 0 and 1 km/h: with empty tanks, only a loaded map tells a real flight."""
     state = answer(raw)
-    return state if "Mfuel0, kg" in state and state.get("IAS, km/h") else None
+    if "Mfuel0, kg" not in state or not state.get("IAS, km/h"):
+        return None
+    return None if state.get("Mfuel, kg") == 0 and not in_mission() else state
 
 
 def reported_type(indicators: dict) -> str | None:
@@ -436,6 +442,7 @@ class Watch:
         self.display = []
         self.flying = False
         self.crash = False  # in the wreck, until the next spawn
+        self.warn = False  # an alarm is on: the glow around the screen
         self.pilot = None  # the player's name in the battle log, see read_log
         self._before = None  # the last reading in the air
         self._log_id, self._readings, self._silent = None, 0, 0.0
@@ -504,6 +511,9 @@ class Watch:
             if self.log:
                 self.log.write([*(row.get(name, "") for name in SERIES), *(spot or [""] * len(POSITION))])
 
+    def in_mission(self) -> bool:
+        return bool(answer(self.get("/map_info.json")))
+
     def spot(self) -> tuple | None:
         try:
             return where(json.loads(self.get("/map_info.json")), json.loads(self.get("/map_obj.json")))
@@ -566,10 +576,11 @@ class Watch:
     def tick(self) -> float:
         """One reading of /state; returns the time until the next one."""
         wanted = self.enabled or self.log or time.monotonic() - self.viewed < VIEW_S
-        state = flying(self.get("/state")) if wanted else None
+        state = flying(self.get("/state"), self.in_mission) if wanted else None
         self.flying = state is not None
         if state is None:
             self.display = self.sample(self.preview) if self.preview else []
+            self.warn = False
             self.last = {}
             self._key = None  # the next spawn may be another aircraft, or the same one elsewhere
             self.trend = Trend()
@@ -590,8 +601,10 @@ class Watch:
         self.record(values)
         if not self.enabled:
             self.display = self.sample(self.preview) if self.preview else []
+            self.warn = False
             return POLL_S
         on = active(percents(lim, state), cfg["alarms"]) if lim and not self._unbreakable and not wreck else []
+        self.warn = bool(on)
         status = [(self.words["unknown"], cfg["alert"], cfg["size"])] if not lim else \
             [(self.words["unbreakable"], cfg["color"], cfg["size"])] if self._unbreakable else []
         self.display = [] if wreck and cfg["hideCrash"] else status + lines_for(cfg, values, on)
@@ -616,6 +629,60 @@ class Watch:
             self.overlay.join(1)
 
 
+def glow_pixels(size: tuple, color: str) -> bytes:
+    """A screen-sized picture for paint_glow, premultiplied BGRA: the colour at the edges, fading to nothing inside."""
+    width, height = size
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    levels = [bytes((b * a // 255, g * a // 255, r * a // 255, a)) * GLOW_STEP for a in range(GLOW_ALPHA + 1)]
+
+    def near(n: int, total: int) -> float:  # 1 at the edge, 0 from GLOW_BAND in
+        return max(0.0, 1 - min(n, total - 1 - n) / (height * GLOW_BAND)) ** 2
+
+    across = [near(x, width) for x in range(0, width, GLOW_STEP)]
+    rows, made = [], {}
+    for y in range(0, height, GLOW_STEP):
+        down = near(y, height)
+        if down not in made:  # the middle of the screen is a single row
+            made[down] = b"".join(levels[int(GLOW_ALPHA * (1 - (1 - x) * (1 - down)))] for x in across)[:width * 4] * GLOW_STEP
+        rows.append(made[down])
+    return b"".join(rows)[:width * height * 4]
+
+
+def paint_glow(hwnd: int, size: tuple, pixels: bytes):
+    """Gives a layered window its picture, with an opacity per pixel: Tk only has one for a whole window. The window keeps
+    its own copy. shortcut: the primary screen only, use the game window's monitor if someone plays on another one."""
+    import ctypes
+    from ctypes import wintypes as w
+
+    class Blend(ctypes.Structure):
+        _fields_ = [("op", ctypes.c_ubyte), ("flags", ctypes.c_ubyte), ("constant", ctypes.c_ubyte), ("format", ctypes.c_ubyte)]
+
+    class Header(ctypes.Structure):  # BITMAPINFOHEADER
+        _fields_ = [("size", w.DWORD), ("width", w.LONG), ("height", w.LONG), ("planes", w.WORD), ("bits", w.WORD), ("rest", w.DWORD * 6)]
+
+    gdi, user = ctypes.WinDLL("gdi32", use_last_error=True), ctypes.WinDLL("user32", use_last_error=True)
+    gdi.CreateCompatibleDC.argtypes, gdi.CreateCompatibleDC.restype = [w.HDC], w.HDC
+    gdi.CreateDIBSection.argtypes = [w.HDC, ctypes.c_void_p, w.UINT, ctypes.POINTER(ctypes.c_void_p), w.HANDLE, w.DWORD]
+    gdi.CreateDIBSection.restype = w.HBITMAP
+    gdi.SelectObject.argtypes, gdi.SelectObject.restype = [w.HDC, w.HANDLE], w.HANDLE
+    gdi.DeleteObject.argtypes, gdi.DeleteDC.argtypes = [w.HANDLE], [w.HDC]
+    user.UpdateLayeredWindow.argtypes = [w.HWND, w.HDC, ctypes.POINTER(w.POINT), ctypes.POINTER(w.SIZE), w.HDC,
+                                         ctypes.POINTER(w.POINT), w.COLORREF, ctypes.POINTER(Blend), w.DWORD]
+    dc, bits, corner = gdi.CreateCompatibleDC(None), ctypes.c_void_p(), w.POINT(0, 0)
+    picture = gdi.CreateDIBSection(dc, ctypes.byref(Header(40, size[0], size[1], 1, 32)), 0, ctypes.byref(bits), None, 0)
+    done = False
+    if picture:
+        ctypes.memmove(bits, pixels, len(pixels))
+        before = gdi.SelectObject(dc, picture)
+        done = user.UpdateLayeredWindow(hwnd, None, ctypes.byref(corner), ctypes.byref(w.SIZE(*size)), dc, ctypes.byref(corner), 0,
+                                        ctypes.byref(Blend(0, 0, 255, 1)), 2)  # AC_SRC_ALPHA, ULW_ALPHA
+        gdi.SelectObject(dc, before)
+        gdi.DeleteObject(picture)
+    gdi.DeleteDC(dc)
+    if not done:  # only the glow is lost: an exception here would stop the overlay
+        print(f"Glow off: {ctypes.WinError(ctypes.get_last_error())}", flush=True)
+
+
 def run_overlay(watch: Watch):
     """The overlay window. Runs in its own thread, with every Tk call: the main one waits for the app window."""
     try:
@@ -629,15 +696,23 @@ def run_overlay(watch: Watch):
         root.attributes("-topmost", True)
         root.attributes("-transparentcolor", OVERLAY_KEY)
         root.configure(bg=OVERLAY_KEY)
+        glow = tk.Toplevel(root)  # made now, hidden: created during an alarm, it would take the focus from the game
+        glow.overrideredirect(True)
+        glow.attributes("-topmost", True)
+        glow.geometry("1x1+-10000+-10000")
         root.update()
         hwnd = user32.GetAncestor(root.winfo_id(), 2)  # GA_ROOT
-        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, GWL_EXSTYLE = 0x08000000, 0x80, 0x20, -20
+        glow_hwnd = user32.GetAncestor(glow.winfo_id(), 2)
+        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_EX_LAYERED, GWL_EXSTYLE = 0x08000000, 0x80, 0x20, 0x80000, -20
         SW_HIDE, SW_SHOWNOACTIVATE = 0, 4
-        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-                              | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT)  # clicks go through it
+        click_through = WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT  # clicks go through it
+        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, user32.GetWindowLongW(hwnd, GWL_EXSTYLE) | click_through)
+        user32.SetWindowLongW(glow_hwnd, GWL_EXSTYLE, user32.GetWindowLongW(glow_hwnd, GWL_EXSTYLE) | click_through | WS_EX_LAYERED)
+        paint_glow(glow_hwnd, (1, 1), bytes(4))  # a see-through pixel: hidden before its first picture, it would refuse them all
         user32.ShowWindow(hwnd, SW_HIDE)
+        user32.ShowWindow(glow_hwnd, SW_HIDE)
         user32.SetForegroundWindow(previous)  # creating the window took the focus
-        rows, drawn = [], None
+        rows, drawn, painted = [], None, None
 
         def game_focused() -> bool:
             name = ctypes.create_unicode_buffer(32)
@@ -661,7 +736,7 @@ def run_overlay(watch: Watch):
             root.update_idletasks()  # now: shown before that, a first drawing stays at (0, 0)
 
         def refresh():
-            nonlocal drawn
+            nonlocal drawn, painted
             if watch.stopping.is_set():
                 root.destroy()
                 return
@@ -676,11 +751,16 @@ def run_overlay(watch: Watch):
             on_game = cfg["show"] and not watch.hidden and game_focused()
             # ShowWindow rather than Tk: Tk would take the focus
             user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE if lines and (watch.preview or on_game) else SW_HIDE)
+            if cfg["glow"] and cfg["alert"] != painted:  # ahead of the first alarm: it takes a moment on a big screen
+                painted = cfg["alert"]
+                paint_glow(glow_hwnd, screen(), glow_pixels(screen(), painted))
+            warn = watch.preview or (watch.warn and not watch.hidden and game_focused())
+            user32.ShowWindow(glow_hwnd, SW_SHOWNOACTIVATE if cfg["glow"] and warn else SW_HIDE)
             root.after(int(POLL_S * 1000), refresh)
 
         refresh()
         root.mainloop()
-        root = rows = draw = refresh = None
+        root = glow = rows = draw = refresh = None
         gc.collect()  # Tk must be freed here: left to Python's exit, in the main thread, it aborts the process
     except Exception as e:  # no Tk in this Python, no display...: the alarms still beep
         print(f"Overlay off: {e}", flush=True)

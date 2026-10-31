@@ -177,6 +177,33 @@ class Recognition(unittest.TestCase):
         self.assertIsNone(alarms.recognise(PLANES, state(**{"Mfuel0, kg": 1}), "j_10c"))
 
 
+class Glow(unittest.TestCase):
+    def alpha(self, pixels, width, x, y):
+        return pixels[(y * width + x) * 4 + 3]
+
+    def test_strong_at_the_edges_nothing_inside(self):
+        pixels = alarms.glow_pixels((400, 200), "#FF0000")
+        self.assertEqual(self.alpha(pixels, 400, 0, 0), alarms.GLOW_ALPHA)
+        self.assertEqual(self.alpha(pixels, 400, 200, 100), 0)
+        self.assertGreater(self.alpha(pixels, 400, 200, 0), self.alpha(pixels, 400, 200, 12))
+        self.assertGreater(self.alpha(pixels, 400, 200, 12), self.alpha(pixels, 400, 200, 28))
+
+    def test_premultiplied(self):  # what the window takes: red no stronger than the opacity, nothing else
+        pixels = alarms.glow_pixels((40, 20), "#FF0000")
+        for b, g, r, a in zip(*[iter(pixels)] * 4):
+            self.assertEqual((b, g, r), (0, 0, a))
+        self.assertEqual(alarms.glow_pixels((8, 4), "#102030")[:4], bytes((33, 22, 11, 180)))
+
+    def test_any_screen_size(self):
+        for size in ((1920, 1080), (3840, 2160), (1366, 768), (2561, 1439)):
+            self.assertEqual(len(alarms.glow_pixels(size, "#FF0000")), size[0] * size[1] * 4)
+
+    def test_off_by_default(self):
+        self.assertFalse(alarms.clean(None, WORDS)["glow"])
+        self.assertTrue(alarms.clean({"glow": True}, WORDS)["glow"])
+        self.assertFalse(alarms.clean({"glow": "yes"}, WORDS)["glow"])
+
+
 class Watching(unittest.TestCase):
     def setUp(self):
         self.reply = json.dumps(state()).encode()
@@ -229,6 +256,26 @@ class Watching(unittest.TestCase):
         self.watch._last_beep -= 1
         self.fly(**{"IAS, km/h": 1500})
         self.assertEqual(self.beep.call_count, 2)
+
+    def test_the_menus_are_not_a_flight(self):  # as read in the hangar on 2.59
+        hangar = state(**{"IAS, km/h": 1, "Mfuel, kg": 0, "RPM 1": 0})
+        self.assertIsNone(alarms.flying(json.dumps(hangar).encode(), lambda: False))
+        self.assertEqual(alarms.flying(json.dumps(hangar).encode(), lambda: True), hangar)  # gliding on empty tanks
+        get = {"/state": json.dumps(hangar).encode(), "/map_info.json": b'{"valid" : false}'}.get
+        watch = alarms.Watch(get, dict, save=lambda: None)
+        watch.enabled = True
+        self.assertEqual(watch.tick(), alarms.IDLE_S)
+        self.assertFalse(watch.flying)
+
+    def test_the_glow_follows_the_alarms(self):
+        self.fly(**{"IAS, km/h": 1500})
+        self.assertTrue(self.watch.warn)
+        self.fly(**{"IAS, km/h": 300})
+        self.assertFalse(self.watch.warn)
+        self.fly(**{"IAS, km/h": 1500})
+        self.reply = b'{"valid": false}'
+        self.watch.tick()
+        self.assertFalse(self.watch.warn)
 
     def test_not_flying(self):
         for reply in (None, b"", b"not json", b"[]", b'{"valid": false}', b'{"valid": true}',

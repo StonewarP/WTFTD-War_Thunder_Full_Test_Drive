@@ -159,7 +159,8 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 - **My overlay** (Windows, off until you turn it on; per aircraft or type if you like): your own lines over the game
   in a click-through window (speed against the limit, altitude, fuel, any value the game sends), limits as speeds,
   percentages or both, placed on a picture of your screen with the game's HUD or your own screenshot; and beeps near
-  your aircraft's breaking speeds with your thresholds and sounds, which stop when you crash. It reads the game's local
+  your aircraft's breaking speeds with your thresholds and sounds, with a glow around the screen if you like, which stop
+  when you crash. It reads the game's local
   data about your own aircraft only, nothing is added to the game
 - **Flight data** (Windows): live curves of what the game reports in flight (speed, altitude, G, turn time, fuel use...),
   and a recorder: CSV logs for Excel, replayed in the app, with a **flight report** (top speed, best climb, best

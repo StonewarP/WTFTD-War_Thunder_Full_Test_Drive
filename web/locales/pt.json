@@ -473,6 +473,7 @@
   "ov.bgHint": "Faça uma captura em voo e escolha-a aqui, ou cole com Ctrl+V: assim você posiciona o texto no seu HUD real. Sem captura, é um contorno do HUD em uma tela 16:9.",
   "ov.show": "Mostrar a janela em voo (senão: só bipes)",
   "ov.hideCrash": "Ocultar o overlay após uma queda (os bipes sempre param)",
+  "ov.glow": "Halo em volta da tela durante um alarme, na cor de alerta",
   "ov.hotkey": "Tecla mostrar / ocultar",
   "ov.hotkeyPh": "Clique aqui e pressione uma tecla",
   "ov.hotkeyHint": "Funciona com o jogo em primeiro plano. Esc remove a tecla.",

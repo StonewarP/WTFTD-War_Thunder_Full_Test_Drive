@@ -4,6 +4,13 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.21.1 — not released yet
+
+- **Glow around the screen** (My overlay, off until you turn it on): during an alarm, a soft glow in the alert colour
+  around the screen, on top of the beeps. Clicks go through it, and it never takes the focus from the game.
+- The overlay no longer shows up now and then in the menus: in the hangar the game reports 0 or 1 km/h for the aircraft
+  on show, which looked like a flight.
+
 ## 0.21.0 — 2026-10-31
 
 - **Feedback button** (top bar): write a few words, and GitHub opens with the bug or idea form filled in (WTFTD and game

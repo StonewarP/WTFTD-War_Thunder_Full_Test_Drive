@@ -473,6 +473,7 @@
   "ov.bgHint": "Mach im Flug einen Screenshot und wähle ihn hier aus oder füge ihn mit Strg+V ein: So platzierst du den Text auf deinem echten HUD. Ohne Screenshot siehst du einen Umriss des HUD auf einem 16:9-Bildschirm.",
   "ov.show": "Fenster im Flug zeigen (sonst nur Pieptöne)",
   "ov.hideCrash": "Overlay nach einem Absturz ausblenden (die Pieptöne enden immer)",
+  "ov.glow": "Leuchten am Bildschirmrand bei einem Alarm, in der Alarmfarbe",
   "ov.hotkey": "Taste Ein-/Ausblenden",
   "ov.hotkeyPh": "Hier klicken, dann eine Taste drücken",
   "ov.hotkeyHint": "Funktioniert mit dem Spiel im Vordergrund. Esc entfernt die Taste.",

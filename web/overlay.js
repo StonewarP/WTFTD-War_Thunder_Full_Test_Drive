@@ -35,6 +35,7 @@ async function ovFlush(extra = {}) {
 function ovDraw() {
   const box = $('#ovScreen'), text = $('#ovText'), c = OV.cfg;
   box.style.aspectRatio = `${OV.screen[0]} / ${OV.screen[1]}`;
+  box.style.boxShadow = c.glow ? `inset 0 0 ${box.clientHeight * .18}px ${c.alert}` : '';
   const k = box.clientWidth / OV.screen[0];
   Object.assign(text.style, { left: `${c.x * k}px`, top: `${c.y * k}px`, opacity: c.opacity / 100,
                               fontFamily: `"${c.font}", monospace`, fontWeight: c.bold ? 700 : 400 });

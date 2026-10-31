@@ -491,6 +491,7 @@
   "ov.bgHint": "Take a screenshot in flight and pick it here, or paste it with Ctrl+V: you then place the text on your real HUD. Without one, this is an outline of the HUD on a 16:9 screen.",
   "ov.show": "Show the window in flight (off: beeps only)",
   "ov.hideCrash": "Hide the overlay after a crash (the beeps always stop)",
+  "ov.glow": "Glow around the screen during an alarm, in the alert colour",
   "ov.hotkey": "Show / hide key",
   "ov.hotkeyPh": "Click here, then press a key",
   "ov.hotkeyHint": "Works with the game in front. Esc removes the key.",

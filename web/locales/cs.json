@@ -473,6 +473,7 @@
   "ov.bgHint": "Pořiďte snímek za letu a vyberte ho zde, nebo ho vložte pomocí Ctrl+V: text pak umístíte na skutečný HUD. Bez snímku je to obrys HUD na obrazovce 16:9.",
   "ov.show": "Zobrazit okno v letu (jinak jen pípání)",
   "ov.hideCrash": "Skrýt overlay po havárii (pípání vždy ustane)",
+  "ov.glow": "Záře kolem obrazovky během alarmu, v barvě výstrahy",
   "ov.hotkey": "Klávesa zobrazit / skrýt",
   "ov.hotkeyPh": "Klikněte sem a stiskněte klávesu",
   "ov.hotkeyHint": "Funguje, když je hra v popředí. Esc klávesu odstraní.",

@@ -326,6 +326,9 @@ Turn them on first: In flight → My overlay → Turn on the overlay and alarms 
 - [ ] **External fuel tanks**: does `Mfuel0` change? If it does, the aircraft becomes `AIRCRAFT UNKNOWN`.
 - [ ] **Alarms heard at the right threshold**: airframe (dive, 93 %, high beep), gear (90 %), flaps (90 %, low beep).
   The flap limit is interpolated between the flight model's points: an interpretation of the data, to confirm.
+- [ ] **Menus**: nothing shows in the hangar, whatever aircraft is on show (the game flickers between 0 and 1 km/h there).
+- [ ] **Glow** (My overlay → Glow around the screen): shows with an alarm, goes with it, not after a crash, never takes the
+  focus, clicks go through it, and fits a borderless game (not an exclusive fullscreen one).
 - [ ] **Overlay**: shown in flight, gone on Alt+Tab, back afterwards, never takes the focus, clicks go through it.
   Beeps go on during an Alt+Tab.
 - [ ] **A-4 or Mirage III** (take-off rockets counted out of the engines): recognised? How many `throttle` fields
