@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 21  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 22  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -135,6 +135,62 @@ def build_battle_words() -> dict:
     except OSError:
         return {"crashed": []}
     return {"crashed": sorted({"".join(v.replace("\\t", "").split()) for v in row.values()})}
+
+
+# Base durability. The game sets the HP of a bombing area in its mission templates, by the mission's balance level
+# (the economic rank of the battle: BR = 1 + level / 3), then x a multiplier in arcade, x the mission's respawns
+# otherwise. A zone's HP is worth gameparams' bombingZoneHpToTntEquivalentTons tonnes of TNT equivalent.
+BASE_KINDS = {  # kind: (template, HP variable, arcade multiplier variable, balance level variable, x respawns outside arcade)
+    "base": ("destroy_bomb_areas_template", "baseHP", "arcade_HP_mul", "bomb_areas_balance_level", True),
+    "ec": ("enduring_confrontation/bdt_bases_destroy_template", "bdt_base_hp", None, "bdt_balance_level", False),
+}  # shortcut: no airfields. Their templates (destroy_airfield_zone_template) give 10 to 70 t of TNT, far above what players
+# report, so the HP -> TNT factor doesn't hold there; add them once that is understood
+
+
+def hp_bands(doc: dict, hp_var: str, mul_var: str | None, level_var: str) -> list:
+    """[[first level, last level (None: and up), HP, arcade multiplier (None: none)], ...] from the triggers of a mission
+    template that set hp_var for a range of balance levels."""
+    out = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            sets = [s for s in aslist((o.get("actions") or {}).get("varSetReal")) if isinstance(s, dict)] if isinstance(o.get("actions"), dict) else []
+            hp = next((s.get("value") for s in sets if s.get("var") == hp_var), None)
+            if isinstance(hp, (int, float)):
+                lo, hi = 0, None
+                for c in aslist((o.get("conditions") or {}).get("varCompareInt")):
+                    if isinstance(c, dict) and c.get("var_value") == level_var and isinstance(c.get("value"), (int, float)):
+                        if c.get("comparasion_func") == "less":
+                            hi = c["value"] - 1 if hi is None else min(hi, c["value"] - 1)
+                        elif c.get("comparasion_func") == "more":
+                            lo = max(lo, c["value"] + 1)
+                mul = next((s.get("value") for s in sets if s.get("var") == mul_var), None) if mul_var else None
+                out.append([int(lo), None if hi is None else int(hi), hp, mul])
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+
+    walk(doc.get("triggers") or {})
+    return sorted(out, key=lambda b: b[0])
+
+
+def build_bases() -> dict:
+    """Base destruction data for the Weapons page: HP by balance level per kind of target, the HP -> TNT tonnes factor and
+    the napalm multiplier of a bombing zone. {} when the game files don't have them."""
+    base = DM / "mis.vromfs.bin_u" / "gamedata" / "missions" / "templates"
+    kinds = {}
+    for kind, (template, hp_var, mul_var, level_var, respawns) in BASE_KINDS.items():
+        bands = hp_bands(load(base / f"{template}.blkx") or {}, hp_var, mul_var, level_var)
+        if bands:
+            kinds[kind] = {"bands": bands, "respawns": respawns}
+    params = load(DM / "aces.vromfs.bin_u" / "config" / "gameparams.blkx") or {}
+    zone = (load(DM / "aces.vromfs.bin_u" / "gamedata" / "damage_model" / "armor_classes.blkx") or {}).get("bombing_zone") or {}
+    tnt = _numval(params.get("bombingZoneHpToTntEquivalentTons"))
+    if not kinds or not tnt:
+        return {}
+    return {"tnt": tnt, "napalm": _numval(zone.get("napalmDamageMult")), "kinds": kinds}
 
 
 def first_str(v) -> str:
@@ -2183,6 +2239,8 @@ def _build(progress, source: str):
         json.dump(build_bullet_icons(), f, separators=(",", ":"))
     with open(DATA / "battle_words.json", "w", encoding="utf-8") as f:
         json.dump(build_battle_words(), f, ensure_ascii=False, separators=(",", ":"))
+    with open(DATA / "bases.json", "w", encoding="utf-8") as f:
+        json.dump(build_bases(), f, separators=(",", ":"))
     codes = lang.write()
     version = (DM / "version").read_text().strip() if (DM / "version").exists() else "?"
     meta = {"version": version, "schema": SCHEMA, "source": source, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}

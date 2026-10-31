@@ -383,6 +383,11 @@ option { background: var(--surface); }
 .cap-bar span { display: block; height: 100%; }
 .cap-legend { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cap-legend.over { color: var(--warn); }
+.ar-base { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 12px; margin: 8px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.ar-base label { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+.ar-base input[type=number] { width: 72px; }
+.ar-base small { flex-basis: 100%; }
+.ar-base-res { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
 .rpath { margin-top: 8px; font-size: 12px; }
 .rpath summary { cursor: pointer; color: var(--muted); }
 .rpath ol { margin: 6px 0; padding: 0; list-style: none; font-variant-numeric: tabular-nums; }

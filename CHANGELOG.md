@@ -12,6 +12,23 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Research and purchase cost** (vehicle panel, sort, filter and comparison): the game's own RP and SL cost of each
   vehicle, and a *Research path* that adds them up along the line, from the first vehicle to the one you picked.
   Modules, crew training and the rank requirements are not counted.
+- **Bombing a base** (Weapons → bombs, guided bombs, air-to-surface, rockets): the game's own HP of a base by the
+  battle's BR, arcade or not, in tonnes of TNT equivalent (HP × the game's factor), and a new column: how many of each
+  weapon destroy it. The HP come from the game's mission templates (balance level = BR, then × a multiplier in arcade,
+  × your respawns otherwise). Napalm and incendiary bombs hurt a base through a separate multiplier (× 13) and show
+  as such. Nominal: players report needing less in practice. The game's files don't say how much more or less
+  a missile or a rocket hurts a base than its explosive suggests: you can enter a multiplier per type. Airfields are
+  not covered yet. Data schema 22.
+- **Flight report** (In flight → Flight data, with a recorded log picked): top speed, Mach, altitude, best climb rate,
+  highest G, best turn rate, best **sustained turn** (level, speed steady, over 1.5 G, 3 s or more), time to climb to
+  1 000 … 11 000 m and fuel used, each with the speed and altitude it happened at. Fly a test, record it, read it.
+- **Export for Tacview** (Flight data, a recorded log picked): your flight as a Tacview `.txt.acmi` file, your own
+  aircraft only. Logs now also keep your place on the map (the game's own map marker: position and heading); logs
+  recorded before have none and say so. The roll isn't exported (the game's sign isn't checked); the pitch comes from
+  the climb angle plus the angle of attack.
+- **Cockpit window** (Flight data → Cockpit window): your aircraft's speed, altitude, climb rate and G as dials, plus
+  Mach, angle of attack, heading, throttle, fuel, gear and flaps, updated four times a second. For a second screen.
+  It shows what the game reports about your own aircraft, nothing else.
 - **A shorter top menu**: Vehicles, Maps, Weapons, My missions and In flight. Your own vehicles, maps and weapons are
   now sub-tabs of those menus, and My overlay, Flight data and Battle sit under In flight.
 - **My overlay** (In flight, Windows, off until you turn it on there): while you fly, WTFTD beeps near your aircraft's
