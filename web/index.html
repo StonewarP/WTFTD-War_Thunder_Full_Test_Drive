@@ -213,10 +213,26 @@
       <div class="ov-grid">
         <div class="ov-main">
           <div class="ov-top">
-            <div class="ov-screen" id="ovScreen"><div class="ov-text" id="ovText"></div></div>
+            <div class="ov-screen" id="ovScreen">
+            <svg class="ov-hud" viewBox="0 0 3840 2160" aria-hidden="true">
+              <g class="ov-hud-text"><text x="75" y="79">THR</text><text x="385" y="79">0 %</text><text x="75" y="125">IAS</text><text x="385" y="125">440 km/h</text><text x="75" y="171">SPD</text><text x="385" y="171">544 km/h</text><text x="75" y="217">ALT</text><text x="385" y="217">4385 m</text><text x="75" y="263">RALT</text><text x="385" y="263">2627 m</text><text x="75" y="336">AAM</text><text x="385" y="336">10/6</text><text x="75" y="382">FLR</text><text x="385" y="382">20</text><text x="75" y="428">CHFF</text><text x="385" y="428">76</text><text x="75" y="474">CNN</text><text x="385" y="474">150</text><text x="75" y="520">FUEL</text><text x="385" y="520">44:49</text><text x="75" y="593">OIL 1</text><text x="385" y="593">66°C</text><text x="75" y="639">ENG 1</text><text x="385" y="639">378°C</text><text x="75" y="685">OIL 2</text><text x="385" y="685">66°C</text><text x="75" y="731">ENG 2</text><text x="385" y="731">377°C</text><text x="1600" y="60">175</text><text x="1768" y="60">S</text><text x="1937" y="60">185</text><text x="2108" y="60">190</text><text x="2279" y="60">195</text></g>
+              <g class="ov-hud-line"><circle cx="3573" cy="246" r="173"/><circle cx="1922" cy="902" r="42"/><rect x="1252" y="1978" width="1340" height="172" rx="8"/></g>
+              <g class="ov-hud-green"><circle cx="355" cy="1081" r="227"/><rect x="3024" y="1012" width="624" height="607"/></g>
+            </svg>
+              <div class="ov-text" id="ovText"></div>
+            </div>
             <div class="ov-zoom" id="ovZoom"></div>
           </div>
           <small class="muted" data-i18n="ov.dragHint"></small>
+          <div class="ov-shot">
+            <label class="btn btn-sm"><span data-i18n="ov.bgPick"></span><input type="file" id="ovBgFile" accept="image/*" hidden></label>
+            <button class="btn btn-sm btn-ghost hidden" id="ovBgRemove"><span data-i18n="ov.bgRemove"></span></button>
+            <small class="muted" data-i18n="ov.bgHint"></small>
+          </div>
+          <div class="ov-style">
+            <span data-i18n="ov.style"></span>
+            <div class="seg" id="ovStyle"><button data-style="speed" data-i18n="ov.style.speed"></button><button data-style="percent" data-i18n="ov.style.percent"></button><button data-style="both" data-i18n="ov.style.both"></button></div>
+          </div>
           <h3 class="ov-h" data-i18n="ov.lines"></h3>
           <small class="muted" data-i18n="ov.linesHint"></small>
           <div class="ov-lines" id="ovLines"></div>

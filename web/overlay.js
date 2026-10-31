@@ -57,6 +57,46 @@ function ovRenderLines() {
       <label class="ov-mini ov-swatch"><span>${esc(t('ov.lineColor'))}</span><input type="color" data-ol="color" value="${esc(l.color || OV.cfg.color)}"></label>
       <button class="icon-btn ov-clear${l.color ? '' : ' hidden'}" data-ovnocolor title="${esc(t('ov.noColor'))}">${icon('x', 'ic-sm')}</button>
       <button class="icon-btn btn-danger" data-ovdel title="${esc(t('action.delete'))}">${icon('trash')}</button></div>`).join('');
+  ovShowStyle();
+}
+
+// how the lines of the alarms read: the speed against its limit, how far along the limit it is, or both
+function ovStyleLines(style) {
+  const word = a => t('ov.alarm.' + a).toUpperCase(), speed = style !== 'percent', pct = a => (style === 'speed' ? '' : `${style === 'both' ? '  ' : ''}{${a}_pct} %`);
+  const rows = [speed ? ['IAS', `{ias} / {vne} km/h${pct('airframe') && ` ${pct('airframe').trim()}`} {swept}`, 'always', 'airframe'] : [word('airframe'), `${pct('airframe')} {swept}`, 'always', 'airframe'],
+                ...(speed ? [['MACH', '{mach} / {mne}', 'always', 'airframe']] : []),
+                [word('gear'), `${speed ? '{ias} / {gear_max} km/h' : ''}${pct('gear')}`, 'gear', 'gear'],
+                [word('flaps'), `${speed ? '{ias} / {flaps_max} km/h' : ''}${pct('flaps')}`, 'flaps', 'flaps']];
+  const width = Math.max(...rows.map(r => r[0].length)) + 2;
+  return rows.map(([label, text, when, alarm]) => ({ text: label.padEnd(width) + text, when, alarm, color: '', size: 0 }));
+}
+function ovShowStyle() {
+  const texts = OV.cfg.lines.map(l => l.text);
+  $$('#ovStyle button').forEach(b => b.classList.toggle('active', ovStyleLines(b.dataset.style).every(l => texts.includes(l.text))));
+}
+function ovSetStyle(style) {
+  const lines = OV.cfg.lines, own = a => lines.find(l => l.alarm === a) || {};  // a colour or size set on a line stays
+  OV.cfg.lines = [...ovStyleLines(style).map(l => ({ ...l, color: own(l.alarm).color || '', size: own(l.alarm).size || 0 })), ...lines.filter(l => !l.alarm)];
+  ovRenderLines();
+  ovSave();
+}
+
+// the picture behind the text: the player's own screenshot, shrunk to what the page shows, kept in this browser profile
+function ovShowBg() {
+  const url = store.get('overlayBg', ''), box = $('#ovScreen');
+  box.style.backgroundImage = url ? `url("${url}")` : '';
+  box.classList.toggle('has-bg', !!url);
+  $('#ovBgRemove').classList.toggle('hidden', !url);
+}
+async function ovSetBg(file) {
+  try {
+    const img = await createImageBitmap(file), k = Math.min(1, 1600 / img.width), c = document.createElement('canvas');
+    c.width = img.width * k;
+    c.height = img.height * k;
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    store.set('overlayBg', c.toDataURL('image/jpeg', .8));
+    ovShowBg();
+  } catch (e) { toastErr(e); }
 }
 
 function ovRenderAlarms() {
@@ -182,6 +222,7 @@ function bindOverlay() {
     } else if (el.dataset.ol) {
       const line = OV.cfg.lines[+el.closest('.ov-line').dataset.i];
       line[el.dataset.ol] = el.dataset.ol === 'size' ? value || 0 : value;
+      ovShowStyle();
       if (el.dataset.ol === 'color') $('.ov-clear', el.closest('.ov-line')).classList.remove('hidden');
     } else if (el.dataset.oa) {
       if (el.type === 'number' && Number.isNaN(value)) return;
@@ -202,6 +243,14 @@ function bindOverlay() {
     else return;
     ovRenderLines();
     ovSave();
+  });
+  $('#ovStyle').addEventListener('click', e => { if (e.target.dataset.style) ovSetStyle(e.target.dataset.style); });
+  ovShowBg();
+  $('#ovBgFile').addEventListener('change', e => { if (e.target.files[0]) ovSetBg(e.target.files[0]); e.target.value = ''; });
+  $('#ovBgRemove').addEventListener('click', () => { store.set('overlayBg', ''); ovShowBg(); });
+  addEventListener('paste', e => {
+    const image = [...e.clipboardData.files].find(f => f.type.startsWith('image/'));
+    if (image && !$('#view-overlay').classList.contains('hidden')) ovSetBg(image);
   });
   $('#ovAddLine').addEventListener('click', () => {
     OV.cfg.lines.push({ text: '', when: 'always', alarm: '', color: '', size: 0 });

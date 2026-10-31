@@ -14,8 +14,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   flaps when they are out.
   - Everything is yours: write the lines (`ALT {alt} m  {margin} km/h left`, 30 values one click away, and any field
     the game sends), when each one shows, its size and colour, which alarm turns it to the alert colour.
-  - Drag the text on a to-scale picture of your screen, or show it on your real screen with sample values. Font,
-    size, colours, opacity, a show / hide key.
+  - Limits as speeds, as percentages, or both, in one click.
+  - Drag the text on a to-scale picture of your screen, with an outline of the game's HUD or your own screenshot (pick
+    it or paste it with Ctrl+V), or show it on your real screen with sample values. Font, size, colours, opacity, a
+    show / hide key.
   - Each alarm (airframe, gear, flaps): on or off, threshold (93 %, 90 %, 90 % by default), pitch, length, with a Test
     button, and how often they repeat.
   - Speeds come from the game's `/state`. The aircraft comes from the mission WTFTD generated, then from the game's
