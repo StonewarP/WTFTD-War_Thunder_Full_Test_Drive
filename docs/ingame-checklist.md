@@ -387,6 +387,77 @@ same flight: the name learnt 0.4 s after the first impact, the beeps of the brea
 - [ ] **A real battle**: another player's crash, in the same aircraft too, doesn't silence the alarms.
 - [ ] The game in **another language** (English, Russian, Japanese): the name gets learnt.
 
+## 2q. Penetration by distance (new)
+
+Checked out of game on 2.59.0.92: unit tests with reference values, then the official wiki's tables on whole vehicles (T-80U,
+T-72A, Object 435, Tiger H1, M1A2, Centurion Mk 10: 137 of 138 values identical, the last one 1 mm off) and on aircraft
+and machine gun belts (P-47D-28, Bf 109 F-4, La-7, Yak-9T, Fw 190 A-8, F-4E, M1A2: 150 of 150 on the belts compared). Never
+compared with the game itself.
+
+- [ ] **Hangar shell cards** against the panel, shells marked `≈`: a DeMarre shell (BR-471D), a long rod (M829A2), an APCR
+  (M93), an APDS (L28A1), a steel dart (3BM4), an HE (3OF26: 42 mm flat; Sprgr L/4.5: 18 down to 13 mm). The wiki may follow
+  another game version than the one installed.
+- [ ] **MGM-166 LOSAT**: WTFTD shows the game file's table, 70, 150, 443, 775, 729, 675 mm at 10 to 2000 m; the wiki says
+  20, 124, 416, 764, 688, 619. Which one does the hangar card show? Does a hit near 1000 m pierce 775 mm?
+- [ ] **Shells whose file gives no drag** use `Cx` 0.35: M79, M318 and M74B1 match the wiki, the 260 others weren't compared.
+- [ ] **Belts**: the belt shows the curve of its best round at 10 m. Known gaps: Yak-9T UBS, Universal, Air targets and Tracers
+  1 mm off at 1000-1500 m (AP-I and API-T tie at 10 m); Fw 190 A-8 MG 131 HEI-only belt: 2 mm flat here, the wiki says
+  4, 4, 4, 4, 0, 0. Does a round stop piercing past some distance (self-destruct)?
+- [ ] **Fragments**: a shell with explosive pierces at least what its fragments do (`explosiveTypeToShattersParams`, picked by
+  explosive / shell mass; none under 5 g of TNT). Worked out from the MG 151's APHE and FI-T and the ShVAK's FI-T, not read
+  from a rule of the game. Try other small cannons (MK 108, Type 99, Hispano HE).
+- [ ] **Ship and boat guns**, **helicopter guns**: never compared with anything.
+- [ ] **Look**: the graph in the Ammunition step in both themes, with 6 or more shells, and the missile launcher's graph on a
+  tank that has one. Its numbers were read from the page, the drawing wasn't looked at since all shells went in.
+
+## 2r. Bombing a target (new)
+
+Worked out from the game's mission templates (HP by balance level), `explosive.blkx` (damage by TNT equivalent) and what
+players report, not measured in game. The reports fit: 3 Mk 83 for a base, 6 for one that respawns at the top (25,900 HP);
+9 x 60 kg but not one 800 kg bomb at 10,000 HP; 28 SC50 + 2 SC250 for an airfield at BR 2, not in an uptier. One misses by
+0.4 %: 5 x 250 lb (5,975 damage) on a 6,000 HP base, reported as destroyed.
+
+- [ ] **BR = 1 + level / 3** is a deduction (balance level = economic rank). Is it the battle's top BR? Check around 2.3, 3.7,
+  5.0 and 6.7, where the HP change.
+- [ ] **Respawns**: outside arcade the templates multiply HP by the mission's `missionGetMaxRespawns` (4 when unlimited). The
+  reports fit × 1, the panel's default. What does it return in Air RB and in Simulator?
+- [ ] **Which maps use what**: only 55 of the 661 `historical/bfd` missions import these templates directly. What sets the
+  others' bases?
+- [ ] **Counts in a real battle**: a base with the panel's count, all bombs inside the zone; a near miss (does damage fall
+  with distance from the centre?); the fire after the hit (`hpFireMult`, `fireSpeed`), which may finish a base early.
+- [ ] **Napalm and incendiary**: shown with no count. The zone's multiplier is × 13, but a report shows a base kill with almost
+  no TNT on the scoreboard. How much does one take off?
+- [ ] **Rockets and missiles**: counted like bombs, from the same table. A salvo of HVAR, a Maverick, a guided bomb.
+- [ ] **Airfields**: HP + 20 % on maps without bases (`isBombingZonesAffect`), not counted. Arcade multipliers.
+- [ ] A **user mission** could measure all this: `missionSetBombingArea` with a known HP, `missionGetBombingAreaHP` shown after
+  each bomb.
+
+## 2s. Flight report, Tacview, cockpit window, pitch (new)
+
+Checked on a real flight on 2026-10-31 (Su-30MKK): a 16 s log, its report and its `.txt.acmi` file, position on the map (scale
+within 1 % of the speed, heading equal to the compass), the cockpit window's values against `/state`.
+
+- [ ] **Pitch**: the game's `aviahorizon_pitch` is negative nose up (-7.4 in a 7.4° climb); the app now flips it. Only seen in
+  one steady climb: check a dive and inverted flight. Logs recorded before keep the old sign.
+- [ ] **Bank**: which way round is `aviahorizon_roll`? Bank right and read the sign. Tacview gets no roll until this is known.
+- [ ] **Sustained turn**: hold a level turn at full power, time a circle with a stopwatch, compare with the report. Thresholds
+  to confirm: under 2 m/s of climb, under 0.5 m/s² of acceleration, over 1.5 G, 3 s or more.
+- [ ] **Time to climb**: counted from the start of the log; a full climb from take-off to 9,000 m.
+- [ ] **A long report**: a whole flight, with a respawn in the middle.
+- [ ] **Tacview**: open the `.txt.acmi` in Tacview itself (never done): track, height, heading, pitch, time. Another map than
+  Afghanistan for the scale. A helicopter is exported as a fixed-wing aircraft.
+- [ ] **Cockpit window** from the button, in the exe's app window: does it open as a window of its own? On a second screen,
+  during a flight; gear and flaps turn red past their limit; the text says "Not flying" with no empty dials. English only.
+- [ ] **Packaged exe**: `cockpit.html` and `cockpit.js` are in; first launch rebuilds the data (schema 24), once.
+- [ ] **Datamine source**: the same bombing and penetration data as with the installed game (only the installed game was built).
+
+## 2t. Research path, session recap (new)
+
+- [ ] **Research path** against the game's tree: M1A2 gives 16 vehicles, 1,710,000 RP, 4,830,100 SL. Vehicles in a folder, and
+  the first vehicle of a line, whose cost shows as `—`.
+- [ ] **Session recap** (not built yet): the battle log's kill line is `=FrEB= StonewarP (␗Su-30MKK) détruit [ai] MiG-15bis`;
+  the line where you get killed by someone was never seen. Note it, in French and in English.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

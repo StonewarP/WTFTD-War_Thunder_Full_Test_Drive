@@ -14,7 +14,9 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   of the official wiki on the shells compared.
 - **APCR, APDS and steel darts** now have a penetration, computed like the game does: in the ammunition list, the
   curves, *Best AP penetration*, the sort and the comparison. Armor-piercing values are now the game's at 10 m, not at
-  the muzzle.
+  the muzzle. Aircraft and machine gun belts show what their best round pierces, fragments included.
+- **Pitch** now reads positive nose up in the overlay, the curves and the logs: the game sends it the other way round.
+  Logs recorded before keep the old sign.
 - **Research and purchase cost** (vehicle panel, sort, filter and comparison): the game's own RP and SL cost of each
   vehicle, and a *Research path* that adds them up along the line, from the first vehicle to the one you picked.
   Modules, crew training and the rank requirements are not counted.
@@ -22,7 +24,7 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   base that respawns or an airfield, arcade or not, and the battle's BR: the target's HP from the game's mission
   templates, and two new columns: what one weapon takes off it, from its TNT equivalent and the game's explosion table,
   and how many it takes. That table isn't proportional, so several small bombs beat one big one, as in game. Napalm and
-  incendiary bombs hurt a zone through their own multiplier and get no count. Data schema 23.
+  incendiary bombs hurt a zone through their own multiplier and get no count. Data schema 24.
 - **Flight report** (In flight → Flight data, with a recorded log picked): top speed, Mach, altitude, best climb rate,
   highest G, best turn rate, best **sustained turn** (level, speed steady, over 1.5 G, 3 s or more), time to climb to
   1 000 … 11 000 m and fuel used, each with the speed and altitude it happened at. Fly a test, record it, read it.

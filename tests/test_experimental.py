@@ -124,6 +124,15 @@ class PenetrationByDistance(unittest.TestCase):
         missile = {"bulletType": "sam_tank", "rocket": {"explosiveMass": 3.402, "explosiveType": "a_ix_2"}}
         self.assertEqual(builder.pen_curve(missile, blast)[0][0], [10, 42])
 
+    def test_fragments_set_the_floor_of_a_small_shell(self):
+        blast = {"tnt": {"petn": 1.66}, "pen": [[0.005, 2.0], [0.1, 4.0]],
+                 "frag": [(0.02, [[0.01, 3.0]]), (0.07, [[0.01, 4.0]]), (0.18, [[0.01, 1.5]])]}
+        aphe = shell("aphe", 720.0, 0.117, 0.02, None, expl=0.00459, k=0.9)  # MG 151's: 4 % explosive, 7.6 g of TNT
+        aphe["explosiveType"] = "petn"
+        self.assertEqual(builder.pen_curve(aphe, blast)[0][-1], [4000, 4])
+        aphe["explosiveMass"] = 0.0023  # under the blast table's first point: no fragments
+        self.assertLess(builder.pen_curve(aphe, blast)[0][-1][1], 3)
+
     def test_shaped_charges_and_missiles_don_t_care_for_distance(self):
         s = builder.shell_stats({"bulletType": "heat_fs_tank", "cumulativeDamage": {"armorPower": 550.0}})
         self.assertEqual(s["pc"], [[10, 550], [4000, 550]])

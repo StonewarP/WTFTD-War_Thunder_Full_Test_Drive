@@ -887,6 +887,14 @@ class BattleLog(unittest.TestCase):
         self.assertTrue(self.beep.called)
 
 
+class Pitch(unittest.TestCase):
+    def test_nose_up_reads_positive(self):  # the game said -7.4 at 8.1 of path angle, -0.7 of angle of attack
+        self.assertEqual(alarms.numbers(alarms.read_indicators(b'{"valid": true, "aviahorizon_pitch": -7.4}'))["pitch"], 7.4)
+
+    def test_no_pitch(self):
+        self.assertNotIn("pitch", alarms.numbers(alarms.read_indicators(b'{"valid": false}')))
+
+
 class Labels(unittest.TestCase):
     def test_every_language_has_every_word(self):
         en = alarms.labels("en")

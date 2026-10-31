@@ -50,7 +50,7 @@ SAVED_MODEL = re.compile(r'selectedAir\s*\{\s*current_model:t="([^"]+)"')
 # Any other field the game sends works under its own name: "{RPM 2}", "{bank}"
 FIELDS = {"ias": ("IAS, km/h", 0), "tas": ("TAS, km/h", 0), "mach": ("M", 2), "alt": ("H, m", 0), "vy": ("Vy, m/s", 1),
           "aoa": ("AoA, deg", 1), "aos": ("AoS, deg", 1), "g": ("Ny", 1), "g_max": ("g_meter_max", 1),
-          "roll": ("Wx, deg/s", 0), "heading": ("compass", 0), "pitch": ("aviahorizon_pitch", 1),
+          "roll": ("Wx, deg/s", 0), "heading": ("compass", 0), "pitch": ("nose_up", 1),
           "bank": ("aviahorizon_roll", 1), "fuel": ("Mfuel, kg", 0), "fuel_max": ("Mfuel0, kg", 0),
           "throttle": ("throttle 1, %", 0), "rpm": ("RPM 1", 0), "thrust": ("thrust 1, kgs", 0),
           "power": ("power 1, hp", 0), "oil": ("oil temp 1, C", 0), "gear": ("gear, %", 0), "flaps": ("flaps, %", 0),
@@ -332,6 +332,14 @@ def answer(raw: bytes | None) -> dict:
     return data if isinstance(data, dict) and data.get("valid") else {}
 
 
+def read_indicators(raw: bytes | None) -> dict:
+    """/indicators, its pitch the right way round too: the game's reads negative nose up (-7.4 in a 7.4° climb)."""
+    data = answer(raw)
+    if isinstance(data.get("aviahorizon_pitch"), (int, float)):
+        data["nose_up"] = -data["aviahorizon_pitch"]
+    return data
+
+
 def flying(raw: bytes | None) -> dict | None:
     """/state while in the air, else None: in the hangar it is valid with zeros."""
     state = answer(raw)
@@ -573,7 +581,7 @@ class Watch:
         self._before = state
         self.read_log()
         wreck = self.crash or time.monotonic() < self._silent
-        indicators = answer(self.get("/indicators"))  # every time: it may only start answering mid-flight
+        indicators = read_indicators(self.get("/indicators"))  # every time: it may only start answering mid-flight
         self.aircraft(state, reported_type(indicators))
         cfg, lim = self.preview or self.cfg, self._lim
         self.trend.add(time.monotonic(), state)

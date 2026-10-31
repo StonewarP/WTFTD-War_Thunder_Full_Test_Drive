@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 23  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 24  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -650,16 +650,24 @@ def kinetic_pen(b: dict) -> float | None:
 def blast_tables() -> dict:
     """What blast_pen needs from the game's explosive.blkx."""
     e = load(DM / "aces.vromfs.bin_u" / "gamedata" / "damage_model" / "explosive.blkx") or {}
+    frag = [(_numval(v.get("fillingRatio")), game_curve(v.get("explosiveMassToPenetration")))
+            for v in (e.get("explosiveTypeToShattersParams") or {}).values() if isinstance(v, dict)]
     return {"tnt": {k.lower(): _numval((v or {}).get("strengthEquivalent")) or 1.0 for k, v in (e.get("explosiveTypes") or {}).items()},
-            "pen": game_curve((e.get("explosiveTypeToSplashParams") or {}).get("explosiveMassToPenetration"))}
+            "pen": game_curve((e.get("explosiveTypeToSplashParams") or {}).get("explosiveMassToPenetration")),
+            "frag": sorted((f, c) for f, c in frag if f and c)}
 
 
 def blast_pen(b: dict, blast: dict | None) -> float:
-    """What a shell's explosion pierces (mm), from its TNT equivalent."""
+    """What a shell's explosion pierces (mm), from its TNT equivalent: the blast, or its fragments, whose table goes by how
+    much of the shell is explosive. The smallest charges, under the blast table's first point, make none that count."""
     e = _numval(b.get("explosiveMass"))
     if not e or not blast or not blast["pen"]:
         return 0.0
-    return _linear(blast["pen"], e * blast["tnt"].get(first_str(b.get("explosiveType")).lower(), 1.0))
+    tnt = e * blast["tnt"].get(first_str(b.get("explosiveType")).lower(), 1.0)
+    pen, m = _linear(blast["pen"], tnt), _numval(b.get("mass"))
+    if m and blast.get("frag") and tnt >= blast["pen"][0][0]:
+        pen = max(pen, _linear(next((c for f, c in blast["frag"] if e / m <= f), blast["frag"][-1][1]), tnt))
+    return pen
 
 
 def _heat(b: dict) -> float | None:
@@ -683,8 +691,8 @@ def _missile_table(rocket: dict) -> list:
 
 def pen_curve(b: dict, blast: dict | None = None) -> tuple:
     """Any shell's penetration by distance: ([[m, mm], ...], computed?), ([], False) if it pierces nothing we can tell.
-    An armor-piercing shell's table, a shaped charge's one value, else the formulas at the speed left; an explosive shell
-    pierces the better of that and its explosion (3OF26, 3OF11, Sprgr L/4.5 match the wiki)."""
+    An armor-piercing shell's table, a shaped charge's one value, else the formulas at the speed left; a shell with explosive
+    pierces the better of that and its explosion (3OF26, 3OF11, Sprgr L/4.5 and the MG 151's APHE match the wiki)."""
     ap = _is_ap(b)
     table = _pen_table(b) if ap else []
     if len(table) > 1:
@@ -695,7 +703,7 @@ def pen_curve(b: dict, blast: dict | None = None) -> tuple:
     if table or first_str(b.get("bulletType")).lower().startswith(_NO_PEN):
         return [], False
     missile = b.get("rocket") if isinstance(b.get("rocket"), dict) else b  # a missile's warhead is in its "rocket" block
-    floor = 0.0 if ap else blast_pen(missile, blast)
+    floor = blast_pen(missile, blast)
     own = _missile_table(missile)
     if own:
         return [[round(d), round(max(p, floor))] for d, p in own], False
