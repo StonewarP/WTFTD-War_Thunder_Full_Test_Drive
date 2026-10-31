@@ -15,18 +15,22 @@ Only the latest release is supported: fixes ship in a new version.
   It only answers WTFTD's own page: requests from other websites are refused.
 - **Files it writes:**
   - `%LOCALAPPDATA%\WTFTD` on Windows, `~/Library/Application Support/WTFTD` on macOS (or the source folder):
-    settings, saved setups, game database, image cache;
+    settings, saved setups, flight logs, game database, image cache;
   - `War Thunder\UserMissions\`: the missions you create;
   - with custom vehicles on: new files under `War Thunder\content\pkg_local` and `content\pkg_user` only —
     never a path that replaces a game file. Every file is listed in `user\cdk_manifest.json` and
     *Settings → Remove custom vehicle files* deletes them.
 - **What it reads:** with *Read my installed game*, the game's `aces`, `char`, `lang` and `mis.vromfs.bin` files, read
   only, instead of downloading the datamine.
+- **What it reads while you fly:** the game's local page on `127.0.0.1:8111`, on your PC: your aircraft's values, its
+  marker on the map, the chat and the battle log. On Windows, to recognise the aircraft, one key of the game's
+  `global.blk` (the aircraft it saved), read only. The overlay is a separate window: nothing is injected into the game.
 - **What it downloads:** unless you read your installed game, the community
   [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine)
   (with your Git, or the official portable MinGit from git-for-windows); vehicle images from the
   [War Thunder wiki](https://wiki.warthunder.com/), and the release list of this repository (new version alert).
-- **What it sends:** nothing. No account, no telemetry, no analytics.
+- **What it sends:** nothing. No account, no telemetry, no analytics. The Feedback button only opens GitHub's form in
+  your browser, with what it lists: you read it and send it with your own account.
 - **The apps** (WTFTD-<version>.exe, WTFTD-<version>.zip) are built by GitHub Actions from the released source code; each
   release lists their SHA-256 (check with `Get-FileHash WTFTD-<version>.exe` in PowerShell or
   `shasum -a 256 WTFTD-<version>.zip` in Terminal). They aren't code-signed yet, hence the SmartScreen / Gatekeeper

@@ -61,8 +61,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   specific excess power, total thrust, thrust/weight, fuel use, fuel time and range left, pitch, bank. The mass leaves
   the weapons out (the game doesn't tell it), so thrust/weight reads a little high when loaded. Pitch, bank and heading
   come from `/indicators`: `N/A` while it's blank. A `REC` line shows while recording.
-- **Battle** (In flight): the game's chat and battle log, live, in their own window, handy on a second screen: filter,
-  text size. WTFTD only reads them.
+- **Battle** (In flight): the game's chat and battle log, live, in their own tab: filter, text size. WTFTD only reads
+  them.
 - **Overlays per aircraft or type** (My overlay): an aircraft's own overlay comes first, then its type's (fighters,
   attackers, bombers, helicopters), then the one for all aircraft, with their own lines, look and alarms. The right
   one loads by itself when the aircraft is recognised.

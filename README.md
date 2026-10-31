@@ -60,6 +60,9 @@ window and finds your game by itself (Steam or standalone). Close the window to 
    and the map in the scenario editor (targets, allies, your start).
 4. **Create mission**, start War Thunder (button in the app), open *Single missions → User missions*.
 
+While you fly (Windows), the **In flight** menu puts your own overlay over the game, beeps before your aircraft
+breaks, and records the flight: live curves, a flight report, a cockpit window for a second screen, the battle log.
+
 ![Vehicle browser](docs/screenshots/01-browse.png)
 
 | Research trees | Stats: tanks over 60 km/h, best turret armor first |
@@ -111,9 +114,16 @@ window and finds your game by itself (Steam or standalone). Close the window to 
   ground battles' instant-win killstreak nukes), rockets, torpedoes — with stats from the game files
   (motor speed, max G, lock angle, IRCCM, seeker range, penetration, TNT equivalent…), **"best for" rankings**
   (dogfight, head-on, flare resistance, beyond visual range, killing tanks, stand-off…), a short guide per
-  category, community notes on well-known weapons, side-by-side comparison and the vehicles that carry each one
+  category, community notes on well-known weapons, side-by-side comparison and the vehicles that carry each one.
+  **Bombing a target**: pick a base or an airfield, and see its HP from the game's mission templates, what one weapon
+  takes off it and how many it takes
 - **Compare up to 5 vehicles side by side** (button next to the favorite star): BR, every stat with the best
   value highlighted, guns with their caliber, shell types, pylon weapons
+- **Penetration by distance** (vehicle panel → Ammunition): a curve for every shell and guided missile of the gun,
+  with the values at 10, 100, 500, 1000 and 2000 m
+- **Research and purchase cost**: each vehicle's RP and SL to sort, filter and compare, and a *Research path* that
+  adds them up along the line, from the first vehicle to the one you picked
+- **Breaking limits** in the vehicle panel of aircraft and helicopters: speed, Mach, gear, flaps, variable sweep
 - **Maps tab**: 100+ official scenarios with the game's own tactical map — firing range, Fulda, naval
   range, airfields, heli ranges, carriers, seaplane bases… plus the **hangar maps** (regular, winter,
   Halloween, Lunar New Year, anniversary); the ones that fit your vehicle first
@@ -146,20 +156,26 @@ window and finds your game by itself (Steam or standalone). Close the window to 
   invulnerability, instant reload and passive targets, repair, bring the targets back or go back to the start
   while you play (the game's Quick radio messages)
 - **Custom sights** for ground vehicles: a sight of your UserSights folder or a `.blk` file you add
-- **My overlay** (Windows, off until you turn it on; per aircraft or type if you like): your own lines over the game in a click-through window (speed
-  against the limit, altitude, fuel, any value the game sends), and beeps near your aircraft's breaking speeds with
-  your thresholds and sounds; it reads the game's local data only, nothing is added to the game
-- **Battle**: the game's chat and battle log, live, in their own window, handy on a second screen
+- **My overlay** (Windows, off until you turn it on; per aircraft or type if you like): your own lines over the game
+  in a click-through window (speed against the limit, altitude, fuel, any value the game sends), limits as speeds,
+  percentages or both, placed on a picture of your screen with the game's HUD or your own screenshot; and beeps near
+  your aircraft's breaking speeds with your thresholds and sounds, which stop when you crash. It reads the game's local
+  data about your own aircraft only, nothing is added to the game
 - **Flight data** (Windows): live curves of what the game reports in flight (speed, altitude, G, turn time, fuel use...),
-  and a recorder: CSV logs for Excel, replayed in the app
+  and a recorder: CSV logs for Excel, replayed in the app, with a **flight report** (top speed, best climb, best
+  sustained turn, time to climb, fuel used) and an **export for Tacview**
+- **Cockpit window** (Windows): your aircraft's instruments as dials, in a window of their own for a second screen
+- **Battle**: the game's chat and battle log, live, in their own tab, with a filter
+- **Feedback** button: write a few words and GitHub's bug or idea form opens filled in; you read it and send it with
+  your own account
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
   简体中文, 日本語 — picked from your Windows language on first launch (or on the welcome screen), vehicle,
   weapon and map names follow the game's own translations. UI translations
   other than English were machine-assisted and may contain mistakes: corrections are welcome
 - **Uninstall** from Settings: everything, or only some parts (custom vehicle files in the game, missions,
   cache, game database, your settings and library, the app itself); War Thunder itself is never touched
-- **Your library**: *My vehicles* (saved setups), *My maps* (scenario variants from the editor), *My missions*
-  (saved vehicle + map pairs and the missions created), *My weapons*
+- **Your library**: *My vehicles* (saved setups), *My maps* (scenario variants from the editor) and *My weapons*, each
+  under its menu, and *My missions* (saved vehicle + map pairs and the missions created)
 - **Share** a vehicle setup, a map or a mission with a friend: a short code to paste, or a `.wtftd` file — they
   import it (or drop the file on the window) and get the same thing: vehicle, loadout, ammo, map, editor
   changes, cheats. User missions are single-player, so each of you plays it on your own PC
@@ -220,6 +236,10 @@ the game's own files and mechanisms. Custom vehicles add files to the game's `co
 There are no known bans for it, but it isn't endorsed by Gaijin: use it at your own risk, and remove the
 custom vehicle files (**Settings → Remove custom vehicle files**) before playing online if you want a clean install.
 
+The **In flight** tools only read what the game publishes on your own PC (`localhost:8111`): your aircraft's values, and
+the chat and battle log you see in game. No enemy position is used. The overlay is a separate window: nothing is
+injected and nothing touches the game. It isn't endorsed by Gaijin either.
+
 **Can I play my mission online or with friends?**
 No: user missions are single-player. Send your friends the setup instead (**Share** → a code or a `.wtftd`
 file); they import it and play the same mission on their PC.
@@ -248,7 +268,8 @@ files in the game, missions, cache, game database, your settings and library, th
 
 **Does WTFTD collect anything?**
 No: no account, no telemetry. It downloads the datamine (unless you read your installed game instead), wiki images
-and this repository's release list, and sends nothing. See [SECURITY.md](SECURITY.md).
+and this repository's release list, and sends nothing. The **Feedback** button only opens GitHub's form in your
+browser: you read it and send it yourself. See [SECURITY.md](SECURITY.md).
 
 ## Run from source
 
@@ -306,6 +327,11 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
 - My weapons: a weapon carried in a launcher of its own (pods, multiple racks) can't be modified yet, nor
   ground-launched missiles (tank ATGMs, SAMs). The Advanced values are the game's own and not all of them have
   been tried in game: change one thing at a time ([checklist](docs/ingame-checklist.md)).
+- Research path: modules, crew training and the rank requirements are not counted.
+- In flight: My overlay, the alarms, Flight data and the Cockpit window are Windows only. They were mostly flown on jets
+  in test flights: helicopters, propeller aircraft, real battles and the other game languages are less tested
+  ([checklist](docs/ingame-checklist.md)). Variable-sweep wings show the swept-back limit (the game doesn't send the wing
+  position), and thrust/weight reads a little high when loaded (the game doesn't tell the weapons' mass).
 - macOS support is new and less tested than Windows. The packaged app is built for Apple silicon; on an Intel
   Mac, [run from source](#run-from-source).
 
@@ -323,12 +349,13 @@ wtftd/                      Python backend (stdlib only)
   builder.py                datamine or game files -> data/*.json
   vromfs.py                 the game's own files: .vromfs.bin containers, binary BLK
   armament.py               Weapons page data (missiles, bombs, rockets, torpedoes)
-  alarms.py / flightlog.py  in-flight values, alarms and overlay (Windows) / CSV flight logs
+  alarms.py / flightlog.py  in-flight values, alarms and overlay (Windows) / CSV flight logs, report, Tacview export
   battle.py                 the game's chat and battle log
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
-                            weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor
+                            weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
+                            overlay.js / flight.js / battle.js = In flight, cockpit.html = the cockpit window
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)
 docs/screenshots/           README images (docs/demo.gif: the tour above)
@@ -337,9 +364,10 @@ docs/ingame-checklist.md    what still needs checking in game
 
 ## Feedback
 
-Found a bug or have an idea? **Settings → Report a bug / Suggest an idea**, or open an
-[issue](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/new/choose). For bugs, paste your setup's **share code** — it lets
-us rebuild your exact setup. Questions: [Discussions](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/discussions).
+Found a bug or have an idea? The **Feedback** button at the top of the app opens GitHub's form filled in with your
+versions, vehicle and setup's **share code**: read it and send it with your GitHub account. You can also open an
+[issue](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/new/choose) yourself: for bugs, paste your
+share code, it lets us rebuild your exact setup. Questions: [Discussions](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/discussions).
 
 Want to help (code, translations)? See [CONTRIBUTING.md](CONTRIBUTING.md). What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). Security problem: [SECURITY.md](SECURITY.md).
