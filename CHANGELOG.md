@@ -8,6 +8,27 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 - **Feedback button** (top bar): write a few words, and GitHub opens with the bug or idea form filled in (WTFTD and game
   versions, vehicle, setup code). You read it and send it with your own account: WTFTD posts nothing by itself.
+- **Penetration by distance** (vehicle panel → Ammunition, ground vehicles): a curve per armor-piercing shell of the
+  gun, from the game's own table, with the values at 100, 500, 1000 and 2000 m. Shells whose file has no table
+  (computed by formula) only show their muzzle value.
+- **Research and purchase cost** (vehicle panel, sort, filter and comparison): the game's own RP and SL cost of each
+  vehicle, and a *Research path* that adds them up along the line, from the first vehicle to the one you picked.
+  Modules, crew training and the rank requirements are not counted.
+- **Bombing a target** (Weapons → bombs, guided bombs, air-to-surface, rockets): pick a base that doesn't come back, a
+  base that respawns or an airfield, arcade or not, and the battle's BR: the target's HP from the game's mission
+  templates, and two new columns: what one weapon takes off it, from its TNT equivalent and the game's explosion table,
+  and how many it takes. That table isn't proportional, so several small bombs beat one big one, as in game. Napalm and
+  incendiary bombs hurt a zone through their own multiplier and get no count. Data schema 22.
+- **Flight report** (In flight → Flight data, with a recorded log picked): top speed, Mach, altitude, best climb rate,
+  highest G, best turn rate, best **sustained turn** (level, speed steady, over 1.5 G, 3 s or more), time to climb to
+  1 000 … 11 000 m and fuel used, each with the speed and altitude it happened at. Fly a test, record it, read it.
+- **Export for Tacview** (Flight data, a recorded log picked): your flight as a Tacview `.txt.acmi` file, your own
+  aircraft only. Logs now also keep your place on the map (the game's own map marker: position and heading); logs
+  recorded before have none and say so. The roll isn't exported (the game's sign isn't checked); the pitch comes from
+  the climb angle plus the angle of attack.
+- **Cockpit window** (Flight data → Cockpit window): your aircraft's speed, altitude, climb rate and G as dials, plus
+  Mach, angle of attack, heading, throttle, fuel, gear and flaps, updated four times a second. For a second screen.
+  It shows what the game reports about your own aircraft, nothing else.
 - **A shorter top menu**: Vehicles, Maps, Weapons, My missions and In flight. Your own vehicles, maps and weapons are
   now sub-tabs of those menus, and My overlay, Flight data and Battle sit under In flight.
 - **My overlay** (In flight, Windows, off until you turn it on there): while you fly, WTFTD beeps near your aircraft's

@@ -532,8 +532,24 @@ class Handler(BaseHTTPRequestHandler):
         if route == "flight-logs":
             return self.send_json(flightlog.list_logs(LOGS))
         if route.startswith("flight-logs/"):
-            log = flightlog.read_log(LOGS, route.split("/", 1)[1], {alarms.column(n): n for n in alarms.SERIES})
-            return self.send_json(log) if log is not None else self.send_json({"error": "not found"}, 404)
+            name, _, what = route.split("/", 1)[1].partition("/")
+            names = {alarms.column(n): n for n in alarms.SERIES}
+            if what == "acmi":  # the flight as a Tacview file
+                log = flightlog.read_log(LOGS, name, {**names, **dict(zip(alarms.POSITION, ("east", "north", "hdg")))})
+                text = log and flightlog.acmi(log["rows"], name.rsplit("-", 1)[0], flightlog.started(LOGS, name))
+                if text is None:
+                    return self.send_json({"error": "This log has no position: record a new flight."}, 404)
+                body = text.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Disposition", f'attachment; filename="{name[:-4]}.txt.acmi"')
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                return self.wfile.write(body)
+            log = flightlog.read_log(LOGS, name, names)
+            if log is None:
+                return self.send_json({"error": "not found"}, 404)
+            return self.send_json({**log, "report": flightlog.report(log["rows"])})
         if route == "myweapons":  # My weapons: modified copies of the game's pylon weapons
             return self.send_json(read_json(USER / "weapons.json", []))
         if route == "weapon-keys":  # Weapons tab rows -> the pylon weapon they can be modified from
@@ -1075,7 +1091,7 @@ def flight_status(after: int) -> dict:
     """The Flight data tab: the readings after this one (the tab asking keeps them coming, see Watch.tick)."""
     WATCH.viewed = time.monotonic()
     return {"rows": [r for r in list(WATCH.trace) if r["n"] > after], "flying": WATCH.flying, "aircraft": WATCH.current,
-            "log": WATCH.log.name if WATCH.log else None, "units": alarms.units()}
+            "log": WATCH.log.name if WATCH.log else None, "units": alarms.units(), "now": WATCH.last}
 
 
 def overlay_status(profile: str = "") -> dict:

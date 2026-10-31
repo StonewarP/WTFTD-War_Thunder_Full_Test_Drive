@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 20  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 22  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -135,6 +135,74 @@ def build_battle_words() -> dict:
     except OSError:
         return {"crashed": []}
     return {"crashed": sorted({"".join(v.replace("\\t", "").split()) for v in row.values()})}
+
+
+# Bombing a target. The game sets the HP of a bombing area in its mission templates, by the mission's balance level
+# (the economic rank of the battle: BR = 1 + level / 3), then x a multiplier in arcade, x the mission's respawns
+# otherwise. An explosion takes off the splash damage of its TNT equivalent (explosive.blkx), which isn't proportional:
+# many small bombs beat one big one. Checked on what players report: 3 Mk 83 kill a base, 6 one that respawns at
+# 25,900 HP; 9 x 60 kg do at 10,000 HP and an 800 kg bomb doesn't; 28 SC50 + 2 SC250 kill a 32,000 HP airfield.
+BASE_KINDS = {  # kind: (template, HP variable, arcade multiplier variable, balance level variable, x respawns outside arcade)
+    "base": ("destroy_bomb_areas_template", "baseHP", "arcade_HP_mul", "bomb_areas_balance_level", True),
+    "respawn": ("enduring_confrontation/bdt_bases_destroy_template", "bdt_base_hp", None, "bdt_balance_level", False),
+    "airfield": ("destroy_airfield_zone_template", "dazt_airfield_max_hp", "dazt_arcade_hp_mul", "dazt_balance_level", True),
+}
+
+
+def game_curve(block) -> list:
+    """One of the game's tables, {"p0": [x, y], ...}, as [[x, y], ...] by x: a repeated key comes as a list of pairs."""
+    out = []
+    for v in (block or {}).values():
+        out += v if isinstance(v, list) and v and isinstance(v[0], list) else [v]
+    return sorted(out)
+
+
+def hp_bands(doc: dict, hp_var: str, mul_var: str | None, level_var: str) -> list:
+    """[[first level, last level (None: and up), HP, arcade multiplier (None: none)], ...] from the triggers of a mission
+    template that set hp_var for a range of balance levels."""
+    out = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            sets = [s for s in aslist((o.get("actions") or {}).get("varSetReal")) if isinstance(s, dict)] if isinstance(o.get("actions"), dict) else []
+            hp = next((s.get("value") for s in sets if s.get("var") == hp_var), None)
+            if isinstance(hp, (int, float)):
+                lo, hi = 0, None
+                conditions = o.get("conditions") if isinstance(o.get("conditions"), dict) else {}
+                for c in aslist(conditions.get("varCompareInt")):
+                    if isinstance(c, dict) and c.get("var_value") == level_var and isinstance(c.get("value"), (int, float)):
+                        if c.get("comparasion_func") == "less":
+                            hi = c["value"] - 1 if hi is None else min(hi, c["value"] - 1)
+                        elif c.get("comparasion_func") == "more":
+                            lo = max(lo, c["value"] + 1)
+                mul = next((s.get("value") for s in sets if s.get("var") == mul_var), None) if mul_var else None
+                out.append([int(lo), None if hi is None else int(hi), hp, mul])
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+
+    walk(doc.get("triggers") or {})
+    return sorted(out, key=lambda b: b[0])
+
+
+def build_bases() -> dict:
+    """Bombing data for the Weapons page: HP by balance level per kind of target, damage by TNT equivalent (kg) and the
+    napalm multiplier of a bombing zone. {} when the game files don't have them."""
+    base = DM / "mis.vromfs.bin_u" / "gamedata" / "missions" / "templates"
+    kinds = {}
+    for kind, (template, hp_var, mul_var, level_var, respawns) in BASE_KINDS.items():
+        bands = hp_bands(load(base / f"{template}.blkx") or {}, hp_var, mul_var, level_var)
+        if bands:
+            kinds[kind] = {"bands": bands, "respawns": respawns}
+    model = DM / "aces.vromfs.bin_u" / "gamedata" / "damage_model"
+    splash = (load(model / "explosive.blkx") or {}).get("explosiveTypeToSplashParams") or {}
+    zone = (load(model / "armor_classes.blkx") or {}).get("bombing_zone") or {}
+    damage = game_curve(splash.get("explosiveMassToDamage"))
+    if not kinds or not damage:
+        return {}
+    return {"damage": damage, "napalm": _numval(zone.get("napalmDamageMult")), "kinds": kinds}
 
 
 def first_str(v) -> str:
@@ -497,18 +565,28 @@ def _filler_factor(pct: float) -> float:
     return _FILLER[-1][1]
 
 
+def _is_ap(b: dict) -> bool:
+    bt = first_str(b.get("bulletType")).lower()
+    return bt.startswith(("ap", "sap")) or "apds" in bt
+
+
+def _pen_table(b: dict) -> list:
+    """The shell's own penetration table, [(distance m, penetration mm)] nearest first; [] when it has none."""
+    ap = b.get("armorpower")
+    if not isinstance(ap, dict):
+        return []
+    return sorted((float(v[1]), float(v[0])) for v in ap.values()
+                  if isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) for c in v))
+
+
 def kinetic_pen(b: dict) -> float | None:
     """Penetration of an armor-piercing shell (mm, 0°, muzzle velocity); None for other shells or when the
     game's files don't give what the formulas need (sub-calibre AP without a table, steel rods)."""
-    bt = first_str(b.get("bulletType")).lower()
-    if not (bt.startswith(("ap", "sap")) or "apds" in bt):
+    if not _is_ap(b):
         return None
-    ap = b.get("armorpower")
-    if isinstance(ap, dict):
-        rows = sorted((float(v[1]), float(v[0])) for v in ap.values()
-                      if isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) for c in v))
-        if rows:
-            return round(rows[0][1])
+    rows = _pen_table(b)
+    if rows:
+        return round(rows[0][1])
     kin = (b.get("damage") or {}).get("kinetic") if isinstance(b.get("damage"), dict) else None
     v, m = _numval(b.get("speed")), _numval(b.get("mass"))
     if not isinstance(kin, dict) or not v or not m:
@@ -537,13 +615,17 @@ def kinetic_pen(b: dict) -> float | None:
 
 def shell_stats(b: dict | None) -> dict:
     """Editable shell values: v speed (m/s), m mass (kg), e explosive mass (kg), h HEAT penetration (mm),
-    l APFSDS rod working length (mm); and k kinetic penetration (mm, kinetic_pen), shown only."""
+    l APFSDS rod working length (mm); and, shown only, k kinetic penetration (mm, kinetic_pen) and pc its table
+    by distance [[m, mm], ...] when the shell's file has one."""
     if not isinstance(b, dict):
         return {}
     out = {}
     pen = kinetic_pen(b)
     if pen:
         out["k"] = pen
+    rows = _pen_table(b) if _is_ap(b) else []
+    if len(rows) > 1:
+        out["pc"] = [[round(d), round(p)] for d, p in rows]
     for key, src in (("v", b.get("speed")), ("m", b.get("mass")), ("e", b.get("explosiveMass"))):
         val = _numval(src)
         if val is not None:
@@ -786,6 +868,9 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
             out["cal"] = cal
     if isinstance(wp.get("crewTotalCount"), (int, float)) and wp["crewTotalCount"] > 0:
         out["crew"] = int(wp["crewTotalCount"])
+    for key, src in (("rp", "reqExp"), ("sl", "value")):  # research cost (RP) and purchase cost (SL)
+        if isinstance(wp.get(src), (int, float)) and wp[src] > 0:
+            out[key] = int(wp[src])
     return out
 
 
@@ -1085,6 +1170,8 @@ def build_vehicles(lang: Lang, progress=None):
         }
         if v.get("costGold"):
             rec["p"] = 1
+        if v.get("reqAir"):
+            rec["rq"] = v["reqAir"]  # the vehicle to research first
         if hidden:
             rec["h"] = 1
         if not v.get("value") and not v.get("costGold") and not hidden:
@@ -2164,6 +2251,8 @@ def _build(progress, source: str):
         json.dump(build_bullet_icons(), f, separators=(",", ":"))
     with open(DATA / "battle_words.json", "w", encoding="utf-8") as f:
         json.dump(build_battle_words(), f, ensure_ascii=False, separators=(",", ":"))
+    with open(DATA / "bases.json", "w", encoding="utf-8") as f:
+        json.dump(build_bases(), f, separators=(",", ":"))
     codes = lang.write()
     version = (DM / "version").read_text().strip() if (DM / "version").exists() else "?"
     meta = {"version": version, "schema": SCHEMA, "source": source, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}

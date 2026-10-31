@@ -168,6 +168,25 @@ async function flPoll() {
   FL.timer = setTimeout(flPoll, 1000);
 }
 
+// a recorded flight in numbers (wtftd/flightlog.py report): peaks with where they happened, time to climb, sustained turn
+function flReportHTML(r) {
+  if (!r?.s) return '';
+  const at = x => [x.ias != null && `${flNum(x.ias)} km/h`, x.alt != null && `${flNum(x.alt)} m`, x.g != null && `${flNum(x.g)} G`].filter(Boolean).join(' · ');
+  const row = (label, v, ctx) => `<div class="vstat" title="${esc(ctx || '')}"><span>${esc(label)}</span><b>${esc(v)}</b></div>`;
+  const rows = [row(t('fl.rep.time'), flTime(r.s)),
+    r.ias && row(t('fl.rep.ias'), `${flNum(r.ias.v)} km/h`, at(r.ias)),
+    r.mach && row(t('fl.rep.mach'), `M ${flNum(r.mach.v)}`, at(r.mach)),
+    r.alt && row(t('fl.rep.alt'), `${flNum(r.alt.v)} m`),
+    r.climb && row(t('fl.rep.climb'), `${flNum(r.climb.v)} m/s`, at(r.climb)),
+    r.g && row(t('fl.rep.g'), `${flNum(r.g.v)} G`, at(r.g)),
+    r.turn && row(t('fl.rep.turn'), `${flNum(r.turn.v)} °/s`, at(r.turn)),
+    r.sustained && row(t('fl.rep.sustained'), `${flNum(r.sustained.v)} °/s`, `${at(r.sustained)} · ${t('fl.rep.during', { s: r.sustained.s })}`),
+    ...r.climbTo.map(([m, s]) => row(t('fl.rep.climbTo', { m: flNum(m) }), flTime(s))),
+    r.fuel != null && row(t('fl.rep.fuel'), `${flNum(r.fuel)} kg`)].filter(Boolean);
+  return `<div class="lim"><div class="lim-title">${esc(t('fl.rep.title'))}</div><div class="vstats">${rows.join('')}</div>
+    <small class="muted">${esc(t('fl.rep.note'))}</small></div>`;
+}
+
 async function flLogs(selected = '') {
   let logs = [];
   try { logs = await api('flight-logs'); } catch { /* none yet */ }
@@ -180,8 +199,15 @@ async function flSource(name) {
   FL.seq = 0;
   $('#flDelete').classList.toggle('hidden', !name);
   $('#flSpan').classList.toggle('hidden', !!name);
+  $('#flAcmi').classList.toggle('hidden', !name);
+  $('#flReport').classList.add('hidden');
   if (name) {
-    try { FL.rows = (await api('flight-logs/' + encodeURIComponent(name))).rows; } catch (e) { toastErr(e); }
+    try {
+      const log = await api('flight-logs/' + encodeURIComponent(name));
+      FL.rows = log.rows;
+      $('#flReport').innerHTML = flReportHTML(log.report);
+      $('#flReport').classList.toggle('hidden', !$('#flReport').innerHTML);
+    } catch (e) { toastErr(e); }
   }
   flState();
   flDraw();
@@ -237,6 +263,14 @@ function bindFlight() {
     flSource('');
   });
   $('#flFolder').addEventListener('click', () => api('flight-logs-open', {}).catch(toastErr));
+  $('#flCockpit').addEventListener('click', () => window.open('cockpit.html', 'wtftd-cockpit', 'popup,width=960,height=560'));
+  $('#flAcmi').addEventListener('click', async () => {  // the flight as a Tacview file
+    const r = await fetch('/api/flight-logs/' + encodeURIComponent(FL.log) + '/acmi');
+    if (!r.ok) return toastErr(new Error((await r.json().catch(() => ({}))).error || r.statusText));
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await r.blob()), download: FL.log.replace(/\.csv$/, '') + '.txt.acmi' });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
   $('#flSheet').addEventListener('click', e => {
     const id = e.target.closest('[data-flopen]')?.dataset.flopen;
     if (id) { showView('vehicles'); openVehicle(id); }

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WTFTD — Cockpit</title>
+<link rel="icon" href="favicon.svg">
+<style>
+  :root { color-scheme: dark; --bg: #0c1117; --panel: #141a22; --line: #2d3746; --text: #e6e6e6; --muted: #7d8799; --accent: #f3b33d; --red: #ff4b4b; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px system-ui, sans-serif; }
+  header { display: flex; justify-content: space-between; padding: 8px 14px; color: var(--muted); }
+  #gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; padding: 0 10px; }
+  .gauge { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; text-align: center; }
+  .gauge svg { width: 100%; height: auto; display: block; }
+  .gauge .tick { stroke: var(--muted); stroke-width: 1.5; }
+  .gauge .arc { fill: none; stroke: var(--line); stroke-width: 6; }
+  .gauge .red { fill: none; stroke: var(--red); stroke-width: 6; }
+  .gauge text { fill: var(--muted); font-size: 9px; text-anchor: middle; }
+  .gauge .needle { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+  .gauge .val { fill: var(--text); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .gauge .name { font-size: 11px; }
+  #strip { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; }
+  .cell { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; min-width: 96px; }
+  .cell small { display: block; color: var(--muted); font-size: 11px; }
+  .cell b { font-size: 18px; font-variant-numeric: tabular-nums; }
+  .cell.on b { color: var(--accent); }
+  .cell.alert b { color: var(--red); }
+  #off { text-align: center; color: var(--muted); padding: 60px 10px; }
+</style>
+</head>
+<body>
+<header><b id="plane"></b><span id="msg"></span></header>
+<div id="off">Not flying. The instruments start with the next flight.</div>
+<div id="gauges" hidden></div>
+<div id="strip" hidden></div>
+<script src="cockpit.js"></script>
+</body>
+</html>

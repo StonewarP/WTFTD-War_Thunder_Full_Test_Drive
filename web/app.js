@@ -799,15 +799,52 @@ function presetChips(p) {
   }).join('');
 }
 
-function ammoLabel(o, belt = false) {
+function ammoLabel(o, belt = false, showPen = true) {
   const types = o.t.map(x => I18N.btype(x)).join(' / ');
   if (belt) {
     const m = o.id ? I18N.mod(o.id) : t('ammo.default');
     return `${m || o.id.replace(/_/g, ' ')}${types ? ` (${types})` : ''}`;
   }
   const names = o.b.map(b => I18N.bullet(b)).join(', ');
-  const pen = o.s?.k || o.s?.h;  // armor-piercing (≈ for those without a table in the game files) / HEAT
+  const pen = showPen && (o.s?.k || o.s?.h);  // armor-piercing (≈ for those without a table in the game files) / HEAT
   return `${types || '?'}${names ? ' · ' + names : ''}${pen ? ' · ' + t('ammo.pen', { mm: Math.round(pen) }) : ''}${o.id ? '' : ' — ' + t('ammo.default')}`;
+}
+
+// Penetration by distance (mm of flat armor, shell at 0°) of the gun's armor-piercing shells: the game's own table
+// where the shell's file has one; the others only have their muzzle value (a formula), so no curve.
+const PEN_COLORS = [...AMMO_COLORS, '#ff7a6b', '#7de3d6'];
+const PEN_DIST = [100, 500, 1000, 2000];
+function curveAt(pc, d) {  // [[x, y], ...] by x, in straight lines; null beyond its end
+  if (d <= pc[0][0]) return pc[0][1];
+  for (let i = 1; i < pc.length; i++) {
+    const [d0, p0] = pc[i - 1], [d1, p1] = pc[i];
+    if (d <= d1) return Math.round(p0 + (p1 - p0) * (d - d0) / (d1 - d0));
+  }
+  return null;
+}
+
+function penChart(g, loaded, belt = false) {
+  const curves = g.opts.filter(o => o.s?.pc && (S.showUnofficial || !o.x));
+  if (!curves.length) return '';
+  const shells = belt ? curves : g.opts.filter(o => o.s?.k && (S.showUnofficial || !o.x));  // belts: only those with a curve
+  const W = 300, H = 130, L = 32, R = 8, T = 8, B = 18;
+  const dmax = Math.min(4000, Math.max(...curves.map(o => o.s.pc.at(-1)[0])));  // the tables end with far-off 0 mm rows
+  const clip = pc => [...pc.filter(([d]) => d <= dmax), ...(pc.at(-1)[0] > dmax && pc.some(([d]) => d < dmax) ? [[dmax, curveAt(pc, dmax)]] : [])];
+  const top = Math.ceil(Math.max(...shells.map(o => o.s.k)) / 50) * 50;
+  const X = d => L + d / dmax * (W - L - R), Y = p => H - B - p / top * (H - B - T);
+  const color = o => PEN_COLORS[shells.indexOf(o) % PEN_COLORS.length];
+  const grid = [0, 1, 2, 3, 4].map(i => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(top * i / 4)}" y2="${Y(top * i / 4)}"/><text x="${L - 4}" y="${Y(top * i / 4) + 3}" text-anchor="end">${Math.round(top * i / 4)}</text>`).join('');
+  const xs = [0, .25, .5, .75, 1].map(f => `<text x="${X(dmax * f)}" y="${H - 4}" text-anchor="middle">${Math.round(dmax * f)}</text>`).join('');
+  const lines = curves.map(o => `<polyline fill="none" stroke="${color(o)}" stroke-width="${loaded.has(o.id) ? 2.5 : 1.5}" points="${clip(o.s.pc).map(([d, p]) => `${X(d)},${Y(p)}`).join(' ')}"/>`
+    + clip(o.s.pc).map(([d, p]) => `<circle cx="${X(d)}" cy="${Y(p)}" r="3" fill="${color(o)}"><title>${esc(ammoLabel(o, belt))} · ${d} m: ${p} mm</title></circle>`).join('')).join('');
+  const rows = shells.map(o => `<tr><td><i style="background:${color(o)}"></i>${esc(ammoLabel(o, belt, false))}${loaded.has(o.id) ? ' ●' : ''}</td><td>${Math.round(o.s.k)}</td>${PEN_DIST.map(d => {
+    const p = o.s.pc ? curveAt(o.s.pc, d) : null;
+    return `<td>${p == null ? '<span class="muted">—</span>' : p}</td>`;
+  }).join('')}</tr>`).join('');
+  return `<div class="pen-chart"><div class="pen-title">${esc(t('ammo.penChart'))}</div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('ammo.penChart'))}">${grid}${xs}<text x="${W - R}" y="${T + 2}" text-anchor="end">${esc(t('ammo.penAxis'))}</text>${lines}</svg>
+    <table><thead><tr><th></th><th>${esc(t('ammo.penMuzzle'))}</th>${PEN_DIST.map(d => `<th>${d} m</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
+    <small class="muted">${esc(t('ammo.penNote'))}</small></div>`;
 }
 
 function stepHTML(key, num, title, summary, body) {
@@ -966,13 +1003,13 @@ function ammoBody(v, d) {
         <div class="mini-actions"><button class="btn btn-ghost btn-sm" data-act="fill">${esc(t('ammo.fill'))}</button><button class="btn btn-ghost btn-sm" data-act="split">${esc(t('ammo.split'))}</button></div></div>
       ${slots}
       ${g.cap ? `<div class="cap"><div class="cap-bar">${bar}</div><div class="cap-legend${over ? ' over' : ''}"><span>${esc(t('ammo.capacity', { used, cap: g.cap }))}</span>${over ? `<span>${esc(t('ammo.overCap'))}</span>` : ''}</div></div>` : ''}
-    </div>${unofficialToggle}${sightHTML()}`;
+    </div>${penChart(g, new Set(c.ammo.filter(a => a.id !== null).map(a => a.id)))}${unofficialToggle}${sightHTML()}`;
   }
   if (!d.am.length) return `<p class="hint">${esc(t('ammo.none'))}</p>`;
   const guns = d.am.map((g, i) => `<div class="gun"><div class="gun-head">${icon('ammo', 'ic-sm')}<span class="gun-name">${esc(I18N.weapon(g.w))}</span>
       ${g.n > 1 ? `<span class="chip">${esc(t('ammo.guns', { n: g.n }))}</span>` : ''}</div>
       ${cmChaff(g) && i < 4 ? cmBody(g, i, c.ammo[i]) + '</div>' : `<div class="belt-row">${beltIcons(g.opts.find(o => o.id === (c.ammo[i]?.id ?? '')), g.trig === 'countermeasures')}
-        <select data-belt="${i}">${ammoOptions(g, c.ammo[i]?.id ?? '', true)}</select></div></div>`}`).join('');
+        <select data-belt="${i}">${ammoOptions(g, c.ammo[i]?.id ?? '', true)}</select></div>${penChart(g, new Set([c.ammo[i]?.id ?? '']), true)}</div>`}`).join('');
   return `<p class="hint">${esc(t('ammo.beltNote'))}</p>${guns}${unofficialToggle}`;
 }
 

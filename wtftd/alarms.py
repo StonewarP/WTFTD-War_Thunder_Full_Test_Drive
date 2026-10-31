@@ -67,6 +67,7 @@ COLUMNS = {"heading": "Heading, deg", "g_max": "Max G", "pitch": "Pitch, deg", "
            "turn_rate": "Turn rate, deg/s", "turn_radius": "Turn radius, m", "accel": "Acceleration, m/s2", "sep": "SEP, m/s",
            "burn": "Fuel consumption, kg/min", "range": "Range, km", "mass": "Mass without weapons, kg",
            "thrust_total": "Thrust, kgf", "twr": "Thrust/weight"}
+POSITION = ["East, m", "North, m", "Map heading, deg"]  # only in the logs, for the Tacview export
 FIELD = re.compile(r"\{([^{}:]+)(?::(\d))?\}")
 NO_VALUE = "N/A"  # what the game doesn't send, what the aircraft doesn't have
 
@@ -310,6 +311,18 @@ def numbers(values: dict) -> dict:
     return out
 
 
+def where(info, objects) -> tuple | None:
+    """Your aircraft on the map: (east m, north m, heading deg). The map marker is a share of the map's extent (map_info),
+    its direction is the heading (checked against the compass); None when the game has no map or no marker of yours."""
+    try:
+        me = next(o for o in objects if o.get("icon") == "Player")
+        (x0, z0), (x1, z1) = info["map_min"], info["map_max"]
+        return (round(x0 + me["x"] * (x1 - x0), 1), round(z1 - me["y"] * (z1 - z0), 1),
+                round(math.degrees(math.atan2(me["dx"], -me["dy"])) % 360, 1))
+    except (StopIteration, KeyError, TypeError, ValueError, AttributeError):
+        return None
+
+
 def answer(raw: bytes | None) -> dict:
     """A game API answer, {} when there is none or it says it isn't valid: a bad answer is no reason to stop."""
     try:
@@ -420,6 +433,7 @@ class Watch:
         self._log_id, self._readings, self._silent = None, 0, 0.0
         self.viewed = -VIEW_S  # when the Flight data tab last asked
         self.trace = deque(maxlen=TRACE_MAX)  # the last readings, for the curves: {"n": number, "t": time, values...}
+        self.last = {}  # the latest reading (every tick, not one a second), for the cockpit window
         self.log = None
         self.log_lock = threading.Lock()
         self.trend = Trend()
@@ -459,7 +473,7 @@ class Watch:
     def set_log(self, on: bool):
         with self.log_lock:
             if on and not self.log:
-                self.log = flightlog.Log(self.logs, self._flight, [column(n) for n in SERIES])
+                self.log = flightlog.Log(self.logs, self._flight, [*(column(n) for n in SERIES), *POSITION])
             elif self.log and not on:
                 self.log.close()
                 self.log = None
@@ -477,9 +491,16 @@ class Watch:
         row = numbers(values)
         self._seq += 1
         self.trace.append({"n": self._seq, "t": round(time.time(), 1), **row})
+        spot = self.spot() if self.log else None
         with self.log_lock:
             if self.log:
-                self.log.write([row.get(name, "") for name in SERIES])
+                self.log.write([*(row.get(name, "") for name in SERIES), *(spot or [""] * len(POSITION))])
+
+    def spot(self) -> tuple | None:
+        try:
+            return where(json.loads(self.get("/map_info.json")), json.loads(self.get("/map_obj.json")))
+        except (TypeError, ValueError):  # no game, no answer
+            return None
 
     def planes(self) -> dict:
         details = self.details()
@@ -541,6 +562,7 @@ class Watch:
         self.flying = state is not None
         if state is None:
             self.display = self.sample(self.preview) if self.preview else []
+            self.last = {}
             self._key = None  # the next spawn may be another aircraft, or the same one elsewhere
             self.trend = Trend()
             self.current = None
@@ -556,6 +578,7 @@ class Watch:
         cfg, lim = self.preview or self.cfg, self._lim
         self.trend.add(time.monotonic(), state)
         values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates()), "rec": 1 if self.log else 0}
+        self.last = numbers(values)
         self.record(values)
         if not self.enabled:
             self.display = self.sample(self.preview) if self.preview else []

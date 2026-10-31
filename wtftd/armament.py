@@ -166,6 +166,8 @@ def _stats(cat: str, g: str, p: dict, tnt_eq: dict) -> dict:
     put("e", e, 2)
     if e:
         put("tnt", e * tnt_eq.get(first_str(p.get("explosiveType")).lower(), 1.0), 2)
+    if "napalm" in [first_str(p[k].get("damageType")) for k in ("splash", "fireDamage") if isinstance(p.get(k), dict)]:
+        s["nap"] = 1  # napalm / incendiary: hurts a bombing zone through its own multiplier, not by the explosion table
     cal = _n(p.get("caliber"))
     put("cal", cal * 1000 if cal else None, 0)
     if cat == "torpedo":

@@ -187,6 +187,7 @@
         <span class="muted ar-count" id="arCount"></span>
       </div>
       <div class="ar-chips ar-uses" id="arUses"></div>
+      <div class="ar-base hidden" id="arBase"></div>
       <div class="ar-scroll" id="arTable"></div>
       <div class="compare-tray ar-tray hidden" id="arTray"></div>
     </div>
@@ -281,9 +282,12 @@
         <select id="flSource" aria-label="Log"></select>
         <button class="icon-btn btn-danger hidden" id="flDelete" data-i18n-title="action.delete"><svg class="ic"><use href="#i-trash"/></svg></button>
         <div class="seg" id="flSpan"><button data-s="60">1 min</button><button data-s="300">5 min</button><button data-s="1800">30 min</button><button data-s="0" data-i18n="fl.all"></button></div>
+        <button class="btn btn-sm hidden" id="flAcmi" data-i18n="fl.acmi"></button>
+        <button class="btn btn-sm" id="flCockpit" data-i18n="fl.cockpit"></button>
         <small class="muted" id="flState"></small>
       </div>
       <div class="fl-sheet hidden" id="flSheet"></div>
+      <div class="fl-sheet hidden" id="flReport"></div>
       <div class="fl-chart"><canvas id="flCanvas" class="hidden"></canvas><div class="empty hidden" id="flEmpty"><p data-i18n="fl.empty"></p></div></div>
       <div class="ov-values" id="flValues"></div>
     </div>
