@@ -23,7 +23,7 @@ function btRender() {
 
 async function btPoll() {
   clearTimeout(BT.timer);
-  if ($('#view-battle').classList.contains('hidden')) return;
+  if ($('#view-battle').classList.contains('hidden') && !$('#btSave').checked) return;  // saving goes on behind other tabs
   try {
     const st = await api(`battle/${BT.lastChat}/${BT.lastEvent}/${BT.lastDamage}`);
     if (!st.up) BT.gone = true;
@@ -57,4 +57,8 @@ function bindBattle() {
   $('#btSize').addEventListener('input', e => { apply(e.target.value); store.set('battleSize', +e.target.value); });
   $('#btFilter').addEventListener('input', e => { BT.filter = e.target.value; btRender(); });
   $('#btClear').addEventListener('click', () => { BT.chat = []; BT.log = []; btRender(); });
+  $('#btFolder').addEventListener('click', () => api('flight-logs-open', {}).catch(toastErr));
+  $('#btSave').checked = S.status?.settings?.battleLog === true;
+  $('#btSave').addEventListener('change', e => { api('settings', { battleLog: e.target.checked }).then(btPoll).catch(toastErr); });
+  if ($('#btSave').checked) btPoll();
 }

@@ -15,9 +15,14 @@ import time
 import webbrowser
 from pathlib import Path
 
-from .paths import CACHE, FROZEN, prepare
-from .server import ROOT, WATCH, page_closed, serve, wait_page_gone
+from .alarms import available, game_running
+from .paths import CACHE, FROZEN, WEB, prepare
+from .server import ROOT, STATE, WATCH, page_closed, serve, wait_page_gone
 
+GAME_CHECK_S = 5
+FIND_WINDOW_S = 20
+# a window hidden, minimized or on another screen keeps its pings, curves and battle log going
+STAY_AWAKE = ("--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows")
 # macOS: Chromium browsers that support app windows (--app), executable inside the bundle
 MAC_BROWSERS = ("Google Chrome.app/Contents/MacOS/Google Chrome", "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
                 "Chromium.app/Contents/MacOS/Chromium", "Brave Browser.app/Contents/MacOS/Brave Browser")
@@ -79,6 +84,33 @@ def no_translate(profile: Path):
         pass
 
 
+def window_options(tray) -> object | None:
+    """What the app window does on Windows, once it's open: start minimized, go to the notification area, close with the game."""
+    wanted = lambda key: STATE.settings().get(key) is True
+
+    def close_with_game():
+        seen = False
+        while True:
+            time.sleep(GAME_CHECK_S)
+            up = game_running()
+            if seen and not up and wanted("closeWithGame"):
+                tray.close()
+            seen = up
+
+    def start_minimized():
+        for _ in range(FIND_WINDOW_S * 2):
+            time.sleep(0.5)
+            if tray.minimize():
+                return
+
+    if wanted("startMinimized"):
+        threading.Thread(target=start_minimized, daemon=True).start()
+    threading.Thread(target=close_with_game, daemon=True).start()
+    icon = tray.Tray(lambda: wanted("trayMinimize"), WEB / "favicon.ico")
+    icon.start()
+    return icon
+
+
 def main():
     if sys.stdout is None or (FROZEN and sys.platform == "darwin"):  # packaged app without a console: keep a log instead
         CACHE.mkdir(parents=True, exist_ok=True)
@@ -93,6 +125,7 @@ def main():
     print(f"WTFTD running at {url}  (Ctrl+C to quit)")
 
     exe = None if "--browser" in sys.argv or "--no-window" in sys.argv else find_app_browser()
+    icon = None
     try:
         if exe:
             profile = ROOT / ".cache" / "app-window"
@@ -103,8 +136,11 @@ def main():
                 except OSError:
                     pass
             no_translate(profile)
-            proc = subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", *size,
+            proc = subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", *size, *STAY_AWAKE,
                                      "--no-first-run", "--no-default-browser-check", "--disable-features=Translate"])
+            if available():
+                from . import tray
+                icon = window_options(tray)
             if sys.platform == "darwin":
                 # the browser outlives its closed window on macOS: quit when the page says bye
                 while proc.poll() is None and not page_closed():
@@ -128,6 +164,8 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        if icon:
+            icon.stop()
         WATCH.stop()
         httpd.shutdown()
 

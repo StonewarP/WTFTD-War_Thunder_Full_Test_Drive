@@ -21,7 +21,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, sights, terrain, \
-    uninstall, vromfs
+    uninstall, vromfs, waveout
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -525,7 +525,10 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("battle/"):  # battle/<last chat id>/<last event>/<last damage>
             ids = route.split("/")[1:]
             if len(ids) == 3 and all(x.isdecimal() for x in ids):
-                return self.send_json(battle.news(_wt_get, *map(int, ids)))
+                seen = battle.news(_wt_get, *map(int, ids))
+                if STATE.settings().get("battleLog") is True:
+                    ARCHIVE.add(seen)
+                return self.send_json(seen)
             return self.send_json({"error": "not found"}, 404)
         if route.startswith("flight/"):
             return self.send_json(flight_status(int(route.split("/", 1)[1]) if route.split("/", 1)[1].isdecimal() else 0))
@@ -681,7 +684,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": bool(gd)})
         if route == "settings":
             s = STATE.settings()
-            for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll", "dataSource"):
+            for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll", "dataSource",
+                      "audioDevice", "battleLog", "startMinimized", "trayMinimize", "closeWithGame"):
                 if k in body:
                     s[k] = body[k]
             if s.get("gameDir") and not game.resolve_game_dir(Path(s["gameDir"]).expanduser()):
@@ -736,11 +740,18 @@ class Handler(BaseHTTPRequestHandler):
             on = alarms.available() and body.get("on") is True
             WATCH.set_preview(WATCH.profiles.get(str(body.get("profile") or ""), WATCH.base) if on else None)
             return self.send_json(overlay_status(str(body.get("profile") or "")))
-        if route == "overlay-test":  # hear an alarm
-            a = WATCH.profiles.get(str(body.get("profile") or ""), WATCH.base)["alarms"].get(str(body.get("alarm")))
+        if route == "overlay-test":  # hear an alarm, or a line's own alert
+            cfg, line = WATCH.profiles.get(str(body.get("profile") or ""), WATCH.base), body.get("line")
+            a = cfg["lines"][line]["rule"] if type(line) is int and 0 <= line < len(cfg["lines"]) else cfg["alarms"].get(str(body.get("alarm")))
             if a and alarms.available():
-                alarms.beep(a["hz"], a["ms"])
+                alarms.play(a, cfg["volume"], SOUNDS)
             return self.send_json({"ok": bool(a)})
+        if route == "sound-import":  # a .wav the player picked, for the alarms
+            try:
+                return self.send_json({"file": alarms.save_sound(SOUNDS, str(body.get("name", "")), str(body.get("data", ""))),
+                                       "sounds": alarms.sound_list(SOUNDS)})
+            except ValueError as e:
+                return self.send_json({"error": str(e)}, 400)
         if route == "combos":
             if not isinstance(body.get("combos"), list):
                 return self.send_json({"error": "combos must be a list"}, 400)
@@ -1072,8 +1083,9 @@ def mission_on_map() -> bool:
     return bool(hint and info.get("valid") and _matches(read_json(DATA / "levels.json", {}).get(hint["level"], {}), mn, mx))
 
 
-LOGS = USER / "logs"
-WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS,
+LOGS, SOUNDS = USER / "logs", USER / "sounds"
+ARCHIVE = battle.Archive(LOGS)
+WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS, sounds=SOUNDS,
                      kind=lambda vid: (STATE.get_vehicles().get(vid) or {}).get("k"),
                      crash_words=lambda: read_json(DATA / "battle_words.json", {}).get("crashed", []))
 
@@ -1081,6 +1093,7 @@ WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS,
 def apply_alarm_settings():
     s = STATE.settings()
     WATCH.words = alarms.labels(str(s.get("lang") or "en"))
+    alarms.OUTPUT["device"] = str(s.get("audioDevice") or "")
     saved = s.get("overlayProfiles") if isinstance(s.get("overlayProfiles"), dict) else {}
     WATCH.set_config(alarms.clean(s.get("overlay"), WATCH.words),
                      {k: alarms.clean(v, WATCH.words) for k, v in saved.items() if alarms.PROFILE.fullmatch(k)})
@@ -1100,7 +1113,8 @@ def overlay_status(profile: str = "") -> dict:
     cfg = WATCH.profiles.get(profile, WATCH.base)
     return {"cfg": cfg, "screen": alarms.screen(), "lines": WATCH.sample(cfg), "onScreen": WATCH.preview is not None,
             "enabled": STATE.settings().get("alarms") is True, "profile": profile if profile in WATCH.profiles else "",
-            "profiles": sorted(WATCH.profiles), "active": WATCH.profile, "aircraft": WATCH.current}
+            "profiles": sorted(WATCH.profiles), "active": WATCH.profile, "aircraft": WATCH.current,
+            "sounds": alarms.sound_list(SOUNDS), "devices": waveout.devices(), "device": alarms.OUTPUT["device"]}
 
 
 def capture_once():

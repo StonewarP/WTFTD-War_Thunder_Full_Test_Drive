@@ -15,7 +15,8 @@ Only the latest release is supported: fixes ship in a new version.
   It only answers WTFTD's own page: requests from other websites are refused.
 - **Files it writes:**
   - `%LOCALAPPDATA%\WTFTD` on Windows, `~/Library/Application Support/WTFTD` on macOS (or the source folder):
-    settings, saved setups, flight logs, game database, image cache;
+    settings, saved setups, flight logs, the chat and battle log if you save them, the sounds you add, game database,
+    image cache;
   - `War Thunder\UserMissions\`: the missions you create;
   - with custom vehicles on: new files under `War Thunder\content\pkg_local` and `content\pkg_user` only —
     never a path that replaces a game file. Every file is listed in `user\cdk_manifest.json` and

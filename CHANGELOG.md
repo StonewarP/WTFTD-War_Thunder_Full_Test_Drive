@@ -7,7 +7,28 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 ## 0.21.1 — not released yet
 
 - **Glow around the screen** (My overlay, off until you turn it on): during an alarm, a soft glow in the alert colour
-  around the screen, on top of the beeps. Clicks go through it, and it never takes the focus from the game.
+  around the screen, on top of the beeps. Choose its size and make it flash, at the speed you like. Clicks go through it,
+  and it never takes the focus from the game.
+- **Alerts on any value** (My overlay → a line's Options): a line can have its own alert (`fuel % < 15`, `G > 9`, `AoA > 20`...)
+  that turns it to the alert colour, beeps and lights the glow, and can show only under a condition of its own, or hide when
+  a value is `N/A`. Lines can flash with their alarm.
+- **Text blocks**: up to four blocks of lines at different places of the screen, each at its own size.
+- **Text**: italic, line spacing, an outline in the colour you choose.
+- **Sounds**: a volume, your own `.wav` sounds for each alarm and alert, a key to mute the alarms, beeps only when the game
+  is in front, no beeps with the engines stopped.
+- A key to hold to hide the overlay, and how often the game is read and the curves and logs are written.
+- **Your own alarm sound**: each alarm and alert has *Choose a file…*: mp3, wav, ogg and what else your browser reads,
+  kept as a short .wav (15 s at most). And a **sound output** of your choice (Alarms → Sounds).
+- **Colours by part**: names, values and units in their own colours, for the whole overlay or a line.
+- **Several conditions** (AND / OR) on a line's showing and its alert.
+- **Text blocks** (a tab of their own): columns, a frame, a background.
+- **Overlays for jets and propeller aircraft**, after the aircraft's own and its type's.
+- **Gear and flaps %** can show even when they are retracted. The alarms still only follow them out.
+- My overlay is laid out as tabs of cards under the preview: Lines, Blocks, Look, Alarms, Behaviour.
+- **Flight data**: save the values you picked as a named view, and the curves as a picture.
+- **Battle**: save the chat and the battle log to a text file (`user/logs`), off by default.
+- **App window** (Settings, Windows): start minimized, minimize to the notification area, close WTFTD when the game closes.
+  Data schema 25.
 - The overlay no longer shows up now and then in the menus: in the hangar the game reports 0 or 1 km/h for the aircraft
   on show, which looked like a flight.
 

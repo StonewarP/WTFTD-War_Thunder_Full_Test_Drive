@@ -1194,20 +1194,31 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 
 /* ------------------------------------------------------------------ My overlay */
 .ov-bar { display: flex; flex-wrap: wrap; gap: 6px 28px; margin-bottom: 12px; }
-.ov-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
-.ov-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; align-items: stretch; }
-.ov-main > .btn { align-self: flex-start; }
-.ov-side { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
-.ov-side input[type=text], .ov-side input[type=number] { width: 100%; }
-.ov-side input[type=color], .ov-swatch input { width: 100%; height: 32px; padding: 2px; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 6px; cursor: pointer; }
+.ov-preview { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin-bottom: 14px; }
+.ov-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); width: 100%; margin-bottom: 12px; }
+.ov-tabs button { height: 34px; font-weight: 600; }
+.ov-panel { display: flex; flex-direction: column; gap: 10px; min-width: 0; align-items: stretch; }
+.ov-panel > .btn { align-self: flex-start; }
+.ov-cards, #ovAlarms { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: stretch; }
+.ov-cards-fill { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.ov-card { display: flex; flex-direction: column; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+.ov-card .field { margin: 0; gap: 4px; min-width: 0; }
+.ov-card .field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ov-card .switch { padding: 3px 0; }
+.ov-card .field > label, .ov-mini > span:first-child { font-size: 12px; font-weight: 500; color: var(--muted); }
+/* every control of a kind the same height, whichever card it's in */
+#view-overlay input[type=text], #view-overlay input[type=number], #view-overlay input[type=color], #view-overlay select, #view-overlay .ov-sound .btn, #view-overlay .ov-alert-sound .btn, .ov-conds > .btn { height: 34px; box-sizing: border-box; }
+#view-overlay input:disabled, #view-overlay select:disabled { opacity: .4; cursor: default; }
+.ov-card input[type=text], .ov-card input[type=number], .ov-card select { width: 100%; }
+.ov-card input[type=color], .ov-swatch input { width: 100%; height: 32px; padding: 2px; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 6px; cursor: pointer; }
 .ov-h { margin: 14px 0 6px; font: 700 14px var(--font-display); }
-.ov-side .ov-h:first-child { margin-top: 0; }
+.ov-card .ov-h:first-child { margin: 0; }
 /* the player's screen, to scale: always a game-like sky, whatever the app's theme */
 .ov-top { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 10px; align-items: stretch; }
 .ov-screen, .ov-zoom { border-radius: 10px; border: 1px solid var(--line-2); background: linear-gradient(#55779c, #a8bdd0 62%, #6d7a5c 62%, #4f5c45); }
 .ov-screen { position: relative; overflow: hidden; }
 .ov-zoom { padding: 12px; overflow: hidden; white-space: pre; line-height: 1.17; }
-.ov-text { position: absolute; cursor: move; white-space: pre; line-height: 1.17; user-select: none; touch-action: none; outline: 1px dashed rgba(255,255,255,.35); outline-offset: 3px; }
+.ov-text { display: grid; grid-auto-flow: column; justify-content: start; position: absolute; cursor: move; white-space: pre; line-height: 1.17; user-select: none; touch-action: none; outline: 1px dashed rgba(255,255,255,.35); outline-offset: 3px; }
 .ov-lines { display: flex; flex-direction: column; gap: 6px; }
 .ov-line { display: grid; grid-template-columns: auto minmax(180px, 1fr) 118px 118px 58px 46px 26px auto; gap: 6px; align-items: end; padding: 6px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .ov-line .icon-btn { width: 26px; height: 26px; }
@@ -1218,14 +1229,37 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 .ov-mini { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); min-width: 0; }
 .ov-mini select, .ov-mini input[type=number] { width: 100%; min-width: 0; }
 .ov-values { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.ov-more { grid-column: 1 / -1; font-size: 12px; }
+.ov-more summary { cursor: pointer; color: var(--text-2); }
+.ov-opts { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.ov-switches { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 24px; }
+.ov-line-look { display: grid; grid-template-columns: repeat(auto-fill, 120px); gap: 10px; }
+.ov-color { display: flex; align-items: center; gap: 4px; }
+.ov-color input { flex: 1; min-width: 0; }
+.ov-color .icon-btn { width: 26px; height: 26px; flex: none; }
+.ov-test { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: start; }
+.ov-test-name { line-height: 34px; color: var(--muted); }
+.ov-conds { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ov-cond { display: grid; grid-template-columns: 76px 190px 56px 96px 26px; gap: 6px; align-items: center; }
+.ov-cond .icon-btn { width: 26px; height: 26px; }
+.ov-alert-sound { display: grid; grid-template-columns: 110px 110px minmax(0, 340px) auto; gap: 6px; align-items: end; }
+.ov-sound { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: end; }
+.ov-sound .btn { white-space: nowrap; }
+.ov-block .row-between { min-height: 26px; }
+.ov-block .icon-btn { width: 26px; height: 26px; }
+.fl-views { margin: 12px 0 8px; }
+.fl-views input[type=text] { width: 200px; }
+.ov-text:empty { min-width: 48px; min-height: 18px; }
+.ov-blink { animation: ov-blink var(--ov-flash, 500ms) step-end infinite; }
+@keyframes ov-blink { 50% { opacity: 0; } }
 .ov-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .ov-group b { width: 100%; font-size: 12px; color: var(--text-2); }
 .ov-chip { border: 0; cursor: pointer; }
 .ov-chip:hover { color: var(--text); background: var(--line-2); }
-.ov-alarm { padding: 4px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.ov-alarm { gap: 10px; }
+.ov-panel #ovAlarms { margin-bottom: 2px; }
 .ov-alarm-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 4px; }
 @media (max-width: 1250px) {
-  .ov-grid { grid-template-columns: minmax(0, 1fr); }
   .ov-line { grid-template-columns: auto minmax(0, 1fr) 118px 118px; }
 }
 

@@ -159,14 +159,16 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 - **My overlay** (Windows, off until you turn it on; per aircraft or type if you like): your own lines over the game
   in a click-through window (speed against the limit, altitude, fuel, any value the game sends), limits as speeds,
   percentages or both, placed on a picture of your screen with the game's HUD or your own screenshot; and beeps near
-  your aircraft's breaking speeds with your thresholds and sounds, with a glow around the screen if you like, which stop
-  when you crash. It reads the game's local
-  data about your own aircraft only, nothing is added to the game
+  your aircraft's breaking speeds with your thresholds and sounds or your own (mp3, wav...), on the sound output you
+  choose, with a glow around the screen if you like, of the size you want and flashing or not; they stop when you crash.
+  Any line can have its own alert on any value (`fuel < 15 %`, `G > 9`) and show under conditions of its own, in up to
+  four text blocks with columns, a frame and a background, with an outline and its own colours for names, values and
+  units. It reads the game's local data about your own aircraft only, nothing is added to the game
 - **Flight data** (Windows): live curves of what the game reports in flight (speed, altitude, G, turn time, fuel use...),
   and a recorder: CSV logs for Excel, replayed in the app, with a **flight report** (top speed, best climb, best
-  sustained turn, time to climb, fuel used) and an **export for Tacview**
+  sustained turn, time to climb, fuel used) and an **export for Tacview**; saved views, and the curves as a picture
 - **Cockpit window** (Windows): your aircraft's instruments as dials, in a window of their own for a second screen
-- **Battle**: the game's chat and battle log, live, in their own tab, with a filter
+- **Battle**: the game's chat and battle log, live, in their own tab, with a filter, and saved to a text file if you like
 - **Feedback** button: write a few words and GitHub's bug or idea form opens filled in; you read it and send it with
   your own account
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
@@ -352,6 +354,7 @@ wtftd/                      Python backend (stdlib only)
   armament.py               Weapons page data (missiles, bombs, rockets, torpedoes)
   alarms.py / flightlog.py  in-flight values, alarms and overlay (Windows) / CSV flight logs, report, Tacview export
   battle.py                 the game's chat and battle log
+  waveout.py / tray.py      sound on the output you pick / the app window: minimized, notification area (Windows)
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,

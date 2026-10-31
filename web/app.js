@@ -1605,6 +1605,8 @@ async function openSettings() {
   $('#cdkFiles').textContent = t('settings.cdkFiles', { n: st.cdk?.present || 0 });
   $('#setAirMethod').value = st.cdk?.airMethod || 'custom';
   $('#setAutoUpdate').checked = st.settings?.autoUpdate !== false;
+  $('#setWindow').classList.toggle('hidden', !st.alarms);  // Windows only
+  [['#setStartMinimized', 'startMinimized'], ['#setTray', 'trayMinimize'], ['#setCloseWithGame', 'closeWithGame']].forEach(([id, key]) => { $(id).checked = st.settings?.[key] === true; });
   $('#setTheme').value = themePref();
   $('#dataVersion').textContent = st.data?.version ? `${t('settings.version', { version: st.data.version, date: new Date(st.data.built * 1000).toLocaleDateString(I18N.code) })} · ${t('source.from.' + (st.data.source || 'datamine'))}` : '';
   renderSource($('#setSource'), st.dataSource);
@@ -1618,7 +1620,7 @@ async function saveSettings() {
     const hosts = {};
     $$('#setHosts select').forEach(s => { if (s.value) hosts[s.dataset.host] = s.value; });
     const source = $('#setSource').dataset.source;
-    S.status = await api('settings', { gameDir: $('#setGameDir').value.trim(), lang, cdk: $('#setCdk').checked, hosts, airMethod: $('#setAirMethod').value, autoUpdate: $('#setAutoUpdate').checked, theme: $('#setTheme').value, oodleDll: $('#setOodle').value.trim(), dataSource: source });
+    S.status = await api('settings', { gameDir: $('#setGameDir').value.trim(), lang, cdk: $('#setCdk').checked, hosts, airMethod: $('#setAirMethod').value, autoUpdate: $('#setAutoUpdate').checked, startMinimized: $('#setStartMinimized').checked, trayMinimize: $('#setTray').checked, closeWithGame: $('#setCloseWithGame').checked, theme: $('#setTheme').value, oodleDll: $('#setOodle').value.trim(), dataSource: source });
     // another source: rebuilt now, the banner shows it. On the welcome screen, nothing starts before its button
     if (S.status.dataReady && source !== (S.status.data?.source || 'datamine')) { await api('update', {}); watchUpdates(); }
     if (!S.status.dataReady) renderOnboardInfo();

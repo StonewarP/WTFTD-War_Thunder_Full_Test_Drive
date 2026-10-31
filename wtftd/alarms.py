@@ -15,17 +15,25 @@ The overlay is a separate click-through window above the game: nothing is inject
 """
 from __future__ import annotations
 
+import base64
+import contextlib
 import gc
+import io
 import json
 import math
+import operator
+import queue
 import re
 import sys
 import threading
 import time
+import wave
+from array import array
 from collections import deque
+from functools import lru_cache
 from pathlib import Path
 
-from . import battle, flightlog, sights
+from . import battle, flightlog, sights, waveout
 from .paths import WEB
 
 ALARMS = {"airframe": (93, 1400), "gear": (90, 1000), "flaps": (90, 700)}  # default: % of the limit, beep in Hz
@@ -74,6 +82,16 @@ NO_VALUE = "N/A"  # what the game doesn't send, what the aircraft doesn't have
 WHEN = {"always": None, "alarm": None, "gear": "gear, %", "flaps": "flaps, %", "airbrake": "airbrake, %", "log": "rec"}  # shown if on
 MAX_LINES = 30
 MAX_TEXT = 120
+MAX_BLOCKS = 3  # text blocks besides the main one
+MAX_TESTS = 4  # conditions on a line's showing or its alert
+STIPPLE = {100: "", 75: "gray75", 50: "gray50", 25: "gray25"}  # a block's background: a window has only one opacity
+BLOCK_PAD = 10  # between a block's text and its frame or background
+OPS = {">": operator.gt, "<": operator.lt}
+SOUND = re.compile(r"[\w.\- ]{1,80}\.wav", re.I)  # the player's sounds, in user/sounds
+SOUND_RATE = 22050
+STALE_S = 0.5  # a sound that waited longer than this, through a long one, is no longer news
+OUTPUT = {"device": ""}  # the sound output picked in My overlay, "" = Windows' default
+FADE_MS = 2  # a beep's edges: no click
 PROFILE = re.compile(r"(type:)?[\w.\-]{1,120}")  # the overlay of an aircraft (its id) or a type (type:fighter)
 COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 FONT = re.compile(r"[\w .+-]{1,64}")
@@ -87,7 +105,7 @@ SAMPLE_STATE = {"IAS, km/h": 640, "TAS, km/h": 790, "M": 0.75, "H, m": 3200, "Vy
 
 GAME_WINDOW_CLASS = "DagorWClass"
 OVERLAY_KEY = "#010101"  # the colour made see-through
-GLOW_BAND = 0.18  # how far the glow reaches into the screen, share of its height
+GLOW_SIZE = 18  # how far the glow reaches into the screen, % of its height
 GLOW_ALPHA = 180  # its opacity at the very edge, out of 255
 GLOW_STEP = 4  # worked out one pixel in 4: a 4K screen has 8 million, too many for Python, and a soft fade doesn't show it
 
@@ -134,15 +152,19 @@ def defaults(words: dict) -> dict:
     width = max(len(w) for w in ("IAS", "MACH", words["gear"], words["flaps"])) + 2
 
     def line(label, text, when="always", alarm=""):
-        return {"text": f"{label:<{width}}{text}", "when": when, "alarm": alarm, "color": "", "size": 0}
+        return _line({"text": f"{label:<{width}}{text}", "when": when, "alarm": alarm})
 
     return {"x": round(700 * scale), "y": round(55 * scale), "font": "Consolas", "size": round(40 * scale), "bold": False,
+            "italic": False, "spacing": 0, "outline": 0, "outlineColor": "#000000", "blocks": [], "valueColor": "", "unitColor": "",
+            "pctAlways": False, **_look({}),
+            "glowSize": GLOW_SIZE, "glowFlash": False, "flashMs": 500, "volume": 100, "soundFocus": False, "soundEngine": False,
+            "pollMs": round(POLL_S * 1000), "logMs": round(SAMPLE_S * 1000), "muteKey": [], "muteKeyName": "", "holdKey": [], "holdKeyName": "",
             "color": "#E6E6E6", "alert": "#FF0000", "opacity": 100, "show": True, "hotkey": [], "hotkeyName": "",
-            "logKey": [], "logKeyName": "", "hideCrash": False, "glow": False, "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS} for n, (at, hz) in ALARMS.items()},
+            "logKey": [], "logKeyName": "", "hideCrash": False, "glow": False, "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS, "sound": ""} for n, (at, hz) in ALARMS.items()},
             "lines": [line("IAS", "{ias} / {vne} km/h {swept}", alarm="airframe"), line("MACH", "{mach} / {mne}", alarm="airframe"),
                       line(words["gear"], "{ias} / {gear_max} km/h", "gear", "gear"),
                       line(words["flaps"], "{ias} / {flaps_max} km/h", "flaps", "flaps"),
-                      {"text": "REC", "when": "log", "alarm": "", "color": "#FF0000", "size": 0}]}
+                      _line({"text": "REC", "when": "log", "color": "#FF0000"})]}
 
 
 def _num(v, default, lo, hi):
@@ -157,10 +179,52 @@ def _flag(v, default):
     return v if isinstance(v, bool) else default
 
 
+def _sound(v) -> str:
+    return v if isinstance(v, str) and SOUND.fullmatch(v) else ""
+
+
+def _one(test) -> dict | None:
+    """A condition on a value, {value, op, at}, or None if there isn't a whole one."""
+    if not isinstance(test, dict) or not isinstance(test.get("value"), str) or not test["value"] or test.get("op") not in OPS:
+        return None
+    at = test.get("at")
+    if not isinstance(at, (int, float)) or isinstance(at, bool) or not math.isfinite(at):
+        return None
+    return {"value": test["value"][:40], "op": test["op"], "at": at}
+
+
+def _test(test) -> dict | None:
+    """A condition, with more of them joined by AND or OR."""
+    first = _one(test)
+    more = test.get("more") if first and isinstance(test.get("more"), list) else []
+    return first and {**first, "join": "or" if test.get("join") == "or" else "and",
+                      "more": [x for x in map(_one, more) if x][:MAX_TESTS - 1]}
+
+
+def _rule(rule) -> dict | None:
+    """A line's own alert: its condition and its sound."""
+    test = _test(rule)
+    return test and {**test, "hz": _num(rule.get("hz"), 1000, 37, 32767), "ms": _num(rule.get("ms"), BEEP_MS, 10, 2000),
+                     "sound": _sound(rule.get("sound"))}
+
+
 def _line(line: dict) -> dict:
     return {"text": str(line.get("text", ""))[:MAX_TEXT], "when": line.get("when") if line.get("when") in WHEN else "always",
             "alarm": line.get("alarm") if line.get("alarm") in ALARMS else "", "color": _color(line.get("color"), ""),
-            "size": _num(line.get("size"), 0, 0, 400)}
+            "valueColor": _color(line.get("valueColor"), ""), "unitColor": _color(line.get("unitColor"), ""),
+            "size": _num(line.get("size"), 0, 0, 400), "blink": _flag(line.get("blink"), False), "hideNA": _flag(line.get("hideNA"), False),
+            "block": _num(line.get("block"), 0, 0, MAX_BLOCKS), "if": _test(line.get("if")), "rule": _rule(line.get("rule"))}
+
+
+def _look(block: dict) -> dict:
+    """What every text block has, the main one (in the overlay itself) like the others."""
+    return {"scale": _num(block.get("scale"), 100, 10, 400), "columns": _num(block.get("columns"), 1, 1, 4), "frame": _num(block.get("frame"), 0, 0, 8),
+            "frameColor": _color(block.get("frameColor"), "#FFFFFF"), "background": _color(block.get("background"), ""),
+            "bgOpacity": block.get("bgOpacity") if block.get("bgOpacity") in STIPPLE else 50}
+
+
+def _block(block: dict) -> dict:
+    return {"x": _num(block.get("x"), 0, -20000, 20000), "y": _num(block.get("y"), 0, -20000, 20000), **_look(block)}
 
 
 def _keys(cfg: dict, key: str, name: str) -> dict:
@@ -182,14 +246,27 @@ def clean(cfg, words: dict) -> dict:
            "color": _color(cfg.get("color"), base["color"]), "alert": _color(cfg.get("alert"), base["alert"]),
            "opacity": _num(cfg.get("opacity"), base["opacity"], 10, 100), "show": _flag(cfg.get("show"), base["show"]),
            "hideCrash": _flag(cfg.get("hideCrash"), base["hideCrash"]), "glow": _flag(cfg.get("glow"), base["glow"]),
+           "valueColor": _color(cfg.get("valueColor"), ""), "unitColor": _color(cfg.get("unitColor"), ""), **_look(cfg),
+           "pctAlways": _flag(cfg.get("pctAlways"), base["pctAlways"]),
+           "italic": _flag(cfg.get("italic"), base["italic"]), "spacing": _num(cfg.get("spacing"), base["spacing"], -50, 200),
+           "outline": _num(cfg.get("outline"), base["outline"], 0, 4), "outlineColor": _color(cfg.get("outlineColor"), base["outlineColor"]),
+           "glowSize": _num(cfg.get("glowSize"), base["glowSize"], 3, 50), "glowFlash": _flag(cfg.get("glowFlash"), base["glowFlash"]),
+           "flashMs": _num(cfg.get("flashMs"), base["flashMs"], 200, 4000), "volume": _num(cfg.get("volume"), base["volume"], 0, 100),
+           "soundFocus": _flag(cfg.get("soundFocus"), base["soundFocus"]), "soundEngine": _flag(cfg.get("soundEngine"), base["soundEngine"]),
+           "pollMs": _num(cfg.get("pollMs"), base["pollMs"], 50, 1000), "logMs": _num(cfg.get("logMs"), base["logMs"], 100, 10000),
            "repeat": _num(cfg.get("repeat"), base["repeat"], 100, 10000), "alarms": {},
-           **_keys(cfg, "hotkey", "hotkeyName"), **_keys(cfg, "logKey", "logKeyName")}
+           **_keys(cfg, "hotkey", "hotkeyName"), **_keys(cfg, "logKey", "logKeyName"), **_keys(cfg, "muteKey", "muteKeyName"),
+           **_keys(cfg, "holdKey", "holdKeyName")}
     for name, std in base["alarms"].items():
         a = alarms.get(name) if isinstance(alarms.get(name), dict) else {}
         out["alarms"][name] = {"on": _flag(a.get("on"), std["on"]), "at": _num(a.get("at"), std["at"], 1, 200),
-                               "hz": _num(a.get("hz"), std["hz"], 37, 32767), "ms": _num(a.get("ms"), std["ms"], 10, 2000)}
-    lines = cfg.get("lines")
+                               "hz": _num(a.get("hz"), std["hz"], 37, 32767), "ms": _num(a.get("ms"), std["ms"], 10, 2000),
+                               "sound": _sound(a.get("sound"))}
+    lines, blocks = cfg.get("lines"), cfg.get("blocks")
+    out["blocks"] = [_block(x) for x in blocks if isinstance(x, dict)][:MAX_BLOCKS] if isinstance(blocks, list) else []
     out["lines"] = [_line(x) for x in lines if isinstance(x, dict)][:MAX_LINES] if isinstance(lines, list) else base["lines"]
+    for line in out["lines"]:
+        line["block"] = line["block"] if line["block"] <= len(out["blocks"]) else 0
     return out
 
 
@@ -203,14 +280,14 @@ def flaps_limit(points: list, position: float) -> float:
     return points[-1][1]
 
 
-def percents(lim: dict, state: dict) -> dict:
-    """{alarm: % of its limit}: the airframe always, gear and flaps only when they are out."""
+def percents(lim: dict, state: dict, always: bool = False) -> dict:
+    """{alarm: % of its limit}: the airframe always, gear and flaps only when they are out, unless always."""
     ias = state.get("IAS, km/h") or 0
     out = {"airframe": max(ias / lim["v"], (state.get("M") or 0) / lim["m"] if lim["m"] else 0) * 100}
-    if (state.get("gear, %") or 0) > 0 and lim.get("gear"):
+    if ((state.get("gear, %") or 0) > 0 or always) and lim.get("gear"):
         out["gear"] = ias / lim["gear"] * 100
     flaps = state.get("flaps, %") or 0
-    if flaps > 0 and lim.get("flaps"):
+    if (flaps > 0 or always) and lim.get("flaps"):
         out["flaps"] = ias / flaps_limit(lim["flaps"], flaps / 100) * 100
     return out
 
@@ -241,7 +318,7 @@ class Trend:
         return out
 
 
-def computed(lim: dict | None, state: dict, words: dict, rates: dict | None = None) -> dict:
+def computed(lim: dict | None, state: dict, words: dict, rates: dict | None = None, always: bool = False) -> dict:
     """The values the game doesn't send. Unknown aircraft: none of those from the limits. margin: km/h left to the
     nearest airframe limit. turn (s), turn_rate, turn_radius: a level turn at this load factor and TAS. mass: empty +
     fuel, the game doesn't tell the weapons' (shortcut: so twr reads high when loaded, until /state gives the real mass)."""
@@ -269,7 +346,7 @@ def computed(lim: dict | None, state: dict, words: dict, rates: dict | None = No
         if thrust:
             out["twr"] = sum(thrust) / out["mass"]
     ias, mach = state.get("IAS, km/h") or 0, state.get("M") or 0
-    out.update({f"{name}_pct": value for name, value in percents(lim, state).items()})
+    out.update({f"{name}_pct": value for name, value in percents(lim, state, always).items()})
     out.update(vne=lim["v"], mne=lim["m"] or None, gear_max=lim.get("gear") or None,
                margin=min(lim["v"] - ias, ias * (lim["m"] / mach - 1) if lim["m"] and mach else lim["v"]))
     if lim.get("flaps"):
@@ -277,30 +354,83 @@ def computed(lim: dict | None, state: dict, words: dict, rates: dict | None = No
     return out
 
 
+def _meets(test: dict, values: dict) -> bool:
+    v = values.get(FIELDS.get(test["value"], (test["value"],))[0])
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and OPS[test["op"]](v, test["at"])
+
+
+def met(test: dict, values: dict) -> bool:
+    results = [_meets(x, values) for x in (test, *test.get("more", []))]
+    return any(results) if test.get("join") == "or" else all(results)
+
+
+def own_alerts(cfg: dict, values: dict) -> list:
+    """The lines whose own alert is on, by their place in the list."""
+    return [i for i, line in enumerate(cfg["lines"]) if line.get("rule") and met(line["rule"], values)]
+
+
+def _value(m: re.Match, values: dict) -> str:
+    name, places = m[1].strip(), m[2]
+    source, default = FIELDS.get(name, (name, COMPUTED.get(name)))
+    v = values.get(source)
+    if isinstance(v, str):
+        return v
+    if v is None or isinstance(v, bool):
+        return NO_VALUE
+    return f"{v:.{int(places)}f}" if places else f"{v:.{default}f}" if default is not None else f"{v:g}"
+
+
+def pieces(text: str, values: dict) -> list:
+    """A line's text cut for its colours, [(text, kind)]: the name before the first value, the values, the unit after one."""
+    out, at = [], 0
+    for m in FIELD.finditer(text):
+        if m.start() > at:
+            out.append((text[at:m.start()], "unit" if out else "name"))
+        out.append((_value(m, values), "value"))
+        at = m.end()
+    return [*out, (text[at:], "unit" if out else "name")] if at < len(text) else out
+
+
 def fill(text: str, values: dict) -> str:
     """A line's text with its {values}: what isn't there says N/A."""
-    def one(m):
-        name, places = m[1].strip(), m[2]
-        source, default = FIELDS.get(name, (name, COMPUTED.get(name)))
-        v = values.get(source)
-        if isinstance(v, str):
-            return v
-        if v is None or isinstance(v, bool):
-            return NO_VALUE
-        return f"{v:.{int(places)}f}" if places else f"{v:.{default}f}" if default is not None else f"{v:g}"
-    return FIELD.sub(one, text).rstrip()
+    return "".join(x for x, _ in pieces(text, values)).rstrip()
 
 
 def shown(line: dict, values: dict, on: list) -> bool:
+    if line.get("if") and not met(line["if"], values):
+        return False
     if line["when"] == "alarm":
         return bool(on)
     return line["when"] == "always" or (values.get(WHEN[line["when"]]) or 0) > 0
 
 
 def lines_for(cfg: dict, values: dict, on: list) -> list:
-    """[(text, colour, size), ...] of the overlay: a line goes to the alert colour with the alarm it follows."""
-    return [(fill(line["text"], values), cfg["alert"] if line["alarm"] in on else line["color"] or cfg["color"],
-             line["size"] or cfg["size"]) for line in cfg["lines"] if shown(line, values, on)]
+    """[(text, colour, size, blinks, block, parts), ...] of the overlay; parts: [(text, colour), ...]. on: alarms by name, a
+    line's own alert by its place: the whole line goes to the alert colour with the alarm it follows or its own."""
+    out = []
+    for i, line in enumerate(cfg["lines"]):
+        text = fill(line["text"], values)
+        if not shown(line, values, on) or (line.get("hideNA") and NO_VALUE in text):
+            continue
+        alert, block = line["alarm"] in on or i in on, line.get("block", 0)
+        color = cfg["alert"] if alert else line["color"] or cfg["color"]
+        tints = {"name": color, "value": color if alert else line.get("valueColor") or cfg["valueColor"] or color,
+                 "unit": color if alert else line.get("unitColor") or cfg["unitColor"] or color}
+        parts = []
+        for piece, kind in pieces(line["text"], values):
+            if parts and parts[-1][1] == tints[kind]:
+                parts[-1] = (parts[-1][0] + piece, tints[kind])
+            else:
+                parts.append((piece, tints[kind]))
+        out.append((text, color, round((line["size"] or cfg["size"]) * [cfg, *cfg["blocks"]][block]["scale"] / 100),
+                    bool(alert and line.get("blink")), block, parts))
+    return out
+
+
+def columns_of(rows: list, columns: int) -> list:
+    """A block's lines in its columns, top to bottom then left to right."""
+    tall = max(1, math.ceil(len(rows) / columns))
+    return [rows[i:i + tall] for i in range(0, len(rows), tall)]
 
 
 def numbers(values: dict) -> dict:
@@ -414,22 +544,106 @@ def save_file() -> Path | None:
     return None
 
 
-def beep(freq: int, ms: int):
-    import winsound  # Windows only: see available()
-    winsound.Beep(freq, ms)
+def _wav(params: tuple, frames: bytes) -> bytes:
+    out = io.BytesIO()
+    with wave.open(out, "wb") as w:
+        w.setparams(params)
+        w.writeframes(frames)
+    return out.getvalue()
+
+
+@lru_cache(maxsize=32)
+def tone(freq: int, ms: int, volume: int) -> bytes:
+    """A beep as a .wav in memory: the system's own beep has no volume."""
+    count, fade, step = SOUND_RATE * ms // 1000, SOUND_RATE * FADE_MS / 1000, 2 * math.pi * freq / SOUND_RATE
+    samples = array("h", (int(32767 * volume / 100 * min(1, i / fade, (count - i) / fade) * math.sin(step * i)) for i in range(count)))
+    return _wav((1, 2, SOUND_RATE, count, "NONE", "not compressed"), samples.tobytes())
+
+
+@lru_cache(maxsize=32)
+def scaled(path: str, modified: float, volume: int) -> bytes:
+    """A sound file at this volume. Only 16-bit PCM can be scaled here: the others play as they are."""
+    with wave.open(path, "rb") as w:
+        params, frames = w.getparams(), w.readframes(w.getnframes())
+    if params.sampwidth == 2 and volume < 100:
+        frames = array("h", (x * volume // 100 for x in array("h", frames))).tobytes()
+    return _wav(params, frames)
+
+
+_sounds = queue.Queue(maxsize=3)
+_speaker = []
+
+
+def _speak():
+    while True:
+        queued, data = _sounds.get()
+        if time.monotonic() - queued < STALE_S:
+            waveout.play(data, OUTPUT["device"])
+
+
+def _sound_out(data: bytes):
+    """Played apart: a long sound mustn't hold up the readings. No sound device: the alarms still show."""
+    if not _speaker:
+        _speaker.append(threading.Thread(target=_speak, daemon=True))
+        _speaker[0].start()
+    with contextlib.suppress(queue.Full):
+        _sounds.put_nowait((time.monotonic(), data))
+
+
+def beep(freq: int, ms: int, volume: int = 100):
+    _sound_out(tone(freq, ms, volume))
+
+
+def play(alarm: dict, volume: int, folder: Path | None = None):
+    """An alarm's sound: its own .wav if it's still there, else its beep."""
+    path = folder / alarm["sound"] if folder and alarm.get("sound") else None
+    try:
+        return _sound_out(scaled(str(path), path.stat().st_mtime, volume))
+    except (AttributeError, OSError, EOFError, wave.Error):
+        beep(alarm["hz"], alarm["ms"], volume)
+
+
+def sound_list(folder: Path) -> list:
+    return sorted(p.name for p in folder.glob("*.wav") if SOUND.fullmatch(p.name))
+
+
+def save_sound(folder: Path, name: str, data: str) -> str:
+    """A .wav the player picked (base64) into folder, under a safe name. ValueError if the game of sounds can't play it."""
+    stem = re.sub(r"[^\w.\- ]", "_", Path(name).stem)[:60].strip(" .") or "sound"
+    try:
+        raw = base64.b64decode(data, validate=True)
+        with wave.open(io.BytesIO(raw), "rb"):
+            pass
+    except (ValueError, EOFError, wave.Error):
+        raise ValueError("Pick a .wav sound file.")
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{stem}.wav").write_bytes(raw)
+    return f"{stem}.wav"
+
+
+def game_running() -> bool:
+    import ctypes
+    return bool(ctypes.windll.user32.FindWindowW(GAME_WINDOW_CLASS, None))
+
+
+def game_focused() -> bool:
+    import ctypes
+    name = ctypes.create_unicode_buffer(32)
+    ctypes.windll.user32.GetClassNameW(ctypes.windll.user32.GetForegroundWindow(), name, len(name))
+    return name.value == GAME_WINDOW_CLASS
 
 
 class Watch:
-    """Reads /state and keeps .display, what the overlay shows: [(text, colour, size), ...].
+    """Reads /state and keeps .display, what the overlay shows: see lines_for.
 
     get: bytes of a game API path; details: () -> data/details.json; mission_on_map: () -> is the map of the mission
     generated last the one loaded in the game?; save: () -> path of global.blk."""
 
     def __init__(self, get, details, mission_on_map=lambda: False, save=save_file, lang="en", logs=None,
-                 kind=lambda vid: None, crash_words=list):
+                 kind=lambda vid: None, crash_words=list, sounds=None):
         self.get, self.details, self.mission_on_map, self.save, self.kind = get, details, mission_on_map, save, kind
         self.crash_words = crash_words
-        self.logs = logs  # folder of the CSV logs
+        self.logs, self.sounds = logs, sounds  # folders of the CSV logs and of the player's sounds
         self.words = labels(lang)
         self.base = self.cfg = clean(None, self.words)  # the overlay for all aircraft, the one in use
         self.profiles = {}  # {aircraft id or "type:<class>": its overlay}
@@ -438,6 +652,7 @@ class Watch:
         self.enabled = False
         self.preview = None  # My overlay's "show it on my screen": its configuration, shown without the game
         self.hidden = False  # the show / hide key
+        self.muted = False  # the mute key
         self.mission = None  # {"id", "fuel", "unbreakable"}: set when a mission is generated
         self.display = []
         self.flying = False
@@ -481,8 +696,11 @@ class Watch:
         self.pick()
 
     def pick(self):
-        """The overlay of the aircraft flown: its own, else its type's, else the one for all aircraft."""
-        self.profile = next((k for k in (self.current, f"type:{self.kind(self.current)}") if k in self.profiles), "")
+        """The overlay of the aircraft flown: its own, else its type's, else its engine's, else the one for all aircraft."""
+        kind = self.kind(self.current)
+        engine = "jet" if (self._lim or {}).get("jet") else "prop"
+        wanted = (self.current, f"type:{kind}", f"type:{engine}" if self.current and kind != "helicopter" else None)
+        self.profile = next((k for k in wanted if k in self.profiles), "")
         self.cfg = self.profiles.get(self.profile, self.base)
 
     def set_log(self, on: bool):
@@ -494,13 +712,13 @@ class Watch:
                 self.log = None
 
     def sample(self, cfg: dict) -> list:
-        values = {**SAMPLE_STATE, **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, {"burn": 95, "accel": 1.2})}
-        return lines_for(cfg, values, active(percents(SAMPLE_LIM, SAMPLE_STATE), cfg["alarms"]))
+        values = {**SAMPLE_STATE, **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, {"burn": 95, "accel": 1.2}, cfg["pctAlways"])}
+        return lines_for(cfg, values, active(percents(SAMPLE_LIM, SAMPLE_STATE), cfg["alarms"]) + own_alerts(cfg, values))
 
     def record(self, values: dict):
         """A reading a second for the curves and the log."""
         now = time.monotonic()
-        if now - self._sampled < SAMPLE_S:
+        if now - self._sampled < self.cfg["logMs"] / 1000:
             return
         self._sampled = now
         row = numbers(values)
@@ -596,23 +814,27 @@ class Watch:
         self.aircraft(state, reported_type(indicators))
         cfg, lim = self.preview or self.cfg, self._lim
         self.trend.add(time.monotonic(), state)
-        values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates()), "rec": 1 if self.log else 0}
+        values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates(), cfg["pctAlways"]), "rec": 1 if self.log else 0}
         self.last = numbers(values)
         self.record(values)
         if not self.enabled:
             self.display = self.sample(self.preview) if self.preview else []
             self.warn = False
-            return POLL_S
+            return cfg["pollMs"] / 1000
         on = active(percents(lim, state), cfg["alarms"]) if lim and not self._unbreakable and not wreck else []
+        on += [] if wreck else own_alerts(cfg, values)
         self.warn = bool(on)
-        status = [(self.words["unknown"], cfg["alert"], cfg["size"])] if not lim else \
-            [(self.words["unbreakable"], cfg["color"], cfg["size"])] if self._unbreakable else []
+        note = self.words["unknown"] if not lim else self.words["unbreakable"] if self._unbreakable else None
+        tint = cfg["alert"] if not lim else cfg["color"]
+        status = [(note, tint, cfg["size"], False, 0, [(note, tint)])] if note else []
         self.display = [] if wreck and cfg["hideCrash"] else status + lines_for(cfg, values, on)
-        if on and time.monotonic() - self._last_beep >= cfg["repeat"] / 1000:
+        rpm = _engines(state)[0]
+        silent = self.muted or (cfg["soundFocus"] and not game_focused()) or (cfg["soundEngine"] and rpm and not any(rpm))
+        if on and not silent and time.monotonic() - self._last_beep >= cfg["repeat"] / 1000:
             self._last_beep = time.monotonic()
             for name in on:
-                beep(cfg["alarms"][name]["hz"], cfg["alarms"][name]["ms"])
-        return POLL_S
+                play(cfg["lines"][name]["rule"] if isinstance(name, int) else cfg["alarms"][name], cfg["volume"], self.sounds)
+        return cfg["pollMs"] / 1000
 
     def run(self):
         while True:
@@ -629,14 +851,14 @@ class Watch:
             self.overlay.join(1)
 
 
-def glow_pixels(size: tuple, color: str) -> bytes:
+def glow_pixels(size: tuple, color: str, reach: int = GLOW_SIZE) -> bytes:
     """A screen-sized picture for paint_glow, premultiplied BGRA: the colour at the edges, fading to nothing inside."""
     width, height = size
     r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
     levels = [bytes((b * a // 255, g * a // 255, r * a // 255, a)) * GLOW_STEP for a in range(GLOW_ALPHA + 1)]
 
-    def near(n: int, total: int) -> float:  # 1 at the edge, 0 from GLOW_BAND in
-        return max(0.0, 1 - min(n, total - 1 - n) / (height * GLOW_BAND)) ** 2
+    def near(n: int, total: int) -> float:  # 1 at the edge, 0 from reach % of the height in
+        return max(0.0, 1 - min(n, total - 1 - n) / (height * reach / 100)) ** 2
 
     across = [near(x, width) for x in range(0, width, GLOW_STEP)]
     rows, made = [], {}
@@ -688,6 +910,7 @@ def run_overlay(watch: Watch):
     try:
         import ctypes
         import tkinter as tk
+        from tkinter import font as tkfont
         user32 = ctypes.windll.user32
         ctypes.windll.shcore.SetProcessDpiAwareness(1)  # real pixels
         previous = user32.GetForegroundWindow()
@@ -696,6 +919,8 @@ def run_overlay(watch: Watch):
         root.attributes("-topmost", True)
         root.attributes("-transparentcolor", OVERLAY_KEY)
         root.configure(bg=OVERLAY_KEY)
+        canvas = tk.Canvas(root, bg=OVERLAY_KEY, bd=0, highlightthickness=0)  # text with an outline: a Label has none
+        canvas.pack()
         glow = tk.Toplevel(root)  # made now, hidden: created during an alarm, it would take the focus from the game
         glow.overrideredirect(True)
         glow.attributes("-topmost", True)
@@ -712,27 +937,56 @@ def run_overlay(watch: Watch):
         user32.ShowWindow(hwnd, SW_HIDE)
         user32.ShowWindow(glow_hwnd, SW_HIDE)
         user32.SetForegroundWindow(previous)  # creating the window took the focus
-        rows, drawn, painted = [], None, None
-
-        def game_focused() -> bool:
-            name = ctypes.create_unicode_buffer(32)
-            user32.GetClassNameW(user32.GetForegroundWindow(), name, len(name))
-            return name.value == GAME_WINDOW_CLASS
+        drawn, painted, fonts = None, None, {}
 
         def pressed(keys: list) -> bool:
             return bool(keys and user32.GetAsyncKeyState(keys[-1]) & 1 and game_focused()
                         and all(user32.GetAsyncKeyState(k) & 0x8000 for k in keys[:-1]))
 
-        def draw(cfg: dict, lines: list):
-            root.geometry(f"+{cfg['x']}+{cfg['y']}")
+        def font_for(cfg: dict, size: int):
+            key = cfg["font"], size, cfg["bold"], cfg["italic"]
+            if key not in fonts:
+                fonts[key] = tkfont.Font(root=root, family=cfg["font"], size=-size, weight="bold" if cfg["bold"] else "normal",
+                                         slant="italic" if cfg["italic"] else "roman")
+            return fonts[key]
+
+        def draw(cfg: dict, lines: list, lit: bool):
+            """Each block's lines in their columns, its frame and background behind them, then the window around all of it.
+            lit: the blinking lines' turn to show."""
+            canvas.delete("all")
             root.attributes("-alpha", cfg["opacity"] / 100)
-            for i, (text, color, size) in enumerate(lines):
-                if i == len(rows):
-                    rows.append(tk.Label(root, bg=OVERLAY_KEY, justify="left", bd=0, padx=0, pady=0))
-                rows[i].config(text=text, fg=color, font=(cfg["font"], -size, "bold" if cfg["bold"] else "normal"))
-                rows[i].pack(anchor="w")
-            for row in rows[len(lines):]:
-                row.pack_forget()
+            ring = [(dx * r, dy * r) for r in range(1, cfg["outline"] + 1) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy]
+            dark = []
+            for index, spot in enumerate([cfg, *cfg["blocks"]]):
+                rows, left, tag = [x for x in lines if x[4] == index], spot["x"], f"block{index}"
+                for column in columns_of(rows, spot["columns"]):
+                    y, wide = spot["y"], 0
+                    for _, color, size, blinks, _, parts in column:
+                        font, x, items = font_for(cfg, size), left, []
+                        for part, tint in parts or [(" ", color)]:
+                            edge = [canvas.create_text(x + dx, y + dy, text=part, fill=cfg["outlineColor"], font=font, anchor="nw", tags=tag) for dx, dy in ring]
+                            item = canvas.create_text(x, y, text=part, fill=tint, font=font, anchor="nw", tags=tag)
+                            items += [item, *edge]
+                            x += font.measure(part)
+                        for item in items[::len(ring) + 1]:  # over the outlines of the parts next to it
+                            canvas.tag_raise(item)
+                        dark += items if blinks and not lit else []
+                        y += font.metrics("linespace") + cfg["spacing"]
+                        wide = max(wide, x - left)
+                    left += wide + cfg["size"]
+                box = canvas.bbox(tag)
+                if box and (spot["frame"] or spot["background"]):
+                    pad = BLOCK_PAD + spot["frame"]
+                    canvas.tag_lower(canvas.create_rectangle(box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad, fill=spot["background"], width=spot["frame"],
+                                                             outline=spot["frameColor"] if spot["frame"] else "", tags=tag,
+                                                             stipple=STIPPLE[spot["bgOpacity"]] if spot["background"] else ""))
+            box = canvas.bbox("all")  # before hiding the dark lines: a blink mustn't move the window
+            if box:
+                canvas.move("all", -box[0], -box[1])
+                canvas.configure(width=box[2] - box[0], height=box[3] - box[1])
+                root.geometry(f"{box[2] - box[0]}x{box[3] - box[1]}+{box[0]}+{box[1]}")
+            for item in dark:
+                canvas.itemconfigure(item, state="hidden")
             root.update_idletasks()  # now: shown before that, a first drawing stays at (0, 0)
 
         def refresh():
@@ -741,26 +995,32 @@ def run_overlay(watch: Watch):
                 root.destroy()
                 return
             cfg, lines = watch.preview or watch.cfg, watch.display
-            if (cfg, lines) != drawn:
-                drawn = cfg, lines
-                draw(cfg, lines)
+            lit = int(time.monotonic() * 2000 / cfg["flashMs"]) % 2 == 0
+            state = cfg, lines, lit if any(x[3] for x in lines) else None
+            if state != drawn:
+                drawn = state
+                draw(cfg, lines, lit)
             if pressed(cfg["hotkey"]):
                 watch.hidden = not watch.hidden
             if pressed(cfg["logKey"]):
                 watch.set_log(not watch.log)
-            on_game = cfg["show"] and not watch.hidden and game_focused()
+            if pressed(cfg["muteKey"]):
+                watch.muted = not watch.muted
+            held = cfg["holdKey"] and all(user32.GetAsyncKeyState(k) & 0x8000 for k in cfg["holdKey"])
+            on_game = cfg["show"] and not watch.hidden and not held and game_focused()
             # ShowWindow rather than Tk: Tk would take the focus
             user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE if lines and (watch.preview or on_game) else SW_HIDE)
-            if cfg["glow"] and cfg["alert"] != painted:  # ahead of the first alarm: it takes a moment on a big screen
-                painted = cfg["alert"]
-                paint_glow(glow_hwnd, screen(), glow_pixels(screen(), painted))
+            if cfg["glow"] and (cfg["alert"], cfg["glowSize"]) != painted:  # ahead of the first alarm: it takes a moment on a big screen
+                painted = cfg["alert"], cfg["glowSize"]
+                paint_glow(glow_hwnd, screen(), glow_pixels(screen(), *painted))
             warn = watch.preview or (watch.warn and not watch.hidden and game_focused())
-            user32.ShowWindow(glow_hwnd, SW_SHOWNOACTIVATE if cfg["glow"] and warn else SW_HIDE)
+            user32.ShowWindow(glow_hwnd, SW_SHOWNOACTIVATE if cfg["glow"] and warn and (lit or not cfg["glowFlash"]) else SW_HIDE)
             root.after(int(POLL_S * 1000), refresh)
 
         refresh()
         root.mainloop()
-        root = glow = rows = draw = refresh = None
+        root = glow = canvas = draw = refresh = font_for = None
+        fonts.clear()
         gc.collect()  # Tk must be freed here: left to Python's exit, in the main thread, it aborts the process
     except Exception as e:  # no Tk in this Python, no display...: the alarms still beep
         print(f"Overlay off: {e}", flush=True)

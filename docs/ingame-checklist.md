@@ -329,6 +329,17 @@ Turn them on first: In flight → My overlay → Turn on the overlay and alarms 
 - [ ] **Menus**: nothing shows in the hangar, whatever aircraft is on show (the game flickers between 0 and 1 km/h there).
 - [ ] **Glow** (My overlay → Glow around the screen): shows with an alarm, goes with it, not after a crash, never takes the
   focus, clicks go through it, and fits a borderless game (not an exclusive fullscreen one).
+- [ ] **Glow's size and flash**: both follow the settings during a real alarm, and the first flash doesn't stall the overlay.
+- [ ] **A line's own alert** (say fuel % under 15): colour, beep and glow, gone with it; a condition hides and shows a line.
+- [ ] **Sounds**: volume heard, a `.wav` per alarm plays and comes back to the beep if its file is removed, mute key, beeps
+  only with the game in front, none with the engines stopped.
+- [ ] **Text blocks and outline**: readable on a bright sky, blocks at their places, a blinking line doesn't move the text.
+- [ ] **Your own sound**: an mp3 picked for an alarm plays in flight, on the sound output chosen, and a long one doesn't
+  slow the overlay.
+- [ ] **Colours, columns, frame, background**: as on the preview, the background see-through at 25 to 75 %.
+- [ ] **Jets and propeller aircraft** overlays load by themselves, and a helicopter takes neither.
+- [ ] **App window**: starts minimized; minimized, it leaves the taskbar for the notification area and a click brings it
+  back; WTFTD closes when the game does, not during a loading screen.
 - [ ] **Overlay**: shown in flight, gone on Alt+Tab, back afterwards, never takes the focus, clicks go through it.
   Beeps go on during an Alt+Tab.
 - [ ] **A-4 or Mirage III** (take-off rockets counted out of the engines): recognised? How many `throttle` fields

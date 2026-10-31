@@ -1,9 +1,13 @@
 """Flight limits from a flight model, aircraft recognition, alarms: no game needed (fake /state)."""
+import base64
+import io
 import json
 import re
 import tempfile
 import time
 import unittest
+import wave
+from array import array
 from pathlib import Path
 from unittest import mock
 
@@ -177,6 +181,131 @@ class Recognition(unittest.TestCase):
         self.assertIsNone(alarms.recognise(PLANES, state(**{"Mfuel0, kg": 1}), "j_10c"))
 
 
+class Settings(unittest.TestCase):
+    def line(self, **fields):
+        return alarms.clean({"lines": [{"text": "x", **fields}]}, WORDS)
+
+    def test_what_comes_from_the_page_is_checked(self):
+        cfg = alarms.clean({"glowSize": 999, "flashMs": 1, "volume": -5, "pollMs": 1, "logMs": "x", "outline": 40, "spacing": True, "outlineColor": "red",
+                            "muteKey": [0], "holdKey": ["a"], "blocks": [{"x": "a", "scale": 9999}] * 9}, WORDS)
+        self.assertEqual((cfg["glowSize"], cfg["flashMs"], cfg["volume"], cfg["pollMs"]), (50, 200, 0, 50))
+        self.assertEqual((cfg["logMs"], cfg["outline"], cfg["spacing"], cfg["outlineColor"]), (1000, 4, 0, "#000000"))
+        self.assertEqual((cfg["muteKey"], cfg["holdKey"]), ([], []))
+        self.assertEqual([b["scale"] for b in cfg["blocks"]], [400] * alarms.MAX_BLOCKS)
+        self.assertEqual(cfg["blocks"][0], {"x": 0, "y": 0, "scale": 400, "columns": 1, "frame": 0, "frameColor": "#FFFFFF", "background": "", "bgOpacity": 50})
+
+    def test_a_bad_condition_is_no_condition(self):
+        for test in ("x", {"op": ">", "at": 1}, {"value": "g", "op": "=", "at": 1}, {"value": "g", "op": ">", "at": "1"},
+                     {"value": "g", "op": ">", "at": float("nan")}, {"value": "g", "op": ">", "at": True}, {"value": "", "op": ">", "at": 1}):
+            self.assertIsNone(self.line(**{"if": test})["lines"][0]["if"], test)
+            self.assertIsNone(self.line(rule=test)["lines"][0]["rule"], test)
+
+    def test_a_sound_is_a_plain_name(self):
+        for name in ("../x.wav", "a/b.wav", "x.exe", "", 3):
+            self.assertEqual(alarms.clean({"alarms": {"gear": {"sound": name}}}, WORDS)["alarms"]["gear"]["sound"], "", name)
+        self.assertEqual(alarms.clean({"alarms": {"gear": {"sound": "Horn 2.wav"}}}, WORDS)["alarms"]["gear"]["sound"], "Horn 2.wav")
+
+    def test_a_line_shows_on_its_condition(self):
+        cfg = self.line(**{"if": {"value": "alt", "op": "<", "at": 100}})
+        self.assertEqual(len(alarms.lines_for(cfg, {"H, m": 50}, [])), 1)
+        self.assertEqual(alarms.lines_for(cfg, {"H, m": 500}, []), [])
+        self.assertEqual(alarms.lines_for(cfg, {}, []), [])  # a value that isn't there meets nothing
+
+    def test_a_line_hides_when_a_value_is_missing(self):
+        cfg = self.line(text="{gear_max} km/h", hideNA=True)
+        self.assertEqual(alarms.lines_for(cfg, {}, []), [])
+        self.assertEqual(alarms.lines_for(cfg, {"gear_max": 700}, [])[0][0], "700 km/h")
+
+    def test_blocks_keep_their_place_and_size(self):
+        cfg = alarms.clean({"size": 40, "blocks": [{"x": 5, "y": 6, "scale": 50}], "lines": [{"text": "a"}, {"text": "b", "block": 1}, {"text": "c", "block": 3}]}, WORDS)
+        self.assertEqual([(x[0], x[2], x[4]) for x in alarms.lines_for(cfg, {}, [])], [("a", 40, 0), ("b", 20, 1), ("c", 40, 0)])
+
+    def test_a_line_blinks_only_with_its_alarm(self):
+        cfg = self.line(alarm="gear", blink=True)
+        self.assertFalse(alarms.lines_for(cfg, {}, [])[0][3])
+        self.assertTrue(alarms.lines_for(cfg, {}, ["gear"])[0][3])
+
+    def test_several_conditions(self):
+        test = {"value": "alt", "op": "<", "at": 100, "more": [{"value": "ias", "op": ">", "at": 300}]}
+        both = self.line(**{"if": test})
+        either = self.line(**{"if": {**test, "join": "or"}})
+        for values, needs_both, needs_one in (({"H, m": 50, "IAS, km/h": 400}, 1, 1), ({"H, m": 50, "IAS, km/h": 200}, 0, 1), ({"H, m": 500, "IAS, km/h": 200}, 0, 0)):
+            self.assertEqual(len(alarms.lines_for(both, values, [])), needs_both, values)
+            self.assertEqual(len(alarms.lines_for(either, values, [])), needs_one, values)
+        self.assertEqual(len(self.line(**{"if": {**test, "more": [test] * 9}})["lines"][0]["if"]["more"]), alarms.MAX_TESTS - 1)
+
+    def test_a_lines_colours_by_part(self):
+        cfg = alarms.clean({"color": "#111111", "valueColor": "#222222", "unitColor": "#333333", "alert": "#FF0000",
+                            "lines": [{"text": "IAS {ias} km/h", "alarm": "gear"}]}, WORDS)
+        parts = alarms.lines_for(cfg, {"IAS, km/h": 700}, [])[0][5]
+        self.assertEqual(parts, [("IAS ", "#111111"), ("700", "#222222"), (" km/h", "#333333")])
+        self.assertEqual(alarms.lines_for(cfg, {"IAS, km/h": 700}, ["gear"])[0][5], [("IAS 700 km/h", "#FF0000")])  # the alert is the whole line
+
+    def test_a_line_keeps_its_own_colours(self):
+        cfg = alarms.clean({"valueColor": "#222222", "lines": [{"text": "{ias}", "valueColor": "#00FF00"}]}, WORDS)
+        self.assertEqual(alarms.lines_for(cfg, {"IAS, km/h": 700}, [])[0][5], [("700", "#00FF00")])
+
+    def test_columns_read_top_to_bottom(self):
+        self.assertEqual(alarms.columns_of([1, 2, 3, 4, 5], 2), [[1, 2, 3], [4, 5]])
+        self.assertEqual(alarms.columns_of([1, 2], 4), [[1], [2]])
+        self.assertEqual(alarms.columns_of([], 3), [])
+
+    def test_gear_and_flaps_when_retracted(self):
+        state = {"IAS, km/h": 350, "gear, %": 0, "flaps, %": 0}
+        self.assertNotIn("gear_pct", alarms.computed(SU30, state, WORDS))
+        out = alarms.computed(SU30, state, WORDS, always=True)
+        self.assertEqual(round(out["gear_pct"]), 50)
+        self.assertIn("flaps_pct", out)
+        self.assertEqual(alarms.active(alarms.percents(SU30, state), alarms.defaults(WORDS)["alarms"]), [])  # no alarm from it
+
+    def test_a_beep_at_its_volume(self):
+        loud, soft = [array("h", wave.open(io.BytesIO(alarms.tone(1000, 100, v)), "rb").readframes(10 ** 6)) for v in (100, 50)]
+        self.assertEqual(len(loud), alarms.SOUND_RATE // 10)
+        self.assertLessEqual(abs(max(loud) - 32767), 400)
+        self.assertLessEqual(abs(max(soft) - max(loud) / 2), 200)
+        self.assertEqual(max(map(abs, alarms.tone(1000, 100, 0)[44:])), 0)
+
+    def test_the_players_sounds(self):
+        out = io.BytesIO()
+        with wave.open(out, "wb") as w:
+            w.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
+            w.writeframes(array("h", [1000, -1000, 2000, -2000]).tobytes())
+        data = base64.b64encode(out.getvalue()).decode()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "sounds"
+            name = alarms.save_sound(folder, "../../my:horn?.wav", data)
+            self.assertEqual(name, "my_horn_.wav")
+            self.assertEqual(alarms.sound_list(folder), [name])
+            self.assertEqual([p.name for p in Path(tmp).iterdir()], ["sounds"])  # nothing outside its folder
+            half = alarms.scaled(str(folder / name), 1.0, 50)
+            self.assertEqual(list(array("h", wave.open(io.BytesIO(half), "rb").readframes(4))), [500, -500, 1000, -1000])
+            for bad in ("", "not base64!", base64.b64encode(b"MZ not a wav").decode()):
+                with self.assertRaises(ValueError):
+                    alarms.save_sound(folder, "x.wav", bad)
+
+    def test_a_missing_sound_falls_back_on_its_beep(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(alarms, "beep") as beep:
+            alarms.play({"hz": 900, "ms": 80, "sound": "gone.wav"}, 70, Path(tmp))
+            beep.assert_called_once_with(900, 80, 70)
+
+
+class Archive(unittest.TestCase):
+    def line(self, n, text="hi"):
+        return {"id": n, "time": 75, "text": text, "sender": "Bob", "enemy": False, "mode": "All"}
+
+    def test_each_line_once_until_the_game_starts_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = battle.Archive(Path(tmp) / "logs")
+            seen = {"up": True, "chat": [self.line(1), self.line(2)], "events": [], "damage": []}
+            archive.add(seen)
+            archive.add(seen)  # a page opened again asks from the start
+            read = lambda: next((Path(tmp) / "logs").glob("battle-*.txt")).read_text(encoding="utf-8").splitlines()
+            self.assertEqual(read(), ["1:15  Bob: hi", "1:15  Bob: hi"])
+            archive.add({"up": False, "chat": [], "events": [], "damage": []})
+            archive.add({"up": True, "chat": [self.line(1, "new game")], "events": [], "damage": []})
+            self.assertEqual(read()[-1], "1:15  Bob: new game")
+
+
 class Glow(unittest.TestCase):
     def alpha(self, pixels, width, x, y):
         return pixels[(y * width + x) * 4 + 3]
@@ -197,6 +326,11 @@ class Glow(unittest.TestCase):
     def test_any_screen_size(self):
         for size in ((1920, 1080), (3840, 2160), (1366, 768), (2561, 1439)):
             self.assertEqual(len(alarms.glow_pixels(size, "#FF0000")), size[0] * size[1] * 4)
+
+    def test_its_size(self):
+        small, big = (alarms.glow_pixels((400, 200), "#FF0000", size) for size in (10, 40))
+        self.assertEqual(self.alpha(small, 400, 200, 40), 0)
+        self.assertGreater(self.alpha(big, 400, 200, 40), 0)
 
     def test_off_by_default(self):
         self.assertFalse(alarms.clean(None, WORDS)["glow"])
@@ -238,11 +372,11 @@ class Watching(unittest.TestCase):
     def test_thresholds_and_sounds_are_the_players(self):
         self.watch.set_config(alarms.clean({"alarms": {"airframe": {"at": 30, "hz": 500, "ms": 80}}}, WORDS), {})
         self.fly()
-        self.beep.assert_called_once_with(500, 80)
+        self.beep.assert_called_once_with(500, 80, 100)
 
     def test_gear_alarm_beeps_at_its_pitch(self):
         self.fly(**{"gear, %": 100, "IAS, km/h": 600})
-        self.beep.assert_called_once_with(1000, alarms.BEEP_MS)
+        self.beep.assert_called_once_with(1000, alarms.BEEP_MS, 100)
 
     def test_no_alarm_no_beep(self):
         self.fly()
@@ -266,6 +400,68 @@ class Watching(unittest.TestCase):
         watch.enabled = True
         self.assertEqual(watch.tick(), alarms.IDLE_S)
         self.assertFalse(watch.flying)
+
+    def own_alert(self, **rule):
+        self.watch.cfg = alarms.clean({"lines": [{"text": "FUEL", "blink": True, "rule": {"value": "fuel_pct", "op": "<", "at": 15, "hz": 900, "ms": 80, **rule}}]}, WORDS)
+        self.watch.pick = lambda: None
+
+    def test_a_lines_own_alert(self):
+        self.own_alert()
+        self.fly(**{"Mfuel, kg": 300})
+        self.beep.assert_called_once_with(900, 80, 100)
+        self.assertTrue(self.watch.warn)
+        self.assertEqual(self.watch.display[0][1], self.watch.cfg["alert"])
+        self.assertTrue(self.watch.display[0][3])
+        self.beep.reset_mock()
+        self.watch._last_beep -= 1
+        self.fly(**{"Mfuel, kg": 3000})
+        self.beep.assert_not_called()
+        self.assertFalse(self.watch.warn)
+
+    def test_a_lines_own_alert_stops_at_a_crash(self):
+        self.own_alert()
+        self.fly(**{"Mfuel, kg": 300, "RPM 1": 9000})
+        self.watch._last_beep -= 1
+        self.beep.reset_mock()
+        self.fly(**{"Mfuel, kg": 300, "RPM 1": 0, "throttle 1, %": 0})
+        self.beep.assert_not_called()
+        self.assertFalse(self.watch.warn)
+
+    def test_when_the_alarms_keep_quiet(self):
+        for setting, fields, front in (({"soundEngine": True}, {"IAS, km/h": 1500, "RPM 1": 0}, True), ({"soundFocus": True}, {"IAS, km/h": 1500}, False)):
+            self.watch.cfg = alarms.clean(setting, WORDS)
+            self.watch.pick = lambda: None
+            self.watch._last_beep = -10
+            with mock.patch.object(alarms, "game_focused", return_value=front):
+                self.fly(**fields)
+            self.beep.assert_not_called()
+            self.assertTrue(self.watch.warn)  # still shown
+        self.watch.cfg = alarms.clean({}, WORDS)
+        self.watch.muted = True
+        self.fly(**{"IAS, km/h": 1500})
+        self.beep.assert_not_called()
+
+    def test_the_game_is_read_as_often_as_asked(self):
+        self.watch.cfg = alarms.clean({"pollMs": 250}, WORDS)
+        self.watch.pick = lambda: None
+        self.assertEqual(self.fly(), 0.25)
+
+    def test_overlays_by_kind_of_engine(self):
+        self.data = {**details(), "jet": {"c": "air", "st": {"lim": {**J10, "jet": True}}}}
+        self.watch.kind = lambda vid: "fighter"
+        self.watch.set_config(self.watch.base, {"type:jet": alarms.clean({"size": 77}, WORDS), "type:prop": alarms.clean({"size": 55}, WORDS)})
+        self.watch._lim, self.watch.current = {"jet": True}, "jet"
+        self.watch.pick()
+        self.assertEqual(self.watch.profile, "type:jet")
+        self.watch._lim, self.watch.current = {}, "prop"
+        self.watch.pick()
+        self.assertEqual(self.watch.profile, "type:prop")
+        self.watch.kind = lambda vid: "helicopter"
+        self.watch.pick()
+        self.assertEqual(self.watch.profile, "")
+        self.watch.current = None
+        self.watch.pick()
+        self.assertEqual(self.watch.profile, "")
 
     def test_the_glow_follows_the_alarms(self):
         self.fly(**{"IAS, km/h": 1500})
@@ -376,7 +572,7 @@ class Watching(unittest.TestCase):
     def test_real_battle_after_an_unbreakable_mission(self):
         self.watch.mission = {"id": "j_10c", "fuel": None, "unbreakable": True}
         self.fly(**{"IAS, km/h": 1500})  # another map: not that mission
-        self.beep.assert_called_once_with(1400, alarms.BEEP_MS)
+        self.beep.assert_called_once_with(1400, alarms.BEEP_MS, 100)
 
     def test_a_mission_with_another_aircraft_does_not_count(self):
         self.on_map = True
@@ -432,7 +628,7 @@ class Lines(unittest.TestCase):
     def test_a_line_keeps_its_own_size_and_colour(self):
         cfg = alarms.clean(None, WORDS)
         cfg["lines"] = [{"text": "x", "when": "always", "alarm": "", "color": "#123456", "size": 90}]
-        self.assertEqual(alarms.lines_for(cfg, {}, []), [("x", "#123456", 90)])
+        self.assertEqual(alarms.lines_for(cfg, {}, []), [("x", "#123456", 90, False, 0, [("x", "#123456")])])
 
 
 class Computed(unittest.TestCase):
@@ -612,12 +808,13 @@ class Configuration(unittest.TestCase):
     def test_numbers_stay_in_range(self):
         cfg = alarms.clean({"size": 1, "opacity": 900, "repeat": 1, "alarms": {"gear": {"at": 900, "hz": 1, "ms": 99999}}}, WORDS)
         self.assertEqual((cfg["size"], cfg["opacity"], cfg["repeat"]), (6, 100, 100))
-        self.assertEqual(cfg["alarms"]["gear"], {"on": True, "at": 200, "hz": 37, "ms": 2000})
+        self.assertEqual(cfg["alarms"]["gear"], {"on": True, "at": 200, "hz": 37, "ms": 2000, "sound": ""})
 
     def test_lines_are_limited(self):
         cfg = alarms.clean({"lines": [{"text": "x" * 500, "when": "?", "alarm": "?", "color": "?", "size": -3}, "no"] * 40}, WORDS)
         self.assertEqual(len(cfg["lines"]), alarms.MAX_LINES)
-        self.assertEqual(cfg["lines"][0], {"text": "x" * alarms.MAX_TEXT, "when": "always", "alarm": "", "color": "", "size": 0})
+        self.assertEqual(cfg["lines"][0], {"text": "x" * alarms.MAX_TEXT, "when": "always", "alarm": "", "color": "", "size": 0, "valueColor": "",
+                                           "unitColor": "", "blink": False, "hideNA": False, "block": 0, "if": None, "rule": None})
 
     def test_no_lines_at_all_is_a_choice(self):
         self.assertEqual(alarms.clean({"lines": []}, WORDS)["lines"], [])
@@ -646,7 +843,8 @@ class Preview(unittest.TestCase):
     def test_sample_lines_show_all_with_an_alarm_on(self):
         lines = self.watch.sample(self.watch.cfg)
         self.assertEqual(len(lines), 4)
-        self.assertEqual(lines[2], ("GEAR   640 / 700 km/h", self.watch.cfg["alert"], self.watch.cfg["size"]))
+        alert = self.watch.cfg["alert"]
+        self.assertEqual(lines[2], ("GEAR   640 / 700 km/h", alert, self.watch.cfg["size"], False, 0, [("GEAR   640 / 700 km/h", alert)]))
 
     def test_shown_without_the_game_then_taken_off(self):
         self.watch.set_preview(self.watch.cfg)
@@ -696,7 +894,7 @@ class Profiles(unittest.TestCase):
         self.watch.set_config(self.watch.base, {"j_10c": alarms.clean({"alarms": {"airframe": {"at": 30, "hz": 500, "ms": 80}}}, WORDS)})
         with mock.patch.object(alarms, "beep") as beep:
             self.watch.tick()
-        beep.assert_called_once_with(500, 80)
+        beep.assert_called_once_with(500, 80, 100)
 
     def test_back_in_the_hangar(self):
         self.watch.set_config(self.watch.base, {"j_10c": self.jet})

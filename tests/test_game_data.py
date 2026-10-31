@@ -45,16 +45,19 @@ class ReferenceWeapons(unittest.TestCase):
 class ReferenceLimits(unittest.TestCase):
     def test_su_30mkk(self):
         self.assertEqual(flight_limits(load(FM / "su_30mkk.blkx"), "air"),
-                         {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400, 9400], "eng": 2, "mass": 17520})
+                         {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400, 9400], "eng": 2, "mass": 17520, "jet": True})
 
     def test_j_10c(self):
         self.assertEqual(flight_limits(load(FM / "j_10c.blkx"), "air"),
-                         {"v": 1543, "m": 2.1, "gear": 620, "flaps": [[0.1, 550], [1, 400]], "fuel": [5945, 6220.02], "eng": 1, "mass": 9045})
+                         {"v": 1543, "m": 2.1, "gear": 620, "flaps": [[0.1, 550], [1, 400]], "fuel": [5945, 6220.02], "eng": 1, "mass": 9045, "jet": True})
 
     def test_f_14a_variable_sweep(self):
         lim = flight_limits(load(FM / "f_14a_early.blkx"), "air")
         self.assertEqual(lim["sw"], [[0, 1021, 0.96], [0.5, 1360, 2.0], [1, 1555, 2.25]])
         self.assertEqual((lim["v"], lim["m"]), (1555, 2.25))
+
+    def test_propellers_are_no_jets(self):
+        self.assertNotIn("jet", flight_limits(load(FM / "il-10.blkx"), "air"))
 
     def test_a_4_has_one_engine(self):
         self.assertEqual(flight_limits(load(FM / "a_4e_early.blkx"), "air")["eng"], 1)

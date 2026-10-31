@@ -220,6 +220,27 @@ async function openFlightView() {
   flDraw();
 }
 
+// the values and the span picked, kept under a name in this browser profile
+function flRenderViews(on = '') {
+  const names = Object.keys(store.get('flightViews', {})).sort();
+  $('#flView').innerHTML = `<option value="">—</option>${names.map(n => `<option value="${esc(n)}"${n === on ? ' selected' : ''}>${esc(n)}</option>`).join('')}`;
+  $('#flViewDelete').classList.toggle('hidden', !on);
+}
+
+function flPickView(name) {
+  const view = store.get('flightViews', {})[name];
+  if (view) {
+    FL.sel = view.sel;
+    FL.span = view.span;
+    store.set('flightSel', FL.sel);
+    store.set('flightSpan', FL.span);
+    $$('#flSpan button').forEach(b => b.classList.toggle('active', +b.dataset.s === FL.span));
+    flRenderValues();
+    flDraw();
+  }
+  $('#flViewDelete').classList.toggle('hidden', !view);
+}
+
 function flRenderValues() {
   $('#flValues').innerHTML = Object.entries(OV_VALUES).map(([group, names]) => `<div class="ov-group"><b>${esc(t('ov.g.' + group))}</b>${names.filter(n => n !== 'swept' && n !== 'fuel_time').map(n => `<button class="chip ov-chip${FL.sel.includes(n) ? ' on' : ''}" data-flv="${n}" aria-pressed="${FL.sel.includes(n)}">${esc(t('ov.v.' + n))}</button>`).join('')}</div>`).join('');
 }
@@ -227,6 +248,7 @@ function flRenderValues() {
 function bindFlight() {
   $('[data-view="flight"]').classList.toggle('hidden', !S.status?.alarms);  // same reader as the overlay: Windows only
   flRenderValues();
+  flRenderViews();
   $$('#flSpan button').forEach(b => b.classList.toggle('active', +b.dataset.s === FL.span));
   $('#flSpan').addEventListener('click', e => {
     const b = e.target.closest('button');
@@ -249,6 +271,27 @@ function bindFlight() {
   cv.addEventListener('mouseleave', () => { FL.mouse = null; flDraw(); });
   addEventListener('resize', () => { if (!$('#view-flight').classList.contains('hidden')) flDraw(); });
   $('#flSource').addEventListener('change', e => flSource(e.target.value));
+  $('#flView').addEventListener('change', e => flPickView(e.target.value));
+  $('#flViewSave').addEventListener('click', () => {
+    const field = $('#flViewName'), name = field.value.trim() || $('#flView').value;
+    if (!name) return field.focus();
+    store.set('flightViews', { ...store.get('flightViews', {}), [name]: { sel: FL.sel, span: FL.span } });
+    field.value = '';
+    flRenderViews(name);
+  });
+  $('#flViewDelete').addEventListener('click', () => {
+    const views = store.get('flightViews', {});
+    delete views[$('#flView').value];
+    store.set('flightViews', views);
+    flRenderViews();
+  });
+  $('#flShot').addEventListener('click', () => {  // the curves on the page's own background: a canvas has none
+    const cv = $('#flCanvas'), out = Object.assign(document.createElement('canvas'), { width: cv.width, height: cv.height }), c = out.getContext('2d');
+    c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim();
+    c.fillRect(0, 0, out.width, out.height);
+    c.drawImage(cv, 0, 0);
+    Object.assign(document.createElement('a'), { href: out.toDataURL('image/png'), download: `${FL.log.replace(/\.csv$/, '') || 'flight'}.png` }).click();
+  });
   $('#flRecord').addEventListener('click', async () => {
     const stopping = !!FL.recording;
     try {

@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 24  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 25  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -975,18 +975,23 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
     return out
 
 
+def engine_kinds(fm: dict) -> list:
+    """The kind of each Engine<n> of a flight model: Jet, Inline, Radial, Rocket..."""
+    engines = [v for k, v in fm.items() if re.fullmatch(r"Engine\d+", k) and isinstance(v, dict)]
+    return [((fm.get(f"EngineType{e.get('Type')}") or e).get("Main") or {}).get("Type") for e in engines]
+
+
 def engine_count(fm: dict) -> int:
     """Engines of a flight model as /state lists them: take-off rockets (A-4, Mirage III...) are Engine<n> too."""
-    engines = [v for k, v in fm.items() if re.fullmatch(r"Engine\d+", k) and isinstance(v, dict)]
-    kinds = [((fm.get(f"EngineType{e.get('Type')}") or e).get("Main") or {}).get("Type") for e in engines]
-    return sum(k != "Rocket" for k in kinds) or len(engines)  # or: rocket planes (Me 163)
+    kinds = engine_kinds(fm)
+    return sum(k != "Rocket" for k in kinds) or len(kinds)  # or: rocket planes (Me 163)
 
 
 def flight_limits(fm: dict, cat: str) -> dict:
     """Breaking limits of an aircraft for the in-flight alarms (speeds: km/h, indicated). v, m: airframe speed and
     Mach; sw: variable sweep [[sweep, v, m], ...], v and m being then the swept-back limits; gear: 0 = none;
     flaps: [[position 0..1, speed], ...]; fuel: MaxFuelMass0 and the tanks' sum, /state's Mfuel0 is one or the other;
-    mass: empty, kg."""
+    mass: empty, kg; jet: true on jets, for the overlays by kind of engine."""
     aero, mass = fm.get("Aerodynamics") or {}, fm.get("Mass") or {}
     strength = (aero.get("WingPlane") or {}).get("Strength") or {}
     sweeps = [aero[k] for k in aero if re.fullmatch(r"WingPlaneSweep\d+", k)]
@@ -1010,6 +1015,8 @@ def flight_limits(fm: dict, cat: str) -> dict:
     out["fuel"] = [round(x, 2) for x in (mass.get("MaxFuelMass0", 0), tanks) if x]
     out["eng"] = engine_count(fm)
     out["mass"] = _numval(mass.get("EmptyMass")) or 0
+    if "Jet" in engine_kinds(fm):
+        out["jet"] = True
     return out
 
 

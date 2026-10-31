@@ -213,8 +213,7 @@
         <small class="muted" id="ovActive"></small>
       </div>
       <small class="muted ov-profile-hint" data-i18n="ov.profileHint"></small>
-      <div class="ov-grid">
-        <div class="ov-main">
+      <div class="ov-preview">
           <div class="ov-top">
             <div class="ov-screen" id="ovScreen">
             <svg class="ov-hud" viewBox="0 0 3840 2160" aria-hidden="true">
@@ -222,7 +221,7 @@
               <g class="ov-hud-line"><circle cx="3573" cy="246" r="173"/><circle cx="1922" cy="902" r="42"/><rect x="1252" y="1978" width="1340" height="172" rx="8"/></g>
               <g class="ov-hud-green"><circle cx="355" cy="1081" r="227"/><rect x="3024" y="1012" width="624" height="607"/></g>
             </svg>
-              <div class="ov-text" id="ovText"></div>
+              <div class="ov-text" id="ovText" data-b="0"></div>
             </div>
             <div class="ov-zoom" id="ovZoom"></div>
           </div>
@@ -232,45 +231,105 @@
             <button class="btn btn-sm btn-ghost hidden" id="ovBgRemove"><span data-i18n="ov.bgRemove"></span></button>
             <small class="muted" data-i18n="ov.bgHint"></small>
           </div>
+      </div>
+      <div class="seg ov-tabs" id="ovTabs" role="tablist">
+        <button data-tab="lines" data-i18n="ov.lines"></button><button data-tab="blocks" data-i18n="ov.blocks"></button><button data-tab="look" data-i18n="ov.look"></button><button data-tab="alarms" data-i18n="ov.alarms"></button><button data-tab="behaviour" data-i18n="ov.behaviour"></button>
+      </div>
+      <section class="ov-panel" data-panel="lines">
           <div class="ov-style">
             <span data-i18n="ov.style"></span>
             <div class="seg" id="ovStyle"><button data-style="speed" data-i18n="ov.style.speed"></button><button data-style="percent" data-i18n="ov.style.percent"></button><button data-style="both" data-i18n="ov.style.both"></button></div>
           </div>
-          <h3 class="ov-h" data-i18n="ov.lines"></h3>
           <small class="muted" data-i18n="ov.linesHint"></small>
           <div class="ov-lines" id="ovLines"></div>
           <button class="btn btn-sm" id="ovAddLine"><span data-i18n="ov.addLine"></span></button>
           <div class="ov-values" id="ovValues"></div>
-        </div>
-        <aside class="ov-side">
-          <h3 class="ov-h" data-i18n="ov.look"></h3>
+      </section>
+      <section class="ov-panel hidden" data-panel="blocks">
+        <small class="muted" data-i18n="ov.blocksHint"></small>
+        <div class="ov-cards ov-cards-fill" id="ovBlocks"></div>
+        <button class="btn btn-sm" id="ovAddBlock"><span data-i18n="ov.addBlock"></span></button>
+      </section>
+      <section class="ov-panel hidden" data-panel="look"><div class="ov-cards">
+        <div class="ov-card">
+          <h3 class="ov-h" data-i18n="ov.textCard"></h3>
           <div class="field"><label for="ovFont" data-i18n="ov.font"></label>
             <input id="ovFont" type="text" data-ov="font" list="ovFonts" spellcheck="false"><datalist id="ovFonts"></datalist></div>
           <div class="field-row">
             <div class="field"><label for="ovSize" data-i18n="ov.textSize"></label><input id="ovSize" type="number" data-ov="size" min="6" max="400"></div>
-            <div class="field"><label for="ovOpacity" data-i18n="ov.opacity"></label><input id="ovOpacity" type="number" data-ov="opacity" min="10" max="100"></div>
+            <div class="field"><label for="ovSpacing" data-i18n="ov.spacing"></label><input id="ovSpacing" type="number" data-ov="spacing" min="-50" max="200"></div>
           </div>
+          <label class="switch"><input type="checkbox" data-ov="bold"><span class="sw"></span><span data-i18n="ov.bold"></span></label>
+          <label class="switch"><input type="checkbox" data-ov="italic"><span class="sw"></span><span data-i18n="ov.italic"></span></label>
+        </div>
+        <div class="ov-card">
+          <h3 class="ov-h" data-i18n="ov.colors"></h3>
           <div class="field-row">
             <div class="field"><label for="ovColor" data-i18n="ov.textColor"></label><input id="ovColor" type="color" data-ov="color"></div>
             <div class="field"><label for="ovAlert" data-i18n="ov.alertColor"></label><input id="ovAlert" type="color" data-ov="alert"></div>
           </div>
           <div class="field-row">
-            <div class="field"><label for="ovX">X</label><input id="ovX" type="number" data-ov="x"></div>
-            <div class="field"><label for="ovY">Y</label><input id="ovY" type="number" data-ov="y"></div>
+            <div class="field"><label for="ovValueColor" data-i18n="ov.valueColor"></label>
+              <div class="ov-color"><input id="ovValueColor" type="color" data-ov="valueColor"><button class="icon-btn hidden" data-ovclear="valueColor" data-i18n-title="ov.sameAsText"><svg class="ic-sm"><use href="#i-x"/></svg></button></div></div>
+            <div class="field"><label for="ovUnitColor" data-i18n="ov.unitColor"></label>
+              <div class="ov-color"><input id="ovUnitColor" type="color" data-ov="unitColor"><button class="icon-btn hidden" data-ovclear="unitColor" data-i18n-title="ov.sameAsText"><svg class="ic-sm"><use href="#i-x"/></svg></button></div></div>
           </div>
-          <label class="switch"><input type="checkbox" data-ov="bold"><span class="sw"></span><span data-i18n="ov.bold"></span></label>
+          <div class="field-row">
+            <div class="field"><label for="ovOutline" data-i18n="ov.outline"></label><input id="ovOutline" type="number" data-ov="outline" min="0" max="4"></div>
+            <div class="field"><label for="ovOutlineColor" data-i18n="ov.outlineColor"></label><input id="ovOutlineColor" type="color" data-ov="outlineColor"></div>
+          </div>
+          <div class="field"><label for="ovOpacity" data-i18n="ov.opacity"></label><input id="ovOpacity" type="number" data-ov="opacity" min="10" max="100"></div>
+        </div>
+      </div></section>
+      <section class="ov-panel hidden" data-panel="alarms">
+        <div id="ovAlarms"></div>
+        <div class="ov-cards">
+          <div class="ov-card">
+            <h3 class="ov-h" data-i18n="ov.sounds"></h3>
+            <div class="field"><label for="ovDevice" data-i18n="ov.device"></label><select id="ovDevice"></select></div>
+            <div class="field-row">
+              <div class="field"><label for="ovVolume" data-i18n="ov.volume"></label><input id="ovVolume" type="number" data-ov="volume" min="0" max="100"></div>
+              <div class="field"><label for="ovRepeat" data-i18n="ov.repeat"></label><input id="ovRepeat" type="number" data-ov="repeat" min="100" max="10000" step="50"></div>
+            </div>
+            <label class="switch"><input type="checkbox" data-ov="soundFocus"><span class="sw"></span><span data-i18n="ov.soundFocus"></span></label>
+            <label class="switch"><input type="checkbox" data-ov="soundEngine"><span class="sw"></span><span data-i18n="ov.soundEngine"></span></label>
+            <input type="file" id="ovSoundFile" accept="audio/*" hidden>
+          </div>
+          <div class="ov-card">
+            <h3 class="ov-h" data-i18n="ov.glowCard"></h3>
+            <label class="switch"><input type="checkbox" data-ov="glow"><span class="sw"></span><span data-i18n="ov.glow"></span></label>
+            <label class="switch"><input type="checkbox" data-ov="glowFlash"><span class="sw"></span><span data-i18n="ov.glowFlash"></span></label>
+            <div class="field-row">
+              <div class="field"><label for="ovGlowSize" data-i18n="ov.glowSize"></label><input id="ovGlowSize" type="number" data-ov="glowSize" min="3" max="50"></div>
+              <div class="field"><label for="ovFlashMs" data-i18n="ov.flashMs"></label><input id="ovFlashMs" type="number" data-ov="flashMs" min="200" max="4000" step="100"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="ov-panel hidden" data-panel="behaviour"><div class="ov-cards">
+        <div class="ov-card">
+          <h3 class="ov-h" data-i18n="ov.display"></h3>
           <label class="switch"><input type="checkbox" data-ov="show"><span class="sw"></span><span data-i18n="ov.show"></span></label>
           <label class="switch"><input type="checkbox" data-ov="hideCrash"><span class="sw"></span><span data-i18n="ov.hideCrash"></span></label>
-          <label class="switch"><input type="checkbox" data-ov="glow"><span class="sw"></span><span data-i18n="ov.glow"></span></label>
+          <label class="switch"><input type="checkbox" data-ov="pctAlways"><span class="sw"></span><span data-i18n="ov.pctAlways"></span></label>
+        </div>
+        <div class="ov-card">
+          <h3 class="ov-h" data-i18n="ov.keys"></h3>
           <div class="field"><label for="ovHotkey" data-i18n="ov.hotkey"></label>
             <input id="ovHotkey" type="text" readonly data-ovkey="hotkey" data-i18n-ph="ov.hotkeyPh"><small class="muted" data-i18n="ov.hotkeyHint"></small></div>
+          <div class="field"><label for="ovHoldKey" data-i18n="ov.holdKey"></label>
+            <input id="ovHoldKey" type="text" readonly data-ovkey="holdKey" data-i18n-ph="ov.hotkeyPh"></div>
+          <div class="field"><label for="ovMuteKey" data-i18n="ov.muteKey"></label>
+            <input id="ovMuteKey" type="text" readonly data-ovkey="muteKey" data-i18n-ph="ov.hotkeyPh"></div>
           <div class="field"><label for="ovLogKey" data-i18n="ov.logKey"></label>
             <input id="ovLogKey" type="text" readonly data-ovkey="logKey" data-i18n-ph="ov.hotkeyPh"></div>
-          <h3 class="ov-h" data-i18n="ov.alarms"></h3>
-          <div id="ovAlarms"></div>
-          <div class="field"><label for="ovRepeat" data-i18n="ov.repeat"></label><input id="ovRepeat" type="number" data-ov="repeat" min="100" max="10000" step="50"></div>
-        </aside>
-      </div>
+        </div>
+        <div class="ov-card">
+          <h3 class="ov-h" data-i18n="ov.timing"></h3>
+          <div class="field"><label for="ovPollMs" data-i18n="ov.pollMs"></label><input id="ovPollMs" type="number" data-ov="pollMs" min="50" max="1000" step="10"></div>
+          <div class="field"><label for="ovLogMs" data-i18n="ov.logMs"></label><input id="ovLogMs" type="number" data-ov="logMs" min="100" max="10000" step="100"></div>
+        </div>
+      </div></section>
     </div>
 
     <div class="view hidden" id="view-flight">
@@ -284,12 +343,20 @@
         <button class="icon-btn btn-danger hidden" id="flDelete" data-i18n-title="action.delete"><svg class="ic"><use href="#i-trash"/></svg></button>
         <div class="seg" id="flSpan"><button data-s="60">1 min</button><button data-s="300">5 min</button><button data-s="1800">30 min</button><button data-s="0" data-i18n="fl.all"></button></div>
         <button class="btn btn-sm hidden" id="flAcmi" data-i18n="fl.acmi"></button>
+        <button class="btn btn-sm" id="flShot" data-i18n="fl.shot"></button>
         <button class="btn btn-sm" id="flCockpit" data-i18n="fl.cockpit"></button>
         <small class="muted" id="flState"></small>
       </div>
       <div class="fl-sheet hidden" id="flSheet"></div>
       <div class="fl-sheet hidden" id="flReport"></div>
       <div class="fl-chart"><canvas id="flCanvas" class="hidden"></canvas><div class="empty hidden" id="flEmpty"><p data-i18n="fl.empty"></p></div></div>
+      <div class="ov-profiles fl-views">
+        <label for="flView" data-i18n="fl.view"></label>
+        <select id="flView"></select>
+        <button class="icon-btn btn-danger hidden" id="flViewDelete" data-i18n-title="action.delete"><svg class="ic"><use href="#i-trash"/></svg></button>
+        <input id="flViewName" type="text" spellcheck="false" data-i18n-ph="fl.viewNew">
+        <button class="btn btn-sm" id="flViewSave"><span data-i18n="fl.viewSave"></span></button>
+      </div>
       <div class="ov-values" id="flValues"></div>
     </div>
 
@@ -299,6 +366,8 @@
       <div class="fl-bar">
         <input id="btFilter" type="text" spellcheck="false" data-i18n-ph="bt.filter">
         <label class="bt-size"><span data-i18n="bt.size"></span><input id="btSize" type="range" min="11" max="26"></label>
+        <label class="switch"><input type="checkbox" id="btSave"><span class="sw"></span><span data-i18n="bt.save"></span></label>
+        <button class="btn btn-sm btn-ghost" id="btFolder"><svg class="ic-sm"><use href="#i-folder"/></svg><span data-i18n="fl.folder"></span></button>
         <small class="muted" id="btState"></small>
       </div>
       <div class="bt-grid">
@@ -396,6 +465,12 @@
         <div class="row gap"><button type="button" class="btn btn-ghost" id="btnUpdate"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="settings.update"></span></button><small class="muted" id="dataVersion"></small></div>
         <div class="row gap hidden" id="rowDatamine"><button type="button" class="btn btn-ghost" id="btnRemoveDatamine"><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="settings.removeDatamine"></span></button><small class="muted" data-i18n="settings.removeDatamineHint"></small></div>
         <pre class="log hidden" id="updateLog"></pre>
+      </div>
+      <div class="field" id="setWindow">
+        <label data-i18n="settings.window"></label>
+        <label class="switch"><input type="checkbox" id="setStartMinimized"><span class="sw"></span><span data-i18n="settings.startMinimized"></span></label>
+        <label class="switch"><input type="checkbox" id="setTray"><span class="sw"></span><span data-i18n="settings.tray"></span></label>
+        <label class="switch"><input type="checkbox" id="setCloseWithGame"><span class="sw"></span><span data-i18n="settings.closeWithGame"></span></label>
       </div>
       <div class="field">
         <label data-i18n="settings.cdk"></label>
