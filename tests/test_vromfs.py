@@ -165,6 +165,13 @@ class Containers(unittest.TestCase):
         self.assertEqual((out / "version").read_text(), "2.59.0.92")
         self.assertTrue(progress)
 
+    def test_a_name_leaving_its_folder_is_not_written(self):
+        for name in (b"lang/../../../outside.csv", b"lang\\..\\..\\..\\outside.csv"):
+            (self.game / "lang.vromfs.bin").write_bytes(pack_container({name: b"x", b"lang/units.csv": b"y"}))
+            vromfs.unpack(self.game, self.root / "out", ["lang.vromfs.bin_u/lang"])
+            self.assertTrue((self.root / "out/lang.vromfs.bin_u/lang/units.csv").exists())
+            self.assertFalse((self.root / "outside.csv").exists())
+
     def test_version_is_the_newest_container(self):
         (self.game / "char.vromfs.bin").write_bytes(pack_container({b"a": b"x"}, (2, 59, 0, 100)))
         self.assertEqual(vromfs.version(self.game), "2.59.0.100")

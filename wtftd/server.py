@@ -524,11 +524,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(overlay_status(route.split("/", 1)[1]))
         if route.startswith("battle/"):  # battle/<last chat id>/<last event>/<last damage>
             ids = route.split("/")[1:]
-            if len(ids) == 3 and all(x.isdigit() for x in ids):
+            if len(ids) == 3 and all(x.isdecimal() for x in ids):
                 return self.send_json(battle.news(_wt_get, *map(int, ids)))
             return self.send_json({"error": "not found"}, 404)
         if route.startswith("flight/"):
-            return self.send_json(flight_status(int(route.split("/", 1)[1]) if route.split("/", 1)[1].isdigit() else 0))
+            return self.send_json(flight_status(int(route.split("/", 1)[1]) if route.split("/", 1)[1].isdecimal() else 0))
         if route == "flight-logs":
             return self.send_json(flightlog.list_logs(LOGS))
         if route.startswith("flight-logs/"):

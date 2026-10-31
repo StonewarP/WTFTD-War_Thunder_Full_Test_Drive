@@ -15,7 +15,8 @@ TIME = "Time, s"
 class Log:
     def __init__(self, folder: Path, flight: str, columns: list):
         folder.mkdir(parents=True, exist_ok=True)
-        self.name = f"{re.sub(r'[^\w.\-]', '_', flight)[:60]}-{time.strftime('%Y_%m_%d_%H_%M_%S')}.csv"
+        flight = re.sub(r"[^\w.\-]", "_", flight)[:60]
+        self.name = f"{flight}-{time.strftime('%Y_%m_%d_%H_%M_%S')}.csv"
         self.file = open(folder / self.name, "w", encoding="utf-8-sig", newline="")
         self.writer = csv.writer(self.file)
         self.writer.writerow([TIME, *columns])

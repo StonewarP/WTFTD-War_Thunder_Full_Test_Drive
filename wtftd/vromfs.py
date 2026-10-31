@@ -234,7 +234,8 @@ def unpack(game_dir: Path, target: Path, folders: list[str], progress=None):
     for name in CONTAINERS:
         wanted = tuple(f.split("/", 1)[1] + "/" for f in folders if f.startswith(f"{name}.vromfs.bin_u/"))
         c = Container(game_dir / f"{name}.vromfs.bin")  # all four read first: a damaged one stops before any writing
-        todo += [(c, target / f"{name}.vromfs.bin_u", n) for n in c.files if n.startswith(wanted)]
+        todo += [(c, target / f"{name}.vromfs.bin_u", n) for n in c.files
+                 if n.startswith(wanted) and ".." not in re.split(r"[\\/]", n)]  # never written outside target, whatever the file says
     made = set()
     for i, (c, root, name) in enumerate(todo):
         path = root / (name + "x" if name.endswith(".blk") else name)
