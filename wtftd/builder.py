@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 20  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 21  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -497,18 +497,28 @@ def _filler_factor(pct: float) -> float:
     return _FILLER[-1][1]
 
 
+def _is_ap(b: dict) -> bool:
+    bt = first_str(b.get("bulletType")).lower()
+    return bt.startswith(("ap", "sap")) or "apds" in bt
+
+
+def _pen_table(b: dict) -> list:
+    """The shell's own penetration table, [(distance m, penetration mm)] nearest first; [] when it has none."""
+    ap = b.get("armorpower")
+    if not isinstance(ap, dict):
+        return []
+    return sorted((float(v[1]), float(v[0])) for v in ap.values()
+                  if isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) for c in v))
+
+
 def kinetic_pen(b: dict) -> float | None:
     """Penetration of an armor-piercing shell (mm, 0°, muzzle velocity); None for other shells or when the
     game's files don't give what the formulas need (sub-calibre AP without a table, steel rods)."""
-    bt = first_str(b.get("bulletType")).lower()
-    if not (bt.startswith(("ap", "sap")) or "apds" in bt):
+    if not _is_ap(b):
         return None
-    ap = b.get("armorpower")
-    if isinstance(ap, dict):
-        rows = sorted((float(v[1]), float(v[0])) for v in ap.values()
-                      if isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) for c in v))
-        if rows:
-            return round(rows[0][1])
+    rows = _pen_table(b)
+    if rows:
+        return round(rows[0][1])
     kin = (b.get("damage") or {}).get("kinetic") if isinstance(b.get("damage"), dict) else None
     v, m = _numval(b.get("speed")), _numval(b.get("mass"))
     if not isinstance(kin, dict) or not v or not m:
@@ -537,13 +547,17 @@ def kinetic_pen(b: dict) -> float | None:
 
 def shell_stats(b: dict | None) -> dict:
     """Editable shell values: v speed (m/s), m mass (kg), e explosive mass (kg), h HEAT penetration (mm),
-    l APFSDS rod working length (mm); and k kinetic penetration (mm, kinetic_pen), shown only."""
+    l APFSDS rod working length (mm); and, shown only, k kinetic penetration (mm, kinetic_pen) and pc its table
+    by distance [[m, mm], ...] when the shell's file has one."""
     if not isinstance(b, dict):
         return {}
     out = {}
     pen = kinetic_pen(b)
     if pen:
         out["k"] = pen
+    rows = _pen_table(b) if _is_ap(b) else []
+    if len(rows) > 1:
+        out["pc"] = [[round(d), round(p)] for d, p in rows]
     for key, src in (("v", b.get("speed")), ("m", b.get("mass")), ("e", b.get("explosiveMass"))):
         val = _numval(src)
         if val is not None:
@@ -786,6 +800,9 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
             out["cal"] = cal
     if isinstance(wp.get("crewTotalCount"), (int, float)) and wp["crewTotalCount"] > 0:
         out["crew"] = int(wp["crewTotalCount"])
+    for key, src in (("rp", "reqExp"), ("sl", "value")):  # research cost (RP) and purchase cost (SL)
+        if isinstance(wp.get(src), (int, float)) and wp[src] > 0:
+            out[key] = int(wp[src])
     return out
 
 
@@ -1085,6 +1102,8 @@ def build_vehicles(lang: Lang, progress=None):
         }
         if v.get("costGold"):
             rec["p"] = 1
+        if v.get("reqAir"):
+            rec["rq"] = v["reqAir"]  # the vehicle to research first
         if hidden:
             rec["h"] = 1
         if not v.get("value") and not v.get("costGold") and not hidden:

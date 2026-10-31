@@ -51,6 +51,18 @@ class KineticPenetration(unittest.TestCase):
     def test_shell_stats_carry_it(self):
         self.assertIn("k", builder.shell_stats(demarre("apcbc_tank", 7.0, 0.0762, 792.0)))
 
+    def test_table_by_distance(self):
+        # the Hispano 20 mm table, as in the game files: nearest first, in whole metres and millimetres
+        rows = {"ArmorPower1000m": [7.0, 1000.0], "ArmorPower0m": [17.0, 10.0], "ArmorPower500m": [11.0, 500.0]}
+        s = builder.shell_stats({"bulletType": "ap_i", "armorpower": rows})
+        self.assertEqual(s["pc"], [[10, 17], [500, 11], [1000, 7]])
+        self.assertEqual(s["k"], 17)
+
+    def test_no_table_by_distance(self):
+        self.assertNotIn("pc", builder.shell_stats(demarre("apcbc_tank", 7.0, 0.0762, 792.0)))  # formula, one value
+        he = {"bulletType": "rocket_tank", "armorpower": {"a": [28.0, 10.0], "b": [20.0, 500.0]}}
+        self.assertNotIn("pc", builder.shell_stats(he))  # not armor-piercing: no curve to draw
+
 
 def area(x, z, s=10.0):
     return {"type": "Sphere", "tm": [[s, 0.0, 0.0], [0.0, s, 0.0], [0.0, 0.0, s], [x, 0.0, z]]}

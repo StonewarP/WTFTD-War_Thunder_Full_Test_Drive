@@ -26,6 +26,8 @@ const STATS = {
   wl: { cats: ['air'], unit: 'kg/m²', better: -1 },
   disp: { cats: NAVAL, unit: 't', better: 0 },
   crew: { cats: ALL_CATS, unit: '', better: 0 },
+  rp: { cats: ALL_CATS, unit: 'RP', better: -1 },
+  sl: { cats: ALL_CATS, unit: 'SL', better: -1 },
 };
 
 // aircraft: propeller planes have a power-to-weight ratio, jets a thrust-to-weight ratio (not comparable)
@@ -267,6 +269,18 @@ function cardStatHTML(v) {
   return `<span class="card-stat" title="${esc(statLabel(k, v.c))}">${esc(fmtStat(k, statAt(v, k)))}</span>`;
 }
 
+// the line of vehicles to research up to this one (v.rq = the one before it), with what it costs in all
+function researchPathHTML(v) {
+  const path = [];
+  for (let x = v; x && !path.includes(x) && path.length < 80; x = S.byId.get(x.rq)) path.unshift(x);
+  if (path.length < 2) return '';
+  const sum = k => path.reduce((n, x) => n + (x.s?.[k] || 0), 0);
+  const cost = (x, k) => (x.s?.[k] ? `${I18N.num(x.s[k])} ${STATS[k].unit}` : '—');
+  return `<details class="rpath"><summary>${esc(t('path.title'))} · ${esc(t('path.count', { n: path.length }))} · ${I18N.num(sum('rp'))} RP · ${I18N.num(sum('sl'))} SL</summary>
+    <ol>${path.map(x => `<li><span>${esc(I18N.unit(x.id))}</span><span>${cost(x, 'rp')}</span><span>${cost(x, 'sl')}</span></li>`).join('')}</ol>
+    <small class="muted">${esc(t('path.note'))}</small></details>`;
+}
+
 function statsBlockHTML(v) {
   const keys = statKeys(v.c).filter(k => v.s?.[k] != null);
   if (!keys.length) return '<div id="vstatsWrap"></div>';
@@ -276,5 +290,5 @@ function statsBlockHTML(v) {
     const chg = v.su?.[k] != null;
     const tip = STATS[k].triple ? t('stat.armHint') : chg ? `${t('upg.stock')}: ${fmtStat(k, v.su[k])} → ${t('upg.full')}: ${fmtStat(k, v.s[k])}` : '';
     return `<div class="vstat${chg ? ' upg-chg' : ''}" title="${esc(tip)}"><span>${esc(statLabel(k, v.c))}</span><b>${esc(fmtStat(k, statAt(v, k)))}</b></div>`;
-  }).join('')}</div></div>`;
+  }).join('')}</div>${researchPathHTML(v)}</div>`;
 }

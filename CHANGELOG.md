@@ -6,6 +6,12 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## 0.21.0 — not released yet
 
+- **Penetration by distance** (vehicle panel → Ammunition, ground vehicles): a curve per armor-piercing shell of the
+  gun, from the game's own table, with the values at 100, 500, 1000 and 2000 m. Shells whose file has no table
+  (computed by formula) only show their muzzle value. Data schema 21.
+- **Research and purchase cost** (vehicle panel, sort, filter and comparison): the game's own RP and SL cost of each
+  vehicle, and a *Research path* that adds them up along the line, from the first vehicle to the one you picked.
+  Modules, crew training and the rank requirements are not counted.
 - **A shorter top menu**: Vehicles, Maps, Weapons, My missions and In flight. Your own vehicles, maps and weapons are
   now sub-tabs of those menus, and My overlay, Flight data and Battle sit under In flight.
 - **My overlay** (In flight, Windows, off until you turn it on there): while you fly, WTFTD beeps near your aircraft's
