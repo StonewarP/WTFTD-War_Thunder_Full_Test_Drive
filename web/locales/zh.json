@@ -1318,5 +1318,14 @@
   "mb.assists": "助攻",
   "mb.score": "得分",
   "mb.damage": "伤害",
-  "mb.ai": "击毁的 AI 载具"
+  "mb.ai": "击毁的 AI 载具",
+  "ov.g.stats": "我的数据",
+  "ov.v.kd": "击毁/死亡",
+  "ov.v.winrate": "胜率",
+  "ov.v.battles": "战斗",
+  "ov.v.kills": "击毁",
+  "ov.v.deaths": "死亡",
+  "ov.v.live_kd": "击毁/死亡（本场）",
+  "ov.v.live_kills": "击毁（本场）",
+  "ov.v.live_deaths": "死亡（本场）"
 }

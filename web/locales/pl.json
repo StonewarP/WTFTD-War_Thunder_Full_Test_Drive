@@ -1318,5 +1318,14 @@
   "mb.assists": "Asysty",
   "mb.score": "Punkty",
   "mb.damage": "Obrażenia",
-  "mb.ai": "Zniszczone pojazdy SI"
+  "mb.ai": "Zniszczone pojazdy SI",
+  "ov.g.stats": "Moje statystyki",
+  "ov.v.kd": "Zniszczenia na śmierć",
+  "ov.v.winrate": "Odsetek zwycięstw",
+  "ov.v.battles": "Bitwy",
+  "ov.v.kills": "Zniszczenia",
+  "ov.v.deaths": "Śmierci",
+  "ov.v.live_kd": "Zniszczenia na śmierć, ta bitwa",
+  "ov.v.live_kills": "Zniszczenia, ta bitwa",
+  "ov.v.live_deaths": "Śmierci, ta bitwa"
 }

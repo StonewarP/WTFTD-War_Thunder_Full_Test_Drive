@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from tests.test_vromfs import blk_body, f32
-from wtftd import game, paths, replays, server, vromfs
+from wtftd import alarms, battle, builder, game, paths, replays, server, vromfs
 
 ME = "13672816"
 PLANES = "gamedata/missions/cta/planes/historical/bfd/air_afghan_bfd_norespawn.blk"
@@ -101,8 +101,9 @@ class Reading(Temp):
 
     def test_nobody_elses_name_or_numbers(self):
         text = json.dumps(self.read(wrpl(results())))
-        for other in ("SomeoneElse", "su_33", "9999", "Myself", ME):
+        for other in ("SomeoneElse", "su_33", "9999", "=TAG=", ME):
             self.assertNotIn(other, text)
+        self.assertEqual(json.loads(text)["me"], "Myself")
 
     def test_mode(self):
         cases = (("gamedata/missions/cta/tanks/alps/alps_dom.blk", 0x70, "ground", "ab"), (PLANES, 0x7A, "air", "sb"),
@@ -136,6 +137,156 @@ class Reading(Temp):
                     wrpl(None), wrpl(stranger), wrpl({"timePlayed": 1.0, "authorUserId": ME}), wrpl({"player": 3, "authorUserId": ME, "timePlayed": 1.0}),
                     good[:684] + struct.pack("<I", len(good) + 500) + good[688:], good[:684] + struct.pack("<I", 12) + good[688:]):
             self.assertIsNone(self.read(raw))
+
+
+class Summary(Temp):
+    def row(self, status="success", **extra):
+        return self.read(wrpl(results(status, **extra)))
+
+    def test_real_battles_only(self):
+        rows = [self.row(me={"kills": 3, "deaths": 1}), self.row("fail", me={"kills": 1, "deaths": 1}), self.row("", me={"deaths": 1}),
+                self.row(me={"kills": 50}) | {"offline": True}]
+        self.assertEqual(replays.summary(rows), {"pilot": "Myself", "battles": 3, "kills": 4, "deaths": 3, "kd": 1.33, "winrate": 50})
+
+    def test_nothing_known(self):
+        self.assertEqual(replays.summary([]), {})
+        self.assertNotIn("winrate", replays.summary([self.row("")]))  # left every battle: no rate to give
+        self.assertEqual(replays.summary([self.row(me={"kills": 4})])["kd"], 4)  # no death yet
+
+
+WORDS = {"crashed": ["hascrashed."], "lost": ["hasbeenwrecked", "shotdownbyairdefense."], "killed": ["destroyed", "shot down"],
+         "killedBy": ["has been destroyed by", "destroyed by", "shot down by"]}
+
+
+class Live(unittest.TestCase):
+    def tally(self, *lines, name="Myself"):
+        out = battle.Tally()
+        out.add([], name, WORDS)  # the first look: the past
+        out.add([{"id": i + 1, "time": 100 + i * 20, "text": x} for i, x in enumerate(lines)], name, WORDS)
+        return out.kills, out.deaths
+
+    def test_kills(self):
+        self.assertEqual(self.tally("=TAG= Myself (F-16AM) shot down =X= Foe (MiG-29)", "=TAG= Myself (T-72A) destroyed Foe@psn (M1 Abrams)",
+                                    "Foe (Su-33) shot down by Myself (F-15E)", "Foe (T-80) destroyed by =TAG= Myself (Rafale)"), (4, 0))
+
+    def test_deaths(self):
+        self.assertEqual(self.tally("=X= Foe (MiG-29) shot down =TAG= Myself (F-16AM)", "=TAG= Myself (F-16AM) shot down by Foe (MiG-29)",
+                                    "=TAG= Myself (T-72A) has been destroyed by Foe (M1 Abrams)", "=TAG= Myself (F-16AM) has crashed.",
+                                    "=TAG= Myself (T-72A) has been wrecked", "MiG-29 shot down Myself", "Myself (F-16AM) shot down by air defense."), (0, 7))
+
+    def test_nobody_elses_line_counts(self):
+        self.assertEqual(self.tally("=X= Foe (MiG-29) shot down =Y= Other (F-16AM)", "=X= Foe (MiG-29) has crashed.", "Foe (F-16) shot down Myselfie (Su-33)",
+                                    "NotMyself (F-16) shot down Foe (Su-33)", "=TAG= Myself (F-16AM) set afire Foe (MiG-29)"), (0, 0))
+
+    def test_an_ai_vehicle_is_no_kill(self):
+        self.assertEqual(self.tally("=TAG= Myself (F-16AM) shot down IL-28", "=TAG= Myself (T-72A) destroyed Truck"), (0, 0))  # as in the replays
+
+    def test_a_death_told_twice_is_one(self):
+        out = battle.Tally()
+        out.add([], "Myself", WORDS)
+        out.add([{"id": 1, "time": 100, "text": "Foe (MiG-29) shot down Myself (F-16AM)"},
+                 {"id": 2, "time": 104, "text": "Myself (F-16AM) has crashed."}, {"id": 3, "time": 180, "text": "Myself (F-16AM) has crashed."}], "Myself", WORDS)
+        self.assertEqual(out.deaths, 2)
+
+    def test_the_first_look_is_the_past(self):
+        out = battle.Tally()
+        out.add([{"id": 9, "time": 1, "text": "Myself (F-16AM) shot down Foe (MiG-29)"}], "Myself", WORDS)
+        self.assertEqual((out.kills, out.after), (0, 9))
+
+    def test_no_name_no_count(self):
+        out = battle.Tally()
+        out.add([], None, WORDS)
+        out.add([{"id": 1, "time": 1, "text": "Myself (F-16AM) shot down Foe (MiG-29)"}], None, WORDS)
+        self.assertEqual((out.kills, out.after), (0, 1))
+
+
+class Words(unittest.TestCase):
+    def test_one_word_for_both_reads_as_a_kill(self):
+        rows = {"NET_UNIT_KILLED_FM": {"en": "shot down"}, "NET_UNIT_KILLED_GM": {"sr": "uni\\tstio"},
+                "NET_UNIT_KILLED_BY_PLAYER": {"sr": "uni\\tstio"}, "NET_PLAYER_KILLED_BY_PLAYER": {"en": "shot down by"}}
+        with mock.patch.object(builder, "read_lang_csv", return_value=rows):
+            words = builder.build_battle_words()
+        self.assertEqual((words["killed"], words["killedBy"]), (["shot down", "unistio"], ["shot down by"]))
+        self.assertEqual(battle.duel("A (x) unistio B (y)", words), ("A (x)", "B (y)"))
+        self.assertEqual(battle.duel("A (x) shot down by B (y)", words), ("B (y)", "A (x)"))
+
+
+class Overlay(unittest.TestCase):
+    """The numbers reach an overlay line, in the air and in a tank, and a new battle starts them over."""
+    FLIGHT = json.dumps({"valid": True, "IAS, km/h": 500, "Mfuel, kg": 900, "Mfuel0, kg": 1000, "RPM 1": 9000, "throttle 1, %": 90}).encode()
+    MAP = json.dumps({"valid": True}).encode()
+
+    def setUp(self):
+        patcher = mock.patch.object(alarms, "beep")  # an unknown aircraft beeps: not on the PC running the tests
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.in_battle, self.log, self.asked = True, [], []
+        self.watch = alarms.Watch(self.get, dict, save=lambda: None, stats=self.stats, log_words=lambda: WORDS)
+        line = {**alarms.clean(None, self.watch.words)["lines"][0], "text": "{kd} {winrate} {live_kills}/{live_deaths}", "when": "always", "alarm": ""}
+        self.watch.base = self.watch.cfg = {**self.watch.base, "lines": [line]}
+        self.watch.enabled = True
+
+    def stats(self):
+        self.asked.append(1)
+        return {"pilot": "Myself", "kd": 1.75, "winrate": 89, "battles": 78}
+
+    def get(self, path):
+        if path == "/map_info.json":
+            return self.MAP if self.in_battle else None
+        if path.startswith("/hudmsg"):
+            after = int(path.rsplit("=", 1)[1])
+            return json.dumps({"damage": [x for x in self.log if x["id"] > after], "events": []}).encode()
+        return self.FLIGHT if path == "/state" and self.in_battle else None
+
+    def ticks(self, n=alarms.LOG_EVERY):
+        for _ in range(n):
+            self.watch.tick()
+
+    def shown(self):
+        return self.watch.display[-1][0]
+
+    def test_past_and_live(self):
+        self.ticks()
+        self.assertEqual(self.shown(), "1.75 89 0/0")
+        self.log.append({"id": 1, "time": 50, "msg": "=TAG= Myself (F-16AM) shot down =X= Foe (MiG-29)"})
+        self.log.append({"id": 2, "time": 60, "msg": "=X= Foe (Su-33) shot down =TAG= Myself (F-16AM)"})
+        self.ticks()
+        self.ticks(1)
+        self.assertEqual(self.shown(), "1.75 89 1/1")
+
+    def test_a_new_battle_starts_over(self):
+        self.ticks()
+        self.log.append({"id": 1, "time": 50, "msg": "Myself (F-16AM) shot down Foe (MiG-29)"})
+        self.ticks()
+        self.assertEqual(self.watch.tally.kills, 1)
+        self.in_battle = False
+        self.ticks()
+        self.assertEqual(self.watch.tally.kills, 0)
+        self.in_battle = True
+        self.log.append({"id": 2, "time": 5, "msg": "Myself (F-16AM) shot down Foe (MiG-29)"})  # before the first look: the past
+        self.ticks()
+        self.assertEqual(self.watch.tally.kills, 0)
+        self.assertEqual(len(self.asked), 2)  # My battles read once per battle, not at every look
+
+    def test_without_a_name_the_live_numbers_say_so(self):
+        self.watch.stats = dict
+        self.ticks(alarms.LOG_EVERY + 1)
+        self.assertEqual(self.shown(), f"{alarms.NO_VALUE} {alarms.NO_VALUE} {alarms.NO_VALUE}/{alarms.NO_VALUE}")
+
+    def test_off_nothing_is_asked(self):
+        self.watch.enabled = False
+        self.ticks()
+        self.assertEqual(self.asked, [])
+
+    def test_the_preview_has_them(self):
+        self.assertEqual(alarms.fill("{kd} {winrate} {live_kd}", alarms.SAMPLE_STATS), "1.75 89 2")
+
+    def test_every_value_has_a_label(self):
+        names = [n for n in alarms.SAMPLE_STATS]
+        en = json.loads((paths.WEB / "locales" / "en.json").read_text(encoding="utf-8"))
+        self.assertTrue(all(f"ov.v.{n}" in en for n in names))
+        script = (paths.WEB / "overlay.js").read_text(encoding="utf-8")
+        self.assertTrue(all(f"'{n}'" in script for n in names))
 
 
 class Index(Temp):

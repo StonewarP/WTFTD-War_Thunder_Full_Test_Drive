@@ -1318,5 +1318,14 @@
   "mb.assists": "Assists",
   "mb.score": "Punkte",
   "mb.damage": "Schaden",
-  "mb.ai": "Zerstörte KI-Fahrzeuge"
+  "mb.ai": "Zerstörte KI-Fahrzeuge",
+  "ov.g.stats": "Meine Werte",
+  "ov.v.kd": "Abschüsse pro Tod",
+  "ov.v.winrate": "Siegquote",
+  "ov.v.battles": "Schlachten",
+  "ov.v.kills": "Abschüsse",
+  "ov.v.deaths": "Tode",
+  "ov.v.live_kd": "Abschüsse pro Tod, diese Schlacht",
+  "ov.v.live_kills": "Abschüsse, diese Schlacht",
+  "ov.v.live_deaths": "Tode, diese Schlacht"
 }

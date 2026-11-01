@@ -1502,5 +1502,14 @@
   "mb.assists": "Assistances",
   "mb.score": "Score",
   "mb.damage": "Dégâts",
-  "mb.ai": "Véhicules IA détruits"
+  "mb.ai": "Véhicules IA détruits",
+  "ov.g.stats": "Mes stats",
+  "ov.v.kd": "Victimes par mort",
+  "ov.v.winrate": "Taux de victoire",
+  "ov.v.battles": "Batailles",
+  "ov.v.kills": "Victimes",
+  "ov.v.deaths": "Morts",
+  "ov.v.live_kd": "Victimes par mort, cette bataille",
+  "ov.v.live_kills": "Victimes, cette bataille",
+  "ov.v.live_deaths": "Morts, cette bataille"
 }

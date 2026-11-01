@@ -498,6 +498,17 @@ Checked on 107 real replays of game 2.59.0.92, all Air RB and test drives. To ch
 - [ ] A custom battle and an event: a mode that isn't in `cta/planes`, `tanks`, `ships` or `helicopters` shows only its difficulty.
 - [ ] A replay being written during a battle: counted as not read, listed once the battle ends.
 
+Stats in the overlay (My overlay → My stats). Only tested on made-up battle log lines: the kill lines' real format comes from the
+game's language files and from one line seen in game. In a real battle, with `{kd} {winrate} {live_kills}/{live_deaths}` on a line:
+
+- [ ] A kill and a death of yours are counted once each, and compare with the game's scoreboard at the end.
+- [ ] A crash, and being shot down then crashing: one death each.
+- [ ] A kill by someone else, and an AI vehicle you destroy: not counted (the replays' kills are players only).
+- [ ] A Ground battle: tanks, and a respawn in an aircraft. A new battle starts the live numbers at 0.
+- [ ] With the game in another language than English.
+- [ ] An account whose name has a suffix in the replay (`@steam`, `@psn`): its lines are recognised, or the live numbers stay at 0.
+- [ ] The past numbers take in the last battle at the start of the next one.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

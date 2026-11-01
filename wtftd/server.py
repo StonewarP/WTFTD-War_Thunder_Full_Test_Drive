@@ -133,7 +133,10 @@ def battles() -> dict:
         known = read_json(BATTLES, None)
         index = replays.refresh(gd / "Replays" if gd else None, known)
         if index != known:
-            write_json(BATTLES, index)
+            try:
+                write_json(BATTLES, index)
+            except OSError:  # a full disk, a locked file: read again next time
+                pass
     return {"game": gd is not None, **replays.listing(index)}
 
 
@@ -1169,7 +1172,8 @@ LOGS, SOUNDS = USER / "logs", USER / "sounds"
 ARCHIVE = battle.Archive(LOGS)
 WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS, sounds=SOUNDS,
                      kind=lambda vid: (STATE.get_vehicles().get(vid) or {}).get("k"),
-                     crash_words=lambda: read_json(DATA / "battle_words.json", {}).get("crashed", []))
+                     crash_words=lambda: read_json(DATA / "battle_words.json", {}).get("crashed", []),
+                     stats=lambda: replays.summary(battles()["rows"]), log_words=lambda: read_json(DATA / "battle_words.json", {}))
 
 
 def apply_alarm_settings():

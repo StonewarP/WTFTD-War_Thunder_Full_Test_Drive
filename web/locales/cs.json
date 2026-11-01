@@ -1318,5 +1318,14 @@
   "mb.assists": "Asistence",
   "mb.score": "Skóre",
   "mb.damage": "Poškození",
-  "mb.ai": "Zničená vozidla AI"
+  "mb.ai": "Zničená vozidla AI",
+  "ov.g.stats": "Moje statistiky",
+  "ov.v.kd": "Zničení na smrt",
+  "ov.v.winrate": "Poměr výher",
+  "ov.v.battles": "Bitvy",
+  "ov.v.kills": "Zničení",
+  "ov.v.deaths": "Smrti",
+  "ov.v.live_kd": "Zničení na smrt, tato bitva",
+  "ov.v.live_kills": "Zničení, tato bitva",
+  "ov.v.live_deaths": "Smrti, tato bitva"
 }

@@ -1318,5 +1318,14 @@
   "mb.assists": "アシスト",
   "mb.score": "スコア",
   "mb.damage": "ダメージ",
-  "mb.ai": "撃破したAI車両"
+  "mb.ai": "撃破したAI車両",
+  "ov.g.stats": "自分の成績",
+  "ov.v.kd": "キル／デス",
+  "ov.v.winrate": "勝率",
+  "ov.v.battles": "バトル",
+  "ov.v.kills": "キル",
+  "ov.v.deaths": "デス",
+  "ov.v.live_kd": "キル／デス（このバトル）",
+  "ov.v.live_kills": "キル（このバトル）",
+  "ov.v.live_deaths": "デス（このバトル）"
 }

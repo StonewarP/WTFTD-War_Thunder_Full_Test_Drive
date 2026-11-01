@@ -28,8 +28,8 @@ Only the latest release is supported: fixes ship in a new version.
   the asset lists of `aces.vromfs.bin`,
   read only, handed to the app's own page on `127.0.0.1`. Nothing is stored and nothing leaves your PC.
 - **What it reads for My battles:** the header and the results at the end of the game's `Replays\*.wrpl` files, read only. A
-  replay's results name every player of the battle: only your own numbers are kept, in `.cache\battles.json`, and nothing
-  leaves your PC.
+  replay's results name every player of the battle: only your own name and numbers are kept, in `.cache\battles.json`, and
+  nothing leaves your PC.
 - **What it reads while you fly:** the game's local page on `127.0.0.1:8111`, on your PC: your aircraft's values, its
   marker on the map, the chat and the battle log. On Windows, to recognise the aircraft, one key of the game's
   `global.blk` (the aircraft it saved), read only. The overlay is a separate window: nothing is injected into the game.

@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 30  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 31  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -137,12 +137,21 @@ def build_bullet_icons() -> dict:
 
 
 def build_battle_words() -> dict:
-    """The battle log's "has crashed" in every language, without spaces: the game writes it in its own language."""
+    """The battle log's verbs in every language: the game writes it in its own. crashed, lost: the end of a line, without
+    spaces. killed: "A shot down B", killedBy: "B shot down by A", the longest first."""
     try:
-        row = read_lang_csv("ui.csv").get("NET_PLAYER_HAS_CRASHED") or {}
+        rows = read_lang_csv("ui.csv")
     except OSError:
-        return {"crashed": []}
-    return {"crashed": sorted({"".join(v.replace("\\t", "").split()) for v in row.values()})}
+        return {"crashed": [], "lost": [], "killed": [], "killedBy": []}
+
+    def said(*keys):
+        return {v.replace("\\t", "").strip() for k in keys for v in (rows.get(k) or {}).values()}
+    killed = said("NET_UNIT_KILLED_FM", "NET_UNIT_KILLED_GM")
+    killed_by = said("NET_PLAYER_KILLED_BY_PLAYER", "NET_PLAYER_KILLED_BY_UNIT", "NET_UNIT_KILLED_BY_PLAYER", "NET_PLAYER_GM_KILLED_BY_UNIT")
+    return {"crashed": sorted("".join(v.split()) for v in said("NET_PLAYER_HAS_CRASHED")),
+            "lost": sorted("".join(v.split()) for v in said("NET_PLAYER_GM_HAS_DESTROYED", "NET_PLAYER_SHOT_BY_AIR_DEFENCE")),
+            "killed": sorted(killed, key=lambda v: (-len(v), v)),
+            "killedBy": sorted(killed_by - killed, key=lambda v: (-len(v), v))}  # one word for both (Japanese, Serbian): "A word B"
 
 
 # Bombing a target. The game sets the HP of a bombing area in its mission templates, by the mission's balance level

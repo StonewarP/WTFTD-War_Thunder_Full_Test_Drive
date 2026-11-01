@@ -10,6 +10,7 @@ from pathlib import Path
 from .builder import clean
 
 TAG = re.compile(r"<[^>]*>")  # the game's colour tags
+ANOTHER_LIFE_S = 10  # a death told twice (shot down, then crashed) is one: nobody is back in the air this fast
 
 
 def _lines(items) -> list:
@@ -29,6 +30,52 @@ def damage_lines(get, after: int) -> list:
     """What's new in the battle log's lines, for the crash detection."""
     log = _json(get(f"/hudmsg?lastEvt=0&lastDmg={after}"))
     return _lines(log.get("damage")) if isinstance(log, dict) else []
+
+
+def duel(text: str, words: dict) -> tuple | None:
+    """A battle log line's (winner, loser), None when it isn't a kill. The game's verb sits between the two names, in the
+    language it's played in (words: see builder.build_battle_words); "shot down by" is tried before "shot down"."""
+    for word in words.get("killedBy", []):
+        loser, said, winner = text.partition(f" {word} ")
+        if said:
+            return winner, loser
+    for word in words.get("killed", []):
+        winner, said, loser = text.partition(f" {word} ")
+        if said:
+            return winner, loser
+    return None
+
+
+def _named(side: str, name: str) -> bool:
+    """Is this side of a line the player: "=TAG= Name (vehicle)"?"""
+    who = side.split(" (", 1)[0]
+    return who == name or who.endswith(" " + name)
+
+
+class Tally:
+    """The player's own kills and deaths in this battle, from the battle log: the game's API has no other count. Only the
+    lines naming the player count, and a kill takes a loser with a vehicle in brackets: a player, as in the replays' kills.
+    after: the last line read, None until the first look, which is the past."""
+
+    def __init__(self):
+        self.after, self.kills, self.deaths, self.died = None, 0, 0, -ANOTHER_LIFE_S
+
+    def add(self, lines: list, name: str | None, words: dict):
+        first, self.after = self.after is None, lines[-1]["id"] if lines else self.after or 0
+        for x in [] if first or not name else lines:
+            text = x["text"]
+            if name not in text:
+                continue
+            fight = duel(text, words)
+            if fight and _named(fight[0], name):
+                self.kills += " (" in fight[1]
+            elif (fight and _named(fight[1], name)) or (_named(text, name) and any(
+                    "".join(text.split()).endswith(w) for w in (*words.get("crashed", []), *words.get("lost", [])))):
+                self.deaths += x["time"] - self.died >= ANOTHER_LIFE_S
+                self.died = x["time"]
+
+    def values(self) -> dict:
+        return {"live_kills": self.kills, "live_deaths": self.deaths, "live_kd": round(self.kills / max(self.deaths, 1), 2)}
 
 
 class Archive:

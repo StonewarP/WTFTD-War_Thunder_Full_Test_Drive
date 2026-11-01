@@ -15,6 +15,7 @@ const OV_VALUES = {
   gearflaps: ['gear', 'gear_max', 'gear_pct', 'flaps', 'flaps_max', 'flaps_pct', 'airbrake'],
   flight: ['alt', 'vy', 'aoa', 'aos', 'g', 'g_max', 'turn', 'turn_rate', 'turn_radius', 'roll', 'pitch', 'bank', 'heading'],
   engine: ['throttle', 'rpm', 'thrust', 'thrust_total', 'twr', 'mass', 'power', 'oil', 'fuel', 'fuel_max', 'fuel_pct', 'burn', 'fuel_time', 'range'],
+  stats: ['kd', 'winrate', 'battles', 'kills', 'deaths', 'live_kd', 'live_kills', 'live_deaths'],
 };
 
 function ovShow(st) {

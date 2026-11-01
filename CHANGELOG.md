@@ -12,6 +12,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   result. A vehicle opens its panel, a map opens that map. Test drives and missions stay hidden behind a switch. Only your own
   line is read out of a replay: nobody else's name or numbers are kept or shown. Replays are read once, then the page opens
   at once. Needs **Autosave Replays** in the game's options; the game keeps the last 100, so older battles leave the list.
+- **Your stats in the overlay** (My overlay, values *My stats*): kills per death, win rate, battles, kills and deaths from My
+  battles, and kills, deaths and kills per death of the battle under way, counted from the battle log lines that name you. They
+  go in any line. Only your own: nobody else's numbers. Data schema 31 (the battle log's verbs in every language): the data is
+  rebuilt once.
 
 ## 0.22.1 — 2026-11-01
 

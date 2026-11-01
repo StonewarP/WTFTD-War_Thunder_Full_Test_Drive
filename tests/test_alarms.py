@@ -979,7 +979,7 @@ class Configuration(unittest.TestCase):
         page = (alarms.WEB / "overlay.js").read_text(encoding="utf-8")
         names = set(re.findall(r"'(\w+)'", page[page.index("OV_VALUES = {"):page.index("function ovShow")]))
         self.assertTrue(names)
-        self.assertLessEqual(names, set(alarms.FIELDS) | set(alarms.COMPUTED) | {"swept", "fuel_time"})
+        self.assertLessEqual(names, set(alarms.FIELDS) | set(alarms.COMPUTED) | set(alarms.SAMPLE_STATS) | {"swept", "fuel_time"})
 
 
 class Preview(unittest.TestCase):

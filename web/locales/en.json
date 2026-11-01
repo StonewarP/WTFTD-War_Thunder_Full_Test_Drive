@@ -1502,5 +1502,14 @@
   "mb.assists": "Assists",
   "mb.score": "Score",
   "mb.damage": "Damage",
-  "mb.ai": "AI vehicles destroyed"
+  "mb.ai": "AI vehicles destroyed",
+  "ov.g.stats": "My stats",
+  "ov.v.kd": "Kills per death",
+  "ov.v.winrate": "Win rate",
+  "ov.v.battles": "Battles",
+  "ov.v.kills": "Kills",
+  "ov.v.deaths": "Deaths",
+  "ov.v.live_kd": "Kills per death, this battle",
+  "ov.v.live_kills": "Kills, this battle",
+  "ov.v.live_deaths": "Deaths, this battle"
 }

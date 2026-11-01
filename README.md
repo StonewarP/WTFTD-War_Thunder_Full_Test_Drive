@@ -185,8 +185,9 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   choose, with a glow around the screen if you like, of the size you want and flashing or not; they stop when you crash.
   Any line can have its own alert on any value (`fuel < 15 %`, `G > 9`) and show under conditions of its own, in up to
   four text blocks with columns, a frame and a background, with an outline and its own colours for names, values and
-  units. A key mutes the alarms, another hides the overlay. It reads the game's local data about your own vehicle only,
-  nothing is added to the game
+  units. A key mutes the alarms, another hides the overlay. A line can also show **your stats**: kills per death, win rate and
+  battles from *My battles*, and your kills and deaths in the battle under way. It reads the game's local data about your own
+  vehicle and your own line of the battle log only, nothing is added to the game
 - **Flight data** (Windows): live curves of what the game reports, in flight and in tanks and ships (speed, altitude, G, turn time, fuel use...),
   and a recorder: CSV logs for Excel, replayed in the app, with a **flight report** (top speed, best climb, best
   sustained turn, time to climb, fuel used) and an **export for Tacview**; saved views, and the curves as a picture
@@ -285,7 +286,8 @@ The **In flight** tools only read what the game publishes on your own PC (`local
 the chat and battle log you see in game. No enemy position is used. The overlay is a separate window: nothing is
 injected and nothing touches the game. It isn't endorsed by Gaijin either.
 
-**My battles** only reads the replays on your PC, after the battle, and keeps your own line: no other player's name or stats.
+**My battles** only reads the replays on your PC, after the battle, and keeps your own line: no other player's name or stats. In
+the overlay, the numbers of the battle under way count only the battle log lines that name you.
 
 The **3D views** only read your own game's files on your PC to show them: nothing is copied, exported or sent. They aren't
 endorsed by Gaijin either.

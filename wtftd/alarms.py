@@ -102,6 +102,7 @@ SAMPLE_STATE = {"IAS, km/h": 640, "TAS, km/h": 790, "M": 0.75, "H, m": 3200, "Vy
                 "AoS, deg": 0.1, "Ny": 3.1, "Wx, deg/s": 20, "Mfuel, kg": 6200, "Mfuel0, kg": 9400, "throttle 1, %": 100,
                 "RPM 1": 13300, "thrust 1, kgs": 12500, "power 1, hp": 0, "oil temp 1, C": 79, "gear, %": 100,
                 "flaps, %": 33, "airbrake, %": 20}
+SAMPLE_STATS = {"battles": 78, "kills": 159, "deaths": 91, "kd": 1.75, "winrate": 89, "live_kills": 2, "live_deaths": 1, "live_kd": 2}
 
 GAME_WINDOW_CLASS = "DagorWClass"
 OVERLAY_KEY = "#010101"  # the colour made see-through
@@ -643,12 +644,13 @@ class Watch:
     """Reads /state and keeps .display, what the overlay shows: see lines_for.
 
     get: bytes of a game API path; details: () -> data/details.json; mission_on_map: () -> is the map of the mission
-    generated last the one loaded in the game?; save: () -> path of global.blk."""
+    generated last the one loaded in the game?; save: () -> path of global.blk; stats: () -> the player's numbers from
+    My battles (replays.summary); log_words: () -> data/battle_words.json."""
 
     def __init__(self, get, details, mission_on_map=lambda: False, save=save_file, lang="en", logs=None,
-                 kind=lambda vid: None, crash_words=list, sounds=None):
+                 kind=lambda vid: None, crash_words=list, sounds=None, stats=dict, log_words=dict):
         self.get, self.details, self.mission_on_map, self.save, self.kind = get, details, mission_on_map, save, kind
-        self.crash_words = crash_words
+        self.crash_words, self.stats, self.log_words = crash_words, stats, log_words
         self.logs, self.sounds = logs, sounds  # folders of the CSV logs and of the player's sounds
         self.words = labels(lang)
         self.base = self.cfg = clean(None, self.words)  # the overlay for all aircraft, the one in use
@@ -665,6 +667,9 @@ class Watch:
         self.crash = False  # in the wreck, until the next spawn
         self.warn = False  # an alarm is on: the glow around the screen
         self.pilot = None  # the player's name in the battle log, see read_log
+        self.past = {}  # the player's numbers from My battles, read at the start of a battle
+        self.tally = battle.Tally()  # and this battle's so far
+        self._looks = 0
         self._before = None  # the last reading in the air
         self._log_id, self._readings, self._silent = None, 0, 0.0
         self.viewed = -VIEW_S  # when the Flight data tab last asked
@@ -718,7 +723,7 @@ class Watch:
                 self.log = None
 
     def sample(self, cfg: dict) -> list:
-        values = {**SAMPLE_STATE, **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, {"burn": 95, "accel": 1.2}, cfg["pctAlways"])}
+        values = {**SAMPLE_STATE, **SAMPLE_STATS, **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, {"burn": 95, "accel": 1.2}, cfg["pctAlways"])}
         return lines_for(cfg, values, active(percents(SAMPLE_LIM, SAMPLE_STATE), cfg["alarms"]) + own_alerts(cfg, values))
 
     def record(self, values: dict):
@@ -778,6 +783,23 @@ class Watch:
             elif name == self.pilot:
                 self._silent = time.monotonic() + BREAK_UP_S
 
+    def follow_battle(self):
+        """The overlay's numbers: read alive or dead, a new battle starts them over. The name comes from the replays, else
+        from read_log; without one the live numbers say N/A: a line can't be told to be ours."""
+        self._looks += 1
+        if not self.enabled or self._looks % LOG_EVERY:
+            return
+        if not self.in_mission():
+            self.tally = battle.Tally()
+            return
+        if self.tally.after is None:
+            self.past = self.stats()
+        lines = battle.damage_lines(self.get, self.tally.after or 0)
+        self.tally.add(lines, self.past.get("pilot") or self.pilot, self.log_words() if lines else {})
+
+    def own_numbers(self) -> dict:
+        return {**self.past, **(self.tally.values() if self.past.get("pilot") or self.pilot else {})}
+
     def aircraft(self, state: dict, reported: str | None):
         """Works out the aircraft when what it depends on changes. Beeps once if it is unknown."""
         model, planes = self.model(), self.planes()
@@ -803,6 +825,7 @@ class Watch:
         state = flying(self.get("/state"), self.in_mission) if wanted else None
         vehicle = driving(self.get("/indicators")) if wanted and state is None else None
         self.flying = state is not None or vehicle is not None
+        self.follow_battle()
         if vehicle:
             return self.drive(vehicle)
         if state is None:
@@ -823,7 +846,7 @@ class Watch:
         self.aircraft(state, reported_type(indicators))
         cfg, lim = self.preview or self.cfg, self._lim
         self.trend.add(time.monotonic(), state)
-        values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates(), cfg["pctAlways"]), "rec": 1 if self.log else 0}
+        values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates(), cfg["pctAlways"]), "rec": 1 if self.log else 0, **self.own_numbers()}
         self.last = numbers(values)
         self.record(values)
         if not self.enabled:
@@ -848,6 +871,7 @@ class Watch:
     def drive(self, values: dict) -> float:
         """A tank or a ship: curves, logs and its overlay ("type:tank", "type:ship": an aircraft's lines mean nothing there);
         no limits, so only the lines' own alerts."""
+        values = {**values, **self.own_numbers()}
         self.current, self.profile = None, f"type:{values['army']}" if f"type:{values['army']}" in self.profiles else ""
         self._flight = str(values.get("type") or "vehicle").rsplit("/", 1)[-1]
         self.last = numbers(values)
