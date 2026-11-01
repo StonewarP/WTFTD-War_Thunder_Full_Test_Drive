@@ -185,8 +185,8 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   choose, with a glow around the screen if you like, of the size you want and flashing or not; they stop when you crash.
   Any line can have its own alert on any value (`fuel < 15 %`, `G > 9`) and show under conditions of its own, in up to
   four text blocks with columns, a frame and a background, with an outline and its own colours for names, values and
-  units. A key mutes the alarms, another hides the overlay. A line can also show **your stats**: kills per death, win rate and
-  battles from *My battles*, and your kills and deaths in the battle under way. It reads the game's local data about your own
+  units. A key mutes the alarms, another hides the overlay. A line can also show **the name of what you're in**, and **your
+  stats**: kills per death, win rate and battles from *My battles*, and your kills and deaths in the battle under way. It reads the game's local data about your own
   vehicle and your own line of the battle log only, nothing is added to the game
 - **Flight data** (Windows): live curves of what the game reports, in flight and in tanks and ships (speed, altitude, G, turn time, fuel use...),
   and a recorder: CSV logs for Excel, replayed in the app, with a **flight report** (top speed, best climb, best

@@ -60,6 +60,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   only on request, and the README and `SECURITY.md` say so. WTFTD doesn't browse or download mods. Archives are untrusted: paths that leave
   their folder, links, executables and scripts, oversized or over-compressed files refuse the whole archive, and nothing is written
   outside `UserSkins` and `sound/mod`. What you installed by hand is shown and never touched. Uninstall has a part for this.
+- **Vehicle name in the overlay** (My overlay, value *Vehicle name*): a line can show what you're in, aircraft, helicopter, tank
+  or ship, by the name the app gives it, in your language. A custom vehicle shows its real vehicle's name. What the app can't
+  recognise shows the id the game gives. It's your choice: the default lines don't have it.
+- **No more sound for an unknown aircraft**: the overlay still says so, in words, and only real alarms make a sound.
 - **Translations**: the research path, research cost and purchase cost are now translated in every language.
 - **Motor burn** (Weapons): read from the motor format the game now uses for more and more missiles, such as the R-60 from 2.60 on,
   which had lost the value. Data schema 32: the data is rebuilt once.

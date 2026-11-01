@@ -49,6 +49,7 @@ class State:
         self.details: dict | None = None
         self.vehicles: dict | None = None
         self.catalog: dict | None = None
+        self.units: dict | None = None
         self.update = {"running": False, "log": [], "error": None, "done": False,
                        "remote": None, "checked": 0, "before": None, "after": None}
         USER.mkdir(exist_ok=True)
@@ -67,6 +68,15 @@ class State:
             p = Path(custom).expanduser()
             return (game.resolve_game_dir(p) or p) if p.exists() else None
         return game.detect_game_dir()
+
+    def unit_name(self, vid: str) -> str:
+        """A vehicle's name as I18N.unit gives it on the page: the app's language, else English, else its id."""
+        with self.lock:
+            if self.units is None:
+                lang = str(self.settings().get("lang") or "en")
+                self.units = {**read_json(DATA / "lang" / "en.json", {}).get("units", {}),
+                              **read_json(DATA / "lang" / f"{lang}.json", {}).get("units", {})}
+            return self.units.get(vid, vid)
 
     def get_details(self) -> dict:
         with self.lock:
@@ -101,6 +111,7 @@ class State:
             self.details = None
             self.vehicles = None
             self.catalog = None
+            self.units = None
 
 
 STATE = State()
@@ -1268,12 +1279,14 @@ ARCHIVE = battle.Archive(LOGS)
 WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS, sounds=SOUNDS,
                      kind=lambda vid: (STATE.get_vehicles().get(vid) or {}).get("k"),
                      crash_words=lambda: read_json(DATA / "battle_words.json", {}).get("crashed", []),
-                     stats=lambda: replays.summary(battles()["rows"]), log_words=lambda: read_json(DATA / "battle_words.json", {}))
+                     stats=lambda: replays.summary(battles()["rows"]), log_words=lambda: read_json(DATA / "battle_words.json", {}),
+                     name=STATE.unit_name)
 
 
 def apply_alarm_settings():
     s = STATE.settings()
     WATCH.words = alarms.labels(str(s.get("lang") or "en"))
+    STATE.units = None  # the language may have changed
     alarms.OUTPUT["device"] = str(s.get("audioDevice") or "")
     saved = s.get("overlayProfiles") if isinstance(s.get("overlayProfiles"), dict) else {}
     WATCH.set_config(alarms.clean(s.get("overlay"), WATCH.words),

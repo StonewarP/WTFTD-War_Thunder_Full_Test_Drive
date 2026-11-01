@@ -41,7 +41,6 @@ POLL_S = 0.1
 IDLE_S = 1.0  # not flying: nothing to read fast
 REPEAT_MS = 300
 BEEP_MS = 150
-UNKNOWN_BEEP = (300, 500)
 SAMPLE_S = 1.0  # curves and logs: a reading a second
 TRACE_MAX = 3600  # an hour of curves
 VIEW_S = 5  # the Flight data tab asks every second: without it for this long, nobody is looking
@@ -102,6 +101,7 @@ SAMPLE_STATE = {"IAS, km/h": 640, "TAS, km/h": 790, "M": 0.75, "H, m": 3200, "Vy
                 "AoS, deg": 0.1, "Ny": 3.1, "Wx, deg/s": 20, "Mfuel, kg": 6200, "Mfuel0, kg": 9400, "throttle 1, %": 100,
                 "RPM 1": 13300, "thrust 1, kgs": 12500, "power 1, hp": 0, "oil temp 1, C": 79, "gear, %": 100,
                 "flaps, %": 33, "airbrake, %": 20}
+SAMPLE_VEHICLE = "su_30mkk"
 SAMPLE_STATS = {"battles": 78, "kills": 159, "deaths": 91, "kd": 1.75, "winrate": 89, "live_kills": 2, "live_deaths": 1, "live_kd": 2}
 
 GAME_WINDOW_CLASS = "DagorWClass"
@@ -645,12 +645,12 @@ class Watch:
 
     get: bytes of a game API path; details: () -> data/details.json; mission_on_map: () -> is the map of the mission
     generated last the one loaded in the game?; save: () -> path of global.blk; stats: () -> the player's numbers from
-    My battles (replays.summary); log_words: () -> data/battle_words.json."""
+    My battles (replays.summary); log_words: () -> data/battle_words.json; name: vehicle id -> the name the app shows."""
 
     def __init__(self, get, details, mission_on_map=lambda: False, save=save_file, lang="en", logs=None,
-                 kind=lambda vid: None, crash_words=list, sounds=None, stats=dict, log_words=dict):
+                 kind=lambda vid: None, crash_words=list, sounds=None, stats=dict, log_words=dict, name=lambda vid: vid):
         self.get, self.details, self.mission_on_map, self.save, self.kind = get, details, mission_on_map, save, kind
-        self.crash_words, self.stats, self.log_words = crash_words, stats, log_words
+        self.crash_words, self.stats, self.log_words, self.name = crash_words, stats, log_words, name
         self.logs, self.sounds = logs, sounds  # folders of the CSV logs and of the player's sounds
         self.words = labels(lang)
         self.base = self.cfg = clean(None, self.words)  # the overlay for all aircraft, the one in use
@@ -723,8 +723,13 @@ class Watch:
                 self.log.close()
                 self.log = None
 
+    def vehicle(self, vid: str | None) -> str | None:
+        """What {vehicle} shows: the name of an id, which the game may give with its folder; None says N/A."""
+        vid = vid and vid.rsplit("/", 1)[-1]
+        return self.name(vid) if vid else None
+
     def sample(self, cfg: dict) -> list:
-        values = {**SAMPLE_STATE, **SAMPLE_STATS, **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, {"burn": 95, "accel": 1.2}, cfg["pctAlways"])}
+        values = {**SAMPLE_STATE, **SAMPLE_STATS, "vehicle": self.vehicle(SAMPLE_VEHICLE), **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, {"burn": 95, "accel": 1.2}, cfg["pctAlways"])}
         return lines_for(cfg, values, active(percents(SAMPLE_LIM, SAMPLE_STATE), cfg["alarms"]) + own_alerts(cfg, values))
 
     def record(self, values: dict):
@@ -805,7 +810,7 @@ class Watch:
         return {**self.past, **(self.tally.values() if self.past.get("pilot") or self.pilot else {})}
 
     def aircraft(self, state: dict, reported: str | None):
-        """Works out the aircraft when what it depends on changes. Beeps once if it is unknown."""
+        """Works out the aircraft when what it depends on changes."""
         model, planes = self.model(), self.planes()
         key = (state["Mfuel0, kg"], sum(k.startswith("throttle ") for k in state), model, reported, id(self.mission))
         if key == self._key:
@@ -820,8 +825,6 @@ class Watch:
         self.current = next((vid for vid, x in planes.items() if x is self._lim), None)
         self.pick()
         print(f"Alarms: Mfuel0={key[0]}, reported={reported}, saved model={model}, limits={self._lim}", flush=True)
-        if not self._lim and self.enabled:
-            beep(*UNKNOWN_BEEP)
 
     def tick(self) -> float:
         """One reading of /state; returns the time until the next one."""
@@ -847,10 +850,12 @@ class Watch:
         self.read_log()
         wreck = self.crash or time.monotonic() < self._silent
         indicators = read_indicators(self.get("/indicators"))  # every time: it may only start answering mid-flight
-        self.aircraft(state, reported_type(indicators))
+        reported = reported_type(indicators)
+        self.aircraft(state, reported)
         cfg, lim = self.preview or self.cfg, self._lim
         self.trend.add(time.monotonic(), state)
-        values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates(), cfg["pctAlways"]), "rec": 1 if self.log else 0, **self.own_numbers()}
+        values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates(), cfg["pctAlways"]), "rec": 1 if self.log else 0,
+                  "vehicle": self.vehicle(self.current or reported), **self.own_numbers()}
         self.last = numbers(values)
         self.record(values)
         if not self.enabled:
@@ -875,7 +880,7 @@ class Watch:
     def drive(self, values: dict) -> float:
         """A tank or a ship: curves, logs and its overlay ("type:tank", "type:ship": an aircraft's lines mean nothing there);
         no limits, so only the lines' own alerts."""
-        values = {**values, **self.own_numbers()}
+        values = {**values, **self.own_numbers(), "vehicle": self.vehicle(reported_type(values))}
         self.current, self.profile = None, f"type:{values['army']}" if f"type:{values['army']}" in self.profiles else ""
         self._flight = str(values.get("type") or "vehicle").rsplit("/", 1)[-1]
         self.last = numbers(values)

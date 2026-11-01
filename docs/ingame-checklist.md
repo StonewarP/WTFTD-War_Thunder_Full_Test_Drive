@@ -333,6 +333,9 @@ Turn them on first: In flight → My overlay → Turn on the overlay and alarms 
 - [ ] **A line's own alert** (say fuel % under 15): colour, beep and glow, gone with it; a condition hides and shows a line.
 - [ ] **Sounds**: volume heard, a `.wav` per alarm plays and comes back to the beep if its file is removed, mute key, beeps
   only with the game in front, none with the engines stopped.
+- [ ] **Value `{vehicle}`** (My overlay → Vehicle name): the right name in a jet, a helicopter, a tank and a ship, in the app's
+  language; a custom vehicle from a WTFTD mission shows its real vehicle's name. A long name stays on its line in the overlay's window.
+- [ ] **`AIRCRAFT UNKNOWN`**: the note shows without any sound, and `{vehicle}` gives the id the game reports.
 - [ ] **Text blocks and outline**: readable on a bright sky, blocks at their places, a blinking line doesn't move the text.
 - [ ] **Your own sound**: an mp3 picked for an alarm plays in flight, on the sound output chosen, and a long one doesn't
   slow the overlay.

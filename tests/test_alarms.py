@@ -11,7 +11,7 @@ from array import array
 from pathlib import Path
 from unittest import mock
 
-from wtftd import alarms, battle, blk, builder, cdk, flightlog
+from wtftd import alarms, battle, blk, builder, cdk, flightlog, server
 
 SU30 = {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400, 9400], "eng": 2}
 J10 = {"v": 1543, "m": 2.1, "gear": 620, "flaps": [[0.1, 550], [1, 400]], "fuel": [5945, 6220.02], "eng": 1}
@@ -635,13 +635,13 @@ class Watching(unittest.TestCase):
         self.assertEqual(self.watch.display, [])
         self.beep.assert_not_called()
 
-    def test_unknown_aircraft_beeps_once_and_stays_silent(self):
+    def test_unknown_aircraft_makes_no_sound(self):
         self.model = None
         for _ in range(3):
             self.fly(**{"IAS, km/h": 1500})
         self.assertEqual(self.watch.display[0][:2], ("AIRCRAFT UNKNOWN", self.watch.cfg["alert"]))
         self.assertEqual(self.texts()[1:], ["IAS    1500 / N/A km/h", "MACH   0.50 / N/A"])  # the game's own values remain
-        self.beep.assert_called_once_with(*alarms.UNKNOWN_BEEP)
+        self.beep.assert_not_called()
 
     def test_changing_aircraft_in_the_hangar(self):
         self.fly()
@@ -979,7 +979,7 @@ class Configuration(unittest.TestCase):
         page = (alarms.WEB / "overlay.js").read_text(encoding="utf-8")
         names = set(re.findall(r"'(\w+)'", page[page.index("OV_VALUES = {"):page.index("function ovShow")]))
         self.assertTrue(names)
-        self.assertLessEqual(names, set(alarms.FIELDS) | set(alarms.COMPUTED) | set(alarms.SAMPLE_STATS) | {"swept", "fuel_time"})
+        self.assertLessEqual(names, set(alarms.FIELDS) | set(alarms.COMPUTED) | set(alarms.SAMPLE_STATS) | {"swept", "fuel_time", "vehicle"})
 
 
 class Preview(unittest.TestCase):
@@ -1004,6 +1004,161 @@ class Preview(unittest.TestCase):
     def test_shows_the_overlay_being_edited(self):
         self.watch.set_preview(alarms.clean({"lines": [{"text": "hello"}]}, WORDS))
         self.assertEqual(self.watch.display[0][0], "hello")
+
+
+class VehicleName(unittest.TestCase):
+    """{vehicle}: a name in a line, never a number."""
+    NAMES = {"j_10c": "J-10C", "su_30mkk": "Su-30MKK", "ussr_t_72b": "T-72B"}
+
+    def setUp(self):
+        self.reply = json.dumps(state()).encode()
+        self.indicators = b'{"valid": false}'
+        self.model = "j_10c"
+        self.watch = alarms.Watch(lambda path: self.indicators if path == "/indicators" else self.reply, details, lambda: True,
+                                  lambda: None, name=lambda vid: self.NAMES.get(vid, vid))
+        self.watch.model = lambda: self.model
+        self.watch.enabled = True
+        self.line = alarms.clean({"lines": [{"text": "Flying {vehicle} now"}]}, WORDS)
+        self.watch.set_config(self.line, {"type:tank": self.line, "type:ship": self.line})
+        patcher = mock.patch.object(alarms, "beep")
+        self.beep = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def shown(self):
+        self.watch.tick()
+        return self.watch.display[-1][0]
+
+    def test_a_recognised_aircraft_by_its_name(self):
+        self.assertEqual(self.shown(), "Flying J-10C now")
+
+    def test_what_the_game_reports_comes_first(self):
+        self.indicators = b'{"valid": true, "army": "air", "type": "su_30mkk"}'
+        self.assertEqual(self.shown(), "Flying Su-30MKK now")
+
+    def test_a_custom_vehicle_keeps_its_real_vehicle_s_name(self):
+        self.indicators = b'{"valid": true, "army": "air", "type": "wtftd_custom"}'
+        self.watch.mission = {"id": "j_10c", "fuel": None, "unbreakable": False}
+        self.assertEqual(self.shown(), "Flying J-10C now")
+
+    def test_not_recognised_gives_the_game_s_id(self):
+        self.indicators, self.model = b'{"valid": true, "army": "air", "type": "some_new_plane"}', None
+        self.reply = json.dumps(state(**{"Mfuel0, kg": 1234})).encode()
+        self.assertEqual(self.shown(), "Flying some_new_plane now")
+        self.assertEqual(self.watch.display[0][0], "AIRCRAFT UNKNOWN")
+
+    def test_nothing_known_says_no_value(self):
+        for indicators in (b'{"valid": false}', b'{"valid": true, "army": "air", "type": ""}', b'{"valid": true, "army": "air", "type": 7}'):
+            self.indicators, self.model, self.watch._key = indicators, None, None
+            self.reply = json.dumps(state(**{"Mfuel0, kg": 1234})).encode()
+            self.assertEqual(self.shown(), "Flying N/A now", indicators)
+        self.beep.assert_not_called()
+
+    def test_a_tank_or_a_ship_without_its_folder(self):
+        self.reply = b'{"valid": false}'
+        self.indicators = b'{"valid": true, "army": "tank", "type": "tankModels/ussr_t_72b", "speed": 41.0}'
+        self.assertEqual(self.shown(), "Flying T-72B now")
+        self.indicators = b'{"valid": true, "army": "ship", "type": "ship_nobody_knows", "speed": 12.0}'
+        self.assertEqual(self.shown(), "Flying ship_nobody_knows now")
+        self.indicators = b'{"valid": true, "army": "tank", "speed": 41.0}'
+        self.assertEqual(self.shown(), "Flying N/A now")
+
+    def test_the_preview_shows_an_example(self):
+        self.assertEqual(self.watch.sample(self.line)[0][0], "Flying Su-30MKK now")
+        self.assertEqual(alarms.Watch(None, dict).sample(self.line)[0][0], f"Flying {alarms.SAMPLE_VEHICLE} now")  # no data yet
+
+    def test_a_long_name_keeps_its_line_and_its_column(self):
+        cfg = alarms.clean({"lines": [{"text": "{vehicle}", "block": 0}, {"text": "IAS {ias}"}, {"text": "{vehicle}"}], "columns": 2}, WORDS)
+        values = {"vehicle": "Pz.Kpfw. VI Ausf. B Tiger II (H)", "IAS, km/h": 640}
+        lines = alarms.lines_for(cfg, values, [])
+        self.assertEqual([x[0] for x in lines], ["Pz.Kpfw. VI Ausf. B Tiger II (H)", "IAS 640", "Pz.Kpfw. VI Ausf. B Tiger II (H)"])
+        self.assertEqual([len(c) for c in alarms.columns_of(lines, cfg["columns"])], [2, 1])
+
+    def test_its_colour_is_a_value_s(self):
+        self.assertEqual(alarms.pieces("In {vehicle}!", {"vehicle": "T-72B"}), [("In ", "name"), ("T-72B", "value"), ("!", "unit")])
+
+    def test_places_change_nothing(self):
+        self.assertEqual(alarms.fill("{vehicle:2}", {"vehicle": "T-72B"}), "T-72B")
+
+    def test_a_condition_on_it_never_holds_and_never_breaks(self):
+        rule = {"value": "vehicle", "op": ">", "at": 1}
+        self.assertFalse(alarms.met(rule, {"vehicle": "T-72B"}))
+        self.assertEqual(alarms.lines_for(alarms.clean({"lines": [{"text": "x", "if": rule}]}, WORDS), {"vehicle": "T-72B"}, []), [])
+
+    def test_a_missing_name_can_hide_its_line(self):
+        cfg = alarms.clean({"lines": [{"text": "{vehicle}", "hideNA": True}]}, WORDS)
+        self.assertEqual(alarms.lines_for(cfg, {}, []), [])
+
+    def test_stays_out_of_curves_and_logs(self):
+        self.assertNotIn("vehicle", alarms.SERIES)
+        self.watch.tick()
+        self.assertNotIn("vehicle", self.watch.last)
+        self.assertNotIn("vehicle", self.watch.trace[-1])
+
+    def test_not_in_the_default_lines(self):
+        self.assertFalse(any("{vehicle}" in line["text"] for line in alarms.defaults(WORDS)["lines"]))
+
+    def test_the_page_offers_it_for_lines_only(self):
+        script = (alarms.WEB / "overlay.js").read_text(encoding="utf-8")
+        self.assertLess(script.index("vehicle: ['vehicle']"), script.index("speed: ["))
+        self.assertIn("x !== 'vehicle'", script)  # no number to compare in a condition
+        self.assertIn("group !== 'vehicle'", (alarms.WEB / "flight.js").read_text(encoding="utf-8"))  # nor to draw in a curve
+
+    def test_every_language_has_its_labels(self):
+        for code in ("en", "fr", "de", "es", "it", "pt", "pl", "cs", "ru", "ja", "zh"):
+            words = json.loads((alarms.WEB / "locales" / f"{code}.json").read_text(encoding="utf-8"))
+            self.assertTrue(words["ov.g.vehicle"] and words["ov.v.vehicle"], code)
+
+
+class NamesOfTheApp(unittest.TestCase):
+    """What the server gives the Watch: the names I18N.unit gives on the page, in the app's language."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.data = Path(folder.name)
+        (self.data / "lang").mkdir()
+        self.write("en", {"su_30mkk": "Su-30MKK", "ussr_t_72b": "T-72B"})
+        self.write("fr", {"ussr_t_72b": "T-72 B"})  # the build leaves out what's the same as in English
+        self.lang = "fr"
+        for patcher in (mock.patch.object(server, "DATA", self.data), mock.patch.object(server.STATE, "units", None),
+                        mock.patch.object(server.STATE, "settings", lambda: {"lang": self.lang})):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def write(self, code: str, units: dict):
+        (self.data / "lang" / f"{code}.json").write_text(json.dumps({"units": units}), encoding="utf-8")
+
+    def test_the_language_then_english_then_the_id(self):
+        self.assertEqual([server.WATCH.vehicle(x) for x in ("ussr_t_72b", "su_30mkk", "new_plane")], ["T-72 B", "Su-30MKK", "new_plane"])
+
+    def test_a_language_without_names_is_english(self):
+        for self.lang in ("xx", "../../secrets", "a\0b", None, 7):
+            server.STATE.units = None
+            self.assertEqual(server.STATE.unit_name("ussr_t_72b"), "T-72B", self.lang)
+
+    def test_no_data_yet(self):
+        (self.data / "lang" / "en.json").unlink()
+        (self.data / "lang" / "fr.json").unlink()
+        self.assertEqual(server.STATE.unit_name("ussr_t_72b"), "ussr_t_72b")
+
+    def test_files_are_read_once_not_at_every_reading(self):
+        with mock.patch.object(server, "read_json", wraps=server.read_json) as read:
+            for _ in range(5):
+                server.STATE.unit_name("ussr_t_72b")
+        self.assertEqual(read.call_count, 2)
+
+    def test_a_new_language_is_followed(self):
+        self.assertEqual(server.STATE.unit_name("ussr_t_72b"), "T-72 B")
+        self.lang = "en"
+        self.addCleanup(server.apply_alarm_settings)  # the Watch as it was, once the language is back to English
+        server.apply_alarm_settings()
+        self.assertEqual(server.STATE.unit_name("ussr_t_72b"), "T-72B")
+
+    def test_new_data_is_followed(self):
+        self.assertEqual(server.STATE.unit_name("new_plane"), "new_plane")
+        self.write("en", {"new_plane": "New Plane"})
+        server.STATE.reload()
+        self.assertEqual(server.STATE.unit_name("new_plane"), "New Plane")
 
 
 class Profiles(unittest.TestCase):

@@ -11,6 +11,7 @@ const OV_WHEN = ['always', 'gear', 'flaps', 'airbrake', 'alarm', 'log'];
 const OV_ALARMS = { airframe: 1540, gear: 700, flaps: 600 };  // the example under each threshold, km/h
 const OV_FONTS = ['Consolas', 'Cascadia Mono', 'Courier New', 'Lucida Console', 'Segoe UI', 'Bahnschrift', 'Arial', 'Tahoma', 'Verdana', 'Impact'];
 const OV_VALUES = {
+  vehicle: ['vehicle'],
   speed: ['speed', 'ias', 'tas', 'mach', 'hspeed', 'accel', 'sep', 'vne', 'mne', 'margin', 'airframe_pct', 'swept'],
   gearflaps: ['gear', 'gear_max', 'gear_pct', 'flaps', 'flaps_max', 'flaps_pct', 'airbrake'],
   flight: ['alt', 'vy', 'aoa', 'aos', 'g', 'g_max', 'turn', 'turn_rate', 'turn_radius', 'roll', 'pitch', 'bank', 'heading'],
@@ -81,7 +82,7 @@ const ovField = (label, html) => `<label class="ov-mini"><span>${esc(label)}</sp
 
 // one condition of a line's showing (if) or its own alert (rule); n: 0 for the first, then its place in test.more
 function ovCondHTML(part, n, cond, join) {
-  const names = Object.values(OV_VALUES).flat().filter(x => x !== 'swept' && x !== 'fuel_time');
+  const names = Object.values(OV_VALUES).flat().filter(x => x !== 'swept' && x !== 'fuel_time' && x !== 'vehicle');
   const first = n === 0, value = `<select data-oc="${part}.value">${first ? ovOpt('', t('ov.redNone'), cond?.value ?? '') : ''}${names.map(x => ovOpt(x, t('ov.v.' + x), cond?.value)).join('')}</select>`;
   const link = first ? '<span></span>' : `<select data-oc="${part}.join"${n > 1 ? ' disabled' : ''}>${ovOpt('and', t('ov.and'), join)}${ovOpt('or', t('ov.or'), join)}</select>`;
   return `<div class="ov-cond" data-n="${n}">${link}${value}${cond ? `<select class="ov-op" data-oc="${part}.op">${['>', '<'].map(o => ovOpt(o, o, cond.op)).join('')}</select>
