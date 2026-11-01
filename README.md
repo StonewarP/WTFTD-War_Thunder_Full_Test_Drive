@@ -60,6 +60,9 @@ window and finds your game by itself (Steam or standalone). Close the window to 
    and the map in the scenario editor (targets, allies, your start).
 4. **Create mission**, start War Thunder (button in the app), open *Single missions → User missions*.
 
+In the scenario editor, a switch turns the flat map into **the real level in 3D**, read from your own game: place units
+and the game's assets on its relief and turn them the way you want. Vehicles and weapons have a **3D view** too.
+
 While you fly (Windows), the **In flight** menu puts your own overlay over the game, beeps before your aircraft
 breaks, and records the flight: live curves, a flight report, a cockpit window for a second screen, the battle log.
 
@@ -97,7 +100,7 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 
 ## Features
 
-- **3,500+ vehicles** with images from the [War Thunder wiki](https://wiki.warthunder.com/), grid or
+- **3,700+ vehicles** with images from the [War Thunder wiki](https://wiki.warthunder.com/), grid or
   research-tree view, filters (category, **vehicle type** — light / medium / heavy tank, tank destroyer, SPAA,
   fighter, bomber, attacker, helicopter, drone, destroyer… with the game's own names —, nation, rank, BR in AB/RB/SB,
   favorites, premium/event, non-playable units), **sort by rarity** with badges (premium, squadron, pack, event,
@@ -109,16 +112,18 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   (fastest, best turning, best armored…) and **filterable with min / max** values. **Weapon picker**: pick carried
   weapons by their game icon (missiles, bombs, rockets, nuclear, guns, shells — or a shell type like “any
   APFSDS”), with how many vehicles carry each; vehicles must carry all the picked weapons
-- **Weapons page**: every missile, bomb, rocket and torpedo (~860) by category — IR / radar air-to-air,
+- **Weapons page**: every missile, bomb, rocket and torpedo (~870) by category — IR / radar air-to-air,
   surface-to-air, ATGM, air-to-surface, guided bombs, bombs, **nuclear bombs** (yield from 5 kt to 1.6 Mt, and the
   ground battles' instant-win killstreak nukes), rockets, torpedoes — with stats from the game files
   (motor speed, max G, lock angle, IRCCM, seeker range, penetration, TNT equivalent…), **"best for" rankings**
   (dogfight, head-on, flare resistance, beyond visual range, killing tanks, stand-off…), a short guide per
-  category, community notes on well-known weapons, side-by-side comparison and the vehicles that carry each one.
+  category, community notes on well-known weapons, side-by-side comparison and the vehicles that carry each one. The
+  search also finds a weapon by what carries it: `S-300` finds the 5V55R.
   **Bombing a target**: pick a base or an airfield, and see its HP from the game's mission templates, what one weapon
   takes off it and how many it takes
-- **3D view** (prototype): a vehicle's or a weapon's model with its textures and paint, read from your own game files, with a
-  weapon's positions and parts. Nothing is stored or exported, and no model or texture is in this project. The paint is an approximation
+- **3D view** (prototype): a vehicle's or a weapon's model with its textures and paint, with a weapon's positions (stowed,
+  deployed, in its container) and its parts (booster, fins, caps), which can be left out one by one. Read from your own game
+  files: nothing is stored or exported, and no model or texture is in this project. The paint is an approximation
 - **Compare up to 5 vehicles side by side** (button next to the favorite star): BR, every stat with the best
   value highlighted, guns with their caliber, shell types, pylon weapons
 - **Penetration by distance** (vehicle panel → Ammunition): a curve for every shell and guided missile of the gun,
@@ -133,7 +138,7 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   pylons as columns, game icons). Turn on **non-standard weapons** to mount any of the game's ~2,300 air
   weapons on any pylon — missiles, bombs, rockets, torpedoes, pods, and **nuclear bombs** (RN-28, RN-40,
   B61, AN-52, KB-1, RDS-4, RDS-37) — and the **missiles, rockets and guns of ground vehicles and ships** (S-300, Pantsir,
-  Aster, Smerch...: not checked in game yet), with a warning when the aircraft lacks the radar / laser designator /
+  Aster, Smerch...: the Aster-30 is checked in game, the others not yet), with a warning when the aircraft lacks the radar / laser designator /
   guidance the weapon needs. Pylons fire one at a time, as in the game
 - **My weapons**: your own versions of the game's missiles, bombs, rockets and torpedoes (see below), on
   your pylons and on AI aircraft
@@ -143,20 +148,25 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   reload, ammo capacity, shell velocity / mass / explosive / penetration… On aircraft: another radar or warning receiver,
   another aircraft's engine, avionics on or off. On tanks and ships: another weapon in place of a gun. For all: the crew's
   language and voices. Not checked in game yet
-- **Scenario editor** on the level's real tactical map, read from the game files:
+- **Scenario editor** on the level's real tactical map, read from the game files, or **in 3D**:
   - drag any unit (and your start) to move it — ground units are put **on the ground** using the map's heightmap;
+  - **turn what you place**: drag a selected unit's arrow, or use its heading slider. Several selected turn together, and the
+    scenario's own vehicles keep the heading you give them;
+  - move the map with the mouse, or **Z Q S D** on a French keyboard, **W A S D** on an English one;
   - add ground, air or naval units as **allies or enemies**, non-playable ones too (S-300 launcher and radars, carriers,
     trains...), **objects** (AA guns, trucks, buildings, radars, infantry), remove units, swap their vehicle;
+  - **assets**: the game's own set pieces, about 500 of them, from a crate to a whole camp or an airfield, as its own missions
+    place them. Not checked in game yet;
   - the units of the game's templates (test flight targets) can change vehicle too;
   - **vehicles by BR**: enemies, allies or a selection get vehicles of their own kind at your vehicle's BR (they
     follow it when you take another one) or at a BR you pick, from the nations you choose;
   - behaviour: still, aggressive, return fire or passive; enemies can **hunt you**, allies can **escort you**;
   - **routes** drawn on the map, shared by the units selected for a convoy, and **waves of enemies**, each one coming when
     the one before is destroyed. Not checked in game yet;
-  - shows where the scenario really spawns you (runway / start area) and the units it teleports
-  - **the real map in 3D** (prototype), read from your own game files: relief, ground, water, buildings and trees, the zones
-    as volumes, your units as their real models, placed and moved as on the flat map;
-  - **assets**: the game's own set pieces, from a crate to a whole camp, placed on the map;
+  - shows where the scenario really spawns you (runway / start area), the units it teleports and its zones at their real size;
+  - **the real map in 3D** (prototype), one switch away, read from your own game files: the relief of the whole level, air
+    maps included, the ground in its real colours, water, buildings, trees with their leaves, your units as their real models
+    and the zones as volumes. Add, select, move and turn units as on the flat map; right drag turns the view, the wheel zooms
 - **Ground battle maps**: the game's Domination layouts (79 on 55 maps) from either side's spawn, with the capture
   zones and the other side's spawn in the editor (a solo sandbox: no AI, score or capture)
 - **Conditions**: time of day, weather, air start with altitude / speed (a speed that suits the aircraft by
@@ -167,14 +177,16 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   invulnerability, instant reload and passive targets, repair, bring the targets back or go back to the start
   while you play (the game's Quick radio messages)
 - **Custom sights** for ground vehicles: a sight of your UserSights folder or a `.blk` file you add
-- **My overlay** (Windows, off until you turn it on; per aircraft or type if you like): your own lines over the game
+- **My overlay** (Windows, off until you turn it on; per aircraft or type if you like, for jets, propeller aircraft, tanks
+  and ships): your own lines over the game
   in a click-through window (speed against the limit, altitude, fuel, any value the game sends), limits as speeds,
   percentages or both, placed on a picture of your screen with the game's HUD or your own screenshot; and beeps near
   your aircraft's breaking speeds with your thresholds and sounds or your own (mp3, wav...), on the sound output you
   choose, with a glow around the screen if you like, of the size you want and flashing or not; they stop when you crash.
   Any line can have its own alert on any value (`fuel < 15 %`, `G > 9`) and show under conditions of its own, in up to
   four text blocks with columns, a frame and a background, with an outline and its own colours for names, values and
-  units. It reads the game's local data about your own aircraft only, nothing is added to the game
+  units. A key mutes the alarms, another hides the overlay. It reads the game's local data about your own vehicle only,
+  nothing is added to the game
 - **Flight data** (Windows): live curves of what the game reports, in flight and in tanks and ships (speed, altitude, G, turn time, fuel use...),
   and a recorder: CSV logs for Excel, replayed in the app, with a **flight report** (top speed, best climb, best
   sustained turn, time to climb, fuel used) and an **export for Tacview**; saved views, and the curves as a picture
@@ -185,7 +197,8 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
   简体中文, 日本語 — picked from your Windows language on first launch (or on the welcome screen), vehicle,
   weapon and map names follow the game's own translations. UI translations
-  other than English were machine-assisted and may contain mistakes: corrections are welcome
+  other than English were machine-assisted and may contain mistakes: corrections are welcome. Some of the newest texts
+  are still in English in the languages other than French
 - **Uninstall** from Settings: everything, or only some parts (custom vehicle files in the game, missions,
   cache, game database, your settings and library, the app itself); War Thunder itself is never touched
 - **Your library**: *My vehicles* (saved setups), *My maps* (scenario variants from the editor) and *My weapons*, each
@@ -193,7 +206,8 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 - **Share** a vehicle setup, a map or a mission with a friend: a short code to paste, or a `.wtftd` file — they
   import it (or drop the file on the window) and get the same thing: vehicle, loadout, ammo, map, editor
   changes, cheats. User missions are single-player, so each of you plays it on your own PC
-- Dark / light theme, `.blk` preview, launch War Thunder
+- Dark / light theme, `.blk` preview, launch War Thunder; on Windows the app can start minimized, go to the notification
+  area and close with the game
 
 ## Custom vehicles (on by default)
 
@@ -238,8 +252,20 @@ games ship (Battlefield, Call of Duty, Cyberpunk…) — it is found automatical
 folders, or set it in **Settings**. On macOS few games ship one, so map backgrounds usually come from the
 capture described below.
 Ground heights come the same way from the level's heightmap (`levels/<map>.bin`, ground-battle maps);
-older air maps have no heightmap and heights are estimated there. Without Oodle, a scenario's map is
-captured from the game (localhost:8111) the first time you play it with WTFTD open.
+older air maps have no heightmap and heights are estimated there, until you open them in 3D: their relief then
+comes from the level's ground mesh. Without Oodle, a scenario's map is captured from the game (localhost:8111)
+the first time you play it with WTFTD open.
+
+## The 3D views
+
+The 3D views read your own game on your PC: models from its `.grp` packs, textures from its `.dxp.bin` packs, materials
+from `dynModelDesc.bin` and `riDesc.bin`, levels from `levels/<map>.bin`, assets from `aces.vromfs.bin`. The server only
+finds them; the page decodes them, with its own decoder (`web/lzdecode.js`) instead of the Oodle runtime. Nothing is
+stored, nothing can be exported, and no model or texture is in this project.
+
+They need the game on this PC, whichever data source you chose, and Python 3.14+ (the packaged apps have it). The app
+lists the game's models and textures in the background when it starts. On a map, the relief and the ground take a few
+seconds, the objects of a big level about a minute, and you can work on the map meanwhile.
 
 ## FAQ
 
@@ -253,6 +279,9 @@ custom vehicle files (**Settings → Remove custom vehicle files**) before playi
 The **In flight** tools only read what the game publishes on your own PC (`localhost:8111`): your aircraft's values, and
 the chat and battle log you see in game. No enemy position is used. The overlay is a separate window: nothing is
 injected and nothing touches the game. It isn't endorsed by Gaijin either.
+
+The **3D views** only read your own game's files on your PC to show them: nothing is copied, exported or sent. They aren't
+endorsed by Gaijin either.
 
 **Can I play my mission online or with friends?**
 No: user missions are single-player. Send your friends the setup instead (**Share** → a code or a `.wtftd`
@@ -287,7 +316,8 @@ browser: you read it and send it yourself. See [SECURITY.md](SECURITY.md).
 
 ## Run from source
 
-Needs Python 3.10+ (no extra packages); reading the installed game instead of the datamine needs Python 3.14+.
+Needs Python 3.10+ (no extra packages); reading the installed game instead of the datamine, and the 3D views, need
+Python 3.14+.
 Double-click **`start.bat`** (Windows) or **`start.command`** (macOS), or:
 
 ```bash
@@ -346,6 +376,14 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
   ground-launched missiles on the vehicles that carry them (on a pylon, they can). The Advanced values are the game's own and not all of them have
   been tried in game: change one thing at a time ([checklist](docs/ingame-checklist.md)).
 - Research path: modules, crew training and the rank requirements are not counted.
+- 3D views (prototypes): the paint is an approximation, the game's shaders being private. Tracks and wheels stay at rest and
+  weapons don't show on pylons. On the map, the ground stays soft up close, the game's detail layers and grass not being
+  drawn, and some levels' colours look mottled without them.
+- Zones in 3D: a sphere's or a cylinder's size is read as its radius and a cylinder's height as centred on its point, which
+  wasn't checked in game. A zone you move keeps its altitude, as in the mission.
+- Assets: about 40 of the 500 have nothing to show on the 3D map and keep their marker, an asset's trees have no leaves, and
+  a very large one (an airfield holds up to 5,000 objects) may slow the view. Their side, enemy by default, may make them
+  targets in game.
 - In flight: My overlay, the alarms, Flight data and the Cockpit window are Windows only. They were mostly flown on jets
   in test flights: helicopters, propeller aircraft, real battles and the other game languages are less tested
   ([checklist](docs/ingame-checklist.md)). Variable-sweep wings show the swept-back limit (the game doesn't send the wing
@@ -364,6 +402,7 @@ wtftd/                      Python backend (stdlib only)
   mission.py                official scenario + your setup -> .blk mission
   cdk.py                    custom vehicle files (userVehicles + @override modifications)
   maptex.py / terrain.py    tactical maps and heightmaps from the game files
+  models.py                 the 3D views: models, textures, level data and assets, read from the player's game
   builder.py                datamine or game files -> data/*.json
   vromfs.py                 the game's own files: .vromfs.bin containers, binary BLK
   armament.py               Weapons page data (missiles, bombs, rockets, torpedoes)
@@ -375,7 +414,8 @@ wtftd/                      Python backend (stdlib only)
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
-                            overlay.js / flight.js / battle.js = In flight, cockpit.html = the cockpit window
+                            overlay.js / flight.js / battle.js = In flight, cockpit.html = the cockpit window,
+                            editor.js = scenario editor, model3d.js / map3d.js / lzdecode.js = the 3D views
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)
 docs/screenshots/           README images (docs/demo.gif: the tour above)
