@@ -90,7 +90,7 @@ function mbRender() {
 // the replays also give the player's name: it stands in the top bar like an account's
 async function mbLoad() {
   Object.assign(MB, await api('battles'));
-  $('#accountName').textContent = MB.rows[0]?.me || '';
+  $('#accountName').textContent = [MB.rows[0]?.clan, MB.rows[0]?.me].filter(Boolean).join(' ');
   $('#btnAccount').classList.toggle('hidden', !MB.rows.length);
 }
 

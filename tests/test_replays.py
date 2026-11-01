@@ -51,7 +51,7 @@ def player(uid, nick, **stats) -> dict:
 
 
 def results(status="success", crafts=None, me=None) -> dict:
-    players = [player(ME, "Myself", **(me or {})), player("555", "SomeoneElse", kills=9, score=9999)]
+    players = [player(ME, "Myself", **(me or {})), player("555", "SomeoneElse", clanTag="=THEM=", kills=9, score=9999)]
     out = {"timePlayed": 404.5, "authorUserId": ME, "author": "=TAG= Myself", "player": players,
            "uiScriptsData": {"playersInfo": {f"__int_{ME}": {"name": "Myself", "crafts": crafts or {"0": "mirage_4000"}},
                                              "__int_555": {"name": "SomeoneElse", "crafts": {"0": "su_33"}}}}}
@@ -101,9 +101,14 @@ class Reading(Temp):
 
     def test_nobody_elses_name_or_numbers(self):
         text = json.dumps(self.read(wrpl(results())))
-        for other in ("SomeoneElse", "su_33", "9999", "=TAG=", ME):
+        for other in ("SomeoneElse", "=THEM=", "su_33", "9999", ME):
             self.assertNotIn(other, text)
-        self.assertEqual(json.loads(text)["me"], "Myself")
+        self.assertEqual((json.loads(text)["me"], json.loads(text)["clan"]), ("Myself", "=TAG="))
+
+    def test_no_squadron(self):
+        comments = results()
+        del comments["player"][0]["clanTag"]
+        self.assertEqual(self.read(wrpl(comments))["clan"], "")
 
     def test_mode(self):
         cases = (("gamedata/missions/cta/tanks/alps/alps_dom.blk", 0x70, "ground", "ab"), (PLANES, 0x7A, "air", "sb"),

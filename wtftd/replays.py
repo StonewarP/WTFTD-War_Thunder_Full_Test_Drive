@@ -1,7 +1,7 @@
 """My battles: the player's own results, from the replay files the game saves (<game>/Replays/*.wrpl).
 
 Read only, and only two parts of a file: its fixed header and the results at its end, never the recording in between.
-The results hold all the players of a battle: only the author's own name and numbers are kept, nobody else's.
+The results hold all the players of a battle: only the author's own name, squadron tag and numbers are kept, nobody else's.
 Each file is read once: the index (.cache/battles.json) remembers its row by size and date.
 
 What a replay can't tell:
@@ -41,7 +41,7 @@ def _row(head: bytes, comments: dict, name: str) -> dict | None:
     crafts = comments.get("uiScriptsData", {}).get("playersInfo", {}).get(f"__int_{author}", {}).get("crafts", {})
     made = re.search(r"wtftd_([^/\\]+)\.blk$", mission)  # WTFTD's own missions: no players' list, the file's named after the vehicle
     return {
-        "file": name, "me": me["name"], "start": struct.unpack_from("<I", head, 908)[0], "level": level, "offline": offline,
+        "file": name, "me": me["name"], "clan": me.get("clanTag", ""), "start": struct.unpack_from("<I", head, 908)[0], "level": level, "offline": offline,
         "title": _text(head, 780, 128) if offline else "",  # a battle's name is its map
         "kind": KINDS.get(folder.group(1), "") if folder else "", "diff": DIFFICULTIES.get(head[688] & 15, ""),
         "result": STATUS.get(comments.get("status"), "left"), "played": int(comments["timePlayed"]),

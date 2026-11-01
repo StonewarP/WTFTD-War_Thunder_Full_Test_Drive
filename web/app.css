@@ -1335,7 +1335,7 @@ body.sub-on .subtabs { display: flex; }
 .ov-shot label { cursor: pointer; }
 .ov-style { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--text-2); }
 /* my battles */
-#accountName { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#accountName { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mb-totals { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .mb-totals .vstat { padding: 10px 14px; gap: 2px; }
 .mb-totals .vstat b { font: 750 20px var(--font-display); }
