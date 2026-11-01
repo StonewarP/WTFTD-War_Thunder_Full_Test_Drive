@@ -94,6 +94,7 @@
   <button class="subtab hidden" data-view="flight" role="tab"><span data-i18n="nav.flight"></span></button>
   <button class="subtab" data-view="battle" role="tab"><span data-i18n="nav.battle"></span></button>
   <button class="subtab" data-view="history" role="tab"><span data-i18n="nav.history"></span></button>
+  <button class="subtab hidden" data-view="bench" role="tab"><span data-i18n="nav.bench"></span></button>
 </nav>
 
 <div class="update-banner hidden" id="updateBanner"></div>
@@ -403,6 +404,31 @@
         <section><h3 class="ov-h" data-i18n="bt.chat"></h3><div class="bt-log" id="btChat" role="log"></div></section>
         <section><h3 class="ov-h" data-i18n="bt.log"></h3><div class="bt-log" id="btLog" role="log"></div></section>
       </div>
+    </div>
+
+    <div class="view hidden" id="view-bench">
+      <div class="page-head"><div><h2 data-i18n="bn.title"></h2><p class="muted" data-i18n="bn.hint"></p></div></div>
+      <div class="bn-grid">
+        <section class="ov-card"><h3 class="ov-h" data-i18n="bn.step.test"></h3><div class="opt-list" id="bnTests"></div></section>
+        <section class="ov-card bn-aircraft"><h3 class="ov-h" data-i18n="bn.step.aircraft"></h3>
+          <label class="search bn-search"><svg class="ic"><use href="#i-search"/></svg><input id="bnVehicle" type="search" list="bnVehicles" autocomplete="off" spellcheck="false" data-i18n-ph="bn.pick"></label>
+          <datalist id="bnVehicles"></datalist>
+          <div class="bn-setup" id="bnSetup"></div>
+          <button class="btn btn-primary" id="bnCreate"><svg class="ic-sm"><use href="#i-play"/></svg><span data-i18n="bn.create"></span></button>
+        </section>
+      </div>
+      <section class="ov-card bn-live">
+        <div class="row-between"><h3 class="ov-h" data-i18n="bn.step.fly"></h3><button class="btn btn-sm hidden" id="bnStop"><span data-i18n="bn.stop"></span></button></div>
+        <div id="bnLiveBody"></div>
+      </section>
+      <h3 class="list-head" data-i18n="bn.results"></h3>
+      <div class="fl-bar">
+        <div class="seg" id="bnView"></div>
+        <select id="bnOnly" data-i18n-title="mb.vehicle"></select>
+      </div>
+      <div class="bn-legend" id="bnLegend"></div>
+      <div class="fl-chart" id="bnChart"><canvas id="bnCanvas" class="hidden"></canvas><div class="empty bn-empty hidden" id="bnNoCurve"><p data-i18n="bn.noCurve"></p></div></div>
+      <div id="bnTable"></div>
     </div>
 
     <div class="view hidden" id="view-history">
@@ -749,6 +775,7 @@
 <script src="changes.js"></script>
 <script src="hangar.js"></script>
 <script src="mods.js"></script>
+<script src="bench.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 <script src="lzdecode.js"></script>

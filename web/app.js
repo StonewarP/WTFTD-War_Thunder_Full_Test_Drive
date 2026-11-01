@@ -14,7 +14,7 @@ const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', brita
 const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
 // the top menu: each menu's pages, shown as sub-tabs under it when it has several
 const MENUS = { vehicles: ['vehicles', 'setups', 'hangar', 'changes', 'mods'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
-                inflight: ['overlay', 'flight', 'battle', 'history'] };
+                inflight: ['overlay', 'flight', 'battle', 'history', 'bench'] };
 const AVIONICS = ['laserDesignator', 'havePointOfInterestDesignator', 'hasHelmetDesignator', 'haveCCIPForGun', 'haveCCIPForRocket', 'haveCCIPForBombs', 'haveCCRPForBombs', 'haveCCRPForGun'];
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
 const WEATHERS = ['clear', 'good', 'hazy', 'thin_clouds', 'cloudy', 'cloudy_windy', 'overcast', 'poor', 'rain', 'thunder', 'blind'];
@@ -204,6 +204,7 @@ async function boot() {
   bindChanges();
   bindHangar();
   bindMods();
+  bindBench();
   bindMaps();
   bindLibrary();
   showView(store.get('startView', 'vehicles'));
@@ -628,6 +629,7 @@ function showView(name) {
   if (name === 'flight') openFlightView();
   if (name === 'battle') openBattleView();
   if (name === 'history') openHistoryView();
+  if (name === 'bench') openBenchView();
   if (name === 'changes') openChangesView();
   if (name === 'hangar') openHangarView();
   if (name === 'mods') openModsView();
@@ -935,6 +937,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
         ${S.ai ? '' : chPanelLine(v)}
         ${S.ai ? '' : moPanelHTML(v)}
         ${limitsHTML(d.st?.lim)}
+        ${S.ai ? '' : bnPanelHTML(v)}
       </div>
       ${S.ai ? `<div class="ai-banner">${icon('target', 'ic-sm')}<div><b>${esc(t('ai.title'))}</b>${esc(t('ai.hint'))}</div></div>` : ''}
       ${stepHTML('loadout', 1, t('step.loadout'), esc(c.pylons ? t('loadout.customShort', { n: Object.keys(c.pylons).length }) : preset ? presetLabel(v, preset) : t('loadout.default')), () => loadoutBody(v, d))}
@@ -1156,6 +1159,7 @@ function bindDrawer() {
       case 'changes': return chShowVehicle(v);
       case 'ecoMode': return setFilter({ brMode: +b.dataset.mode });
       case 'compare': return toggleCompare(v.id);
+      case 'bench': return bnFrom(v);
       case 'model3d': return openModel('vehicle', v.id, I18N.unit(v.id));
       case 'select': return selectVehicle(v.id);
       case 'preview': return preview();

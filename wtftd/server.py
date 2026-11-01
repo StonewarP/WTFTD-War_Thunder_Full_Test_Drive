@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, hangar, maptex, mission, models, mods, patches, replays, sights, \
+from . import DONATE, REPO, __version__, alarms, battle, bench, builder, cdk, flightlog, game, hangar, maptex, mission, models, mods, patches, replays, sights, \
     terrain, uninstall, vromfs, waveout
 from .paths import CACHE, DATA, HOME, USER, WEB
 
@@ -626,6 +626,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(rows) if rows is not None else self.send_json({"error": "not found"}, 404)
         if route.startswith("flight/"):
             return self.send_json(flight_status(int(route.split("/", 1)[1]) if route.split("/", 1)[1].isdecimal() else 0))
+        if route == "bench":
+            return self.send_json({**bench.load(), "game": read_json(DATA / "meta.json", {}).get("version", "")})
+        if route == "bench-live":
+            return self.send_json(BENCH.status())
         if route == "flight-logs":
             return self.send_json(flightlog.list_logs(LOGS))
         if route.startswith("flight-logs/"):
@@ -814,6 +818,7 @@ class Handler(BaseHTTPRequestHandler):
             WATCH.mission = {"id": str(body.get("vehicle", "")),  # mods only apply to custom vehicles (files)
                              "fuel": cdk._num(body.get("mods") or {}, "fuel", 0, 1_000_000) if files else None,
                              "unbreakable": bool(files and (body.get("cheats") or {}).get("noOverload"))}
+            BENCH.arm(body.get("bench"))
             um = game.user_missions_dir(gd)
             um.mkdir(exist_ok=True)
             out = um / name
@@ -903,6 +908,11 @@ class Handler(BaseHTTPRequestHandler):
             STATE.save_settings(s)
             apply_alarm_settings()
             return self.send_json(overlay_status())
+        if route == "bench-stop":  # the test ends here: what was flown is analysed
+            BENCH.arm(None)
+            return self.send_json({**bench.load(), **BENCH.status()})
+        if route == "bench-delete":
+            return self.send_json(bench.remove(str(body.get("id", ""))))
         if route == "flight-log":  # record the flight data to a CSV file, or stop
             WATCH.set_log(body.get("on") is True)
             return self.send_json(flight_status(10 ** 12))
@@ -1283,6 +1293,9 @@ WATCH = alarms.Watch(_wt_get, STATE.get_details, mission_on_map, logs=LOGS, soun
                      name=STATE.unit_name)
 
 
+BENCH = bench.Bench(WATCH, LOGS, lambda: read_json(DATA / "meta.json", {}).get("version", ""))
+
+
 def apply_alarm_settings():
     s = STATE.settings()
     WATCH.words = alarms.labels(str(s.get("lang") or "en"))
@@ -1421,4 +1434,5 @@ def serve(port: int = 8777) -> tuple[ThreadingHTTPServer, str]:
     if alarms.available():
         apply_alarm_settings()
         threading.Thread(target=WATCH.run, daemon=True).start()
+        threading.Thread(target=BENCH.run, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}/"

@@ -561,6 +561,28 @@ Everything was checked in a made-up game folder: nothing below has run on a real
 - [ ] Uninstall, part *Skins and sound mods*: what WTFTD installed goes, what you added by hand stays, `config.blk` is back.
 - [ ] macOS: the game's folders and config.blk at these paths (the running check is Windows only).
 
+## 2z. Test bench (new)
+
+**What was built.** In flight → Test bench writes a mission on Archipelago, the player alone in the air, and records the flight by itself once the
+aircraft is in the air on that map. Checked without the game with a stand-in for port 8111 (whole flow, top speed and turn; tests on synthetic logs for each
+kind of invalid run). Field names checked against a live /state on 2026-11-01: throttle reads 110 in afterburner, height and speeds are whole numbers.
+Nothing has been flown yet. In game the missions are in Single missions → User missions, titled as below in the app's language (aircraft and values
+are the ones picked): each one's test is in its description.
+
+- [ ] **Test bench: Bf 109 F-4, Top speed, 6,000 m** (`wtftd_bench_bf-109f-4.blk`): the mission starts in the air, alone, clear sky, near 6,000 m and 600 km/h. Is `speed` IAS or TAS in the game? Hold level with WEP until a result shows. Does the throttle read above 100 with WEP on a propeller aircraft? Is it a realistic start, or does the game ask for a difficulty?
+- [ ] Same test on a jet with afterburner: does the steady speed settle within a few minutes? `TOP_SEP` may be too strict or too loose.
+- [ ] **Test bench: Bf 109 F-4, Climb, 300 m**: hold the speed asked up to 3,000 m. Does a hand-held speed pass the check (`STEADY`)? Compare the climb rate with the stat card's.
+- [ ] **Test bench: Bf 109 F-4, Sustained turn, 1,000 m**: one or two full circles: does the 360° time agree with a stopwatch? Does `/indicators` give `compass` and `aviahorizon_roll` in a turn? With them blank, the map marker's heading stands in: check its direction in a turn.
+- [ ] **Test bench: Bf 109 F-4, Acceleration, 500 m**: from 300 to 500 km/h: is the time close to a stopwatch's?
+- [ ] **Test bench: Bf 109 F-4, Hard turn, 1,000 m**: from 450 km/h, half a circle: is 2.5 G (`HARD_G`) a fair threshold, and is 150 m (`BLEED_DH`) possible by hand?
+- [ ] **Test bench: Bf 109 F-4, Stall speed, 2,000 m**: with mouse aim, then with instructor off: does the aircraft sink as expected, is the speed near the game's stall warning?
+- [ ] A helicopter, **Test bench: <helicopter>, Top speed, 500 m**: air start at low speed, does `/state` send a throttle, and does the check make sense on a helicopter?
+- [ ] Pause during a run (Esc): do the readings freeze, and does the time paused stay out of the result? A settled aircraft must not read as paused.
+- [ ] Crash and respawn: the bare map respawns the player at 1,500 m, not at the test's height. The results keep the height flown; say if that gets in the way.
+- [ ] Custom vehicle or cheats in the aircraft's setup: the page warns, the result shows the chips, it stays out of Compare.
+- [ ] A real battle with a test armed, same aircraft: nothing is recorded (another map), and on the same map? Rare, but `mission_on_map` is all that tells them apart.
+- [ ] Several results in several game languages: the title and description read well in the game's mission list.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own
