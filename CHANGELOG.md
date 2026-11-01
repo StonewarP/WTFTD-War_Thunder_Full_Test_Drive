@@ -45,6 +45,25 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Scenario editor**: every non-playable unit can be added, such as the S-300 launcher and its radars, and 198 units the
   game leaves unnamed: carriers, trains, transports. A new *Objects* tab places AA guns, trucks, buildings, radars and infantry.
   Not checked in game yet.
+- **3D view** (prototype): the cube button of a vehicle, and *View in 3D* on a weapon, show its model with its textures and
+  paint, read from your own game files: nothing is stored, nothing can be exported. Needs your game on this PC, and Python
+  3.14 for the materials (the app has it). The app lists the game's models and textures in the background when it starts, so
+  the first view has nothing to wait for; the model shows at once, and its textures join it. The paint is an approximation,
+  the game's shaders being private. Data schema 29.
+- **The real map in 3D** (prototype): the scenario editor still opens on the flat map, and its 2D / 3D switch turns it into the
+  level from your own game files: its relief over the whole level, air maps included, its ground in its land classes' colours,
+  water and placed objects (buildings, bridges, walls, trees with their leaves), with your units as their real models. Add,
+  select and move them as on the flat map; right drag turns the view, the wheel zooms. Close up the ground stays soft, the
+  game's detail layers and grass not being drawn, and some levels' colour maps look mottled without them. The zones stand as
+  volumes, their height read from the mission, their outline laid on the ground.
+- **Scenario editor**: a battle area is drawn at its real size on the flat map: it showed twice too wide. A zone is now clicked
+  anywhere in its real shape. Z Q S D on a French keyboard, W A S D on an English one, move the map, in 2D and in 3D.
+- **Turning what you place**: a selected vehicle or asset has an arrow to drag, in 2D and in 3D, and a heading slider; several
+  selected turn together. The scenario's own vehicles keep the heading you give them.
+- **Assets on the map**: *Add asset* places the game's own set pieces, the 500-odd object groups its missions use: crates,
+  barricades, trenches, tents, camps, airfields. They stand on the 3D map, and rebuild the data once. Not checked in game yet.
+- **Positions of a weapon** in the 3D view: stowed, deployed or in its container when the game has them, and its parts
+  (booster, fins, caps) can be left out one by one.
 - **Routes in the scenario editor**: pick *Route* as a unit's movement and draw its way on the map, with a speed and what it
   does at the end. Select several units and they share it: a convoy that keeps the gaps of its start. Not checked in game yet.
 - **Waves of enemies**: give enemies a wave number. The first wave is there at the start, each next one comes when the one

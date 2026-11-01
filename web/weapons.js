@@ -244,6 +244,7 @@ function weaponDetailHTML(it) {
     <div class="ar-det-stats">${keys.map(k => `<div class="vstat"><span>${esc(t('arm.col.' + k))}</span><b>${esc(arFmt(k, it[k], it.c))}</b></div>`).join('')}</div>
     <div class="ar-det-uses">${uses.map(u => `<span class="ar-rank" title="${esc(t('arm.useh.' + u))}">${esc(t('arm.use.' + u))} <b>#${rank(u)}</b><small>/${m.length}</small></span>`).join('')}</div>
     ${note ? `<div class="ar-note"><b>${esc(t('arm.community'))}</b> ${esc(note)}<small>${esc(t('arm.notesHint'))}</small></div>` : ''}
+    ${it.md ? `<button class="btn btn-sm" data-armodel="${esc(it.id)}">${icon('cube', 'ic-sm')}${esc(t('model.view'))}</button>` : ''}
     <div class="ar-carriers"><span class="ar-lbl">${esc(t('arm.carriedBy', { n: car.length }))}</span>
       ${!car.length && it.c === 'nuke' ? `<span class="muted">${esc(t('arm.nukeCustom'))}</span>` : ''}
       ${shown.map(v => `<button class="ar-veh" data-arveh="${esc(v.id)}" title="${esc(I18N.unitFull(v.id))}">${flagHTML(v.n)}<span>${esc(I18N.unit(v.id))}</span><small>${esc(fmtBR(v.br?.[1]))}</small></button>`).join('')}
@@ -307,6 +308,7 @@ function bindWeapons() {
     const b = e.target.closest('button, th[data-arsort], tr[data-arrow]');
     if (!b) return;
     const d = b.dataset;
+    if (d.armodel) { const it = AR.byId.get(d.armodel); return openModel('name', it.md, arName(it)); }
     if (d.arcat) { AR.cat = d.arcat; AR.g = ''; AR.open = ''; AR.use = ''; AR.sort = 'br'; AR.dir = 1; return renderWeapons(); }
     if (d.arg !== undefined) { AR.g = d.arg; return renderWeapons(); }
     if (d.aruse) {

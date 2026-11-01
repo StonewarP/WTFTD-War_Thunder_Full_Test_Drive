@@ -702,6 +702,9 @@ option { background: var(--surface); }
 .ed-map canvas { position: absolute; inset: 0; display: block; cursor: crosshair; touch-action: none; }
 .ed-map canvas.placing { cursor: copy; }
 .ed-map canvas.routing { cursor: crosshair; }
+.ed-3d { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--glass); backdrop-filter: blur(8px); color: var(--text); font-size: 12.5px; font-weight: 600; }
+#m3Canvas { width: 100%; height: 100%; pointer-events: none; background: linear-gradient(#7fa3c7, #cfdce6 55%, #e6e4d8); }
+.m3-status { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); padding: 5px 12px; border-radius: 999px; background: rgba(10, 13, 18, .78); color: #e9edf2; font-size: 12px; pointer-events: none; }
 .ed-wavehint { display: block; margin: -6px 0 14px; }
 .ed-menu { position: absolute; z-index: 5; min-width: 210px; max-width: 300px; padding: 5px; display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
@@ -718,7 +721,7 @@ option { background: var(--surface); }
 .ed-tools .btn { background: var(--glass); backdrop-filter: blur(8px); }
 .ed-tools .btn.active { border-color: var(--accent); color: var(--accent-2); background: var(--accent-soft); }
 .ed-sep { width: 1px; height: 22px; background: var(--line-2); margin: 0 4px; }
-.ed-hint { position: absolute; top: 52px; left: 10px; z-index: 2; font-size: 12px; color: var(--text-2); background: var(--glass); padding: 5px 12px; border-radius: 14px; border: 1px solid var(--line); white-space: nowrap; }
+.ed-hint { position: absolute; bottom: 40px; left: 10px; max-width: calc(100% - 20px); z-index: 2; font-size: 12px; color: var(--text-2); background: var(--glass); padding: 5px 12px; border-radius: 14px; border: 1px solid var(--line); pointer-events: none; }
 .ed-legend { position: absolute; bottom: 10px; right: 12px; z-index: 2; display: flex; gap: 10px; font-size: 11.5px; color: var(--muted); background: var(--glass); padding: 4px 10px; border-radius: 12px; }
 .ed-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
@@ -974,6 +977,13 @@ body.resizing .drawer, body.resizing .content { transition: none; }
 .ct-item .flag { width: 18px; height: 12px; }
 .ct-item button { border: 0; background: transparent; color: var(--text-2); display: grid; place-items: center; padding: 0 2px; }
 .modal-compare { width: min(1300px, 96vw); max-height: 92vh; }
+.modal-model { width: min(1100px, 96vw); height: min(760px, 92vh); max-height: none; }
+.modal-model .modal-inner { height: 100%; max-height: none; display: flex; flex-direction: column; }
+#mdCanvas { flex: 1; min-height: 0; width: 100%; display: block; cursor: grab; touch-action: none; background: radial-gradient(circle at 50% 40%, var(--surface-2, #232830), var(--bg, #14171c)); }
+#mdCanvas:active { cursor: grabbing; }
+.md-hint { padding: 8px 16px; font-size: 12px; }
+.md-bar { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 10px 16px 0; align-items: center; }
+.md-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--text-2); }
 .cmp-scroll { overflow: auto; padding: 0 0 12px; }
 table.cmp { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
 table.cmp th, table.cmp td { padding: 7px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }

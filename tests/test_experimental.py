@@ -185,9 +185,33 @@ class BattleLayout(unittest.TestCase):
     def test_zone_labels(self):
         m = {"areas": {"wtftd_capture_B": area(0, 0), "wtftd_enemy_spawn": area(5, 5), "zone": area(1, 1)}}
         zones = {z["name"]: z for z in mission.scenario_zones("x", m)}
+        self.assertTrue(all("sy" in z for z in zones.values()))  # the 3D map draws them as volumes
         self.assertEqual(zones["wtftd_capture_B"]["label"], "B")
         self.assertEqual(zones["wtftd_enemy_spawn"]["label"], "@editor.enemySpawn")
         self.assertNotIn("label", zones["zone"])
+
+
+class PlacedOnTheMap(unittest.TestCase):
+    def mission(self):
+        m = bare_mission()
+        m["units"]["tankModels"] = {"name": "tank_01", "unit_class": "ussr_t_72a", "tm": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [10.0, 2.0, 30.0]], "props": {}}
+        return m
+
+    def test_an_asset_stands_as_in_the_games_missions(self):
+        m = self.mission()
+        mission.apply_edits(m, "me", {"add": [{"block": "objectGroups", "cls": "ammunition_box_a", "x": 1, "y": 2, "z": 3, "yaw": 90, "side": "ally"}]})
+        u = m["units"]["objectGroups"]
+        self.assertEqual((u["unit_class"], u["objLayer"], u["props"]["active"]), ("ammunition_box_a", 2, True))
+        self.assertEqual(u["tm"][3], [1.0, 2.0, 3.0])
+        self.assertAlmostEqual(u["tm"][0][2], 1.0)  # turned
+        self.assertNotIn("way", u)
+
+    def test_a_scenario_unit_is_turned_where_it_stands(self):
+        m = self.mission()
+        mission.apply_edits(m, "me", {"units": {"tank_01": {"yaw": 90}}})
+        tm = m["units"]["tankModels"]["tm"]
+        self.assertAlmostEqual(tm[0][2], 1.0)
+        self.assertEqual(tm[3], [10.0, 2.0, 30.0])
 
 
 def bare_mission():

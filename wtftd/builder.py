@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 28  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 30  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -48,6 +48,7 @@ SPARSE = [
     "aces.vromfs.bin_u/gamedata/units/tracked_vehicles",
     "aces.vromfs.bin_u/gamedata/units/radars",
     "aces.vromfs.bin_u/gamedata/units/infantry",
+    "aces.vromfs.bin_u/gamedata/objectgroups",
     "aces.vromfs.bin_u/gamedata/sensors",
     "aces.vromfs.bin_u/gamedata/weapons",
     "aces.vromfs.bin_u/gamedata/damage_model",
@@ -1493,6 +1494,10 @@ def build_objects(lang) -> list:
             if lang.get(f"{f.stem}_0") or not NOT_UNITS.search(f.stem):
                 out.append({"id": f.stem, "b": block})
                 lang.put("units", f.stem, f"{f.stem}_shop", f"{f.stem}_0", fallback=humanize(f.stem))
+    for f in sorted((DM / "aces.vromfs.bin_u" / "gamedata" / "objectgroups").glob("*.blkx")):
+        if not NOT_UNITS.search(f.stem) and json.loads(f.read_text(encoding="utf-8")).get("node"):
+            out.append({"id": f.stem, "b": "objectGroups"})
+            lang.put("units", f.stem, f"{f.stem}_shop", f"{f.stem}_0", fallback=humanize(f.stem))
     with open(DATA / "objects.json", "w", encoding="utf-8") as fw:
         json.dump(out, fw, separators=(",", ":"))
     return out

@@ -56,6 +56,20 @@ def _payloads(o, parent=None, out=None):
     return out
 
 
+def _mesh(o) -> str:
+    """The first model a weapon's file names: the weapon itself, or what it fires."""
+    if isinstance(o, dict):
+        if o.get("mesh") and isinstance(o["mesh"], str):
+            return o["mesh"]
+        o = list(o.values())
+    if isinstance(o, list):
+        for x in o:
+            found = _mesh(x)
+            if found:
+                return found
+    return ""
+
+
 def _category(kind: str, p: dict, folder: str, stem: str):
     bt = first_str(p.get("bulletType")).lower()
     gd = p.get("guidance") if isinstance(p.get("guidance"), dict) else None
@@ -284,6 +298,9 @@ def build_armament(lang: Lang, vehicles: list, progress=None) -> dict:
                     continue
                 g = _guidance(cat, p)
                 it = {"id": iid, "c": cat, "g": g, "_src": stem, **_stats(cat, g, p, tnt_eq)}
+                mesh = first_str(p.get("mesh")) or _mesh(d)
+                if mesh and mesh != "empty_mesh":  # the id is the projectile's: it doesn't say which file holds the weapon
+                    it["md"] = mesh
                 icon = first_str(p.get("iconType"))
                 votes = ICON_VOTES.get(stem)
                 it["ic"] = icon or (max(votes, key=votes.get) if votes else ICONS[cat])

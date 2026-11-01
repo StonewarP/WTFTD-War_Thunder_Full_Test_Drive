@@ -886,6 +886,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
           <div class="hero-actions">
             <button class="icon-btn${fav ? ' on' : ''}" data-act="fav" title="${esc(t(fav ? 'drawer.unfavorite' : 'drawer.favorite'))}">${icon('star')}</button>
             ${compareButtonHTML(v)}
+            <button class="icon-btn" data-act="model3d" title="${esc(t('model.view'))}">${icon('cube')}</button>
             <a class="icon-btn" href="https://wiki.warthunder.com/unit/${encodeURIComponent(v.id)}" target="_blank" rel="noopener" title="${esc(t('drawer.wiki'))}">${icon('ext')}</a>
             <button class="icon-btn" data-act="close" title="${esc(t('drawer.close'))}">${icon('x')}</button>
           </div>
@@ -1111,6 +1112,7 @@ function bindDrawer() {
       case 'aiCancel': return aiEnd(false);
       case 'fav': return toggleFav(v.id);
       case 'compare': return toggleCompare(v.id);
+      case 'model3d': return openModel('vehicle', v.id, I18N.unit(v.id));
       case 'select': return selectVehicle(v.id);
       case 'preview': return preview();
       case 'save': return saveSetup();

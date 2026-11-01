@@ -4,16 +4,18 @@
 
 const ED_BLOCK_CATS = { tankModels: ['ground'], armada: ['air', 'heli'], ships: ['ship', 'boat'] };
 const ED_COLORS = { enemy: '#ff5a4f', ally: '#5ab8ff', player: '#f3b33d', other: '#c3cad4' };
-const ED_SPACING = { tankModels: 40, armada: 150, ships: 300, air_defence: 40, structures: 60, wheeled_vehicles: 40, tracked_vehicles: 40, radars: 60, infantry: 20 };  // between units placed / pasted side by side
+const ED_SPACING = { tankModels: 40, armada: 150, ships: 300, air_defence: 40, structures: 60, wheeled_vehicles: 40, tracked_vehicles: 40, radars: 60, infantry: 20, objectGroups: 60 };  // between units placed / pasted side by side
 // the block a unit is added as when copied (template air defence / vehicles become ground units)
 const ED_ROUTE_BLOCKS = ['tankModels', 'armada', 'ships', 'wheeled_vehicles', 'tracked_vehicles', 'infantry'];  // what can drive
 const ED_ROUTE_SPEED = { tankModels: 30, wheeled_vehicles: 50, tracked_vehicles: 30, infantry: 6, ships: 40 };  // km/h, aircraft: their own
 const ED_ROUTE_POINTS = 40;  // mission.ROUTE_POINTS
 const ED_ADD_BLOCK = { tankModels: 'tankModels', armada: 'armada', ships: 'ships', air_defence: 'tankModels',
-  tracked_vehicles: 'tankModels', wheeled_vehicles: 'tankModels', structures: 'structures', radars: 'radars', infantry: 'infantry' };
+  tracked_vehicles: 'tankModels', wheeled_vehicles: 'tankModels', structures: 'structures', radars: 'radars', infantry: 'infantry', objectGroups: 'objectGroups' };
+// the map moved from the keyboard, by the keys' places: Z Q S D on a French keyboard, W A S D on an English one
+const ED_PAN_KEYS = { KeyW: [0, 1], KeyS: [0, -1], KeyA: [-1, 0], KeyD: [1, 0] };
 
 const ED = {
-  data: null, sel: null, multi: [], mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true,
+  data: null, sel: null, multi: [], keys: new Set(), mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true,
   view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', resTab: 'all', layers: [],
   labels: [], clip: null, mouse: null, byName: new Map(), configuring: false,
   auto: { src: 'me', br: 5.0, nations: [], who: 'enemy', fire: '' },
@@ -42,6 +44,13 @@ const edUnitName = cls => (S.byId.has(cls) || I18N.unit(cls) !== cls ? I18N.unit
 // the battle maps' capture zones and spawns (labelled) are always drawn
 const edZones = () => (ED.data.areas || []).filter(z => (ED.zones || z.label) && !(z.player && edEdits().player));
 const edZonePos = z => ({ ...z, ...(edEdits().areas[z.name] || {}) });
+const edZoneColor = (z0, info) => (info.role && info.role !== 'other' ? ED_COLORS[info.role] : z0.used ? '#e9edf2' : 'rgba(255,255,255,.5)');
+// a point of the map in a zone: a box's sizes are its widths (the battle maps' spawns and capture zones all lie within half of
+// them), a sphere's or a cylinder's its radius
+function edInZone(z, x, y) {
+  const a = z.yaw * Math.PI / 180, dx = x - z.x, dy = y - z.z, u = dx * Math.cos(a) + dy * Math.sin(a), v = dy * Math.cos(a) - dx * Math.sin(a);
+  return /box/i.test(z.type) ? Math.abs(u) <= z.sx / 2 && Math.abs(v) <= z.sz / 2 : Math.hypot(u, v) <= z.sx;
+}
 const edFlyer = () => S.cfg.block === 'armada';
 // what the scenario puts in a zone: its units by vehicle (most first), and the side they fight for
 function edZoneInfo(z0) {
@@ -115,23 +124,21 @@ function edZoneItems(dpr) {
 function edDrawZones(dpr) {
   const { ctx } = ED;
   for (const { z0, z, info, sel, spawn, outline } of edZoneItems(dpr)) {
-    const color = info.role && info.role !== 'other' ? ED_COLORS[info.role] : z0.used ? '#e9edf2' : 'rgba(255,255,255,.5)';
+    const color = edZoneColor(z0, info);
     const [cx, cy] = edToScreen(z.x, z.z);
     if (outline) {
-      const rx = z.sx * ED.view.scale, rz = z.sz * ED.view.scale;
+      const box = /box/i.test(z.type), rx = z.sx * ED.view.scale / (box ? 2 : 1), rz = z.sz * ED.view.scale / (box ? 2 : 1);
       ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(-z.yaw * Math.PI / 180);
+      if (!M3.on) { ctx.translate(cx, cy); ctx.rotate(-z.yaw * Math.PI / 180); }
       ctx.setLineDash(z0.used ? [6 * dpr, 4 * dpr] : [2 * dpr, 4 * dpr]);
       ctx.lineWidth = (sel ? 2.5 : 1.5) * dpr;
       ctx.strokeStyle = sel ? ED_COLORS.player : color;
       ctx.globalAlpha = z0.used || sel ? 0.9 : 0.5;
       ctx.fillStyle = color;
       ctx.beginPath();
-      if (/box/i.test(z.type)) ctx.rect(-rx, -rz, rx * 2, rz * 2); else ctx.ellipse(0, 0, rx, rx, 0, 0, Math.PI * 2);
+      if (M3.on) edZoneRim(z); else if (box) ctx.rect(-rx, -rz, rx * 2, rz * 2); else ctx.ellipse(0, 0, rx, rx, 0, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.globalAlpha = info.role ? 0.1 : 0.04;
-      ctx.fill();
+      if (!M3.on) { ctx.globalAlpha = info.role ? 0.1 : 0.04; ctx.fill(); }  // in 3D the zone is a volume (m3Zones)
       ctx.restore();
     }
     if (spawn) edZoneMarker(cx, cy, info, sel, dpr);  // a marker of what appears there
@@ -140,6 +147,19 @@ function edDrawZones(dpr) {
     if ((z0.used || sel) && (outline || spawn || own)) ED.zoneLabels.push({ text: edZoneLabel(z0, info), x: cx, y: spawn ? cy - 19 * dpr : cy,
       color: sel ? ED_COLORS.player : info.role && info.role !== 'other' ? color : '#e9edf2', force: own,
       prio: own ? 0 : z0.player ? 1 : info.role === 'enemy' || info.role === 'ally' ? 2 : info.role ? 3 : 4 });
+  }
+}
+// a zone's outline laid on the ground of the 3D map
+function edZoneRim(z) {
+  const { ctx } = ED, a = z.yaw * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), box = /box/i.test(z.type);
+  let on = false;
+  for (let i = 0; i <= 64; i++) {
+    const k = (i % 16) / 8 - 1;
+    const [u, v] = box ? [[k, -1], [1, k], [-k, 1], [-1, -k]][Math.floor(i / 16) % 4].map((w, n) => w * (n ? z.sz : z.sx) / 2) : [Math.cos(i / 32 * Math.PI) * z.sx, Math.sin(i / 32 * Math.PI) * z.sx];
+    const wx = z.x + u * c - v * s, wz = z.z + u * s + v * c, [px, py] = edToScreen(wx, wz, Math.max(edGround(wx, wz) ?? 0, M3.water ?? -Infinity));
+    if (px < -1e5) { on = false; continue; }  // behind the camera
+    if (on) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+    on = true;
   }
 }
 // the vehicle shape of a unit block: aircraft a triangle, ships a diamond, the rest a square
@@ -189,36 +209,46 @@ function edPill(text, x, y, color, dpr, { center = false, force = false, small =
   return true;
 }
 function edHitZone(sx, sy) {
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = window.devicePixelRatio || 1, [wx, wz] = edToWorld(sx, sy);
+  const sky = M3.on && wx === ED.view.cx && wz === ED.view.cz;  // no ground under the pointer: m3ToWorld gives the view's centre
   let best = null, bd = Infinity;
   for (const { z0, z, outline, spawn } of edZoneItems(dpr)) {
     const [cx, cy] = edToScreen(z.x, z.z);
     const d = Math.hypot(cx - sx, cy - sy);
-    const r = Math.max(outline ? Math.max(z.sx, z.sz) * ED.view.scale : 0, spawn ? 12 * dpr : 6 * dpr);
-    if (d <= r && d < bd) { bd = d; best = z0; }
+    if ((d <= (spawn ? 12 : 6) * dpr || outline && !sky && edInZone(z, wx, wz)) && d < bd) { bd = d; best = z0; }
   }
   return best;
+}
+// a heading arrow, in points of the canvas: it points along the ground, so it turns with the 3D view, and keeps its length on
+// screen, so that its tip stays clear of the unit's marker on a low view
+function edHeadingTip(p, dpr) {
+  const a = (p.yaw || 0) * Math.PI / 180, L = 34 * dpr / ED.view.scale;
+  const [sx, sy] = edToScreen(p.x, p.z, p.y), [ex, ey] = edToScreen(p.x + Math.cos(a) * L, p.z + Math.sin(a) * L, p.y);
+  const k = 34 * dpr / (Math.hypot(ex - sx, ey - sy) || 1);
+  return { sx, sy, tx: sx + (ex - sx) * k, ty: sy + (ey - sy) * k };
 }
 // the start's heading arrow: its tip (screen) can be dragged to turn it
 function edArrowTip(dpr) {
   const s = edStart();
-  if (!s) return null;
-  const [sx, sy] = edToScreen(s.x, s.z);
-  const a = (s.yaw || 0) * Math.PI / 180, L = 34 * dpr;
-  return { sx, sy, tx: sx + Math.cos(a) * L, ty: sy - Math.sin(a) * L };
+  return s ? edHeadingTip(s, dpr) : null;
 }
+// the selected units that can be turned: those whose place the mission holds, not those its scripts bring in
+const edTurnable = () => edSelUnits().filter(u => { const st = edUnitState(u); return !st.removed && !st.tpl && !st.player && (st.added || st.edit); });
 function edDrawArrow(dpr) {
   const tip = edArrowTip(dpr);
-  if (!tip) return;
+  if (tip) edArrow(tip, ED_COLORS.player, ED.sel?.player, dpr);
+  for (const u of edTurnable()) { const st = edUnitState(u); edArrow(edHeadingTip(st, dpr), ED_COLORS[edSide(st)], true, dpr); }
+}
+function edArrow(tip, color, handle, dpr) {
   const { ctx } = ED;
   ctx.save();
-  ctx.strokeStyle = ED_COLORS.player; ctx.fillStyle = ED_COLORS.player; ctx.lineWidth = 3 * dpr;
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3 * dpr;
   ctx.beginPath(); ctx.moveTo(tip.sx, tip.sy); ctx.lineTo(tip.tx, tip.ty); ctx.stroke();
   const a = Math.atan2(tip.ty - tip.sy, tip.tx - tip.sx), h = 9 * dpr;
   ctx.beginPath(); ctx.moveTo(tip.tx + Math.cos(a) * 2 * dpr, tip.ty + Math.sin(a) * 2 * dpr);
   ctx.lineTo(tip.tx - Math.cos(a - 0.5) * h, tip.ty - Math.sin(a - 0.5) * h);
   ctx.lineTo(tip.tx - Math.cos(a + 0.5) * h, tip.ty - Math.sin(a + 0.5) * h); ctx.closePath(); ctx.fill();
-  if (ED.sel?.player) {  // the handle to turn it
+  if (handle) {  // the handle to turn it
     ctx.lineWidth = 2 * dpr; ctx.strokeStyle = '#fff';
     ctx.beginPath(); ctx.arc(tip.tx, tip.ty, 6 * dpr, 0, Math.PI * 2); ctx.stroke();
   }
@@ -335,8 +365,8 @@ function edFocus() {
   };
   step();
 }
-const edToScreen = (x, z) => [ED.canvas.width / 2 + (x - ED.view.cx) * ED.view.scale, ED.canvas.height / 2 - (z - ED.view.cz) * ED.view.scale];
-const edToWorld = (sx, sy) => [ED.view.cx + (sx - ED.canvas.width / 2) / ED.view.scale, ED.view.cz - (sy - ED.canvas.height / 2) / ED.view.scale];
+const edToScreen = (x, z, y) => (M3.on ? m3ToScreen(x, z, y) : [ED.canvas.width / 2 + (x - ED.view.cx) * ED.view.scale, ED.canvas.height / 2 - (z - ED.view.cz) * ED.view.scale]);
+const edToWorld = (sx, sy) => (M3.on ? m3ToWorld(sx, sy) : [ED.view.cx + (sx - ED.canvas.width / 2) / ED.view.scale, ED.view.cz - (sy - ED.canvas.height / 2) / ED.view.scale]);
 
 function edResize() {
   const box = ED.canvas.parentElement.getBoundingClientRect();
@@ -514,6 +544,7 @@ function edDraw() {
   ED.labels = [];
   ED.zoneLabels = [];
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (M3.on) { m3Camera(); m3Redraw(); edDrawItems(dpr); return; }
   ctx.fillStyle = css.getPropertyValue('--bg-2').trim() || '#0e1217';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -551,7 +582,12 @@ function edDraw() {
   const barPx = step * ED.view.scale;
   ctx.fillRect(14 * dpr, canvas.height - 18 * dpr, barPx, 2 * dpr);
   ctx.fillText(`${step} m`, 14 * dpr, canvas.height - 24 * dpr);
+  edDrawItems(dpr);
+}
 
+// what is on the map, flat or in 3D
+function edDrawItems(dpr) {
+  const { ctx, canvas } = ED;
   const player = ED.data.units.find(u => u.player);
   const pPos = player ? edPlayerPos(player) : null;
   const rw = ED.data.spawn?.runway;
@@ -584,9 +620,9 @@ function edDraw() {
   const pts = edAllPoints().map(edUnitState).filter(u => ED.scenery || u.edit || u.added || u.player);
   pts.sort((a, b) => (a.edit || a.added ? 1 : 0) - (b.edit || b.added ? 1 : 0) + (a.player ? 2 : 0) - (b.player ? 2 : 0));
   for (const u of pts) edMarker(u, u.player ? pPos : u, dpr);
-  edDrawArrow(dpr);
   for (const u of pts.slice().reverse()) edMarkerLabel(u, u.player ? pPos : u, dpr);
   edDrawZoneLabels(dpr);
+  edDrawArrow(dpr);  // over the labels: its tip is a handle
   edDrawGhost(dpr);
   if (ED.drag?.kind === 'box' && ED.drag.moved) {  // area selection
     const { sx, sy, x2, y2 } = ED.drag;
@@ -628,7 +664,7 @@ function edPlayerPos(p) {
 
 function edMarker(u, pos, dpr) {
   const { ctx } = ED;
-  const [sx, sy] = edToScreen(pos.x, pos.z);
+  const [sx, sy] = edToScreen(pos.x, pos.z, pos.y);
   const side = edSide(u);
   const editable = u.edit || u.added || u.player;
   if (u.moved && !u.removed) {  // where the unit was in the scenario
@@ -647,6 +683,12 @@ function edMarker(u, pos, dpr) {
   if (u.player) { ctx.beginPath(); ctx.arc(sx, sy, r + 2 * dpr, 0, Math.PI * 2); }
   else edShape(u.block, sx, sy, r);  // scenery / objects: a small one with a dark outline, readable on any terrain
   ctx.fill(); ctx.stroke();
+  if (editable && !u.player && !u.tpl && !u.removed) {  // the way it faces
+    const tip = edHeadingTip(u, dpr), a = Math.atan2(tip.ty - tip.sy, tip.tx - tip.sx);
+    ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2 * dpr; ctx.beginPath();
+    ctx.moveTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r); ctx.lineTo(sx + Math.cos(a) * (r + 7 * dpr), sy + Math.sin(a) * (r + 7 * dpr));
+    ctx.stroke(); ctx.restore();
+  }
   if (u.removed) {
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * dpr; ctx.beginPath();
     ctx.moveTo(sx - r, sy - r); ctx.lineTo(sx + r, sy + r); ctx.moveTo(sx + r, sy - r); ctx.lineTo(sx - r, sy + r); ctx.stroke();
@@ -762,7 +804,7 @@ function edAdd(x, z) {
   const block = ED.addBlock;
   const player = ED.data.units.find(u => u.player);
   const defaultCls = { tankModels: S.cfg.vehicle && S.byId.get(S.cfg.vehicle)?.c === 'ground' ? S.cfg.vehicle : 'ussr_t_72a',
-    armada: 'mig-21_mf', ships: 'us_destroyer_fletcher' }[block];
+    armada: 'mig-21_mf', ships: 'us_destroyer_fletcher', objectGroups: 'ammunition_box_a' }[block];
   const yaw = player ? Math.atan2(player.z - z, player.x - x) * 180 / Math.PI : 0;
   const n = Math.max(1, Math.min(20, +ED.addN || 1)), sp = ED_SPACING[block], a = yaw * Math.PI / 180;
   const keys = [];
@@ -791,13 +833,27 @@ function edMovePlayer(x, z) {
   e.player = { ...(e.player || {}), x: Math.round(x), y, z: Math.round(z), yaw: e.player?.yaw ?? Math.round(p.yaw || 0),
     ...(edFlyer() ? { mode: s?.air ? 'air' : 'ground', speed: s?.speed ?? 450 } : {}) };
 }
+function edPanKeys(now) {
+  if (!ED.keys.size) { ED.panAt = 0; return; }
+  const yaw = M3.on ? M3.yaw : 0, c = Math.cos(yaw), s = Math.sin(yaw);
+  const step = Math.min((now - (ED.panAt || now)) / 1000, 0.05) * 0.6 * ED.canvas.height / ED.view.scale;
+  ED.panAt = now;
+  for (const code of ED.keys) {
+    const [right, up] = ED_PAN_KEYS[code];
+    ED.view.cx += (right * c - up * s) * step;
+    ED.view.cz += (right * s + up * c) * step;
+  }
+  edDraw();
+  requestAnimationFrame(edPanKeys);
+}
+
 // moves a unit (added or the scenario's) to x, z: ground units stay on the ground
 function edMoveUnit(u, x, z) {
   const e = edEdits();
   if (u.added) {
     const a = e.add[u.idx];
     a.x = Math.round(x); a.z = Math.round(z);
-    if (a.block === 'tankModels') a.y = Math.round(edGroundY(x, z) * 10) / 10;
+    if (a.block !== 'armada' && a.block !== 'ships') a.y = Math.round(edGroundY(x, z) * 10) / 10;
   } else {
     edSet(u, { x: Math.round(x), z: Math.round(z), ...(u.block === 'tankModels' ? { y: Math.round(edGroundY(x, z) * 10) / 10 } : {}) });
   }
@@ -807,7 +863,10 @@ function edBind() {
   const cv = $('#edCanvas');
   edBindMenu();
   cv.addEventListener('pointerdown', ev => {
-    if (ev.button === 2) return;  // the right button opens the menu (edBindMenu)
+    if (ev.button === 2) {  // the right button opens the menu (edBindMenu); in 3D, dragged, it turns the view
+      if (M3.on) { cv.setPointerCapture(ev.pointerId); M3.orbit = { x: ev.clientX, y: ev.clientY, moved: false }; }
+      return;
+    }
     const [sx, sy] = edCanvasPoint(ev);
     clearTimeout(ED.glide);  // the map is the user's again
     cv.setPointerCapture(ev.pointerId);
@@ -831,9 +890,10 @@ function edBind() {
       edRenderPanel(); edDraw();
       return;
     }
-    const tip = ED.sel?.player ? edArrowTip(window.devicePixelRatio || 1) : null;
-    if (tip && Math.hypot(tip.tx - sx, tip.ty - sy) < 12 * (window.devicePixelRatio || 1)) {
-      ED.drag = { kind: 'turn', moved: false };
+    const scale = window.devicePixelRatio || 1, near = tip => Math.hypot(tip.tx - sx, tip.ty - sy) < 12 * scale;
+    const start = ED.sel?.player ? edArrowTip(scale) : null, grip = edTurnable().map(edUnitState).find(st => near(edHeadingTip(st, scale)));
+    if (grip || (start && near(start))) {
+      ED.drag = { kind: 'turn', grip, moved: false };
       return;
     }
     const add = ev.ctrlKey || ev.metaKey || ev.shiftKey;
@@ -868,18 +928,31 @@ function edBind() {
   });
   cv.addEventListener('pointermove', ev => {
     const [sx, sy] = edCanvasPoint(ev);
+    if (M3.orbit) {
+      if (Math.hypot(ev.clientX - M3.orbit.x, ev.clientY - M3.orbit.y) > 2) M3.orbit.moved = true;
+      M3.yaw += (ev.clientX - M3.orbit.x) * 0.006;
+      M3.pitch = Math.max(M3_PITCH[1], Math.min(M3_PITCH[0], M3.pitch + (ev.clientY - M3.orbit.y) * 0.005));
+      M3.orbit.x = ev.clientX; M3.orbit.y = ev.clientY;
+      edDraw();
+      return;
+    }
     ED.mouse = edToWorld(sx, sy);
     if (!ED.drag) { if (ED.placing) edDraw(); else edTip(ev, sx, sy); return; }
     if (ED.drag.kind === 'pan') {
       if (Math.hypot(sx - ED.drag.sx, sy - ED.drag.sy) > 4 * (window.devicePixelRatio || 1)) ED.drag.moved = true;
-      ED.view.cx = ED.drag.cx - (sx - ED.drag.sx) / ED.view.scale;
-      ED.view.cz = ED.drag.cz + (sy - ED.drag.sy) / ED.view.scale;
+      if (M3.on) m3Pan(ED.drag, sx, sy);
+      else {
+        ED.view.cx = ED.drag.cx - (sx - ED.drag.sx) / ED.view.scale;
+        ED.view.cz = ED.drag.cz + (sy - ED.drag.sy) / ED.view.scale;
+      }
     } else if (ED.drag.kind === 'box') {
       Object.assign(ED.drag, { x2: sx, y2: sy, moved: true });
     } else if (ED.drag.kind === 'turn') {
-      const tip = edArrowTip(window.devicePixelRatio || 1);
-      const yaw = Math.round(Math.atan2(-(sy - tip.sy), sx - tip.sx) * 180 / Math.PI);
-      edSetStart({ yaw: ((yaw % 360) + 360) % 360 });
+      const p = ED.drag.grip || edStart(), at = M3.on ? m3AtHeight(sx, sy, p.y) : edToWorld(sx, sy);
+      if (at) {
+        const yaw = (Math.round(Math.atan2(at[1] - p.z, at[0] - p.x) * 180 / Math.PI) + 360) % 360;
+        if (ED.drag.grip) edTurnable().forEach(u => edSet(u, { yaw })); else edSetStart({ yaw });
+      }
       ED.drag.moved = true;
     } else if (ED.drag.kind === 'zone') {
       const [x, z] = edToWorld(sx, sy);
@@ -902,6 +975,7 @@ function edBind() {
     edDraw();
   });
   cv.addEventListener('pointerup', () => {
+    if (M3.orbit && !M3.orbit.moved) M3.orbit = null;  // a plain right click: the menu follows
     const d = ED.drag;
     ED.drag = null;
     if (d?.kind === 'box') {
@@ -948,12 +1022,14 @@ function edBind() {
       edRenderResults();
     }
     if (ev.target.dataset.edautof === 'br') ev.target.nextElementSibling.textContent = `BR ${(+ev.target.value).toFixed(1)}`;
-    if (ev.target.dataset.edf === 'pyaw') {  // the arrow turns with the slider
-      edSetStart({ yaw: edYaw(+ev.target.value) });
+    if (['pyaw', 'uyaw'].includes(ev.target.dataset.edf)) {  // the arrow turns with the slider
+      const yaw = edYaw(+ev.target.value);
+      if (ev.target.dataset.edf === 'pyaw') edSetStart({ yaw }); else edTurnable().forEach(u => edSet(u, { yaw }));
       ev.target.nextElementSibling.textContent = `${ev.target.value}° ${edCardinal(+ev.target.value)}`;
       edDraw();
     }
   });
+  $('#ed3d').addEventListener('change', () => { m3Toggle(); edDraw(); });
   $('#edAddN').addEventListener('change', ev => { ED.addN = Math.max(1, Math.min(20, +ev.target.value || 1)); ev.target.value = ED.addN; });
   $('#edTools').addEventListener('click', ev => {
     const b = ev.target.closest('button'); if (!b) return;
@@ -977,6 +1053,12 @@ function edBind() {
   $('#dlgEditor').addEventListener('keydown', ev => {
     if (ev.target.closest('input, select, textarea')) return;
     const mod = ev.ctrlKey || ev.metaKey, k = ev.key.toLowerCase();
+    if (!mod && ED_PAN_KEYS[ev.code]) {
+      if (!ED.keys.size) requestAnimationFrame(edPanKeys);
+      ED.keys.add(ev.code);
+      ev.preventDefault();
+      return;
+    }
     if (mod && k === 'c') { if (edCopy()) toast({ title: t('editor.copied', { n: ED.clip.length }), ms: 2000 }); }
     else if (mod && k === 'v') { edPasteHere(); }
     else if (mod && k === 'd') { edDuplicate(); }
@@ -995,8 +1077,12 @@ function edBind() {
     ev.preventDefault();
     edRenderPanel(); edDraw();
   });
+  window.addEventListener('keyup', ev => ED.keys.delete(ev.code));
+  window.addEventListener('blur', () => ED.keys.clear());
   $('#dlgEditor').addEventListener('close', () => {
+    ED.keys.clear();
     if (ED.configuring) return;
+    if (M3.on) m3Toggle();
     if (S.sel) renderDrawer();
     edRestoreHidden();
   });
@@ -1063,7 +1149,7 @@ function edMenuItems(sx, sy) {
     }
     if (ED.clip?.length) items.push({ label: t('editor.menu.pasteHere'), key: 'Ctrl+V', run: () => edPaste(x, z) });
     sep();
-    for (const [block, key, ic] of [['tankModels', 'editor.menu.addGround', 'ground'], ['armada', 'editor.menu.addAir', 'air'], ['ships', 'editor.menu.addShip', 'ship']]) {
+    for (const [block, key, ic] of [['tankModels', 'editor.menu.addGround', 'ground'], ['armada', 'editor.menu.addAir', 'air'], ['ships', 'editor.menu.addShip', 'ship'], ['objectGroups', 'editor.menu.addAsset', 'cube']]) {
       items.push({ label: t(key), icon: ic, dot: ED.addSide, run: () => { const b = ED.addBlock; ED.addBlock = block; edAdd(x, z); ED.addBlock = b; } });
     }
     if (ED.data.units.some(u => u.player)) { sep(); items.push({ label: t('editor.menu.startHere'), dot: 'player', run: () => { edMovePlayer(x, z); ED.sel = { player: true }; ED.multi = []; } }); }
@@ -1077,6 +1163,7 @@ function edMenuItems(sx, sy) {
 }
 function edOpenMenu(ev) {
   ev.preventDefault();
+  if (M3.orbit) { M3.orbit = null; return; }  // the end of turning the 3D view
   if (ED.mode === 'route') { ED.mode = 'select'; edRenderPanel(); edDraw(); return; }
   edPlacing(false);
   $('#edTip').classList.add('hidden');
@@ -1294,7 +1381,7 @@ function edRenderPanel() {
   $$('#edTools [data-edside]').forEach(b => b.classList.toggle('active', b.dataset.edside === ED.addSide));
   $('#edFitMap').classList.toggle('hidden', !ED.layers.length);
   $('#edPaste').classList.toggle('hidden', !ED.clip?.length);
-  $('#edHint').textContent = ED.mode === 'route' ? t('editor.hintRoute') : ED.mode === 'add' ? t(ED.addSide === 'ally' ? 'editor.hintAddAlly' : 'editor.hintAdd') : t('editor.hintSelect');
+  $('#edHint').textContent = ED.mode === 'route' ? t('editor.hintRoute') : ED.mode === 'add' ? t(ED.addBlock === 'objectGroups' ? 'editor.hintAddAsset' : ED.addSide === 'ally' ? 'editor.hintAddAlly' : 'editor.hintAdd') : t('editor.hintSelect');
   ED.canvas?.classList.toggle('routing', ED.mode === 'route');
   $('#edChanges').textContent = t('editor.changes', { n: edCount() });
   $('#edZones')?.classList.toggle('active', ED.zones);
@@ -1334,8 +1421,7 @@ function edRenderPanel() {
     panel.innerHTML = `<div class="ed-title">${icon('target', 'ic-sm')} ${esc(t('editor.playerStart'))}</div>
       <p class="hint">${esc(t(edFlyer() ? 'editor.playerHintAir' : 'editor.playerHint'))}</p>${spawnNote}
       ${modeSeg}${airFields}
-      <div class="field"><label>${esc(t('editor.heading'))}</label><div class="slider-row"><input type="range" min="0" max="359" step="1" data-edf="pyaw" value="${edCompass(p.yaw)}"><output>${edCompass(p.yaw)}° ${esc(edCardinal(edCompass(p.yaw)))}</output></div>
-        <small class="muted">${esc(t('editor.headingHint'))}</small></div>
+      ${edHeadingField(p.yaw, 'pyaw')}
       ${edEdits().player ? `<button class="btn btn-ghost btn-sm" data-edact="resetPlayer">${icon('refresh', 'ic-sm')}${esc(t('mods.reset'))}</button>` : ''}`;
     edRenderList();
     return;
@@ -1367,13 +1453,28 @@ function edRenderPanel() {
     edRenderList();
     return;
   }
+  const sideSeg = `<div class="field"><label>${esc(t('editor.side'))}</label><div class="seg ed-side">
+      <button class="${side === 'enemy' ? 'active' : ''}" data-edside="enemy"><i class="dot enemy"></i>${esc(t('editor.enemy'))}</button>
+      <button class="${side === 'ally' ? 'active' : ''}" data-edside="ally"><i class="dot ally"></i>${esc(t('editor.ally'))}</button></div></div>`;
+  if (u.block === 'objectGroups') {  // an asset: what it is, whose it is
+    edLoadObjects();
+    panel.innerHTML = `<div class="ed-title"><b>${esc(I18N.unit(st.cls))}</b></div>
+      <div class="ed-sub muted">${esc(t('editor.added'))} · ${esc(t('editor.block.objectGroups'))}</div>
+      ${sideSeg}
+      ${edHeadingField(st.yaw, 'uyaw')}
+      ${edAssetField()}
+      <div class="row gap ed-actions">${copyBtns}
+        <button class="btn btn-ghost btn-sm btn-danger" data-edact="delete">${icon('trash', 'ic-sm')}${esc(t('action.delete'))}</button></div>`;
+    edRenderResults();
+    edRenderList();
+    return;
+  }
   panel.innerHTML = `<div class="ed-title">${v ? flagHTML(v.n) : ''}<b>${esc(v ? I18N.unit(v.id) : st.cls)}</b>${v?.br ? `<span class="chip">${fmtBR(v.br[1])}</span>` : ''}</div>
     <div class="ed-sub muted">${esc(u.added ? t('editor.added') : u.name)} · ${esc(t('editor.block.' + u.block))}</div>
     ${u.tp ? `<p class="hint">${esc(t(u.tp.start ? (st.moved ? 'editor.tpStartMoved' : 'editor.tpStart') : 'editor.tpLater'))}</p>` : ''}
     ${st.removed ? removed : `
-    <div class="field"><label>${esc(t('editor.side'))}</label><div class="seg ed-side">
-      <button class="${side === 'enemy' ? 'active' : ''}" data-edside="enemy"><i class="dot enemy"></i>${esc(t('editor.enemy'))}</button>
-      <button class="${side === 'ally' ? 'active' : ''}" data-edside="ally"><i class="dot ally"></i>${esc(t('editor.ally'))}</button></div></div>
+    ${sideSeg}
+    ${edTurnable().length ? edHeadingField(st.yaw, 'uyaw') : ''}
     <div class="field-row">
       <div class="field"><label>${esc(t('editor.count'))}</label><input type="number" min="1" max="12" data-edf="count" value="${st.count || 1}"></div>
       <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edf="attack">
@@ -1397,6 +1498,14 @@ function edRenderPanel() {
   edRenderList();
 }
 
+const edHeadingField = (yaw, f) => `<div class="field"><label>${esc(t('editor.heading'))}</label><div class="slider-row"><input type="range" min="0" max="359" step="1" data-edf="${f}" value="${edCompass(yaw)}"><output>${edCompass(yaw)}° ${esc(edCardinal(edCompass(yaw)))}</output></div>
+    <small class="muted">${esc(t('editor.headingHint'))}</small></div>`;
+const edLoadObjects = () => { if (!S.objects) getData('objects.json').then(list => { S.objects = list; edRenderPanel(); }).catch(() => { S.objects = []; }); };
+// the asset picker: the game's object groups, by name (they have no picture)
+const edAssetField = () => `<div class="field"><label>${esc(t('editor.block.objectGroups'))}</label>
+    <input id="edSearch" type="search" placeholder="${esc(t('editor.searchAsset'))}" value="${esc(ED.search)}" autocomplete="off">
+    <div class="ed-count muted" id="edCount"></div>
+    <div class="ed-results" id="edResults" data-cats=""></div></div>`;
 // the vehicle picker: all the game's vehicles of that kind (pictures) or the user's saved ones (My vehicles)
 function edVehicleField(cats, objects = false) {
   const mine = (S.setups || []).filter(s => cats.includes(S.byId.get(s.vehicle)?.c)).length;
@@ -1506,6 +1615,7 @@ function edMultiHTML() {
     ${own.length ? `<div class="field"><label>${esc(t('editor.side'))}</label><div class="seg ed-side">
       <button class="${side === 'enemy' ? 'active' : ''}" data-edmside="enemy"><i class="dot enemy"></i>${esc(t('editor.enemy'))}</button>
       <button class="${side === 'ally' ? 'active' : ''}" data-edmside="ally"><i class="dot ally"></i>${esc(t('editor.ally'))}</button></div></div>` : ''}
+    ${edTurnable().length ? edHeadingField(edUnitState(edTurnable()[0]).yaw, 'uyaw') : ''}
     <div class="field-row">
       ${own.length ? `<div class="field"><label>${esc(t('editor.count'))}</label><input type="number" min="1" max="12" data-edm="count" value="${cnt ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>` : ''}
       <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edm="attack">${attack === undefined ? mixed : ''}
@@ -1543,7 +1653,8 @@ function edRenderResults() {
   if (!box) return;
   const cats = box.dataset.cats.split(',');
   const cur = ED.multi.length ? '' : (() => { const u = edSelected(); return u ? edUnitState(u).cls : ''; })();
-  if (ED.resTab === 'mine') {
+  const assets = !box.dataset.cats;
+  if (ED.resTab === 'mine' && !assets) {
     const list = (S.setups || []).filter(s => cats.includes(S.byId.get(s.vehicle)?.c));
     box.innerHTML = list.map(s => `<button class="ed-vc" data-edsetup="${esc(s.id)}" title="${esc(s.name)}">
         <div class="ed-vc-img">${unitImgTag(s.vehicle)}</div><span class="ed-vc-name">${esc(s.name)}</span>
@@ -1552,12 +1663,12 @@ function edRenderResults() {
     return;
   }
   const q = norm(ED.search), f = ED.vf ||= edVfReset();
-  if (ED.resTab === 'objects') {  // AA guns, trucks, buildings, radars...: from the game's own unit folders
-    const list = (S.objects || []).filter(o => !q || norm(`${I18N.unit(o.id)} ${o.id}`).includes(q));
+  if (ED.resTab === 'objects' || assets) {  // AA guns, trucks, buildings, radars...: from the game's own unit folders; or its assets
+    const list = (S.objects || []).filter(o => (o.b === 'objectGroups') === assets && (!q || norm(`${I18N.unit(o.id)} ${o.id}`).includes(q)));
     const count = $('#edCount');
     if (count) count.textContent = I18N.num(list.length);
     box.innerHTML = list.map(o => `<button class="ed-vc${o.id === cur ? ' active' : ''}" data-edobj="${esc(o.id)}" data-edblock="${esc(o.b)}" title="${esc(I18N.unitFull(o.id))}">
-        <div class="ed-vc-img">${unitImgTag(o.id)}<span class="ed-vc-br">${esc(t('editor.block.' + o.b))}</span></div>
+        <div class="ed-vc-img">${assets ? icon('cube', 'ic') : `${unitImgTag(o.id)}<span class="ed-vc-br">${esc(t('editor.block.' + o.b))}</span>`}</div>
         <span class="ed-vc-name">${esc(I18N.unit(o.id))}</span></button>`).join('') || `<p class="hint">${esc(t('results.empty'))}</p>`;
     return;
   }
@@ -1639,7 +1750,7 @@ function edPanelClick(ev) {
   }
   if (b.dataset.edtab) {
     ED.resTab = b.dataset.edtab;
-    if (ED.resTab === 'objects' && !S.objects) getData('objects.json').then(list => { S.objects = list; edRenderPanel(); }).catch(() => { S.objects = []; });
+    if (ED.resTab === 'objects') edLoadObjects();
     edRenderPanel();
     return;
   }
@@ -1684,7 +1795,7 @@ function edPanelClick(ev) {
   }
   else if (b.dataset.edact === 'remove') { edSet(u, { remove: true }); }
   else if (b.dataset.edact === 'restore') { edSet(u, { remove: false }); }
-  else if (b.dataset.edact === 'resetPos') { edSet(u, { x: null, y: null, z: null }); }
+  else if (b.dataset.edact === 'resetPos') { edSet(u, { x: null, y: null, z: null, yaw: null }); }
   else if (b.dataset.edact === 'delete') { edEdits().add.splice(u.idx, 1); edSelect([]); }
   else if (b.dataset.edact === 'loadoutReset') { edSet(u, { loadout: null }); }
   else if (b.dataset.edact === 'resetPlayer') { delete edEdits().player; }

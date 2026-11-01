@@ -117,6 +117,8 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   category, community notes on well-known weapons, side-by-side comparison and the vehicles that carry each one.
   **Bombing a target**: pick a base or an airfield, and see its HP from the game's mission templates, what one weapon
   takes off it and how many it takes
+- **3D view** (prototype): a vehicle's or a weapon's model with its textures and paint, read from your own game files, with a
+  weapon's positions and parts. Nothing is stored or exported, and no model or texture is in this project. The paint is an approximation
 - **Compare up to 5 vehicles side by side** (button next to the favorite star): BR, every stat with the best
   value highlighted, guns with their caliber, shell types, pylon weapons
 - **Penetration by distance** (vehicle panel → Ammunition): a curve for every shell and guided missile of the gun,
@@ -152,6 +154,9 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   - **routes** drawn on the map, shared by the units selected for a convoy, and **waves of enemies**, each one coming when
     the one before is destroyed. Not checked in game yet;
   - shows where the scenario really spawns you (runway / start area) and the units it teleports
+  - **the real map in 3D** (prototype), read from your own game files: relief, ground, water, buildings and trees, the zones
+    as volumes, your units as their real models, placed and moved as on the flat map;
+  - **assets**: the game's own set pieces, from a crate to a whole camp, placed on the map;
 - **Ground battle maps**: the game's Domination layouts (79 on 55 maps) from either side's spawn, with the capture
   zones and the other side's spawn in the editor (a solo sandbox: no AI, score or capture)
 - **Conditions**: time of day, weather, air start with altitude / speed (a speed that suits the aircraft by
@@ -392,5 +397,6 @@ WTFTD is free and always will be. If you enjoy it, you can support its developme
 
 ## License
 
-[MIT](LICENSE) — free to use, modify and share, keeping the copyright notice. War Thunder and its data belong
+[MIT](LICENSE) — free to use, modify and share, keeping the copyright notice. `web/lzdecode.js` is a port of an MIT-licensed
+decoder, with its notice. War Thunder and its data belong
 to Gaijin Entertainment; WTFTD is a fan-made tool, not affiliated with or endorsed by Gaijin.

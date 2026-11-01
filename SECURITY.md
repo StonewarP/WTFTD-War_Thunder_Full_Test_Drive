@@ -23,6 +23,9 @@ Only the latest release is supported: fixes ship in a new version.
     *Settings → Remove custom vehicle files* deletes them.
 - **What it reads:** with *Read my installed game*, the game's `aces`, `char`, `lang` and `mis.vromfs.bin` files, read
   only, instead of downloading the datamine.
+- **What it reads for the 3D views:** the game's `.grp` and `.dxp.bin` packs, `dynModelDesc.bin`, `riDesc.bin`, `levels/*.bin` and
+  the asset lists of `aces.vromfs.bin`,
+  read only, handed to the app's own page on `127.0.0.1`. Nothing is stored and nothing leaves your PC.
 - **What it reads while you fly:** the game's local page on `127.0.0.1:8111`, on your PC: your aircraft's values, its
   marker on the map, the chat and the battle log. On Windows, to recognise the aircraft, one key of the game's
   `global.blk` (the aircraft it saved), read only. The overlay is a separate window: nothing is injected into the game.

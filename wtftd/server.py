@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, sights, terrain, \
+from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, models, sights, terrain, \
     uninstall, vromfs, waveout
 from .paths import CACHE, DATA, HOME, USER, WEB
 
@@ -413,6 +413,17 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_game_bytes(self, body: bytes | None):
+        """What the viewer reads from the player's install: never stored, by the app or by the page."""
+        if body is None:
+            return self.send_json({"error": "no model"}, 404)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
     def send_file(self, path: Path, cache=False):
         try:
             body = path.read_bytes()
@@ -578,6 +589,31 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("level-map/"):
             meta = level_map(route.split("/", 1)[1])
             return self.send_json(meta) if meta else self.send_json({"error": "no map"}, 404)
+        if route.startswith("model/"):  # read from the player's install, for the viewer only (models.py)
+            kind, _, ref = route[6:].partition("/")
+            gd = STATE.game_dir()
+            name = ref if kind in ("name", "ri") else models.vehicle_model(ref)  # a name is only ever looked up in the game's own list
+            return self.send_game_bytes(models.read(gd, name, kind == "ri") if gd and name else None)
+        if route.startswith(("model-texture/", "model-texture-low/")):
+            gd = STATE.game_dir()
+            kind, name = route.split("/", 1)
+            return self.send_game_bytes(models.texture(gd, name, kind == "model-texture") if gd else None)
+        if route.startswith("model-variants/"):
+            gd = STATE.game_dir()
+            return self.send_json(models.variants(gd, route.split("/", 1)[1]) if gd else [])
+        if route.startswith("level-info/"):
+            return self.send_json(models.level_info(route.split("/", 1)[1]))
+        if route.startswith(("level-objects/", "level-land/", "level-tracer/")):
+            gd = STATE.game_dir()
+            kind, level = route.split("/", 1)
+            read = {"level-objects": models.level_objects, "level-land": models.level_land, "level-tracer": models.level_tracer}[kind]
+            return self.send_game_bytes(read(gd, level) if gd else None)
+        if route.startswith("asset/"):
+            gd = STATE.game_dir()
+            return self.send_json(models.asset(gd, route.split("/", 1)[1]) if gd else [])
+        if route.startswith("level-ground/"):
+            gd = STATE.game_dir()
+            return self.send_json((models.level_ground(gd, route.split("/", 1)[1]) if gd else None) or {})
         if route.startswith("scenario-units/"):
             try:
                 return self.send_json(mission.scenario_units(route.split("/", 1)[1]))
@@ -615,6 +651,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": f"File error: {e}"}, 500)
 
     def post_api(self, route: str, body: dict):
+        if route == "level-cells":  # the page has read the level's table, the unpacking needs zstd
+            gd = STATE.game_dir()
+            return self.send_game_bytes(models.level_cells(gd, str(body.get("level")), int(body.get("start") or 0), body.get("cells") or []) if gd else None)
         if route == "generate":
             gd = STATE.game_dir()
             if not gd:
@@ -1235,6 +1274,7 @@ def serve(port: int = 8777) -> tuple[ThreadingHTTPServer, str]:
     threading.Thread(target=auto_update_loop, daemon=True).start()
     threading.Thread(target=map_capture_loop, daemon=True).start()
     threading.Thread(target=warm_weapon_icons, daemon=True).start()
+    threading.Thread(target=lambda: models.warm(STATE.game_dir()), daemon=True).start()
     if alarms.available():
         apply_alarm_settings()
         threading.Thread(target=WATCH.run, daemon=True).start()

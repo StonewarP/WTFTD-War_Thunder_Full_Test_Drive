@@ -100,7 +100,7 @@ def _strip_airfield_spawn(node, wing: str):
 
 EDITABLE_BLOCKS = ("tankModels", "armada", "ships")
 COUNTRIES = ("usa", "germany", "ussr", "britain", "japan", "china", "italy", "france", "sweden", "israel")
-OBJECT_BLOCKS = ("air_defence", "structures", "wheeled_vehicles", "tracked_vehicles", "radars", "infantry")  # placed, not swapped
+OBJECT_BLOCKS = ("air_defence", "structures", "wheeled_vehicles", "tracked_vehicles", "radars", "infantry", "objectGroups")  # placed, not swapped
 ATTACK_TYPES = ("fire_at_will", "return_fire", "hold_fire", "dont_aim")
 ROUTE_POINTS = 40
 WAVE_PAUSE = 5.0  # s between the end of a wave and the next one
@@ -293,13 +293,14 @@ def scenario_zones(sid: str, m: dict) -> list:
             tm = a["tm"]
             x, y, z = (float(c) for c in tm[3])
             sx = math.hypot(float(tm[0][0]), float(tm[0][2]))
+            sy = math.hypot(*(float(c) for c in tm[1]))
             sz = math.hypot(float(tm[2][0]), float(tm[2][2]))
             yaw = math.degrees(math.atan2(float(tm[0][2]), float(tm[0][0])))
         except (TypeError, KeyError, IndexError, ValueError):
             continue
         label = BATTLE_ZONES.get(name) or (name[-1] if name.startswith("wtftd_capture_") else "")
         out.append({"name": name, "type": str(a.get("type", "")), "x": round(x, 1), "y": round(y, 1), "z": round(z, 1),
-                    "sx": round(sx, 1), "sz": round(sz, 1), "yaw": round(yaw, 1),
+                    "sx": round(sx, 1), "sy": round(sy, 1), "sz": round(sz, 1), "yaw": round(yaw, 1),
                     "used": name in used or name == "wtftd_spawn" or bool(label), **({"label": label} if label else {}),
                     **({"units": spawns[name][:80]} if spawns.get(name) else {}), **({"player": 1} if name in player else {})})
     return out
@@ -525,6 +526,11 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
                 u["tm"][3] = [float(e["x"]), float(e.get("y", pos[1])), float(e["z"])]
             except (TypeError, ValueError, IndexError):
                 pass
+        if e.get("yaw") is not None and isinstance(u.get("tm"), list) and len(u["tm"]) == 4:
+            try:
+                u["tm"] = _yaw_tm(float(e["yaw"]), *(float(c) for c in u["tm"][3]))
+            except (TypeError, ValueError):
+                pass
         behavior(name, e)
         if e.get("behavior") == "route":
             _route(u, e)
@@ -584,8 +590,13 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             yaw = float(a.get("yaw", 0))
         except (TypeError, ValueError):
             continue
+        army = my_army if a.get("side") == "ally" else enemy_army
+        if block == "objectGroups":  # an asset, as the game's own missions place them: no crew, no orders
+            _append_unit(units, block, {"name": f"wtftd_unit_{i + 1:02d}", "tm": _yaw_tm(yaw, x, y, z), "unit_class": a["cls"], "objLayer": 2,
+                                        "props": {"army": army, "active": True}})
+            continue
         props = copy.deepcopy(UNIT_DEFAULTS.get(block, UNIT_DEFAULTS["tankModels"]))
-        props["army"] = my_army if a.get("side") == "ally" else enemy_army
+        props["army"] = army
         props["attack_type"] = "fire_at_will"
         u = {"name": f"wtftd_unit_{i + 1:02d}", "tm": _yaw_tm(yaw, x, y, z), "unit_class": a["cls"], "objLayer": 1,
              "closed_waypoints": False, "isShipSpline": False, "shipTurnRadius": 100.0,
