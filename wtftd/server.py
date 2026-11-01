@@ -123,6 +123,7 @@ def write_json(path: Path, data):
 
 
 BATTLES = CACHE / "battles.json"  # derived from the game's replays: goes with the cache
+TEAMKILLS = USER / "teamkills.json"  # the player's own record: a replay can't rebuild it
 _battles_lock = threading.Lock()  # two pages open: one scan at a time, one writer
 
 
@@ -137,7 +138,14 @@ def battles() -> dict:
                 write_json(BATTLES, index)
             except OSError:  # a full disk, a locked file: read again next time
                 pass
-    return {"game": gd is not None, **replays.listing(index)}
+        listed = replays.listing(index)
+        if gd and WATCH.killed_by:
+            killers = [WATCH.killed_by.popleft() for _ in range(len(WATCH.killed_by))]
+            filed, waiting = replays.teamkills(gd / "Replays", listed["rows"], killers)
+            WATCH.killed_by.extend(waiting)
+            if filed:
+                write_json(TEAMKILLS, read_json(TEAMKILLS, []) + filed)
+    return {"game": gd is not None, **listed, "teamkills": read_json(TEAMKILLS, [])}
 
 
 # --------------------------------------------------------------------------- images

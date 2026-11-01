@@ -1327,5 +1327,11 @@
   "ov.v.deaths": "Smrti",
   "ov.v.live_kd": "Zničení na smrt, tato bitva",
   "ov.v.live_kills": "Zničení, tato bitva",
-  "ov.v.live_deaths": "Smrti, tato bitva"
+  "ov.v.live_deaths": "Smrti, tato bitva",
+  "mb.tkTitle": "Teamkill od",
+  "mb.tkPlayer": "Hráč",
+  "mb.tkTimes": "Krát",
+  "mb.tkLast": "Naposledy",
+  "mb.tkNone": "Zatím nikdo.",
+  "mb.tkHint": "Od této chvíle, ne u minulých bitev: záznam hry říká, kdo vás sestřelil, a váš záznam bitvy, ve kterém týmu byl, takže je potřeba zapnutý My overlay a Automatické ukládání záznamů. Nepřátelé se neukládají a tento seznam zůstává ve vašem PC."
 }

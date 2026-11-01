@@ -55,10 +55,11 @@ def named(side: str, name: str) -> bool:
 class Tally:
     """The player's own kills and deaths in this battle, from the battle log: the game's API has no other count. Only the
     lines naming the player count, and a kill takes a loser with a vehicle in brackets: a player, as in the replays' kills.
-    after: the last line read, None until the first look, which is the past."""
+    after: the last line read, None until the first look, which is the past. killers: [(name, when)] of those who shot the
+    player down, in memory until a replay tells a teammate from an enemy (replays.teamkills)."""
 
     def __init__(self):
-        self.after, self.kills, self.deaths, self.died = None, 0, 0, -ANOTHER_LIFE_S
+        self.after, self.kills, self.deaths, self.died, self.killers = None, 0, 0, -ANOTHER_LIFE_S, []
 
     def add(self, lines: list, name: str | None, words: dict):
         first, self.after = self.after is None, lines[-1]["id"] if lines else self.after or 0
@@ -73,6 +74,8 @@ class Tally:
                     "".join(text.split()).endswith(w) for w in (*words.get("crashed", []), *words.get("lost", [])))):
                 self.deaths += x["time"] - self.died >= ANOTHER_LIFE_S
                 self.died = x["time"]
+                if fight:
+                    self.killers.append((fight[0].split(" (", 1)[0], time.time()))
 
     def values(self) -> dict:
         return {"live_kills": self.kills, "live_deaths": self.deaths, "live_kd": round(self.kills / max(self.deaths, 1), 2)}

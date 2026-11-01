@@ -2,7 +2,9 @@
 import json
 import struct
 import tempfile
+import time
 import unittest
+from collections import deque
 from pathlib import Path
 from unittest import mock
 
@@ -283,6 +285,17 @@ class Overlay(unittest.TestCase):
         self.ticks()
         self.assertGreater(self.watch._silent, 0)
 
+    def test_the_killers_go_on_when_the_battle_ends(self):
+        self.ticks()
+        self.log.append({"id": 1, "time": 50, "msg": "Foe (MiG-29) shot down Myself (F-16AM)"})
+        self.ticks()
+        self.assertEqual(len(self.watch.killed_by), 0)
+        self.in_battle = False
+        asked = len(self.asked)
+        self.ticks()
+        self.assertEqual([name for name, _ in self.watch.killed_by], ["Foe"])
+        self.assertEqual(len(self.asked), asked + 1)  # server.battles files them
+
     def test_without_a_name_the_live_numbers_say_so(self):
         self.watch.stats = dict
         self.ticks(alarms.LOG_EVERY + 1)
@@ -302,6 +315,62 @@ class Overlay(unittest.TestCase):
         self.assertTrue(all(f"ov.v.{n}" in en for n in names))
         script = (paths.WEB / "overlay.js").read_text(encoding="utf-8")
         self.assertTrue(all(f"'{n}'" in script for n in names))
+
+
+class Teamkills(Temp):
+    NOW = 1750000000
+
+    def setUp(self):
+        super().setUp()
+        comments = results()  # SomeoneElse is on my team
+        comments["player"].append(player("777", "Enemy", team=2, clanTag="=FOE="))
+        self.write("a.wrpl", wrpl(comments, start=self.NOW))
+        self.rows = replays.listing(replays.refresh(self.folder, {}))["rows"]
+
+    def file(self, *killers):
+        return replays.teamkills(self.folder, self.rows, [(name, self.NOW + 100) for name in killers])
+
+    def test_a_teammate_is_kept(self):
+        filed, waiting = self.file("=THEM= SomeoneElse")
+        self.assertEqual(filed, [{"name": "SomeoneElse", "clan": "=THEM=", "at": self.NOW + 100, "level": "air_afghan", "file": "a.wrpl"}])
+        self.assertEqual(waiting, [])
+
+    def test_an_enemy_leaves_no_trace(self):
+        self.assertEqual(self.file("=FOE= Enemy"), ([], []))
+
+    def test_an_ai_vehicle_or_a_stranger_leaves_no_trace(self):
+        self.assertEqual(self.file("MiG-29", "Nobody"), ([], []))
+
+    def test_never_the_player(self):
+        self.assertEqual(self.file("=TAG= Myself"), ([], []))  # a missile of one's own
+
+    def test_a_replay_not_there_yet_waits(self):
+        later = (("=THEM= SomeoneElse", time.time()),)
+        self.assertEqual(replays.teamkills(self.folder, self.rows, later), ([], list(later)))
+
+    def test_without_a_replay_the_name_goes(self):
+        self.assertEqual(replays.teamkills(self.folder, self.rows, [("=THEM= SomeoneElse", time.time() - replays.WAIT_S - 1)]), ([], []))
+
+    def test_a_late_look_is_still_this_battle(self):
+        at = self.NOW + 404 + replays.SAME_BATTLE_S
+        self.assertEqual(len(replays.teamkills(self.folder, self.rows, [("SomeoneElse", at)])[0]), 1)
+
+    def test_offline_missions_keep_nobody(self):
+        rows = [{**self.rows[0], "offline": True}]
+        self.assertEqual(replays.teamkills(self.folder, rows, [("SomeoneElse", self.NOW + 100)]), ([], []))
+
+    def test_a_replay_gone_or_damaged_names_nobody(self):
+        (self.folder / "a.wrpl").write_bytes(b"damaged")
+        self.assertEqual(self.file("SomeoneElse"), ([], []))
+
+    def test_the_log_gives_the_killers(self):
+        out = battle.Tally()
+        out.add([], "Myself", WORDS)
+        out.add([{"id": 1, "time": 10, "text": "=X= Foe (MiG-29) shot down =TAG= Myself (F-16AM)"},
+                 {"id": 2, "time": 90, "text": "=TAG= Myself (F-16AM) shot down by Other (Su-33)"},
+                 {"id": 3, "time": 180, "text": "=TAG= Myself (F-16AM) has crashed."},
+                 {"id": 4, "time": 200, "text": "=TAG= Myself (F-16AM) shot down Foe (MiG-29)"}], "Myself", WORDS)
+        self.assertEqual([name for name, _ in out.killers], ["=X= Foe", "Other"])
 
 
 class Index(Temp):
@@ -344,7 +413,9 @@ class Route(Temp):
         (self.folder / "Replays").mkdir()
         (self.folder / "Replays" / "a.wrpl").write_bytes(wrpl(results()))
         self.index = self.folder / "cache" / "battles.json"
-        for target, name, value in ((server, "BATTLES", self.index), (server.STATE, "game_dir", lambda: self.folder)):
+        self.kept = self.folder / "user" / "teamkills.json"
+        for target, name, value in ((server, "BATTLES", self.index), (server, "TEAMKILLS", self.kept), (server.STATE, "game_dir", lambda: self.folder),
+                                    (server.WATCH, "killed_by", deque())):
             p = mock.patch.object(target, name, value)
             p.start()
             self.addCleanup(p.stop)
@@ -357,7 +428,21 @@ class Route(Temp):
 
     def test_no_game(self):
         with mock.patch.object(server.STATE, "game_dir", lambda: None):
-            self.assertEqual(server.battles(), {"game": False, "rows": [], "skipped": 0})
+            self.assertEqual(server.battles(), {"game": False, "rows": [], "skipped": 0, "teamkills": []})
+
+    def test_a_teammate_is_kept_once_and_the_rest_waits(self):
+        server.WATCH.killed_by.extend([("=THEM= SomeoneElse", 1750000100), ("=THEM= SomeoneElse", time.time())])
+        out = server.battles()["teamkills"]
+        self.assertEqual([x["name"] for x in out], ["SomeoneElse"])
+        self.assertEqual(len(server.WATCH.killed_by), 1)  # the second one's replay isn't there yet
+        self.assertEqual(len(server.battles()["teamkills"]), 1)
+        self.assertEqual(len(json.loads(self.kept.read_text(encoding="utf-8"))), 1)
+
+    def test_an_enemy_writes_nothing(self):
+        server.WATCH.killed_by.append(("Stranger", 1750000100))
+        self.assertEqual(server.battles()["teamkills"], [])
+        self.assertFalse(self.kept.exists())
+        self.assertEqual(len(server.WATCH.killed_by), 0)
 
     def test_the_index_goes_with_the_cache(self):
         self.assertEqual(self.index.name, "battles.json")

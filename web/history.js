@@ -2,7 +2,7 @@
    when the page opens, and the filters run here. */
 'use strict';
 
-const MB = { rows: null, skipped: 0, game: true, mode: '', vehicle: '', map: '', from: '', to: '', result: '', offline: false };
+const MB = { rows: null, skipped: 0, teamkills: [], game: true, mode: '', vehicle: '', map: '', from: '', to: '', result: '', offline: false };
 
 const mbMode = r => (r.offline ? t('mb.test') : [r.kind && t('kind.' + r.kind), r.diff && t('filters.mode.' + r.diff)].filter(Boolean).join(' ') || '—');
 const mbMapName = level => mapName(level, S.scenarios.filter(s => s.map === level));
@@ -10,6 +10,7 @@ const mbMap = level => (S.scenarios.some(s => s.map === level)
   ? `<button class="mb-link" data-mbmap="${esc(level)}">${esc(mbMapName(level))}</button>` : esc(mbMapName(level)));
 const mbVehicle = (id, picture = '') => (S.byId.has(id)
   ? `<button class="mb-link" data-mbvehicle="${esc(id)}">${picture}<span>${esc(I18N.unit(id))}</span></button>` : esc(I18N.unit(id)));
+const mbDate = s => new Date(s * 1000).toLocaleString(I18N.code, { dateStyle: 'short', timeStyle: 'short' });
 const mbDuration = s => `${Math.floor(s / 3600)} h ${String(Math.floor(s / 60) % 60).padStart(2, '0')} min`;
 
 function mbShown() {
@@ -50,10 +51,21 @@ function mbByVehicle(rows) {
     </table></div><p class="hint mb-note">${esc(t('mb.several'))}</p>`;
 }
 
+// who shot the player down from their own team: other players choose their names, everything goes through esc()
+function mbTeamkills() {
+  const by = new Map();
+  for (const x of MB.teamkills) by.set(x.name, { ...x, times: (by.get(x.name)?.times || 0) + 1 });  // oldest first: the last one stays
+  const list = [...by.values()].sort((a, b) => b.times - a.times || b.at - a.at);
+  return `<h3 class="list-head">${esc(t('mb.tkTitle'))}</h3>${list.length ? `<div class="ar-scroll mb-vehicles"><table class="ar-table mb-table">
+    <thead><tr><th>${esc(t('mb.tkPlayer'))}</th><th class="num">${esc(t('mb.tkTimes'))}</th><th>${esc(t('mb.tkLast'))}</th><th>${esc(t('mb.map'))}</th></tr></thead>
+    <tbody>${list.map(x => `<tr><td>${esc([x.clan, x.name].filter(Boolean).join(' '))}</td><td class="num">${I18N.num(x.times)}</td><td>${esc(mbDate(x.at))}</td><td>${mbMap(x.level)}</td></tr>`).join('')}</tbody>
+    </table></div>` : `<p class="muted">${esc(t('mb.tkNone'))}</p>`}<p class="hint mb-note">${esc(t('mb.tkHint'))}</p>`;
+}
+
 function mbRow(r) {
   const nums = [flTime(r.played), r.kills, r.deaths, r.assists, r.score, r.damage];
   const ai = r.ai ? ` <small class="muted" title="${esc(t('mb.ai'))}">+${r.ai}</small>` : '';
-  return `<tr><td>${esc(new Date(r.start * 1000).toLocaleString(I18N.code, { dateStyle: 'short', timeStyle: 'short' }))}</td>
+  return `<tr><td>${esc(mbDate(r.start))}</td>
     <td>${mbMap(r.level)}</td><td title="${esc(r.title)}">${esc(mbMode(r))}</td>
     <td>${r.vehicles.map(id => mbVehicle(id)).join(', ') || '—'}</td>
     <td><span class="chip ${{ win: 'info', loss: 'warn', left: 'dim' }[r.result]}">${esc(t('mb.' + r.result))}</span></td>
@@ -80,7 +92,7 @@ function mbRender() {
   mbSelect('#mbMap', 'map', 'mb.allMaps', pool.map(r => [r.level, mbMapName(r.level)]));
   const rows = mbShown();
   const heads = ['mb.date', 'mb.map', 'mb.mode', 'mb.vehicle', 'mb.result'], nums = ['mb.time', 'mb.kills', 'mb.deaths', 'mb.assists', 'mb.score', 'mb.damage'];
-  body.innerHTML = `${mbTotals(rows)}<p class="hint mb-note">${esc(t('mb.limits'))}</p>${mbByVehicle(rows)}
+  body.innerHTML = `${mbTotals(rows)}<p class="hint mb-note">${esc(t('mb.limits'))}</p>${mbByVehicle(rows)}${mbTeamkills()}
     <h3 class="list-head">${esc(t('mb.battles'))}</h3>
     ${rows.length ? `<div class="ar-scroll"><table class="ar-table mb-table"><thead><tr>${heads.map(k => `<th>${esc(t(k))}</th>`).join('')}${nums.map(k => `<th class="num">${esc(t(k))}</th>`).join('')}</tr></thead>
       <tbody>${rows.map(mbRow).join('')}</tbody></table></div>` : `<p class="muted">${esc(t('mb.none'))}</p>`}

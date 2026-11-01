@@ -1327,5 +1327,11 @@
   "ov.v.deaths": "Śmierci",
   "ov.v.live_kd": "Zniszczenia na śmierć, ta bitwa",
   "ov.v.live_kills": "Zniszczenia, ta bitwa",
-  "ov.v.live_deaths": "Śmierci, ta bitwa"
+  "ov.v.live_deaths": "Śmierci, ta bitwa",
+  "mb.tkTitle": "Teamkill od",
+  "mb.tkPlayer": "Gracz",
+  "mb.tkTimes": "Razy",
+  "mb.tkLast": "Ostatnio",
+  "mb.tkNone": "Na razie nikt.",
+  "mb.tkHint": "Od teraz, nie dla minionych bitew: dziennik gry mówi, kto cię zestrzelił, a powtórka, w której był drużynie, więc potrzebne są włączone My overlay i Automatyczny zapis powtórek. Wrogowie nie są zapisywani, a ta lista zostaje na twoim komputerze."
 }

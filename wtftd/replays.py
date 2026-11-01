@@ -3,6 +3,7 @@
 Read only, and only two parts of a file: its fixed header and the results at its end, never the recording in between.
 The results hold all the players of a battle: only the author's own name, squadron tag and numbers are kept, nobody else's.
 Each file is read once: the index (.cache/battles.json) remembers its row by size and date.
+One exception, the player's own request: a teammate who shot the player down is kept by name (teamkills).
 
 What a replay can't tell:
   - the result of a battle left before the end: the game writes it only at the end (no status: "left");
@@ -12,9 +13,10 @@ from __future__ import annotations
 import os
 import re
 import struct
+import time
 from pathlib import Path
 
-from . import vromfs
+from . import battle, vromfs
 
 VERSION = 1  # of the rows in the index: another one reads every file again
 MAGIC = b"\xe5\xac\x00\x10"
@@ -23,16 +25,23 @@ RESULTS_MAX = 1 << 20  # about 26 KB in the largest of 106 real battles: a damag
 KINDS = {"planes": "air", "tanks": "ground", "ships": "ship", "helicopters": "heli"}  # gamedata/missions/cta/<folder>/
 DIFFICULTIES = {0: "ab", 5: "rb", 10: "sb"}  # shortcut: only 5 was seen in real files (game 2.59), check 0 and 10 with such replays
 STATUS = {"success": "win", "fail": "loss"}  # none: the player left before the end
+SAME_BATTLE_S = 60  # a replay's last second and a death read from the log a little later
+WAIT_S = 2 * 3600  # no replay by then (Autosave Replays off): the name goes
 
 
 def _text(head: bytes, at: int, size: int) -> str:
     return head[at:at + size].split(b"\0", 1)[0].decode("utf-8", "replace")
 
 
+def _players(comments: dict) -> tuple:
+    """Everybody in a battle, and the author's own line (None if the file doesn't have it)."""
+    players = comments["player"] if isinstance(comments["player"], list) else [comments["player"]]  # alone: not a list
+    return players, next((p for p in players if str(p.get("userId")) == str(comments["authorUserId"])), None)
+
+
 def _row(head: bytes, comments: dict, name: str) -> dict | None:
     author = comments["authorUserId"]
-    players = comments["player"] if isinstance(comments["player"], list) else [comments["player"]]  # alone: not a list
-    me = next((p for p in players if str(p.get("userId")) == str(author)), None)
+    me = _players(comments)[1]
     if me is None:
         return None
     level, mission, cls = _text(head, 8, 128).removeprefix("levels/").removesuffix(".bin"), _text(head, 136, 260), _text(head, 968, 128)
@@ -64,18 +73,50 @@ def summary(rows: list) -> dict:
             **({"winrate": round(won / (won + lost) * 100)} if won + lost else {})}
 
 
+def _read(path: Path) -> tuple:
+    """A replay's header and results, (head, None) without results."""
+    with open(path, "rb") as f:
+        head = f.read(HEADER)
+        at = struct.unpack_from("<I", head, 684)[0]
+        if head[:4] != MAGIC or not at:
+            return head, None
+        f.seek(at + 1)
+        return head, vromfs.parse_blk(f.read(RESULTS_MAX), [])
+
+
 def read_battle(path: Path) -> dict | None:
     """One replay -> its row, None if it can't be read: being written (no results yet), damaged, of an unknown shape."""
     try:
-        with open(path, "rb") as f:
-            head = f.read(HEADER)
-            at = struct.unpack_from("<I", head, 684)[0]
-            if head[:4] != MAGIC or not at:
-                return None
-            f.seek(at + 1)
-            return _row(head, vromfs.parse_blk(f.read(RESULTS_MAX), []), path.name)
+        head, comments = _read(path)
+        return _row(head, comments, path.name) if comments else None
     except Exception:  # a file of any shape: it's only counted, the list goes on
         return None
+
+
+def _teammate(path: Path, name: str) -> dict | None:
+    """The line of the player's own team that goes by this name, if there's one."""
+    try:
+        players, me = _players(_read(path)[1])
+        return next((p for p in players if p is not me and p.get("team") == me["team"] and battle.named(name, p["name"])), None)
+    except Exception:  # as above: nobody is named on a doubt
+        return None
+
+
+def teamkills(folder: Path, rows: list, killers: list) -> tuple:
+    """Those of the battle log's killers who were on the player's team: the log doesn't tell, only the replay's teams do, and
+    a replay alone says a teammate killed somebody, not whom. -> (what to keep, those whose replay isn't there yet).
+    Enemies, AI vehicles and offline missions leave no trace."""
+    filed, waiting = [], []
+    for name, at in killers:
+        row = next((r for r in rows if r["start"] <= at <= r["start"] + r["played"] + SAME_BATTLE_S), None)
+        if not row:
+            if time.time() - at < WAIT_S:
+                waiting.append((name, at))
+            continue
+        mate = None if row["offline"] else _teammate(folder / row["file"], name)
+        if mate:
+            filed.append({"name": mate["name"], "clan": mate.get("clanTag", ""), "at": int(at), "level": row["level"], "file": row["file"]})
+    return filed, waiting
 
 
 def refresh(folder: Path | None, index) -> dict:

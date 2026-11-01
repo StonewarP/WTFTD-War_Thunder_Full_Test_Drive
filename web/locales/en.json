@@ -1511,5 +1511,11 @@
   "ov.v.deaths": "Deaths",
   "ov.v.live_kd": "Kills per death, this battle",
   "ov.v.live_kills": "Kills, this battle",
-  "ov.v.live_deaths": "Deaths, this battle"
+  "ov.v.live_deaths": "Deaths, this battle",
+  "mb.tkTitle": "Teamkilled by",
+  "mb.tkPlayer": "Player",
+  "mb.tkTimes": "Times",
+  "mb.tkLast": "Last time",
+  "mb.tkNone": "Nobody so far.",
+  "mb.tkHint": "From now on, not on past battles: the game's log says who shot you down and your replay says which team they were on, so it takes My overlay on and Autosave Replays. Enemies are not kept, and this list stays on your PC."
 }

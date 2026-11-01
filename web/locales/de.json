@@ -1327,5 +1327,11 @@
   "ov.v.deaths": "Tode",
   "ov.v.live_kd": "Abschüsse pro Tod, diese Schlacht",
   "ov.v.live_kills": "Abschüsse, diese Schlacht",
-  "ov.v.live_deaths": "Tode, diese Schlacht"
+  "ov.v.live_deaths": "Tode, diese Schlacht",
+  "mb.tkTitle": "Teamkill durch",
+  "mb.tkPlayer": "Spieler",
+  "mb.tkTimes": "Mal",
+  "mb.tkLast": "Zuletzt",
+  "mb.tkNone": "Bisher niemand.",
+  "mb.tkHint": "Ab jetzt, nicht für vergangene Schlachten: Das Protokoll des Spiels sagt, wer dich abgeschossen hat, und deine Wiederholung, in welchem Team er war. Dafür müssen My overlay und das automatische Speichern von Wiederholungen aktiv sein. Gegner werden nicht gespeichert, und diese Liste bleibt auf deinem PC."
 }

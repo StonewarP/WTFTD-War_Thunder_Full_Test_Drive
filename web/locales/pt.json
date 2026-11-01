@@ -1327,5 +1327,11 @@
   "ov.v.deaths": "Mortes",
   "ov.v.live_kd": "Eliminações por morte, esta batalha",
   "ov.v.live_kills": "Eliminações, esta batalha",
-  "ov.v.live_deaths": "Mortes, esta batalha"
+  "ov.v.live_deaths": "Mortes, esta batalha",
+  "mb.tkTitle": "Teamkill de",
+  "mb.tkPlayer": "Jogador",
+  "mb.tkTimes": "Vezes",
+  "mb.tkLast": "Última vez",
+  "mb.tkNone": "Ninguém por agora.",
+  "mb.tkHint": "A partir de agora, não em batalhas passadas: o registo do jogo diz quem o abateu e a sua repetição diz em que equipa estava, por isso são precisos My overlay ativo e Salvar repetições automaticamente. Os inimigos não são guardados, e esta lista fica no seu PC."
 }

@@ -1327,5 +1327,11 @@
   "ov.v.deaths": "死亡",
   "ov.v.live_kd": "击毁/死亡（本场）",
   "ov.v.live_kills": "击毁（本场）",
-  "ov.v.live_deaths": "死亡（本场）"
+  "ov.v.live_deaths": "死亡（本场）",
+  "mb.tkTitle": "被谁友军击杀",
+  "mb.tkPlayer": "玩家",
+  "mb.tkTimes": "次数",
+  "mb.tkLast": "最近一次",
+  "mb.tkNone": "目前没有。",
+  "mb.tkHint": "从现在开始统计，不包括过去的战斗：游戏日志显示谁击落了你，录像显示对方属于哪个队伍，因此需要开启 My overlay 和自动保存录像。敌人不会被保存，此列表只保留在你的电脑上。"
 }

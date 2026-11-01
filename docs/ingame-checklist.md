@@ -510,6 +510,13 @@ game's language files and from one line seen in game. In a real battle, with `{k
 - [ ] An account whose name has a suffix in the replay (`@steam`, `@psn`): its lines are recognised, or the live numbers stay at 0.
 - [ ] The past numbers take in the last battle at the start of the next one.
 
+Teamkills. Only tested on made-up battles: a real one is rare, a custom battle with a friend is the way to get one.
+
+- [ ] A teammate shoots you down: listed in My battles once back in the hangar (the replay has to be written first).
+- [ ] An enemy shoots you down: nothing listed, nothing in `user/teamkills.json`.
+- [ ] A teammate's name with a tag, with special characters, and a console one (`@psn`).
+- [ ] Leaving the battle at once after the teamkill: the replay's time still covers it.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

@@ -19,6 +19,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Crash detection**: your name now comes from your replays, so a break-up in the air stops the alarms the first time too, not
   only after a first crash has shown which name is yours. It also stands in the top bar, like an account name, after your
   squadron's tag if you have one: a click opens My battles.
+- **Teamkills** (My battles): the teammates who shot you down, how many times, when and where. The game's log doesn't mark a
+  teamkill: it says who shot you down, then your replay says which team they were on. So it counts from now on, not on past
+  battles, and takes My overlay on and Autosave Replays. This is the only other players' name WTFTD keeps: enemies are dropped,
+  and it stays on your PC.
 
 ## 0.22.1 — 2026-11-01
 

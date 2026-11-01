@@ -1511,5 +1511,11 @@
   "ov.v.deaths": "Morts",
   "ov.v.live_kd": "Victimes par mort, cette bataille",
   "ov.v.live_kills": "Victimes, cette bataille",
-  "ov.v.live_deaths": "Morts, cette bataille"
+  "ov.v.live_deaths": "Morts, cette bataille",
+  "mb.tkTitle": "Teamkillé par",
+  "mb.tkPlayer": "Joueur",
+  "mb.tkTimes": "Fois",
+  "mb.tkLast": "Dernière fois",
+  "mb.tkNone": "Personne pour l'instant.",
+  "mb.tkHint": "À partir de maintenant, pas sur les batailles passées : le journal du jeu dit qui vous a abattu et votre replay dit dans quelle équipe il était, il faut donc My overlay activé et l'Enregistrement automatique des replays. Les ennemis ne sont pas gardés, et cette liste reste sur votre PC."
 }

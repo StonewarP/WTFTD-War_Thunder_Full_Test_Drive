@@ -195,8 +195,9 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 - **Battle**: the game's chat and battle log, live, in their own tab, with a filter, and saved to a text file if you like
 - **My battles**: your own history from the replays the game saves: date, map, game mode, vehicle, result, kills, deaths,
   assists, score, damage; totals and a summary by vehicle; filters by game mode, vehicle, map, dates and result. A vehicle
-  opens its panel, a map opens that map. Your name and squadron tag stand in the top bar like an account name. Only your own line is read:
-  other players' names and numbers are neither kept nor shown. A replay doesn't hold the result of a battle you left before the end, and the game keeps its last 100 autosaved
+  opens its panel, a map opens that map. Your name and squadron tag stand in the top bar like an account name. Only your own line is read,
+  with one exception: a teammate who shot you down is kept by name, on your PC only, from what the battle log and the replay
+  say together (needs My overlay on). Enemies and everybody else are neither kept nor shown. A replay doesn't hold the result of a battle you left before the end, and the game keeps its last 100 autosaved
   replays (rename one in the game to keep it)
 - **Feedback** button: write a few words and GitHub's bug or idea form opens filled in; you read it and send it with
   your own account
@@ -286,7 +287,8 @@ The **In flight** tools only read what the game publishes on your own PC (`local
 the chat and battle log you see in game. No enemy position is used. The overlay is a separate window: nothing is
 injected and nothing touches the game. It isn't endorsed by Gaijin either.
 
-**My battles** only reads the replays on your PC, after the battle, and keeps your own line: no other player's name or stats. In
+**My battles** only reads the replays on your PC, after the battle, and keeps your own line: no enemy's name, nobody's stats, and
+the only other names it keeps are teammates who shot you down, on your PC, for you to report them in the game if you want. In
 the overlay, the numbers of the battle under way count only the battle log lines that name you.
 
 The **3D views** only read your own game's files on your PC to show them: nothing is copied, exported or sent. They aren't

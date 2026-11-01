@@ -669,6 +669,7 @@ class Watch:
         self.pilot = None  # the player's name in the battle log, see read_log
         self.past = {}  # the player's numbers from My battles, read at the start of a battle
         self.tally = battle.Tally()  # and this battle's so far
+        self.killed_by = deque()  # who shot the player down, until a replay says if it was a teammate: server.battles
         self._looks = 0
         self._before = None  # the last reading in the air
         self._log_id, self._readings, self._silent = None, 0, 0.0
@@ -790,7 +791,10 @@ class Watch:
         if not self.enabled or self._looks % LOG_EVERY:
             return
         if not self.in_mission():
+            self.killed_by.extend(self.tally.killers)
             self.tally = battle.Tally()
+            if self.killed_by:
+                self.past = self.stats()  # through server.battles, which files them once the replay is there
             return
         if self.tally.after is None:
             self.past = self.stats()
