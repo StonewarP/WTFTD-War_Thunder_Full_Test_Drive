@@ -612,7 +612,7 @@
   "ov.ownAlert": "Alert if",
   "ov.block": "Block",
   "ov.blocks": "Text blocks",
-  "ov.blocksHint": "More text in other places of the screen: drag the blocks on the picture, and pick each line's block in its options.",
+  "ov.blocksHint": "More text in other places of the screen: drag the blocks on the picture, add a line to one here, or pick a line's block in the Lines tab.",
   "ov.addBlock": "Add a block",
   "ov.blockSize": "Size, %",
   "ov.behaviour": "Behaviour",

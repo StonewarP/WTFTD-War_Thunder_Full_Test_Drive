@@ -594,7 +594,7 @@
   "ov.ownAlert": "以下情况警报",
   "ov.block": "区块",
   "ov.blocks": "文本区块",
-  "ov.blocksHint": "在屏幕其他位置显示更多文本:在图上拖动区块,并在每行的选项中选择其区块。",
+  "ov.blocksHint": "在屏幕其他位置显示更多文本:在图上拖动区块,在此添加一行,或在“行”选项卡中选择某行的区块。",
   "ov.addBlock": "添加区块",
   "ov.blockSize": "大小 (%)",
   "ov.behaviour": "行为",

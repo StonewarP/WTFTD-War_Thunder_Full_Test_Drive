@@ -594,7 +594,7 @@
   "ov.ownAlert": "Alarm gdy",
   "ov.block": "Blok",
   "ov.blocks": "Bloki tekstu",
-  "ov.blocksHint": "Więcej tekstu w innych miejscach ekranu: przeciągaj bloki na obrazie, a blok każdego wiersza wybierz w jego opcjach.",
+  "ov.blocksHint": "Więcej tekstu w innych miejscach ekranu: przeciągaj bloki na obrazie, dodaj tu wiersz albo wybierz blok wiersza na karcie Wiersze.",
   "ov.addBlock": "Dodaj blok",
   "ov.blockSize": "Rozmiar, %",
   "ov.behaviour": "Zachowanie",

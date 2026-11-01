@@ -594,7 +594,7 @@
   "ov.ownAlert": "Allerta se",
   "ov.block": "Blocco",
   "ov.blocks": "Blocchi di testo",
-  "ov.blocksHint": "Altro testo in altri punti dello schermo: trascina i blocchi sull'immagine e scegli il blocco di ogni riga nelle sue opzioni.",
+  "ov.blocksHint": "Altro testo in altri punti dello schermo: trascina i blocchi sull'immagine, aggiungi qui una riga o scegli il blocco di una riga nella scheda Righe.",
   "ov.addBlock": "Aggiungi un blocco",
   "ov.blockSize": "Dimensione, %",
   "ov.behaviour": "Comportamento",

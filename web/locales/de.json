@@ -594,7 +594,7 @@
   "ov.ownAlert": "Alarm, wenn",
   "ov.block": "Block",
   "ov.blocks": "Textblöcke",
-  "ov.blocksHint": "Weiterer Text an anderen Stellen des Bildschirms: Ziehe die Blöcke im Bild und wähle den Block jeder Zeile in ihren Optionen.",
+  "ov.blocksHint": "Weiterer Text an anderen Stellen des Bildschirms: Ziehe die Blöcke im Bild, füge hier eine Zeile hinzu oder wähle den Block einer Zeile im Tab Zeilen.",
   "ov.addBlock": "Block hinzufügen",
   "ov.blockSize": "Größe, %",
   "ov.behaviour": "Verhalten",

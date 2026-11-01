@@ -612,7 +612,7 @@
   "ov.ownAlert": "Alerte si",
   "ov.block": "Bloc",
   "ov.blocks": "Blocs de texte",
-  "ov.blocksHint": "Du texte ailleurs sur l'écran : déplacez les blocs sur l'image, et choisissez le bloc de chaque ligne dans ses options.",
+  "ov.blocksHint": "Du texte ailleurs sur l'écran : déplacez les blocs sur l'image, ajoutez-leur une ligne ici, ou choisissez le bloc d'une ligne dans l'onglet Lignes.",
   "ov.addBlock": "Ajouter un bloc",
   "ov.blockSize": "Taille, %",
   "ov.behaviour": "Comportement",

@@ -104,11 +104,10 @@ function ovLineColor(l, key, label) {
 }
 
 function ovMoreHTML(l, i) {
-  const count = OV.cfg.blocks.length, on = (key, label) => `<label class="switch"><input type="checkbox" data-ol="${key}"${l[key] ? ' checked' : ''}><span class="sw"></span><span>${esc(t(label))}</span></label>`;
-  const block = count ? ovField(t('ov.block'), `<select data-ol="block">${Array.from({ length: count + 1 }, (_, n) => ovOpt(n, n + 1, l.block || 0)).join('')}</select>`) : '';
+  const on = (key, label) => `<label class="switch"><input type="checkbox" data-ol="${key}"${l[key] ? ' checked' : ''}><span class="sw"></span><span>${esc(t(label))}</span></label>`;
   return `<details class="ov-more"${l.open ? ' open' : ''}><summary>${esc(t('ov.more'))}</summary><div class="ov-opts">
       <div class="ov-switches">${on('blink', 'ov.blink')}${on('hideNA', 'ov.hideNA')}</div>
-      <div class="ov-line-look">${ovLineColor(l, 'valueColor', 'ov.valueColor')}${ovLineColor(l, 'unitColor', 'ov.unitColor')}${block}</div>
+      <div class="ov-line-look">${ovLineColor(l, 'valueColor', 'ov.valueColor')}${ovLineColor(l, 'unitColor', 'ov.unitColor')}</div>
       ${ovTestHTML('if', t('ov.showIf'), l.if, i)}${ovTestHTML('rule', t('ov.ownAlert'), l.rule, i)}</div></details>`;
 }
 
@@ -123,7 +122,8 @@ function ovRenderBlocks() {
       <div class="field-row">${num('frame', t('ov.frame'), ' min="0" max="8"')}<div class="field"><label>${esc(t('ov.frameColor'))}</label><input type="color" data-ob="frameColor" value="${esc(b.frameColor)}"${b.frame ? '' : ' disabled'}></div></div>
       <label class="switch"><input type="checkbox" data-ob="hasBg"${b.background ? ' checked' : ''}><span class="sw"></span><span>${esc(t('ov.background'))}</span></label>
       <div class="field-row"><div class="field"><label>${esc(t('ov.bgColor'))}</label><input type="color" data-ob="background" value="${esc(b.background || b.lastBg || '#000000')}"${b.background ? '' : ' disabled'}></div>
-        <div class="field"><label>${esc(t('ov.bgOpacity'))}</label><select data-ob="bgOpacity"${b.background ? '' : ' disabled'}>${[100, 75, 50, 25].map(n => ovOpt(n, `${n} %`, b.bgOpacity)).join('')}</select></div></div></div>`;
+        <div class="field"><label>${esc(t('ov.bgOpacity'))}</label><select data-ob="bgOpacity"${b.background ? '' : ' disabled'}>${[100, 75, 50, 25].map(n => ovOpt(n, `${n} %`, b.bgOpacity)).join('')}</select></div></div>
+      <button class="btn btn-sm" data-obline>${esc(t('ov.addLine'))}</button></div>`;
   }).join('');
   $('#ovAddBlock').classList.toggle('hidden', OV.cfg.blocks.length >= OV_MAX_BLOCKS);
 }
@@ -146,13 +146,22 @@ async function ovSoundData(file) {
   return new Promise((done, fail) => Object.assign(new FileReader(), { onload: e => done(e.target.result.split(',')[1]), onerror: fail }).readAsDataURL(new Blob([out.buffer])));
 }
 
+function ovAddLine(block) {
+  OV.cfg.lines.push({ text: '', when: 'always', alarm: '', color: '', size: 0, block });
+  ovRenderLines();
+  ovTab('lines');
+  $$('#ovLines .ov-tpl').pop().focus();
+  ovSave();
+}
+
 function ovRenderLines() {
-  const opt = ovOpt;
-  $('#ovLines').innerHTML = OV.cfg.lines.map((l, i) => `<div class="ov-line" data-i="${i}">
+  const opt = ovOpt, blocks = OV.cfg.blocks.length;
+  $('#ovLines').innerHTML = OV.cfg.lines.map((l, i) => `<div class="ov-line${blocks ? ' ov-blocks' : ''}" data-i="${i}">
       <div class="ov-move"><button class="icon-btn" data-ovmove="-1"${i ? '' : ' disabled'} title="${esc(t('ov.up'))}">▲</button><button class="icon-btn" data-ovmove="1"${i < OV.cfg.lines.length - 1 ? '' : ' disabled'} title="${esc(t('ov.down'))}">▼</button></div>
       <input type="text" class="ov-tpl" data-ol="text" value="${esc(l.text)}" maxlength="120" spellcheck="false">
       <label class="ov-mini"><span>${esc(t('ov.when'))}</span><select data-ol="when">${OV_WHEN.map(w => opt(w, t('ov.when.' + w), l.when)).join('')}</select></label>
       <label class="ov-mini"><span>${esc(t('ov.redWith'))}</span><select data-ol="alarm">${opt('', t('ov.redNone'), l.alarm)}${Object.keys(OV_ALARMS).map(a => opt(a, t('ov.alarm.' + a), l.alarm)).join('')}</select></label>
+      ${blocks ? ovField(t('ov.block'), `<select data-ol="block">${Array.from({ length: blocks + 1 }, (_, n) => opt(n, n + 1, l.block || 0)).join('')}</select>`) : ''}
       <label class="ov-mini ov-num"><span>${esc(t('ov.lineSize'))}</span><input type="number" data-ol="size" min="0" max="400" value="${l.size || ''}" placeholder="${esc(OV.cfg.size)}"></label>
       <label class="ov-mini ov-swatch"><span>${esc(t('ov.lineColor'))}</span><input type="color" data-ol="color" value="${esc(l.color || OV.cfg.color)}"></label>
       <button class="icon-btn ov-clear${l.color ? '' : ' hidden'}" data-ovnocolor title="${esc(t('ov.noColor'))}">${icon('x', 'ic-sm')}</button>
@@ -388,6 +397,7 @@ function bindOverlay() {
     if (b.dataset.ovtest) { await ovFlush(); return api('overlay-test', { alarm: b.dataset.ovtest, profile: OV.profile }).catch(toastErr); }
     if ('ovruletest' in b.dataset) { await ovFlush(); return api('overlay-test', { line: i, profile: OV.profile }).catch(toastErr); }
     if (b.dataset.ovpick) { OV.pick = b.dataset.ovpick; return $('#ovSoundFile').click(); }
+    if ('obline' in b.dataset) return ovAddLine(+b.closest('.ov-block').dataset.i);
     if (b.dataset.ovclear) { OV.cfg[b.dataset.ovclear] = ''; $(`[data-ov="${b.dataset.ovclear}"]`).value = ovFollowed(b.dataset.ovclear); ovShowClears(); ovDraw(); return ovSave(); }
     if (b.dataset.ocadd) { lines[i][b.dataset.ocadd].more = [...(lines[i][b.dataset.ocadd].more || []), { value: 'alt', op: '>', at: 0 }]; }
     else if (b.dataset.ocdel) { lines[i][b.dataset.ocdel].more.splice(+b.closest('.ov-cond').dataset.n - 1, 1); }
@@ -441,12 +451,7 @@ function bindOverlay() {
     const image = [...e.clipboardData.files].find(f => f.type.startsWith('image/'));
     if (image && !$('#view-overlay').classList.contains('hidden')) ovSetBg(image);
   });
-  $('#ovAddLine').addEventListener('click', () => {
-    OV.cfg.lines.push({ text: '', when: 'always', alarm: '', color: '', size: 0 });
-    ovRenderLines();
-    $$('#ovLines .ov-tpl').pop().focus();
-    ovSave();
-  });
+  $('#ovAddLine').addEventListener('click', () => ovAddLine(0));
   $('#ovEnabled').addEventListener('change', e => ovFlush({ enabled: e.target.checked }));
   $('#ovOnScreen').addEventListener('change', e => api('overlay-preview', { on: e.target.checked, profile: OV.profile }).catch(toastErr));
   $('#ovReset').addEventListener('click', async () => {

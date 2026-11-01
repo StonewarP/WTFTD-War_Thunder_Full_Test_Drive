@@ -594,7 +594,7 @@
   "ov.ownAlert": "Výstraha když",
   "ov.block": "Blok",
   "ov.blocks": "Bloky textu",
-  "ov.blocksHint": "Další text na jiných místech obrazovky: bloky přetáhněte na obrázku a blok každého řádku vyberte v jeho možnostech.",
+  "ov.blocksHint": "Další text na jiných místech obrazovky: bloky přetáhněte na obrázku, přidejte do nich řádek zde, nebo blok řádku vyberte na kartě Řádky.",
   "ov.addBlock": "Přidat blok",
   "ov.blockSize": "Velikost, %",
   "ov.behaviour": "Chování",
