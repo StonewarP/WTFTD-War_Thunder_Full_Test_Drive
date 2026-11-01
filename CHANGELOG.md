@@ -4,6 +4,13 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.23.1 — 2026-11-01
+
+- **Fuel time, consumption and range in the overlay** follow the throttle in seconds instead of half a minute: about 4 s when
+  the afterburner lights, 9 to 18 s when it's cut. They also hold steadier in cruise.
+- **Hide the overlay while the aircraft is unknown** (My overlay, Behaviour): nothing shows until the aircraft is recognised.
+  Off by default. Set it on the overlay for all aircraft, the one an unknown aircraft uses; your own lines' alerts still sound.
+
 ## 0.23.0 — 2026-11-01
 
 - **Challenges** (My missions menu): scored missions for the picked vehicle, each with a goal in the game's objectives, a timer
