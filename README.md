@@ -193,6 +193,11 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   sustained turn, time to climb, fuel used) and an **export for Tacview**; saved views, and the curves as a picture
 - **Cockpit window** (Windows): your aircraft's instruments as dials, in a window of their own for a second screen
 - **Battle**: the game's chat and battle log, live, in their own tab, with a filter, and saved to a text file if you like
+- **What changed**: a real comparison between two game versions, in the Vehicles menu. Each time the game data is rebuilt for a
+  new version, WTFTD compares the old database with the new one: new and removed vehicles, battle ratings, performance, costs,
+  ammunition, loadouts, Weapons tab items, maps, each with its old and new value. The official notes list the key changes, this
+  shows everything that moved in the numbers. Filters by name, nation, vehicle type, game mode and your own vehicles; a vehicle
+  opens its panel, a weapon its row, a map its map. It starts with the next game update, and keeps the last 30 patches
 - **My battles**: your own history from the replays the game saves: date, map, game mode, vehicle, result, kills, deaths,
   assists, score, damage; totals and a summary by vehicle; filters by game mode, vehicle, map, dates and result. A vehicle
   opens its panel, a map opens that map. Your name and squadron tag stand in the top bar like an account name. Only your own line is read,
@@ -421,12 +426,14 @@ wtftd/                      Python backend (stdlib only)
   alarms.py / flightlog.py  in-flight values, alarms and overlay (Windows) / CSV flight logs, report, Tacview export
   battle.py                 the game's chat and battle log
   replays.py                My battles: the player's own results, from the game's replay files
+  patches.py                What changed: the comparison of two game versions, kept in user/patches.json
   waveout.py / tray.py      sound on the output you pick / the app window: minimized, notification area (Windows)
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
                             overlay.js / flight.js / battle.js / history.js = In flight, cockpit.html = the cockpit window,
+                            changes.js = What changed,
                             editor.js = scenario editor, model3d.js / map3d.js / lzdecode.js = the 3D views
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)

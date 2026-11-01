@@ -13,7 +13,7 @@ const NATIONS = ['usa', 'germany', 'ussr', 'britain', 'japan', 'china', 'italy',
 const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', britain: '#2f8a63', japan: '#d65a5a', china: '#e2a92b', italy: '#2fa262', france: '#4766dd', sweden: '#f0c637', israel: '#4fa6e3', other: '#5b6b84' };
 const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
 // the top menu: each menu's pages, shown as sub-tabs under it when it has several
-const MENUS = { vehicles: ['vehicles', 'setups'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
+const MENUS = { vehicles: ['vehicles', 'setups', 'changes'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
                 inflight: ['overlay', 'flight', 'battle', 'history'] };
 const AVIONICS = ['laserDesignator', 'havePointOfInterestDesignator', 'hasHelmetDesignator', 'haveCCIPForGun', 'haveCCIPForRocket', 'haveCCIPForBombs', 'haveCCRPForBombs', 'haveCCRPForGun'];
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
@@ -201,9 +201,11 @@ async function boot() {
   bindFlight();
   bindBattle();
   bindHistory();
+  bindChanges();
   bindMaps();
   bindLibrary();
-  showView('vehicles');
+  showView(store.get('startView', 'vehicles'));
+  store.set('startView', 'vehicles');
 }
 
 function renderStatus() {
@@ -606,6 +608,7 @@ function showView(name) {
   if (name === 'flight') openFlightView();
   if (name === 'battle') openBattleView();
   if (name === 'history') openHistoryView();
+  if (name === 'changes') openChangesView();
 }
 
 // ------------------------------------------------------------------ vehicle drawer
@@ -906,6 +909,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
         <div class="hero-full">${esc(I18N.unitFull(v.id))} · <code>${esc(v.id)}</code></div>
         <div class="hero-stats">${brs}</div>
         ${statsBlockHTML(v)}
+        ${S.ai ? '' : chPanelLine(v)}
         ${limitsHTML(d.st?.lim)}
       </div>
       ${S.ai ? `<div class="ai-banner">${icon('target', 'ic-sm')}<div><b>${esc(t('ai.title'))}</b>${esc(t('ai.hint'))}</div></div>` : ''}
@@ -1121,6 +1125,7 @@ function bindDrawer() {
       case 'aiApply': return aiEnd(true);
       case 'aiCancel': return aiEnd(false);
       case 'fav': return toggleFav(v.id);
+      case 'changes': return chShowVehicle(v);
       case 'compare': return toggleCompare(v.id);
       case 'model3d': return openModel('vehicle', v.id, I18N.unit(v.id));
       case 'select': return selectVehicle(v.id);
@@ -1631,17 +1636,20 @@ async function onUninstallClick(ev) {
 let updatePoll = null;
 function renderUpdateBanner(st) {
   const el = $('#updateBanner');
+  const stale = st.after !== S.status?.data?.version || st.source !== (S.status?.data?.source || 'datamine');  // the page still shows the old data
   if (st.running) {
     const last = (st.log || []).at(-1) || '';
     el.className = 'update-banner';
     el.innerHTML = `<span class="spin"></span><b>${esc(t('update.running', { v: st.remote || '' }))}</b><span class="muted">${esc(last)}</span>`;
-  } else if (st.done && st.after && (st.after !== S.status?.data?.version || st.source !== (S.status?.data?.source || 'datamine'))) {
+  } else if (st.done && st.after && (stale || chBannerDue(st))) {
     el.className = 'update-banner done';
     el.innerHTML = `${icon('check', 'ic-sm')}<b>${esc(t('update.done', { v: st.after }))}</b>
       ${st.newVehicles ? `<span class="muted">${esc(t('update.newVehicles', { n: st.newVehicles }))}</span>` : ''}
-      <button class="btn btn-primary btn-sm" data-act="reload">${esc(t('update.reload'))}</button>`;
-    el.querySelector('[data-act="reload"]').onclick = () => location.reload();
-    if (!S.sel) setTimeout(() => location.reload(), 2500);
+      ${st.changes ? `<button class="btn btn-sm" data-act="changes">${esc(t('update.changes', { n: I18N.num(st.changes) }))}</button>` : ''}
+      ${stale ? `<button class="btn btn-primary btn-sm" data-act="reload">${esc(t('update.reload'))}</button>` : `<button class="icon-btn" data-act="hide" title="${esc(t('action.close'))}">${icon('x', 'ic-sm')}</button>`}`;
+    const reload = (view = 'vehicles') => { store.set('startView', view); location.reload(); };
+    el.querySelectorAll('[data-act]').forEach(b => { b.onclick = { reload: () => reload(), changes: () => (stale ? reload('changes') : showView('changes')), hide: () => { CH.hidden = st.patch; el.className = 'update-banner hidden'; } }[b.dataset.act]; });
+    if (stale && !S.sel) setTimeout(reload, 2500);
   } else if (st.error) {
     el.className = 'update-banner err';
     el.innerHTML = `${icon('x', 'ic-sm')}<b>${esc(t('update.error'))}</b><span class="muted">${esc(st.error)}</span>`;

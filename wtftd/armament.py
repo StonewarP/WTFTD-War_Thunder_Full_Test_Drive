@@ -215,7 +215,7 @@ def _stats(cat: str, g: str, p: dict, tnt_eq: dict) -> dict:
     gd = p.get("guidance") if isinstance(p.get("guidance"), dict) else {}
     ap = gd.get("guidanceAutopilot") if isinstance(gd.get("guidanceAutopilot"), dict) else {}
     put("gl", _n(p.get("loadFactorMax")) or _n(ap.get("reqAccelMax")), 0)
-    burn = (_n(p.get("timeFire")) or 0) + (_n(p.get("timeFire1")) or 0)
+    burn = (_n(p.get("timeFire")) or 0) + (_n(p.get("timeFire1")) or 0) or sum(t for _, t, _ in _stages(p))
     put("burn", burn, 1)
     # penetration: HEAT jet, or kinetic for AP / KE rounds only (HE warheads would show their fragments)
     cd = p.get("cumulativeDamage") if isinstance(p.get("cumulativeDamage"), dict) else {}

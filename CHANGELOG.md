@@ -23,6 +23,19 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   teamkill: it says who shot you down, then your replay says which team they were on. So it counts from now on, not on past
   battles, and takes My overlay on and Autosave Replays. This is the only other players' name WTFTD keeps: enemies are dropped,
   and it stays on your PC.
+- **What changed** (Vehicles menu): a real comparison between two game versions. Each time the game data is rebuilt for a new
+  version, WTFTD compares the old database with the new one and keeps the result, because old versions can't be rebuilt: the
+  official notes list the key changes, this shows everything that moved in the numbers. One patch at a time, newest first, with
+  counts on top, then new and removed vehicles, battle ratings, performance, costs, ammunition, loadouts and weapons, the items of
+  the Weapons tab, maps and scenarios. Each row gives the old and the new value, in colour only where better is really known.
+  Filter by name, nation, vehicle type, game mode for battle ratings, and your favorites and saved vehicles. A vehicle opens its
+  panel, a weapon its row in the Weapons tab, a map its map. The update banner links to it with the number of changes, the sub-tab
+  counts what you haven't seen, and a vehicle's panel says so when it changed in the latest patch. It starts with the next game
+  update: nothing can be compared before. The last 30 patches stay in `user/patches.json`, so a rebuild or removing the cache
+  leaves them; *Your settings and library* in Uninstall removes them. Going back to an older version after changing the data
+  source is marked as such, not shown as a patch.
+- **Motor burn** (Weapons): read from the motor format the game now uses for more and more missiles, such as the R-60 from 2.60 on,
+  which had lost the value. Data schema 32: the data is rebuilt once.
 
 ## 0.22.1 — 2026-11-01
 

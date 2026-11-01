@@ -83,6 +83,7 @@
 <nav class="subtabs" role="tablist">
   <button class="subtab" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
   <button class="subtab" data-view="setups" role="tab"><span data-i18n="nav.myVehicles"></span><span class="tab-count" id="setupCount"></span></button>
+  <button class="subtab" data-view="changes" role="tab"><span data-i18n="nav.changes"></span><span class="tab-count" id="changeCount"></span></button>
   <button class="subtab" data-view="maps" role="tab"><span data-i18n="nav.maps"></span></button>
   <button class="subtab" data-view="mymaps" role="tab"><span data-i18n="nav.myMaps"></span><span class="tab-count" id="myMapCount"></span></button>
   <button class="subtab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
@@ -160,6 +161,19 @@
       <div class="grid" id="grid"></div>
       <div class="empty hidden" id="gridEmpty"><svg class="ic-xl"><use href="#i-search"/></svg><p data-i18n="results.empty"></p></div>
       <div id="sentinel"></div>
+    </div>
+
+    <div class="view hidden" id="view-changes">
+      <div class="page-head"><div><h2 data-i18n="ch.title"></h2><p class="muted" data-i18n="ch.hint"></p></div></div>
+      <div class="fl-bar hidden" id="chBar">
+        <select id="chPatch" data-i18n-title="ch.patch"></select>
+        <label class="search ar-search"><svg class="ic"><use href="#i-search"/></svg><input id="chSearch" type="search" autocomplete="off" spellcheck="false" data-i18n-ph="ch.search"></label>
+        <select id="chNation" data-i18n-title="filters.nations"></select>
+        <select id="chCat" data-i18n-title="filters.type"></select>
+        <div class="seg" id="chMode" data-i18n-title="ch.brRows"><button class="active" data-m="" data-i18n="fl.all"></button><button data-m="ab" data-i18n="filters.mode.ab"></button><button data-m="rb" data-i18n="filters.mode.rb"></button><button data-m="sb" data-i18n="filters.mode.sb"></button></div>
+        <label class="switch"><input type="checkbox" id="chMine"><span class="sw"></span><span data-i18n="ch.mine"></span></label>
+      </div>
+      <div id="chBody"></div>
     </div>
 
     <div class="view hidden" id="view-maps">
@@ -706,6 +720,7 @@
 <script src="flight.js"></script>
 <script src="battle.js"></script>
 <script src="history.js"></script>
+<script src="changes.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 <script src="lzdecode.js"></script>

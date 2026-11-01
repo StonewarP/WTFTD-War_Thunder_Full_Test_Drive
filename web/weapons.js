@@ -192,6 +192,14 @@ function renderWeapons() {
   renderWeaponTray();
 }
 
+// another page's link to a weapon: its row, open, in its category
+function openWeapon(id) {
+  Object.assign(AR, { cat: AR.byId.get(id).c, g: '', nat: '', use: '', sort: 'br', dir: 1, q: '', open: id });
+  $('#arSearch').value = '';
+  showView('weapons');
+  $(`tr[data-arrow="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center' });
+}
+
 function renderWeaponGuide(inCat) {
   const el = $('#arGuide');
   const tips = t('arm.guide.' + AR.cat).split('\n').filter(Boolean);

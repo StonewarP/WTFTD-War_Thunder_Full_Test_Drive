@@ -33,10 +33,10 @@ import zipfile
 from collections import defaultdict
 from pathlib import Path
 
-from . import vromfs
+from . import patches, vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 31  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 32  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -2480,6 +2480,8 @@ def _build(progress, source: str):
     if not DM.exists():
         raise RuntimeError("Datamine not found. Run without --no-pull first.")
     DATA.mkdir(exist_ok=True)
+    version = (DM / "version").read_text().strip() if (DM / "version").exists() else "?"
+    before = patches.snapshot(DATA, version)  # now: the first files are replaced long before "Writing database"
     log("Loading game localization...", progress)
     report(progress, 0.46)
     lang = Lang()
@@ -2508,10 +2510,16 @@ def _build(progress, source: str):
     with open(DATA / "bases.json", "w", encoding="utf-8") as f:
         json.dump(build_bases(), f, separators=(",", ":"))
     codes = lang.write()
-    version = (DM / "version").read_text().strip() if (DM / "version").exists() else "?"
     meta = {"version": version, "schema": SCHEMA, "source": source, "built": int(time.time()), "vehicles": len(vehicles), "scenarios": len(scenarios), "langs": codes}
     with open(DATA / "meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=1)
+    try:
+        entry = patches.record(before, DATA)
+    except Exception as e:  # an old database of any shape: the new one stands, without its comparison
+        log(f"No comparison with the previous version: {e}", progress)
+        entry = None
+    if entry and not entry.get("back"):
+        meta.update(patch=entry["id"], changes=len(entry["rows"]))
     report(progress, 1.0)
     log(f"Done: {len(vehicles)} vehicles, {len(scenarios)} scenarios, game v{version} ({time.time() - t0:.0f}s)", progress)
     return meta

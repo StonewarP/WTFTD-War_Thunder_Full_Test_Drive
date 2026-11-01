@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, models, replays, sights, \
+from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, models, patches, replays, sights, \
     terrain, uninstall, vromfs, waveout
 from .paths import CACHE, DATA, HOME, USER, WEB
 
@@ -382,6 +382,7 @@ def run_update():
                 pass
         st["after"], st["source"] = meta.get("version"), meta.get("source")
         st["newVehicles"] = max(0, int(meta.get("vehicles", 0)) - int(before.get("vehicles", 0) or 0))
+        st["patch"], st["changes"] = meta.get("patch"), meta.get("changes", 0)
         st["done"] = True
         threading.Thread(target=warm_weapon_icons, daemon=True).start()  # weapons new in this patch
     except Exception as e:  # report any builder failure to the UI
@@ -581,6 +582,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": "not found"}, 404)
         if route == "battles":
             return self.send_json(battles())
+        if route == "changes":
+            return self.send_json(patches.index())
+        if route.startswith("changes/"):
+            rows = patches.rows(route.split("/", 1)[1])
+            return self.send_json(rows) if rows is not None else self.send_json({"error": "not found"}, 404)
         if route.startswith("flight/"):
             return self.send_json(flight_status(int(route.split("/", 1)[1]) if route.split("/", 1)[1].isdecimal() else 0))
         if route == "flight-logs":

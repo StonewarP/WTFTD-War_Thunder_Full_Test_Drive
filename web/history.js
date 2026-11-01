@@ -114,6 +114,14 @@ async function openHistoryView() {
   } catch (e) { toastErr(e); }
 }
 
+// a link of mbMap / mbVehicle, here and in What changed
+function mbFollow(e) {
+  const b = e.target.closest('[data-mbmap], [data-mbvehicle]');
+  if (!b) return;
+  if (b.dataset.mbmap) { showView('maps'); openMapDialog(b.dataset.mbmap); }
+  else { showView('vehicles'); openVehicle(b.dataset.mbvehicle); }
+}
+
 function bindHistory() {
   mbLoad().catch(() => {});  // no game, no name: no button
   $('#btnAccount').addEventListener('click', () => showView('history'));
@@ -128,10 +136,5 @@ function bindHistory() {
     mbRender();
   });
   $('#mbOffline').addEventListener('change', e => { MB.offline = e.target.checked; mbRender(); });
-  $('#mbBody').addEventListener('click', e => {
-    const b = e.target.closest('[data-mbmap], [data-mbvehicle]');
-    if (!b) return;
-    if (b.dataset.mbmap) { showView('maps'); openMapDialog(b.dataset.mbmap); }
-    else { showView('vehicles'); openVehicle(b.dataset.mbvehicle); }
-  });
+  $('#mbBody').addEventListener('click', mbFollow);
 }

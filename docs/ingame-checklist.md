@@ -517,6 +517,15 @@ Teamkills. Only tested on made-up battles: a real one is rare, a custom battle w
 - [ ] A teammate's name with a tag, with special characters, and a console one (`@psn`).
 - [ ] Leaving the battle at once after the teamkill: the replay's time still covers it.
 
+## 2v. What changed (new)
+
+Checked on real data, 2.59.0.92 to 2.60.0.21 built one after the other. What only a real game update can show:
+
+- [ ] At the next game update, with the installed game as the source: the banner links to the page with the number of changes, the
+      page reloads by itself after a few seconds and the link stays.
+- [ ] The sub-tab counts the changes until the page has been opened, not after.
+- [ ] Spot-check a few rows against the game: a battle rating, a shell's penetration, a missile's range.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

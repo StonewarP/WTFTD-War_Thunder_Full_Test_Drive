@@ -59,6 +59,14 @@ class Speed(unittest.TestCase):
         self.assertAlmostEqual(stats("aam_radar", p)["v"], 820, delta=10)
 
 
+class Motor(unittest.TestCase):
+    def test_burn_time_of_both_motor_formats(self):
+        self.assertEqual(stats("aam_ir", {"mass": 43.5, "massEnd": 33.5, "force": 9500.0, "timeFire": 3.0})["burn"], 3.0)
+        # the R-60 from game 2.60 on: propulsion0 instead of force / timeFire
+        self.assertEqual(stats("aam_ir", {"mass": 43.5, "propulsion0": {"impulse0": {"force": 8000.0, "time": 2.4, "massLost": 8.0},
+                                                                        "impulse1": {"force": 3000.0, "time": 1.2, "massLost": 2.0}}})["burn"], 3.6)
+
+
 class Seeker(unittest.TestCase):
     def ir(self, **seeker):
         p = {"bulletType": "aam", "guidanceType": "optical", "guidance": {"opticalSeeker": {"rangeBand0": 11000.0, **seeker}}}
