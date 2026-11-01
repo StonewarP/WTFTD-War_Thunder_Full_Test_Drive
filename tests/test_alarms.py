@@ -852,6 +852,22 @@ class Computed(unittest.TestCase):
         self.assertAlmostEqual(trend.rates()["burn"], 120)
         self.assertEqual(len(trend.points), 4)  # older than BURN_S: gone
 
+    def burn_after(self, before, after, seconds):
+        """The burn shown that long after it changed, on whole kg read 10 times a second like the game's."""
+        trend, fuel = alarms.Trend(), 1500
+        for tick in range(int((60 + seconds) * 10)):
+            fuel -= (before if tick < 600 else after) / 600
+            trend.add(tick / 10, {"Mfuel, kg": int(fuel)})
+        return trend.rates()["burn"]
+
+    def test_burn_follows_the_afterburner(self):
+        self.assertAlmostEqual(self.burn_after(40, 240, 5), 240, delta=24)
+        self.assertAlmostEqual(self.burn_after(240, 40, 15), 40, delta=4)
+
+    def test_whole_kg_make_the_burn_neither_jump_nor_read_high(self):
+        for seconds in (0.3, 0.7, 1.1, 1.5):
+            self.assertAlmostEqual(self.burn_after(40, 40, seconds), 40, delta=1)
+
     def test_acceleration_over_the_last_seconds(self):
         trend = alarms.Trend()
         for t, v in ((0, 100), (9, 100), (10, 120), (11, 140)):

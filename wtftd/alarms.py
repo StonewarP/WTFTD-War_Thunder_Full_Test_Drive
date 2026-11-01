@@ -32,6 +32,7 @@ from array import array
 from collections import deque
 from functools import lru_cache
 from pathlib import Path
+from statistics import linear_regression
 
 from . import battle, flightlog, sights, waveout
 from .paths import WEB
@@ -45,7 +46,7 @@ SAMPLE_S = 1.0  # curves and logs: a reading a second
 BENCH_S = 0.2  # a test bench run: a 360° timed on a heading that moves between two readings
 TRACE_MAX = 3600  # an hour of curves
 VIEW_S = 5  # the Flight data tab asks every second: without it for this long, nobody is looking
-BURN_S, BURN_MIN_S = 30, 5  # fuel burn: over this long at most, once there is this much (the game gives whole kg)
+BURN_S, BURN_MIN_S, BURN_KG = 30, 5, 10  # fuel burn: the slope over the last 10 kg, 5 to 30 s of them (the game gives whole kg)
 ACCEL_S = 2
 TURN_G = 1.05  # below, a turn of several minutes is only level flight's noise
 RUNNING_RPM = 500  # an engine really running, not one winding down
@@ -313,7 +314,9 @@ class Trend:
         """burn: kg/min, accel: m/s2 along the flight path."""
         first, last, out = self.points[0], self.points[-1], {}
         if last[0] - first[0] >= BURN_MIN_S:
-            out["burn"] = max(first[1] - last[1], 0) / (last[0] - first[0]) * 60
+            start = next((p for p in reversed(self.points) if last[0] - p[0] >= BURN_MIN_S and p[1] - last[1] >= BURN_KG), first)
+            times, fuels = zip(*(p[:2] for p in self.points if p[0] >= start[0]))
+            out["burn"] = max(-linear_regression(times, fuels).slope, 0) * 60
         recent = next(p for p in self.points if last[0] - p[0] <= ACCEL_S)
         if last[0] > recent[0]:
             out["accel"] = (last[2] - recent[2]) / (last[0] - recent[0])
