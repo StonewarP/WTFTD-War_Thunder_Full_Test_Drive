@@ -36,7 +36,7 @@ const chFound = r => (r.text ??= norm([r.name, ...chVehicles(r).map(v => v._s ||
 
 function chShown() {
   const q = norm(CH.q), mine = new Set([...S.favs, ...S.setups.map(s => s.vehicle)]), any = CH.nat || CH.cat || CH.mine;
-  return CH.rows.filter(r => !(CH.mode && /^br[ars]b$/.test(r[1]) && r[1] !== 'br' + CH.mode) && (!q || chFound(r).includes(q))
+  return CH.rows.filter(r => !(CH.mode && /(ab|rb|sb)$/.test(r[1]) && !r[1].endsWith(CH.mode)) && (!q || chFound(r).includes(q))
     && (!any || chVehicles(r).some(v => (!CH.nat || v.n === CH.nat) && (!CH.cat || v.c === CH.cat) && (!CH.mine || mine.has(v.id)))));
 }
 

@@ -6,10 +6,11 @@ import unittest
 from wtftd import armament as A
 from wtftd import blk
 from wtftd import cdk
-from wtftd.builder import DM, base_stats, build_battle_words, flight_limits, launched_missile, load
+from wtftd.builder import DM, base_stats, build_battle_words, flight_limits, launched_missile, load, vehicle_economy
 
 W = DM / "aces.vromfs.bin_u" / "gamedata" / "weapons"
 FM = DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / "fm"
+CONFIG = DM / "char.vromfs.bin_u" / "config"
 
 
 def item(folder, stem, cat):
@@ -17,6 +18,33 @@ def item(folder, stem, cat):
     kind, p = A._payloads(d)[0]
     assert A._category(kind, p, folder, stem) == cat
     return A._stats(cat, A._guidance(cat, p), p, {})
+
+
+@unittest.skipUnless((CONFIG / "wpcost.blkx").exists(), "game data not downloaded")
+class ReferenceEconomy(unittest.TestCase):
+    """The official wiki's economy block of each vehicle, 2.59.0.92; the same in 2.60.0.21."""
+    VEHICLES = (  # id, type, repair stock, repair with all upgrades, Silver Lions %, Research Points %, free repairs
+        ("germ_pzkpfw_VI_ausf_h1_tiger", "ground", [1506, 1635, 2265], [1955, 2122, 2940], [80, 130, 140], 148, 10),
+        ("us_m4a1_1942_sherman", "ground", [553, 631, 800], [712, 812, 1030], [30, 50, 60], 118, 10),
+        ("us_merkava_mk_3d", "ground", [3817, 3755, 4416], [6645, 6537, 7688], [150, 200, 230], 238, 10),  # 2.35 rounds down
+        ("p-51d-5", "air", [1022, 2282, 3695], [1298, 2898, 4693], [60, 150, 300], 142, 10),  # 1.45 rounds up
+        ("mig_29_9_12b_hungary", "air", [2898, 8371, 9873], [4396, 12699, 14977], [90, 320, 490], 250, 10),  # 4.95 rounds down
+        ("ah_6m", "heli", [9599, 4333, 5592], [13189, 5954, 7683], [100, 260, 390], 214, 10),
+        ("uk_fairmile_c_332", "boat", [3327, 4344, None], [4269, 5573, None], [130, 200, None], 178, 10),  # no SB for ships
+        ("gladiator_mk1_china", "air", [0, 0, 0], [0, 0, 0], [10, 10, 50], 100, None),  # rank I, reserve: free
+        ("ussr_kv_122", "ground", [2437, 2587, 3599], [2437, 2587, 3599], [240, 370, 400], 344, 30),  # premium
+        ("fw_190a_5_u14", "air", [689, 1610, 2533], [689, 1610, 2533], [130, 330, 680], 296, 30),  # premium
+        ("germ_destroyer_class1936_z20_karlgalster", "ship", [2337, 2371, None], [2337, 2371, None], [530, 1200, None], 308, 30),  # premium
+        ("cn_oplot_t", "ground", [4375, 4176, 5277], [7162, 6836, 8638], [150, 190, 200], 250, 10),  # squadron
+        ("su_22m3", "air", [3213, 8225, 9723], [4707, 12050, 14244], [80, 310, 600], 232, 10),  # squadron, 3.05 rounds up
+        ("saab_jas39d", "air", [3013, 8668, 10216], [4462, 12837, 15130], [100, 320, 500], 262, 10),  # squadron, 0.95 rounds up
+    )
+
+    def test_as_the_wiki_says(self):
+        wp, warpoints, ranks = (load(CONFIG / f"{n}.blkx") for n in ("wpcost", "warpoints", "rank"))
+        for vid, cat, stock, full, slm, rpm, free in self.VEHICLES:
+            s, su = vehicle_economy(cat, wp[vid], warpoints, ranks)
+            self.assertEqual((su.get("rep", s["rep"]), s["rep"], s["slm"], s["rpm"], s.get("fr")), (stock, full, slm, rpm, free), vid)
 
 
 @unittest.skipUnless(W.exists(), "game data not downloaded")

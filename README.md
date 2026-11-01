@@ -193,6 +193,9 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   sustained turn, time to climb, fuel used) and an **export for Tacview**; saved views, and the curves as a picture
 - **Cockpit window** (Windows): your aircraft's instruments as dials, in a window of their own for a second screen
 - **Battle**: the game's chat and battle log, live, in their own tab, with a filter, and saved to a text file if you like
+- **Economy**: what a vehicle costs and earns, for the game mode you choose: repair cost stock and with all upgrades, Silver Lions and
+  Research Points rewards, free repairs, research and purchase cost. In the vehicle panel, as sort and range filters, in the comparison
+  and along the research path, worked out as the game's own card does
 - **What changed**: a real comparison between two game versions, in the Vehicles menu. Each time the game data is rebuilt for a
   new version, WTFTD compares the old database with the new one: new and removed vehicles, battle ratings, performance, costs,
   ammunition, loadouts, Weapons tab items, maps, each with its old and new value. The official notes list the key changes, this

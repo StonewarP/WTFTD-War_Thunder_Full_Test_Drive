@@ -24,6 +24,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -36,7 +37,7 @@ from pathlib import Path
 from . import patches, vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 32  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 33  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -993,6 +994,48 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
     return out
 
 
+ECONOMY_MODES = ("Arcade", "Historical", "Simulation")
+
+
+def _f32(x: float) -> float:
+    return struct.unpack("f", struct.pack("f", x))[0]
+
+
+def _game_round(x: float, step: float) -> float:
+    """round_by_value of the game's scripts, in its 32-bit floats: 1.45 gives 1.5 and 4.95 gives 4.9, as on its own cards."""
+    step = _f32(step)
+    return _f32(math.floor(_f32(_f32(x) / step + 0.5)) * step)
+
+
+def vehicle_economy(cat: str, wp: dict, warpoints: dict, ranks: dict) -> tuple[dict, dict]:
+    """What a vehicle costs and earns, worked out as the game's own card does (scripts/unit/unit.nut getWpRewardMulList,
+    unitInfoType.nut full_repair_cost, wp_bonus, exp_bonus). -> (stats, stock stats), one value per mode where it's a list, None
+    for a mode the vehicle doesn't have (ships: no SB). Left out, no script uses them: repairCostFullUpgraded*, up to 3 % off
+    the game's cards, battleTime*, avgAward*, battleTimeAward*. repairCostPerMin* is behind a feature that's off.
+      rep  repair cost in SL with all modules: base x (1 + what they add); stock in the second dict, when it differs
+      slm  Silver Lions reward in %. Premium vehicles: half of it rounded finer, times 2, the part the vehicle brings
+      rpm  Research Points reward in %. Premium vehicles: times goldPlaneExpMul
+      fr   free repairs after buying the vehicle; a reserve vehicle's repairs are always free"""
+    if "repairCostArcade" not in wp:
+        return {}, {}
+    visual = warpoints.get("rewardMulVisual") or {}
+    special = int(wp.get("costGold", 0)) > 0
+    part = visual.get("premRewardMulVisualPart", 0.5) if special else 0.0
+    mods = wp.get("modifications")
+    coef = 1 + sum(m.get("repairCostCoef", 0) for m in mods.values() if isinstance(m, dict)) if isinstance(mods, dict) else 1
+    stock, rep, slm = [None] * 3, [None] * 3, [None] * 3
+    for i, mode in enumerate(ECONOMY_MODES[:2] if cat in ("boat", "ship") else ECONOMY_MODES):
+        base = wp.get(f"repairCost{mode}", 0) * warpoints.get("avgRepairMul", 1.0)
+        stock[i], rep[i] = round(base), round(base * coef)
+        mul = _f32(_f32(_f32(wp.get(f"rewardMul{mode}", 1.0)) * _f32(visual.get(f"rewardMulVisual{mode}", 1.0))) * _f32(1.0 - part))
+        slm[i] = int(_f32(_game_round(mul, 0.05 if special else 0.1) * _game_round(1.0 / (1.0 - part), 0.1)) * 100.0 + 0.5)
+    talisman = ranks.get("goldPlaneExpMul", 1.0) if special else 1.0
+    out = {"rep": rep, "slm": slm, "rpm": int(_f32(_f32(wp.get("expMul", 1.0)) * _f32(talisman)) * 100.0 + 0.5)}
+    if any(stock):
+        out["fr"] = int(wp.get("freeRepairs", warpoints.get("freeRepairs", 0)))
+    return out, {"rep": stock} if stock != rep else {}
+
+
 def engine_kinds(fm: dict) -> list:
     """The kind of each Engine<n> of a flight model: Jet, Inline, Radial, Rocket..."""
     engines = [v for k, v in fm.items() if re.fullmatch(r"Engine\d+", k) and isinstance(v, dict)]
@@ -1260,6 +1303,8 @@ def build_vehicles(lang: Lang, progress=None):
     report(progress, 0.49)
     wp = load(DM / "char.vromfs.bin_u" / "config" / "wpcost.blkx") or {}
     unittags = load(DM / "char.vromfs.bin_u" / "config" / "unittags.blkx") or {}
+    warpoints = load(DM / "char.vromfs.bin_u" / "config" / "warpoints.blkx") or {}
+    ranks = load(DM / "char.vromfs.bin_u" / "config" / "rank.blkx") or {}
     arsenal: dict = {}  # every weapon / ammo carried by a vehicle: category + icon / caliber / shell type
     wc = WeaponCache(lang)
     vehicles, details = [], {}
@@ -1394,9 +1439,11 @@ def build_vehicles(lang: Lang, progress=None):
         if roles:
             rec["ro"] = roles
         stats = vehicle_stats(cat, udata, v, unittags.get(vid) or {}, details[vid]["st"], details[vid]["am"])
+        economy, stock_economy = vehicle_economy(cat, v, warpoints, ranks)
+        stats.update(economy)
         if stats:
             rec["s"] = stats
-            su = stock_stats(cat, stats, stock_factors(udata, mods))
+            su = {**stock_stats(cat, stats, stock_factors(udata, mods)), **stock_economy}
             if su:
                 rec["su"] = su  # stock values (rec["s"] = fully upgraded)
         # what it carries, for "search by weapon": guns, presets / pylon weapons, ammunition

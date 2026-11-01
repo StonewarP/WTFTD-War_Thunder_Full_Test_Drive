@@ -526,6 +526,13 @@ Checked on real data, 2.59.0.92 to 2.60.0.21 built one after the other. What onl
 - [ ] The sub-tab counts the changes until the page has been opened, not after.
 - [ ] Spot-check a few rows against the game: a battle rating, a shell's penetration, a missile's range.
 
+## 2w. Economy (new)
+
+Repair costs and rewards match the official wiki on 26 vehicles, read at 2.59.0.92. What only the game can show:
+
+- [ ] A vehicle's card in the game's shop shows the panel's numbers, stock and with all modules, in each mode.
+- [ ] A premium vehicle's free repairs: 30 in the panel, a bought vehicle of the tree 10. The wiki doesn't list them.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

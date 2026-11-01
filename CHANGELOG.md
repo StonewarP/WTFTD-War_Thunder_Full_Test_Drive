@@ -34,6 +34,14 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   update: nothing can be compared before. The last 30 patches stay in `user/patches.json`, so a rebuild or removing the cache
   leaves them; *Your settings and library* in Uninstall removes them. Going back to an older version after changing the data
   source is marked as such, not shown as a patch.
+- **Economy**: what a vehicle costs and earns, in the screens you already use. The vehicle panel has an Economy block: research and
+  purchase cost, repair cost stock and with all upgrades, Silver Lions and Research Points rewards, free repairs, for the AB / RB /
+  SB mode you choose there or in the filters. The numbers sort and filter like the other stats, stand in the comparison with the
+  best one marked, and What changed lists them. The research path shows each vehicle's Research Points reward. They are worked out as
+  the game's own card does, rounding included, and match the official wiki on the 26 vehicles checked. A premium vehicle's reward
+  includes its premium bonus: the wiki's 2 x 172 % is 344 % here. No estimate of battles to research a vehicle, and no repair bill in My
+  battles: a replay doesn't say what was earned or paid. Data schema 33: the data is rebuilt once.
+- **Translations**: the research path, research cost and purchase cost are now translated in every language.
 - **Motor burn** (Weapons): read from the motor format the game now uses for more and more missiles, such as the R-60 from 2.60 on,
   which had lost the value. Data schema 32: the data is rebuilt once.
 

@@ -20,8 +20,7 @@ NAMED = {"weapon": "weapons", "bullet": "bullets", "sensor": "sensors"}  # a lis
 # the page's groups, in its order
 GROUPS = ("new", "gone", "br", "perf", "cost", "ammo", "arms", "weapon", "map")
 
-# What's compared. A new value takes one line here and nothing else, the page reads this table from the API: the economy fields
-# will go in group "cost", from where the builder puts them.
+# What's compared. A new value takes one line here and nothing else, the page reads this table from the API.
 #   key     of the rows
 #   group   of GROUPS
 #   of      v a vehicle (vehicles.json + details.json), s a shell, w a Weapons tab item (armament.json), m a map; "": no value, added
@@ -31,6 +30,7 @@ GROUPS = ("new", "gone", "br", "perf", "cost", "ammo", "arms", "weapon", "map")
 #   unit    after the number; of a name, or of a list of names, what names it (web/changes.js CH_NAMES)
 #   better  1 higher, -1 lower, 0 not known or neither: no colour
 #   digits  decimals of the value: a move under half the last one is rounding. None: a list of names, the rows say what came and went
+# A key ending in ab, rb or sb is that game mode's: the page's mode filter goes by it.
 FIELDS = (
     ("new", "new", "", (), "ch.new", "", 0, 0),
     ("gone", "gone", "", (), "ch.gone", "", 0, 0),
@@ -64,6 +64,14 @@ FIELDS = (
     ("mass", "perf", "v", ("st", "lim", "mass"), "lim.mass", "kg", 0, 0),
     ("rp", "cost", "v", ("s", "rp"), "stat.rp", "RP", -1, 0),
     ("sl", "cost", "v", ("s", "sl"), "stat.sl", "SL", -1, 0),
+    ("repab", "cost", "v", ("s", "rep", 0), "ch.repab", "SL", -1, 0),
+    ("reprb", "cost", "v", ("s", "rep", 1), "ch.reprb", "SL", -1, 0),
+    ("repsb", "cost", "v", ("s", "rep", 2), "ch.repsb", "SL", -1, 0),
+    ("slab", "cost", "v", ("s", "slm", 0), "ch.slab", "%", 1, 0),
+    ("slrb", "cost", "v", ("s", "slm", 1), "ch.slrb", "%", 1, 0),
+    ("slsb", "cost", "v", ("s", "slm", 2), "ch.slsb", "%", 1, 0),
+    ("rpm", "cost", "v", ("s", "rpm"), "stat.rpm", "%", 1, 0),
+    ("fr", "cost", "v", ("s", "fr"), "stat.fr", "", 1, 0),
     ("wa", "ammo", "v", ("wa",), "step.ammo", "bullet", 0, None),
     ("a.pen", "ammo", "s", ("pen",), "arm.col.pen", "mm", 1, 0),
     ("a.v", "ammo", "s", ("v",), "ch.muzzle", "m/s", 1, 0),

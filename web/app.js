@@ -394,6 +394,7 @@ function setFilter(patch) {
   Object.assign(S.f, patch);
   buildSidebar();
   applyFilters();
+  if ('brMode' in patch && S.sel) renderDrawer();  // the panel's Economy block goes by it
 }
 
 // ------------------------------------------------------------------ research tree
@@ -1126,6 +1127,7 @@ function bindDrawer() {
       case 'aiCancel': return aiEnd(false);
       case 'fav': return toggleFav(v.id);
       case 'changes': return chShowVehicle(v);
+      case 'ecoMode': return setFilter({ brMode: +b.dataset.mode });
       case 'compare': return toggleCompare(v.id);
       case 'model3d': return openModel('vehicle', v.id, I18N.unit(v.id));
       case 'select': return selectVehicle(v.id);

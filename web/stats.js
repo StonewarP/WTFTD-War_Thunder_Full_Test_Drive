@@ -4,6 +4,7 @@
 
 const AIR = ['air', 'heli'], NAVAL = ['boat', 'ship'], ALL_CATS = ['ground', 'air', 'heli', 'boat', 'ship'];
 // better: 1 = higher is better (sorted descending), -1 = lower is better, 0 = neutral
+// mode: one value per game mode, the one of the AB / RB / SB control counts. eco: in the panel's Economy block
 const STATS = {
   spd: { cats: ALL_CATS, unit: 'km/h', better: 1 },
   rev: { cats: ['ground'], unit: 'km/h', better: 1 },
@@ -26,20 +27,27 @@ const STATS = {
   wl: { cats: ['air'], unit: 'kg/m²', better: -1 },
   disp: { cats: NAVAL, unit: 't', better: 0 },
   crew: { cats: ALL_CATS, unit: '', better: 0 },
-  rp: { cats: ALL_CATS, unit: 'RP', better: -1 },
-  sl: { cats: ALL_CATS, unit: 'SL', better: -1 },
+  rp: { cats: ALL_CATS, unit: 'RP', better: -1, eco: true },
+  sl: { cats: ALL_CATS, unit: 'SL', better: -1, eco: true },
+  rep: { cats: ALL_CATS, unit: 'SL', better: -1, eco: true, mode: true },
+  slm: { cats: ALL_CATS, unit: '%', better: 1, eco: true, mode: true },
+  rpm: { cats: ALL_CATS, unit: '%', better: 1, eco: true },
+  fr: { cats: ALL_CATS, unit: '', better: 1, eco: true },
 };
+const MODES = ['ab', 'rb', 'sb'];
 
 // aircraft: propeller planes have a power-to-weight ratio, jets a thrust-to-weight ratio (not comparable)
-const statLabel = (k, cat) => t(cat === 'air' && k === 'pw' ? 'stat.pwProp' : cat === 'air' && k === 'tw' ? 'stat.twJet' : 'stat.' + k);
-const statKeys = cat => Object.keys(STATS).filter(k => cat === 'all' ? ['spd', 'crew'].includes(k) : STATS[k].cats.includes(cat));
+const statLabel = (k, cat) => t(cat === 'air' && k === 'pw' ? 'stat.pwProp' : cat === 'air' && k === 'tw' ? 'stat.twJet' : 'stat.' + k)
+  + (STATS[k].mode ? ` · ${t('filters.mode.' + MODES[S.f.brMode])}` : '');
+const statKeys = cat => Object.keys(STATS).filter(k => (cat === 'all' ? ['spd', 'crew'].includes(k) || STATS[k].eco : STATS[k].cats.includes(cat)));
 // Stats shown stock (false) or with all modules researched (true). v.s = fully upgraded, v.su = stock values
 S.upg = store.get('upg', 1) !== 0;
 function statAt(v, k) {
-  const x = v.s?.[k];
+  const pick = x => (STATS[k].mode && Array.isArray(x) ? x[S.f.brMode] : x);
+  const x = pick(v.s?.[k]);
   if (Array.isArray(x)) return x;
   if (typeof x !== 'number') return null;
-  const su = v.su?.[k];
+  const su = pick(v.su?.[k]);
   return !S.upg && typeof su === 'number' ? su : x;
 }
 // one comparable number per stat (armor: the front plate)
@@ -66,6 +74,7 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-upgs
 
 function fmtStat(k, x) {
   if (x == null) return '—';
+  if (k === 'rep' && x === 0) return t('eco.free');
   const d = STATS[k];
   const n = val => I18N.num(+(+val).toFixed(d.digits ?? 0));
   const txt = Array.isArray(x) ? x.map(n).join(' / ') : n(x);
@@ -269,7 +278,7 @@ function cardStatHTML(v) {
   return `<span class="card-stat" title="${esc(statLabel(k, v.c))}">${esc(fmtStat(k, statAt(v, k)))}</span>`;
 }
 
-// the line of vehicles to research up to this one (v.rq = the one before it), with what it costs in all
+// the line of vehicles to research up to this one (v.rq = the one before it), with what it costs in all and what each pays in RP
 function researchPathHTML(v) {
   const path = [];
   for (let x = v; x && !path.includes(x) && path.length < 80; x = S.byId.get(x.rq)) path.unshift(x);
@@ -277,18 +286,31 @@ function researchPathHTML(v) {
   const sum = k => path.reduce((n, x) => n + (x.s?.[k] || 0), 0);
   const cost = (x, k) => (x.s?.[k] ? `${I18N.num(x.s[k])} ${STATS[k].unit}` : '—');
   return `<details class="rpath"><summary>${esc(t('path.title'))} · ${esc(t('path.count', { n: path.length }))} · ${I18N.num(sum('rp'))} RP · ${I18N.num(sum('sl'))} SL</summary>
-    <ol>${path.map(x => `<li><span>${esc(I18N.unit(x.id))}</span><span>${cost(x, 'rp')}</span><span>${cost(x, 'sl')}</span></li>`).join('')}</ol>
+    <ol>${path.map(x => `<li><span>${esc(I18N.unit(x.id))}</span><span>${cost(x, 'rp')}</span><span>${cost(x, 'sl')}</span><span title="${esc(t('stat.rpm'))}">${esc(fmtStat('rpm', x.s?.rpm))}</span></li>`).join('')}</ol>
     <small class="muted">${esc(t('path.note'))}</small></details>`;
 }
 
+// the panel's Economy block: the mode's numbers, repairs stock and with all upgrades when they differ
+function economyHTML(v) {
+  const repair = (label, list) => [label, list?.[S.f.brMode] === undefined ? null : fmtStat('rep', list[S.f.brMode])];
+  const tiles = [[t('stat.rp'), v.s?.rp != null && fmtStat('rp', v.s.rp)], [t('stat.sl'), v.s?.sl != null && fmtStat('sl', v.s.sl)],
+    ...(v.su?.rep ? [repair(`${t('stat.rep')} · ${t('upg.stock')}`, v.su.rep), repair(`${t('stat.rep')} · ${t('upg.full')}`, v.s.rep)] : [repair(t('stat.rep'), v.s?.rep)]),
+    [t('stat.slm'), v.s?.slm && fmtStat('slm', v.s.slm[S.f.brMode])], [t('stat.rpm'), v.s?.rpm != null && fmtStat('rpm', v.s.rpm)],
+    [t('stat.fr'), v.s?.fr != null && fmtStat('fr', v.s.fr)]].filter(x => x[1]);
+  if (!tiles.length) return '';
+  return `<div class="lim eco"><div class="lim-title row-between"><span>${esc(t('eco.title'))}</span>
+      <div class="seg seg-xs">${MODES.map((m, i) => `<button data-act="ecoMode" data-mode="${i}" class="${i === S.f.brMode ? 'active' : ''}">${esc(t('filters.mode.' + m))}</button>`).join('')}</div></div>
+    <div class="vstats">${tiles.map(([k, x]) => `<div class="vstat"><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div></div>`;
+}
+
 function statsBlockHTML(v) {
-  const keys = statKeys(v.c).filter(k => v.s?.[k] != null);
-  if (!keys.length) return '<div id="vstatsWrap"></div>';
+  const keys = statKeys(v.c).filter(k => v.s?.[k] != null && !STATS[k].eco);
+  if (!keys.length && !v.s?.rep) return '<div id="vstatsWrap"></div>';
   const hasUpg = v.su && Object.keys(v.su).length;
   const estimated = hasUpg && ['air', 'heli'].includes(v.c);
   return `<div id="vstatsWrap">${hasUpg ? upgSwitchHTML(estimated) : ''}<div class="vstats">${keys.map(k => {
     const chg = v.su?.[k] != null;
     const tip = STATS[k].triple ? t('stat.armHint') : chg ? `${t('upg.stock')}: ${fmtStat(k, v.su[k])} → ${t('upg.full')}: ${fmtStat(k, v.s[k])}` : '';
     return `<div class="vstat${chg ? ' upg-chg' : ''}" title="${esc(tip)}"><span>${esc(statLabel(k, v.c))}</span><b>${esc(fmtStat(k, statAt(v, k)))}</b></div>`;
-  }).join('')}</div>${researchPathHTML(v)}</div>`;
+  }).join('')}</div>${economyHTML(v)}${researchPathHTML(v)}</div>`;
 }

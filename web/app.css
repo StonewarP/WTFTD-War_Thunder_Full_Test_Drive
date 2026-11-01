@@ -391,8 +391,9 @@ option { background: var(--surface); }
 .rpath { margin-top: 8px; font-size: 12px; }
 .rpath summary { cursor: pointer; color: var(--muted); }
 .rpath ol { margin: 6px 0; padding: 0; list-style: none; font-variant-numeric: tabular-nums; }
-.rpath li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 2px 0; }
+.rpath li { display: grid; grid-template-columns: 1fr auto auto 48px; gap: 12px; padding: 2px 0; }
 .rpath li span:not(:first-child) { text-align: right; min-width: 70px; }
+.rpath li span:last-child { min-width: 0; }
 .pen-chart { margin-top: 12px; }
 .pen-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
 .pen-chart svg { width: 100%; height: auto; display: block; }
@@ -1297,6 +1298,7 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 .lim { margin-top: 10px; }
 .lim-title { font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 6px; }
 .lim-wide { font-size: 12.5px; margin-top: 6px; color: var(--text); }
+.eco .vstats { margin-top: 0; grid-auto-rows: 1fr; }
 .lim-wide span { display: block; font-size: 11px; color: var(--muted); }
 .fl-sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
 /* ------------------------------------------------------------------ Battle */
