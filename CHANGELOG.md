@@ -25,6 +25,27 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - **Overlays for jets and propeller aircraft**, after the aircraft's own and its type's.
 - **Gear and flaps %** can show even when they are retracted. The alarms still only follow them out.
 - My overlay is laid out as tabs of cards under the preview: Lines, Blocks, Look, Alarms, Behaviour.
+- **Every weapon on your pylons** (Loadout → non-standard weapons): the missiles and rockets of ground vehicles and ships
+  (S-300, Pantsir, Aster, Smerch...), rewritten as an aircraft's in a file of their own, and every gun of the game. Aircraft
+  without pylons get one, at their gun's muzzle. Data schema 27. Not checked in game yet.
+- **Build your aircraft** (vehicle panel → Modifications): swap its radar and warning receivers for any others of the game,
+  add those it lacks, give it another aircraft's engine (jets from jets, propellers from propellers), and switch its avionics:
+  laser designator, point of interest, helmet sight, CCIP and CCRP. Not checked in game yet.
+- **Tanks and ships**: replace a gun with any other ground or ship weapon (Modifications). Not checked in game yet.
+- **Voices** (Modifications): the crew's language through the mission's country, the cockpit's warning voice (Betty, Rita,
+  Xiao906) and the six special crew voices. WTFTD doesn't touch the game's sound options. Not checked in game yet.
+- **My weapons**: the missiles of ground vehicles and ships can be modified too, on a pylon.
+- **Scenario editor**: every non-playable unit can be added, such as the S-300 launcher and its radars, and 198 units the
+  game leaves unnamed: carriers, trains, transports. A new *Objects* tab places AA guns, trucks, buildings, radars and infantry.
+  Not checked in game yet.
+- **Routes in the scenario editor**: pick *Route* as a unit's movement and draw its way on the map, with a speed and what it
+  does at the end. Select several units and they share it: a convoy that keeps the gaps of its start. Not checked in game yet.
+- **Waves of enemies**: give enemies a wave number. The first wave is there at the start, each next one comes when the one
+  before is destroyed, and the last can lead back to the first. *Targets come back* leaves them alone, since a wave only ends
+  when it is destroyed. Not checked in game yet.
+- **Tanks and ships in flight tools**: curves, logs and an overlay of their own (*All ground vehicles*, *All ships*). Not checked
+  in game yet.
+- **Weapons**: the search also finds a weapon by what carries it (`S-300` finds the 5V55R), and goes to its category.
 - **Flight data**: save the values you picked as a named view, and the curves as a picture.
 - **Battle**: save the chat and the battle log to a text file (`user/logs`), off by default.
 - **App window** (Settings, Windows): start minimized, minimize to the notification area, close WTFTD when the game closes.

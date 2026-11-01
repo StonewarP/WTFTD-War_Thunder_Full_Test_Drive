@@ -15,6 +15,7 @@ const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'
 // the top menu: each menu's pages, shown as sub-tabs under it when it has several
 const MENUS = { vehicles: ['vehicles', 'setups'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
                 inflight: ['overlay', 'flight', 'battle'] };
+const AVIONICS = ['laserDesignator', 'havePointOfInterestDesignator', 'hasHelmetDesignator', 'haveCCIPForGun', 'haveCCIPForRocket', 'haveCCIPForBombs', 'haveCCRPForBombs', 'haveCCRPForGun'];
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
 const WEATHERS = ['clear', 'good', 'hazy', 'thin_clouds', 'cloudy', 'cloudy_windy', 'overcast', 'poor', 'rain', 'thunder', 'blind'];
 const AMMO_COLORS = ['#f3b33d', '#5ab8ff', '#5fcf8a', '#d482ff'];
@@ -1168,6 +1169,12 @@ function bindDrawer() {
       return renderDrawer();
     }
     if (el.dataset.modshell !== undefined) { (S.modShell ||= {})[el.dataset.modshell] = el.value; return renderDrawer(); }
+    if (el.dataset.modsel) { setPath(c.mods, el.dataset.modsel, el.value || null); return renderDrawer(); }
+    if (el.dataset.modav) {  // an override only when it differs from the aircraft's own
+      const own = (S.details.get(c.vehicle)?.av || []).includes(el.dataset.modav);
+      setPath(c.mods, `avionics.${el.dataset.modav}`, el.checked === own ? null : el.checked);
+      return renderDrawer();
+    }
     if (el.dataset.bindCfg === 'customPylons') {
       const p = S.details.get(S.sel.id).pr.find(x => x.id === c.preset);
       c.pylons = el.checked ? Object.fromEntries(Object.entries((p && presetPylons(p)) || {}).map(([k, val]) => [+k, val])) : null;
@@ -1234,7 +1241,7 @@ function missionPayload() {
     cheats: { ...c.cheats, passiveEnemies: S.map.enemies === 'passive', hostileEnemies: S.map.enemies === 'hostile' },
     hotkeyTexts: c.cheats.hotkeys ? hotkeyTexts() : undefined,
     sight: c.block === 'tankModels' && c.sight ? c.sight : undefined,
-    edits: c.edits && c.edits.sid === c.scenario ? c.edits : undefined,
+    edits: c.edits && c.edits.sid === c.scenario ? { ...c.edits, waveText: t('editor.waveText') } : undefined,
   };
 }
 
@@ -1414,6 +1421,8 @@ function modsBody(v, d) {
     grid.push(modInput(...f));
   }
   flush();
+  if (v.c === 'air' || v.c === 'heli') html += aircraftPartsHTML(v, d);
+  html += voicesHTML(v);
   // guns listed directly on the vehicle (tank main gun, ship guns, older aircraft guns)
   (d.am || []).forEach((g, gi) => {
     if (!g.wi) return;
@@ -1425,6 +1434,11 @@ function modsBody(v, d) {
     if (g.cap) fields.push(modInput(`${base}.cap`, 'mods.cap', g.cap, t('mods.rounds'), 1));
     if (g.sf) fields.push(modInput(`${base}.reload`, v.c === 'ground' ? 'mods.reload' : 'mods.interval', +(1 / g.sf).toFixed(3), 's', 0.1));
     html += `<div class="mod-grid">${fields.join('')}</div>`;
+    if (v.c !== 'air' && v.c !== 'heli') {  // the list fills when opened (swapList): a ship has many guns, the game a thousand weapons
+      loadWeapons();
+      const swap = getPath(S.cfg.mods, `${base}.swap`);
+      html += `<div class="shell-pick"><label>${esc(t('mods.swap'))}</label><select data-modsel="${base}.swap" data-modswap><option value="">${esc(I18N.weapon(g.w))}</option>${swap ? `<option value="${esc(swap)}" selected>${esc(I18N.weapon(swap))}</option>` : ''}</select></div>`;
+    }
     const shells = g.opts.filter(o => ['v', 'm', 'e', 'h', 'l'].some(k => o.s?.[k] != null) && (S.showUnofficial || !o.x));
     if (!shells.length) return;
     const sel = S.modShell?.[gi] ?? shells[0].id;
@@ -1448,6 +1462,57 @@ function modsBody(v, d) {
 }
 
 // cfg.mods uses '_' for the default shell set; the server expects '' -> convert on send
+const modRow = (label, path, list) => `<div class="shell-pick part"><label>${esc(label)}</label><select data-modsel="${path}">${list}</select></div>`;
+
+// who speaks: the crew's country and, by kind of vehicle, the voices the game's files name
+function voicesHTML(v) {
+  const list = (path, first, values, name = x => x) => {
+    const on = getPath(S.cfg.mods, path);
+    return `<option value="">${esc(first)}</option>${values.map(x => `<option value="${esc(x)}"${x === on ? ' selected' : ''}>${esc(name(x))}</option>`).join('')}`;
+  };
+  const air = v.c === 'air' || v.c === 'heli';
+  return `<div class="opt-group-title">${esc(t('mods.voices'))}</div>
+    ${modRow(t('mods.crewCountry'), 'crewCountry', list('crewCountry', t('mods.asIs'), NATIONS, nationName))}
+    ${air ? modRow(t('mods.warnVoice'), 'warningVoice', list('warningVoice', t('mods.asIs'), ['betty', 'rita', 'xiao906'], x => x[0].toUpperCase() + x.slice(1)))
+    : modRow(t('mods.crewVoice'), 'crewVoice', list('crewVoice', t('mods.asIs'), ['SmKate', 'SmElsa', 'SmMaria', 'SmEmily', 'SmUsagi', 'SmLing'], x => x.slice(2)))}
+    <small class="muted">${esc(t('mods.voiceHint'))}</small>`;
+}
+
+// a gun's Replace with: every ground and ship weapon, as cdk takes them
+async function swapList(sel) {
+  const w = await loadWeapons();
+  if (sel.dataset.filled) return;
+  sel.dataset.filled = '1';
+  const on = sel.value, own = sel.options[0].textContent;
+  const list = Object.keys(w).filter(k => /models_weapons/i.test(w[k].p || '')).map(k => [k, I18N.weapon(k)]).sort((a, b) => a[1].localeCompare(b[1]));
+  sel.innerHTML = `<option value="">${esc(own)}</option>${list.map(([k, n]) => `<option value="${esc(k)}"${k === on ? ' selected' : ''}>${esc(n)}</option>`).join('')}`;
+}
+document.addEventListener('focusin', ev => { if (ev.target.matches?.('[data-modswap]')) swapList(ev.target); });
+
+// what an aircraft is built from: its sensors, its engine, its avionics
+function aircraftPartsHTML(v, d) {
+  if (!S.sensors) {
+    getData('sensors.json').then(list => { S.sensors = list; renderDrawer(); }).catch(() => { S.sensors = {}; });
+    return '';
+  }
+  const opts = (kind, on, first) => `<option value="">${esc(first)}</option>` + Object.keys(S.sensors).filter(k => S.sensors[k] === kind)
+    .map(k => [k, I18N.sensor(k)]).sort((a, b) => a[1].localeCompare(b[1])).map(([k, n]) => `<option value="${esc(k)}"${k === on ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  const row = modRow;
+  const own = d.se || [], kinds = own.map(k => S.sensors[k]);
+  const sensors = own.map((k, i) => (S.sensors[k] ? row(t('mods.sensor.' + S.sensors[k]), `sensors.${i}`, opts(S.sensors[k], getPath(S.cfg.mods, `sensors.${i}`), `${I18N.sensor(k)} · ${t('mods.asIs')}`)) : '')).join('');
+  const extra = ['radar', 'rwr', 'mlws', 'lws'].filter(k => !kinds.includes(k)).map(k => row(t('mods.sensor.' + k), `sensorsAdd.${k}`, opts(k, getPath(S.cfg.mods, `sensorsAdd.${k}`), t('ov.redNone')))).join('');
+  const engines = S.vehicles.filter(x => x.c === v.c && !x.h && x.id !== v.id && !x.j === !v.j).sort((a, b) => I18N.unit(a.id).localeCompare(I18N.unit(b.id)));
+  const on = getPath(S.cfg.mods, 'engineFrom');
+  const engine = row(t('mods.engineFrom'), 'engineFrom', `<option value="">${esc(t('mods.asIs'))}</option>${engines.map(x => `<option value="${esc(x.id)}"${x.id === on ? ' selected' : ''}>${esc(I18N.unit(x.id))}</option>`).join('')}`);
+  const avionics = AVIONICS.map(k => {
+    const state = getPath(S.cfg.mods, `avionics.${k}`) ?? (d.av || []).includes(k);
+    return `<label class="switch"><input type="checkbox" data-modav="${k}"${state ? ' checked' : ''}><span class="sw"></span><span>${esc(t('mods.av.' + k))}</span></label>`;
+  }).join('');
+  return `<div class="opt-group-title">${esc(t('mods.sensors'))}</div>${sensors}${extra}
+    <div class="opt-group-title">${esc(t('mods.engine'))}</div>${engine}
+    <div class="opt-group-title">${esc(t('mods.avionics'))}</div><div class="mod-switches">${avionics}</div>`;
+}
+
 function modsPayload(m) {
   const out = JSON.parse(JSON.stringify(m || {}));
   delete out.nuke;  // old setups: nuclear bombs are now picked per pylon

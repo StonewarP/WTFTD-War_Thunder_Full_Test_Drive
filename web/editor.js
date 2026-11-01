@@ -4,10 +4,13 @@
 
 const ED_BLOCK_CATS = { tankModels: ['ground'], armada: ['air', 'heli'], ships: ['ship', 'boat'] };
 const ED_COLORS = { enemy: '#ff5a4f', ally: '#5ab8ff', player: '#f3b33d', other: '#c3cad4' };
-const ED_SPACING = { tankModels: 40, armada: 150, ships: 300 };  // between units placed / pasted side by side
+const ED_SPACING = { tankModels: 40, armada: 150, ships: 300, air_defence: 40, structures: 60, wheeled_vehicles: 40, tracked_vehicles: 40, radars: 60, infantry: 20 };  // between units placed / pasted side by side
 // the block a unit is added as when copied (template air defence / vehicles become ground units)
+const ED_ROUTE_BLOCKS = ['tankModels', 'armada', 'ships', 'wheeled_vehicles', 'tracked_vehicles', 'infantry'];  // what can drive
+const ED_ROUTE_SPEED = { tankModels: 30, wheeled_vehicles: 50, tracked_vehicles: 30, infantry: 6, ships: 40 };  // km/h, aircraft: their own
+const ED_ROUTE_POINTS = 40;  // mission.ROUTE_POINTS
 const ED_ADD_BLOCK = { tankModels: 'tankModels', armada: 'armada', ships: 'ships', air_defence: 'tankModels',
-  tracked_vehicles: 'tankModels', wheeled_vehicles: 'tankModels' };
+  tracked_vehicles: 'tankModels', wheeled_vehicles: 'tankModels', structures: 'structures', radars: 'radars', infantry: 'infantry' };
 
 const ED = {
   data: null, sel: null, multi: [], mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true,
@@ -361,11 +364,45 @@ function edSide(u) {
   return u.army === (ED.data.army || 1) ? 'ally' : 'enemy';
 }
 // movement choices for a side: enemies can hunt you, allies can escort you
-function edBehaviors(side, air, added) {
+function edBehaviors(side, air, added, routable) {
   return [['', added ? 'editor.move.free' : 'editor.asScenario'], ...(air ? [] : [['stay', 'editor.move.stay']]),
-    side === 'ally' ? ['follow', 'editor.move.follow'] : ['hunt', 'editor.move.hunt']];
+    side === 'ally' ? ['follow', 'editor.move.follow'] : ['hunt', 'editor.move.hunt'], ...(routable ? [['route', 'editor.move.route']] : [])];
 }
 const edMovable = u => u.added || (u.edit && !u.tpl && !u.removed);
+// a route: points drawn on the map, shared by the units selected (a convoy keeps the gaps of its start)
+const edRoutable = u => !u.tpl && ED_ROUTE_BLOCKS.includes(u.block);
+const edRouteUnits = () => edSelUnits().filter(edRoutable);
+const edRouteSpeed = st => st.routeSpeed || (st.block === 'armada' ? st.speed || 450 : ED_ROUTE_SPEED[st.block]);
+const edRouteAt = (st, x, z) => ({ x: Math.round(x), z: Math.round(z),
+  y: st.block === 'armada' ? Math.round(st.y) : st.block === 'ships' ? 0 : Math.round(edGroundY(x, z) * 10) / 10 });
+function edRoutePoint(x, z) {
+  for (const u of edRouteUnits()) {
+    const st = edUnitState(u);
+    if ((st.route || []).length < ED_ROUTE_POINTS) edSet(u, { route: [...(st.route || []), edRouteAt(st, x, z)] });
+  }
+}
+function edRouteMove(i, x, z) {
+  for (const u of edRouteUnits()) {
+    const st = edUnitState(u);
+    if (st.route?.[i]) edSet(u, { route: st.route.map((p, k) => (k === i ? edRouteAt(st, x, z) : p)) });
+  }
+}
+function edRouteBack() {
+  for (const u of edRouteUnits()) edSet(u, { route: (edUnitState(u).route || []).slice(0, -1) });
+}
+// the point of the selected route under the pointer (-1: none)
+function edRouteHit(sx, sy) {
+  const st = edRouteUnits().map(edUnitState)[0];
+  return (st?.route || []).findIndex(p => {
+    const [a, b] = edToScreen(p.x, p.z);
+    return Math.hypot(a - sx, b - sy) < 10 * (window.devicePixelRatio || 1);
+  });
+}
+// the Route movement picked: drawing starts; any other movement ends it
+function edRouteMode(beh) {
+  if (beh === 'route') for (const u of edRouteUnits()) edSet(u, { routeSpeed: edRouteSpeed(edUnitState(u)) });
+  if (beh === 'route' || ED.mode === 'route') ED.mode = beh === 'route' ? 'route' : 'select';
+}
 // its vehicle (and loadout) can change: the scenario's own and added units, and template units the mission can
 // carry itself (server: mission.inline_imports)
 const edSwappable = u => !u.tpl || !!u.swap;
@@ -384,6 +421,7 @@ function edSelect(keys) {
   ED.multi = keys.length > 1 ? keys : [];
   ED.sel = keys.length === 1 ? { key: keys[0] } : null;
   ED.search = '';
+  if (ED.mode === 'route') ED.mode = 'select';
 }
 function edToggle(key) {
   const cur = edSelKeys();
@@ -410,7 +448,9 @@ function edCopy() {
       block, cls: u.cls, dx: u.x - cx, dz: u.z - cz, y: u.y, agl: block === 'armada' ? u.y - (edGround(u.x, u.z) ?? 0) : 0,
       yaw: Math.round(u.yaw || 0), count: +u.count || 1, speed: u.speed || 450, side: edSide(u) === 'ally' ? 'ally' : 'enemy',
       attack: ['fire_at_will', 'return_fire', 'hold_fire'].includes(u.attack) ? u.attack : 'fire_at_will',
-      behavior: ['stay', 'hunt', 'follow'].includes(u.behavior) && !(block === 'armada' && u.behavior === 'stay') ? u.behavior : '',
+      behavior: ['stay', 'hunt', 'follow', 'route'].includes(u.behavior) && !(block === 'armada' && u.behavior === 'stay') ? u.behavior : '',
+      ...(u.behavior === 'route' ? { route: u.route, routeSpeed: u.routeSpeed, routeLoop: u.routeLoop } : {}),
+      ...(u.wave ? { wave: u.wave } : {}),
       ...(u.loadout ? { loadout: JSON.parse(JSON.stringify(u.loadout)) } : {}),
     };
   });
@@ -539,6 +579,7 @@ function edDraw() {
     }
   }
   edDrawZones(dpr);
+  edDrawRoutes(dpr);
   // markers: others first, then editable, then player; labels the other way round (the player's first)
   const pts = edAllPoints().map(edUnitState).filter(u => ED.scenery || u.edit || u.added || u.player);
   pts.sort((a, b) => (a.edit || a.added ? 1 : 0) - (b.edit || b.added ? 1 : 0) + (a.player ? 2 : 0) - (b.player ? 2 : 0));
@@ -553,6 +594,29 @@ function edDraw() {
     ctx.fillStyle = 'rgba(243,179,61,.08)';
     ctx.fillRect(Math.min(sx, x2), Math.min(sy, y2), Math.abs(x2 - sx), Math.abs(y2 - sy));
     ctx.strokeRect(Math.min(sx, x2), Math.min(sy, y2), Math.abs(x2 - sx), Math.abs(y2 - sy));
+    ctx.restore();
+  }
+}
+
+// the routes: a line from the unit through its points, an arrow on each leg, back to the first point when it loops
+function edDrawRoutes(dpr) {
+  const { ctx } = ED;
+  for (const u of edAllPoints().map(edUnitState)) {
+    if (u.behavior !== 'route' || !u.route?.length || u.removed) continue;
+    const sel = edIsSelected(u), pts = [[u.x, u.z], ...u.route.map(p => [p.x, p.z])].map(([x, z]) => edToScreen(x, z));
+    if (u.routeLoop) pts.push(pts[1]);
+    ctx.save();
+    ctx.strokeStyle = ctx.fillStyle = ED_COLORS[edSide(u)];
+    ctx.globalAlpha = sel ? 1 : 0.6; ctx.lineWidth = (sel ? 2 : 1.5) * dpr;
+    ctx.beginPath(); pts.forEach(([a, b], i) => (i ? ctx.lineTo(a, b) : ctx.moveTo(a, b))); ctx.stroke();
+    pts.slice(1).forEach(([a, b], i) => {
+      const [c, d] = pts[i], mx = (a + c) / 2, my = (b + d) / 2, turn = Math.atan2(b - d, a - c), s = 6 * dpr;
+      ctx.beginPath(); ctx.arc(a, b, (sel ? 4 : 2.5) * dpr, 0, Math.PI * 2); ctx.fill();
+      if (Math.hypot(a - c, b - d) < 30 * dpr) return;  // no room for an arrow
+      ctx.beginPath(); ctx.moveTo(mx + Math.cos(turn) * s, my + Math.sin(turn) * s);
+      ctx.lineTo(mx + Math.cos(turn + 2.5) * s, my + Math.sin(turn + 2.5) * s);
+      ctx.lineTo(mx + Math.cos(turn - 2.5) * s, my + Math.sin(turn - 2.5) * s); ctx.fill();
+    });
     ctx.restore();
   }
 }
@@ -592,6 +656,11 @@ function edMarker(u, pos, dpr) {
   }
   if (u.loadout && !u.removed) {  // its own loadout
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx + r * 0.9, sy - r * 0.9, 2.5 * dpr, 0, Math.PI * 2); ctx.fill();
+  }
+  if (u.wave && !u.removed) {  // its wave
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx - r, sy - r, 6.5 * dpr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#14171c'; ctx.font = `700 ${10 * dpr}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(u.wave, sx - r, sy - r + 0.5 * dpr);
   }
   if (edIsSelected(u)) {
     ctx.globalAlpha = 1;
@@ -755,6 +824,13 @@ function edBind() {
       edRenderPanel(); edDraw();
       return;
     }
+    if (ED.mode === 'route') {
+      const i = edRouteHit(sx, sy);
+      if (i >= 0) ED.drag = { kind: 'way', i, moved: false };
+      else edRoutePoint(...edToWorld(sx, sy));
+      edRenderPanel(); edDraw();
+      return;
+    }
     const tip = ED.sel?.player ? edArrowTip(window.devicePixelRatio || 1) : null;
     if (tip && Math.hypot(tip.tx - sx, tip.ty - sy) < 12 * (window.devicePixelRatio || 1)) {
       ED.drag = { kind: 'turn', moved: false };
@@ -808,6 +884,9 @@ function edBind() {
     } else if (ED.drag.kind === 'zone') {
       const [x, z] = edToWorld(sx, sy);
       edEdits().areas[ED.drag.z.name] = { x: Math.round(x), z: Math.round(z) };
+      ED.drag.moved = true;
+    } else if (ED.drag.kind === 'way') {
+      edRouteMove(ED.drag.i, ...edToWorld(sx, sy));
       ED.drag.moved = true;
     } else if (ED.drag.kind === 'group') {
       const [x, z] = edToWorld(sx, sy);
@@ -903,6 +982,8 @@ function edBind() {
     else if (mod && k === 'd') { edDuplicate(); }
     else if (mod && k === 'a') { edSelect(edAllPoints().map(edUnitState).filter(u => (u.edit || u.added) && !u.player).map(edKey)); }
     else if (k === 'escape' && ED.placing) { edPlacing(false); }
+    else if (k === 'escape' && ED.mode === 'route') { ED.mode = 'select'; }
+    else if (ED.mode === 'route' && ['delete', 'backspace'].includes(k)) { edRouteBack(); }
     else if (k === 'escape' && (ED.sel || ED.multi.length)) { edSelect([]); }
     else if (['delete', 'backspace'].includes(k)) {
       const us = edSelUnits();
@@ -996,6 +1077,7 @@ function edMenuItems(sx, sy) {
 }
 function edOpenMenu(ev) {
   ev.preventDefault();
+  if (ED.mode === 'route') { ED.mode = 'select'; edRenderPanel(); edDraw(); return; }
   edPlacing(false);
   $('#edTip').classList.add('hidden');
   const [sx, sy] = edCanvasPoint(ev);
@@ -1212,7 +1294,8 @@ function edRenderPanel() {
   $$('#edTools [data-edside]').forEach(b => b.classList.toggle('active', b.dataset.edside === ED.addSide));
   $('#edFitMap').classList.toggle('hidden', !ED.layers.length);
   $('#edPaste').classList.toggle('hidden', !ED.clip?.length);
-  $('#edHint').textContent = ED.mode === 'add' ? t(ED.addSide === 'ally' ? 'editor.hintAddAlly' : 'editor.hintAdd') : t('editor.hintSelect');
+  $('#edHint').textContent = ED.mode === 'route' ? t('editor.hintRoute') : ED.mode === 'add' ? t(ED.addSide === 'ally' ? 'editor.hintAddAlly' : 'editor.hintAdd') : t('editor.hintSelect');
+  ED.canvas?.classList.toggle('routing', ED.mode === 'route');
   $('#edChanges').textContent = t('editor.changes', { n: edCount() });
   $('#edZones')?.classList.toggle('active', ED.zones);
   $('#edScenery')?.classList.toggle('active', ED.scenery);
@@ -1262,8 +1345,9 @@ function edRenderPanel() {
   const v = S.byId.get(st.cls);
   const air = u.block === 'armada';
   const side = edSide(st);
-  const moveSeg = `<div class="field"><label>${esc(t('editor.move'))}</label><div class="seg seg-wrap3">
-      ${edBehaviors(side, air, u.added).map(([k, l]) => `<button class="${(st.behavior || '') === k ? 'active' : ''}" data-edbeh="${k}">${esc(t(l))}</button>`).join('')}
+  const behaviors = edBehaviors(side, air, u.added, edRoutable(st));
+  const moveSeg = `<div class="field"><label>${esc(t('editor.move'))}</label><div class="seg seg-wrap${behaviors.length === 4 ? 2 : 3}">
+      ${behaviors.map(([k, l]) => `<button class="${(st.behavior || '') === k ? 'active' : ''}" data-edbeh="${k}">${esc(t(l))}</button>`).join('')}
     </div>${st.behavior === 'follow' ? `<small class="muted">${esc(t('editor.followHint'))}</small>` : ''}${st.moves && !u.added ? `<small class="muted">${esc(t('editor.movesHint'))}</small>` : ''}</div>`;
   const removed = `<p class="hint">${esc(t('editor.removedHint'))}</p><button class="btn btn-sm" data-edact="restore">${icon('refresh', 'ic-sm')}${esc(t('editor.restore'))}</button>`;
   const copyBtns = ED_ADD_BLOCK[u.block] || u.added ? `<button class="btn btn-ghost btn-sm" data-edact="copy">${esc(t('editor.copy'))}</button>
@@ -1290,8 +1374,6 @@ function edRenderPanel() {
     <div class="field"><label>${esc(t('editor.side'))}</label><div class="seg ed-side">
       <button class="${side === 'enemy' ? 'active' : ''}" data-edside="enemy"><i class="dot enemy"></i>${esc(t('editor.enemy'))}</button>
       <button class="${side === 'ally' ? 'active' : ''}" data-edside="ally"><i class="dot ally"></i>${esc(t('editor.ally'))}</button></div></div>
-    ${edVehicleField(cats)}
-    ${edLoadoutField(st)}
     <div class="field-row">
       <div class="field"><label>${esc(t('editor.count'))}</label><input type="number" min="1" max="12" data-edf="count" value="${st.count || 1}"></div>
       <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edf="attack">
@@ -1300,9 +1382,12 @@ function edRenderPanel() {
       </select></div>
     </div>
     ${moveSeg}
+    ${edRouteHTML([st])}${edWaveHTML([st])}
     ${air ? `<div class="field-row"><div class="field"><label>${esc(t('cond.altitude'))}</label><input type="number" data-edf="y" value="${Math.round(st.y)}">${edGroundInfo(st, true)}</div>
       ${u.added ? `<div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" data-edf="speed" value="${Math.round(st.speed || 450)}"></div>` : ''}</div>` : ''}
     ${u.block === 'tankModels' && (u.added || st.moved) ? `<div class="field"><label>${esc(t('editor.height'))}</label><input type="number" data-edf="y" value="${Math.round(st.y)}">${edGroundInfo(st, false) || `<small class="muted">${esc(t('editor.heightHint'))}</small>`}</div>` : ''}
+    ${edVehicleField(cats.length ? cats : ['ground'], u.added)}
+    ${edLoadoutField(st)}
     <div class="row gap ed-actions">
       ${st.moved ? `<button class="btn btn-ghost btn-sm" data-edact="resetPos">${icon('refresh', 'ic-sm')}${esc(t('editor.resetPos'))}</button>` : ''}
       ${copyBtns}
@@ -1313,13 +1398,14 @@ function edRenderPanel() {
 }
 
 // the vehicle picker: all the game's vehicles of that kind (pictures) or the user's saved ones (My vehicles)
-function edVehicleField(cats) {
+function edVehicleField(cats, objects = false) {
   const mine = (S.setups || []).filter(s => cats.includes(S.byId.get(s.vehicle)?.c)).length;
   return `<div class="field"><label>${esc(t('editor.vehicle'))}</label>
     <div class="seg ed-restabs"><button class="${ED.resTab === 'all' ? 'active' : ''}" data-edtab="all">${esc(t('editor.allVehicles'))}</button>
-      <button class="${ED.resTab === 'mine' ? 'active' : ''}" data-edtab="mine">${esc(t('editor.myVehicles'))}${mine ? ` <span class="muted">${mine}</span>` : ''}</button></div>
-    ${ED.resTab === 'all' ? `<input id="edSearch" type="search" placeholder="${esc(t('editor.searchVehicle'))}" value="${esc(ED.search)}" autocomplete="off">
-    ${edFilterHTML(cats)}` : ''}
+      <button class="${ED.resTab === 'mine' ? 'active' : ''}" data-edtab="mine">${esc(t('editor.myVehicles'))}${mine ? ` <span class="muted">${mine}</span>` : ''}</button>
+      ${objects ? `<button class="${ED.resTab === 'objects' ? 'active' : ''}" data-edtab="objects">${esc(t('editor.objects'))}</button>` : ''}</div>
+    ${ED.resTab !== 'mine' ? `<input id="edSearch" type="search" placeholder="${esc(t('editor.searchVehicle'))}" value="${esc(ED.search)}" autocomplete="off">` : ''}
+    ${ED.resTab === 'all' ? edFilterHTML(cats) : ''}
     <div class="ed-count muted" id="edCount"></div>
     <div class="ed-results" id="edResults" data-cats="${cats.join(',')}"></div></div>`;
 }
@@ -1327,7 +1413,7 @@ function edVehicleField(cats) {
 const edVfReset = () => ({ nations: [], ranks: [], roles: [], brMin: BR_MIN, brMax: BR_MAX });
 function edFilterHTML(cats) {
   const f = ED.vf ||= edVfReset();
-  const pool = S.vehicles.filter(v => cats.includes(v.c) && !v.h);
+  const pool = S.vehicles.filter(v => cats.includes(v.c));
   const maxRank = Math.max(...pool.map(v => v.r || 0), 1);
   const counts = {};
   for (const v of pool) for (const r of v.ro || []) counts[r] = (counts[r] || 0) + 1;
@@ -1370,6 +1456,36 @@ function edLoadoutField(st) {
   </div></div>`;
 }
 
+// the route of the selected unit(s): drawn on the map, with its speed and what happens at the end
+function edRouteHTML(sts) {
+  const us = sts.filter(edRoutable), first = us[0];
+  if (!first || !us.every(u => u.behavior === 'route')) return '';
+  const on = ED.mode === 'route', n = first.route?.length || 0;
+  const same = f => (us.every(u => f(u) === f(first)) ? f(first) : undefined);
+  const speed = same(edRouteSpeed), loop = same(u => !!u.routeLoop);
+  return `<div class="field"><div class="ed-lo"><span>${esc(t('editor.routePoints', { n }))}</span>
+      <button class="btn btn-sm${on ? ' btn-primary' : ''}" data-edact="routeDraw">${icon(on ? 'check' : 'map', 'ic-sm')}${esc(t(on ? 'editor.routeDone' : 'editor.routeDraw'))}</button>
+      ${n ? `<button class="icon-btn" data-edact="routeBack" title="${esc(t('editor.routeBack'))}">${icon('x', 'ic-sm')}</button>
+      <button class="icon-btn" data-edact="routeClear" title="${esc(t('editor.routeClear'))}">${icon('trash', 'ic-sm')}</button>` : ''}
+    </div></div>
+    <div class="field-row"><div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" min="1" max="3000" data-edm="routeSpeed" value="${speed ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>
+      <div class="field"><label>${esc(t('editor.routeEnd'))}</label><select data-edm="routeLoop">${loop === undefined ? `<option value="__mixed" selected disabled>${esc(t('editor.mixed'))}</option>` : ''}
+        <option value="0"${loop === false ? ' selected' : ''}>${esc(t('editor.routeStop'))}</option>
+        <option value="1"${loop ? ' selected' : ''}>${esc(t('editor.routeLoop'))}</option></select></div></div>`;
+}
+// the wave of the selected enemies
+function edWaveHTML(sts) {
+  const us = sts.filter(u => !u.tpl && edSide(u) === 'enemy');
+  if (!us.length) return '';
+  const wave = us.every(u => (u.wave || 0) === (us[0].wave || 0)) ? us[0].wave || 0 : undefined, loop = !!edEdits().waveLoop;
+  return `<div class="field-row"><div class="field"><label>${esc(t('editor.wave'))}</label><select data-edm="wave">${wave === undefined ? `<option value="__mixed" selected disabled>${esc(t('editor.mixed'))}</option>` : ''}
+      ${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<option value="${n}"${wave === n ? ' selected' : ''}>${n || esc(t('editor.waveNone'))}</option>`).join('')}</select></div>
+    <div class="field"><label>${esc(t('editor.waveEnd'))}</label><select data-edwaveloop>
+      <option value="0"${loop ? '' : ' selected'}>${esc(t('editor.waveStop'))}</option>
+      <option value="1"${loop ? ' selected' : ''}>${esc(t('editor.waveLoop'))}</option></select></div></div>
+    <small class="muted ed-wavehint">${esc(t('editor.waveHint', { cheat: t('cheat.targetsBack') }))}</small>`;
+}
+
 // several units selected: what they share, changed for all at once
 function edMultiHTML() {
   const sts = edSelUnits().map(edUnitState);
@@ -1382,14 +1498,14 @@ function edMultiHTML() {
   const swp = sts.filter(edSwappable);  // vehicle: template units the mission can carry too
   const cats = [...new Set(swp.flatMap(u => ED_BLOCK_CATS[u.block] || []))];
   const mixed = `<option value="__mixed" selected disabled>${esc(t('editor.mixed'))}</option>`;
-  const behs = [['', 'editor.asScenario'], ...(own.every(u => u.block === 'armada') ? [] : [['stay', 'editor.move.stay']]), ['hunt', 'editor.move.hunt'], ['follow', 'editor.move.follow']];
+  const behs = [['', 'editor.asScenario'], ...(own.every(u => u.block === 'armada') ? [] : [['stay', 'editor.move.stay']]), ['hunt', 'editor.move.hunt'], ['follow', 'editor.move.follow'],
+    ...(sts.some(edRoutable) ? [['route', 'editor.move.route']] : [])];
   return `<div class="ed-title">${icon('target', 'ic-sm')} <b>${esc(t('editor.selected', { n: sts.length }))}</b></div>
     <div class="ed-chips">${[...counts].map(([c, n]) => `<span class="chip">${esc(edUnitName(c))}${n > 1 ? ` ×${n}` : ''}</span>`).join('')}</div>
     <p class="hint">${esc(t('editor.multiHint'))}</p>
     ${own.length ? `<div class="field"><label>${esc(t('editor.side'))}</label><div class="seg ed-side">
       <button class="${side === 'enemy' ? 'active' : ''}" data-edmside="enemy"><i class="dot enemy"></i>${esc(t('editor.enemy'))}</button>
       <button class="${side === 'ally' ? 'active' : ''}" data-edmside="ally"><i class="dot ally"></i>${esc(t('editor.ally'))}</button></div></div>` : ''}
-    ${swp.length ? edVehicleField(cats) : ''}
     <div class="field-row">
       ${own.length ? `<div class="field"><label>${esc(t('editor.count'))}</label><input type="number" min="1" max="12" data-edm="count" value="${cnt ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>` : ''}
       <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edm="attack">${attack === undefined ? mixed : ''}
@@ -1399,8 +1515,10 @@ function edMultiHTML() {
     <div class="field"><label>${esc(t('editor.move'))}</label><div class="seg seg-wrap3">
       ${behs.map(([k, l]) => `<button class="${beh === k ? 'active' : ''}" data-edmbeh="${k}">${esc(t(l))}</button>`).join('')}</div>
       <small class="muted">${esc(t('editor.multiMoveHint'))}</small></div>
+    ${edRouteHTML(sts)}${edWaveHTML(sts)}
     ${air.length ? `<div class="field-row"><div class="field"><label>${esc(t('cond.altitude'))}</label><input type="number" data-edm="y" value="${same(air, u => Math.round(u.y)) ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>
       <div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" data-edm="speed" value="${same(air, u => Math.round(u.speed || 450)) ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div></div>` : ''}
+    ${swp.length ? edVehicleField(cats) : ''}
     ${edAutoHTML(true)}
     <div class="row gap ed-actions">
       <button class="btn btn-ghost btn-sm" data-edact="copy">${esc(t('editor.copy'))}</button>
@@ -1434,9 +1552,18 @@ function edRenderResults() {
     return;
   }
   const q = norm(ED.search), f = ED.vf ||= edVfReset();
+  if (ED.resTab === 'objects') {  // AA guns, trucks, buildings, radars...: from the game's own unit folders
+    const list = (S.objects || []).filter(o => !q || norm(`${I18N.unit(o.id)} ${o.id}`).includes(q));
+    const count = $('#edCount');
+    if (count) count.textContent = I18N.num(list.length);
+    box.innerHTML = list.map(o => `<button class="ed-vc${o.id === cur ? ' active' : ''}" data-edobj="${esc(o.id)}" data-edblock="${esc(o.b)}" title="${esc(I18N.unitFull(o.id))}">
+        <div class="ed-vc-img">${unitImgTag(o.id)}<span class="ed-vc-br">${esc(t('editor.block.' + o.b))}</span></div>
+        <span class="ed-vc-name">${esc(I18N.unit(o.id))}</span></button>`).join('') || `<p class="hint">${esc(t('results.empty'))}</p>`;
+    return;
+  }
   // every vehicle of that kind that the filters keep, by BR (the Vehicles menu's AB / RB / SB mode)
   const fullBR = f.brMin <= BR_MIN && f.brMax >= BR_MAX;
-  const list = S.vehicles.filter(v => cats.includes(v.c) && !v.h && (!q || v._s.includes(q))
+  const list = S.vehicles.filter(v => cats.includes(v.c) && (!q || v._s.includes(q))  // the non-playable ones too: AI sites to fight
     && (!f.nations.length || f.nations.includes(v.n)) && (!f.ranks.length || f.ranks.includes(v.r))
     && (!f.roles.length || (v.ro || []).some(r => f.roles.includes(r)))
     && (fullBR || (brOf(v) != null && brOf(v) >= f.brMin - 0.01 && brOf(v) <= f.brMax + 0.01)));
@@ -1444,7 +1571,7 @@ function edRenderResults() {
   const count = $('#edCount');
   if (count) count.textContent = t('editor.vehiclesCount', { n: list.length });
   box.innerHTML = list.map(v => `<button class="ed-vc${v.id === cur ? ' active' : ''}" data-edcls="${esc(v.id)}" title="${esc(I18N.unitFull(v.id))}">
-      <div class="ed-vc-img">${unitImgTag(v.id)}<span class="ed-vc-br">${fmtBR(brOf(v))}</span></div>
+      <div class="ed-vc-img">${unitImgTag(v.id)}<span class="ed-vc-br">${v.h ? esc(t('badge.hidden')) : fmtBR(brOf(v))}</span></div>
       <span class="ed-vc-name">${flagHTML(v.n)}${esc(I18N.unit(v.id))}</span></button>`).join('')
     || `<p class="hint">${esc(t('results.empty'))}</p>`;
 }
@@ -1510,7 +1637,12 @@ function edPanelClick(ev) {
     if (inList) edFocus();
     return;
   }
-  if (b.dataset.edtab) { ED.resTab = b.dataset.edtab; edRenderPanel(); return; }
+  if (b.dataset.edtab) {
+    ED.resTab = b.dataset.edtab;
+    if (ED.resTab === 'objects' && !S.objects) getData('objects.json').then(list => { S.objects = list; edRenderPanel(); }).catch(() => { S.objects = []; });
+    edRenderPanel();
+    return;
+  }
   if (b.dataset.edvf) {  // the vehicle picker's filters
     const [k, x] = b.dataset.edvf.split(/:(.*)/s), f = ED.vf ||= edVfReset();
     const toggle = (list, v) => (list.includes(v) ? list.filter(y => y !== v) : [...list, v]);
@@ -1530,13 +1662,20 @@ function edPanelClick(ev) {
     case 'removeSel': edRemoveUnits(edSelUnits()); edRenderPanel(); edDraw(); return;
     case 'restoreSel': for (const u of edSelUnits()) if (!u.added) edSet(u, { remove: false }); edRenderPanel(); edDraw(); return;
     case 'loadout': if (ED.sel?.key) edConfigure(ED.sel.key); return;
+    case 'routeDraw': ED.mode = ED.mode === 'route' ? 'select' : 'route'; edRenderPanel(); return;
+    case 'routeBack': edRouteBack(); edRenderPanel(); edDraw(); return;
+    case 'routeClear': for (const u of edRouteUnits()) edSet(u, { route: null }); edRenderPanel(); edDraw(); return;
     case 'resetZone': delete edEdits().areas[ED.sel.zone]; edRenderPanel(); edDraw(); return;
   }
   if (ED.multi.length) { edMultiClick(b); return; }
   const u = edSelected();
   if (!u) return;
-  if (b.dataset.edcls) { edSet(u, { cls: b.dataset.edcls }); }
-  else if (b.dataset.edbeh !== undefined) { edSet(u, { behavior: b.dataset.edbeh }); }
+  if (b.dataset.edobj) { edSet(u, { cls: b.dataset.edobj, block: b.dataset.edblock }); }
+  else if (b.dataset.edcls) {  // back from an object: the vehicle's own block
+    const kind = S.byId.get(b.dataset.edcls)?.c, block = Object.keys(ED_BLOCK_CATS).find(k => ED_BLOCK_CATS[k].includes(kind));
+    edSet(u, { cls: b.dataset.edcls, ...(u.added && block ? { block } : {}) });
+  }
+  else if (b.dataset.edbeh !== undefined) { edSet(u, { behavior: b.dataset.edbeh }); edRouteMode(b.dataset.edbeh); }
   else if (b.dataset.edside) {
     const beh = edUnitState(u).behavior;
     // hunting you only makes sense for enemies, escorting you only for allies
@@ -1585,9 +1724,10 @@ function edMultiClick(b) {
     for (const u of us) {
       const side = edSide(edUnitState(u));
       // hunting: enemies only, escorting: allies only, staying still: not aircraft
-      if ((beh === 'hunt' && side !== 'enemy') || (beh === 'follow' && side !== 'ally') || (beh === 'stay' && u.block === 'armada')) continue;
+      if ((beh === 'hunt' && side !== 'enemy') || (beh === 'follow' && side !== 'ally') || (beh === 'stay' && u.block === 'armada') || (beh === 'route' && !edRoutable(u))) continue;
       edSet(u, { behavior: beh });
     }
+    edRouteMode(beh);
   } else return;
   edRenderPanel(); edDraw();
 }
@@ -1602,6 +1742,7 @@ function edPanelChange(ev) {
     edRenderPanel(); edDraw();
     return;
   }
+  if (el.dataset.edwaveloop !== undefined) { edEdits().waveLoop = el.value === '1'; return; }
   if (el.dataset.edm && el.value !== '' && el.value !== '__mixed') {  // several units
     for (const u of edSelUnits()) {
       const st = edUnitState(u);
@@ -1609,6 +1750,9 @@ function edPanelChange(ev) {
       else if (el.dataset.edm === 'attack') edSet(u, { attack: el.value });
       else if (el.dataset.edm === 'y' && u.block === 'armada' && !u.tpl) edSet(u, u.added ? { y: +el.value } : { x: st.x, z: st.z, y: +el.value });
       else if (el.dataset.edm === 'speed' && u.block === 'armada' && u.added) edSet(u, { speed: +el.value });
+      else if (el.dataset.edm === 'routeSpeed' && edRoutable(u)) edSet(u, { routeSpeed: Math.max(1, Math.min(3000, +el.value || 1)) });
+      else if (el.dataset.edm === 'routeLoop' && edRoutable(u)) edSet(u, { routeLoop: el.value === '1' });
+      else if (el.dataset.edm === 'wave' && !u.tpl) edSet(u, { wave: +el.value || null });
     }
     edRenderPanel(); edDraw();
     return;

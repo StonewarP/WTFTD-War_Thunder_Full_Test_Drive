@@ -55,6 +55,7 @@ const I18N = (() => {
     unit: id => g('units', id, id),
     unitFull: id => g('unitsFull', id, g('units', id, id)),
     weapon: k => g('weapons', k, k),
+    sensor: k => g('sensors', k, k),
     bullet: k => g('bullets', k, k),
     btype: k => g('btypes', k, k.toUpperCase()),
     mod: k => g('mods', k, ''),

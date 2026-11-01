@@ -36,12 +36,19 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 25  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 27  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
     "aces.vromfs.bin_u/gamedata/units/tankmodels",
     "aces.vromfs.bin_u/gamedata/units/ships",
+    "aces.vromfs.bin_u/gamedata/units/air_defence",
+    "aces.vromfs.bin_u/gamedata/units/structures",
+    "aces.vromfs.bin_u/gamedata/units/wheeled_vehicles",
+    "aces.vromfs.bin_u/gamedata/units/tracked_vehicles",
+    "aces.vromfs.bin_u/gamedata/units/radars",
+    "aces.vromfs.bin_u/gamedata/units/infantry",
+    "aces.vromfs.bin_u/gamedata/sensors",
     "aces.vromfs.bin_u/gamedata/weapons",
     "aces.vromfs.bin_u/gamedata/damage_model",
     "char.vromfs.bin_u/config",
@@ -762,7 +769,8 @@ def weapons_composition(weapons, wc: "WeaponCache") -> list:
 
 
 ICON_VOTES: dict = {}  # weapon key -> {iconType: count}, to give catalog weapons the game's own icon
-CATEGORY_ICONS = {"aam_ir": "missile_air_to_air", "aam_radar": "missile_air_to_air_midrange", "agm": "missile_air_to_uni",
+CATEGORY_ICONS = {"gun": "cannon", "aam_ir": "missile_air_to_air", "aam_radar": "missile_air_to_air_midrange", "sam": "missile_air_to_air_midrange",
+                  "agm": "missile_air_to_uni",
                   "atgm": "missile_air_to_uni_middle", "rockets": "rockets_he_large", "bombs": "bombs_middle",
                   "guided_bombs": "guided_bomb_middle_laser", "nuke": "bombs_special", "fuel": "ptb",
                   "pods": "ltc", "torpedoes": "torpedo", "mines": "bombs_special"}
@@ -1193,6 +1201,10 @@ CLASS_ROLES = {"tank_destroyer": "tank_destroyer", "SPAA": "spaa", "fighter": "f
                "torpedo_gun_boat": "torpedo_gun_boat", "submarine_chaser": "submarine_chaser", "destroyer": "destroyer"}
 
 
+AVIONICS = ("laserDesignator", "havePointOfInterestDesignator", "hasHelmetDesignator", "haveCCIPForGun", "haveCCIPForRocket",
+            "haveCCIPForBombs", "haveCCRPForBombs", "haveCCRPForGun")
+NOT_UNITS = re.compile(r"(^|_)(test|dummy|fake)(_|$)|_includes$|_destroyed_unit$|searchlight|_test_gun")
+OBJECT_BLOCKS = ("air_defence", "structures", "wheeled_vehicles", "tracked_vehicles", "radars", "infantry")  # folder = mission block
 DRONES = ("uav_", "ucav_recon")  # drones the player flies (scout / FPV drones), not the strike UCAVs
 
 
@@ -1234,8 +1246,8 @@ def build_vehicles(lang: Lang, progress=None):
             vid = f.stem
             if vid.lower() in known:
                 continue
-            if not (lang.get(f"{vid}_shop") or lang.get(f"{vid}_0")) and not vid.lower().startswith(DRONES):
-                continue  # unnamed = internal helper, skip (drones: the game's FPV / recon drones have no name)
+            if not (lang.get(f"{vid}_shop") or lang.get(f"{vid}_0")) and NOT_UNITS.search(vid.lower()):
+                continue  # unnamed test and helper files; the other unnamed ones are real: carriers, trains, transports
             entries.append((vid, cat, {}, True))
 
     for n in NUKES:
@@ -1322,6 +1334,20 @@ def build_vehicles(lang: Lang, progress=None):
             em = pylon_emitters(udata)
             if em:
                 details[vid]["em"] = em
+            if not sl and not lp:  # no pylon at all: its first gun's muzzle takes what's mounted
+                gun = next((first_str(w.get("emitter")) for w in aslist((udata.get("commonWeapons") or {}).get("Weapon"))
+                            if isinstance(w, dict) and first_str(w.get("emitter")) and first_str(w.get("trigger")) in ("machine gun", "cannon")), "")
+                if gun:
+                    lp = details[vid]["lp"] = [{"i": 1, "e": gun, "o": []}]
+            own = [first_str(s.get("blk")).replace("\\", "/").rsplit("/", 1)[-1].removesuffix(".blk").lower()
+                   for s in aslist((udata.get("sensors") or {}).get("sensor")) if isinstance(s, dict)]
+            if own:
+                details[vid]["se"] = own
+            flags = [k for k in AVIONICS if udata.get(k) is True]
+            if flags:
+                details[vid]["av"] = flags
+            if ((details[vid].get("st") or {}).get("lim") or {}).get("jet"):
+                rec["j"] = 1
             keys = {k for s in sl for o in s["o"] for k, _ in o["w"]} | {k for p in presets for k, _ in p["w"]}
             for s in sl + lp:
                 for o in s["o"]:
@@ -1380,6 +1406,8 @@ def build_vehicles(lang: Lang, progress=None):
 # --------------------------------------------------------------------------- air weapons catalog
 
 CATALOG_FOLDERS = ("rocketguns", "bombguns", "torpedoes", "mines", "drop_tank", "equipment", "containers")
+SURFACE_FOLDERS = ("groundmodels_weapons", "navalmodels_weapons")  # their missiles and rockets go on pylons too: see launched_rockets
+GUN_SKIP = re.compile(r"test|tutorial|dummy|event|pony|toon|melee|bayonet|human|grenade|_user_cannon|no_gun")
 TRIGGERS = {"aam_ir": "aam", "aam_radar": "aam", "agm": "atgm", "atgm": "atgm", "rockets": "rockets",
             "bombs": "bombs", "guided_bombs": "guided bombs", "nuke": "bombs", "torpedoes": "torpedoes",
             "mines": "bombs", "fuel": "fuel tanks", "pods": "targetingPod"}
@@ -1393,6 +1421,56 @@ def _payload(d: dict):
             v = v[0] if isinstance(v, list) and v else v
             return k, v if isinstance(v, dict) else {}
     return None, {}
+
+
+def launched_rockets(d) -> list:
+    """What a ground or ship launcher fires, each in one block. Most launchers are guns: `bullet` holds the projectile,
+    `bullet.rocket` how it flies. A few have a `rocket` block, as an aircraft's weapon does."""
+    if not isinstance(d, dict):
+        return []
+    out = [x for x in aslist(d.get("rocket")) if isinstance(x, dict)]
+    return out + [{**{k: v for k, v in b.items() if k != "rocket"}, **b["rocket"]} for b in aslist(d.get("bullet"))
+                  if isinstance(b, dict) and isinstance(b.get("rocket"), dict)]
+
+
+def launched_missile(d) -> dict | None:
+    """The guided one of them, if any."""
+    return next((r for r in launched_rockets(d) if isinstance(r.get("guidance"), dict) or first_str(r.get("guidanceType")).lower() not in ("", "none")), None)
+
+
+def gun_rounds(d) -> int:
+    """How many rounds a gun takes on a pylon, by its caliber; 0 when the file isn't a gun's."""
+    bullet = next((b for b in aslist(d.get("bullet")) if isinstance(b, dict)), None) if isinstance(d, dict) else None
+    if not bullet or isinstance(bullet.get("rocket"), dict):
+        return 0
+    caliber = _numval(bullet.get("caliber")) or 0.02
+    return 500 if caliber < 0.025 else 150 if caliber < 0.06 else 40
+
+
+def build_sensors(lang) -> dict:
+    """{file: kind} of every aircraft sensor of the game (radar, rwr, mlws, lws), for the vehicle panel."""
+    out = {}
+    for f in sorted((DM / "aces.vromfs.bin_u" / "gamedata" / "sensors").glob("*.blkx")):
+        kind = first_str((load(f) or {}).get("type"))
+        if kind in ("radar", "rwr", "mlws", "lws"):
+            out[f.stem] = kind
+            lang.put("sensors", f.stem, f"sensors/{f.stem}", fallback=humanize(f.stem))
+    with open(DATA / "sensors.json", "w", encoding="utf-8") as fw:
+        json.dump(out, fw, separators=(",", ":"))
+    return out
+
+
+def build_objects(lang) -> list:
+    """What the scenario editor can place besides vehicles: AA guns, trucks, buildings, radars... [{"id", "b": mission block}]."""
+    out = []
+    for block in OBJECT_BLOCKS:
+        for f in sorted((DM / "aces.vromfs.bin_u" / "gamedata" / "units" / block).glob("*.blkx")):
+            if lang.get(f"{f.stem}_0") or not NOT_UNITS.search(f.stem):
+                out.append({"id": f.stem, "b": block})
+                lang.put("units", f.stem, f"{f.stem}_shop", f"{f.stem}_0", fallback=humanize(f.stem))
+    with open(DATA / "objects.json", "w", encoding="utf-8") as fw:
+        json.dump(out, fw, separators=(",", ":"))
+    return out
 
 
 def classify_weapon(d: dict, folder: str):
@@ -1460,6 +1538,35 @@ def build_weapon_catalog(wc: "WeaponCache", progress=None) -> dict:
                     entry["m"] = round(mass, 1)  # kg: the game's loadout grid puts the heaviest in the middle
             key = wc.weapon_name(path)
             out[key] = entry
+    for folder in SURFACE_FOLDERS:
+        seen = set()  # one per missile: launchers share them, the "user_cannon" ones last
+        for f in sorted((base / folder).glob("*.blkx"), key=lambda p: ("user_cannon" in p.stem, p.stem)):
+            d = load(f)
+            missile = launched_missile(d) or next((r for r in launched_rockets(d) if not re.match(r"flare|chaff|smoke|.*grenade", first_str(r.get("bulletType")).lower())), None)
+            name = first_str((missile or {}).get("bulletName")).lower()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            bt, gt = first_str(missile.get("bulletType")).lower(), first_str(missile.get("guidanceType")).lower()
+            guided, sam = bool(launched_missile(d)), bt.startswith(("sam", "aam"))
+            cat = "sam" if guided and sam else "atgm" if guided else "rockets"
+            path, entry = f"gameData/Weapons/{folder}/{f.stem}.blk", {"c": cat, "t": {"sam": "aam", "atgm": "atgm"}.get(cat, "rockets"), "air": 1}
+            entry.update(p=path, g=("" if not guided else ("ir" if sam else "tv") if gt == "optical" else GUIDANCE.get(gt, gt)))
+            mass = _numval(missile.get("mass"))
+            if mass:
+                entry["m"] = round(mass, 1)
+            key = basename(path)
+            wc.lang.put("weapons", key, f"weapons/{name}/short", f"{name}/short", name, f"weapons/{name}", f"weapons/{key}", key, fallback=humanize(name))
+            out[key] = entry
+    for folder in ("", *SURFACE_FOLDERS):  # guns: the aircraft's lie loose in Weapons
+        for f in sorted((base / folder).glob("*.blkx")):
+            rounds = gun_rounds(load(f))
+            if not rounds or GUN_SKIP.search(f.stem):
+                continue
+            path = f"gameData/Weapons/{folder}/{f.stem}.blk" if folder else f"gameData/Weapons/{f.stem}.blk"
+            out[wc.weapon_name(path)] = {"p": path, "c": "gun", "g": "", "t": "machine gun" if rounds == 500 else "cannon", "gun": rounds}
+    build_sensors(wc.lang)
+    build_objects(wc.lang)
     log(f"  {len(out)} weapons", progress)
     return out
 

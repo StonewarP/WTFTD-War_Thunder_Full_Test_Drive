@@ -6,12 +6,12 @@
 const OV = { cfg: null, screen: [3840, 2160], lines: [], input: null, timer: 0, profile: '', keys: new Map(), sounds: [] };
 const OV_MAX_BLOCKS = 3, OV_MAX_TESTS = 4;
 const OV_SOUND_RATE = 22050, OV_SOUND_S = 15;  // what a sound is kept as: enough for an alarm, and it fits a request
-const OV_TYPES = ['fighter', 'assault', 'bomber', 'helicopter', 'jet', 'prop'];
+const OV_TYPES = ['fighter', 'assault', 'bomber', 'helicopter', 'jet', 'prop', 'tank', 'ship'];
 const OV_WHEN = ['always', 'gear', 'flaps', 'airbrake', 'alarm', 'log'];
 const OV_ALARMS = { airframe: 1540, gear: 700, flaps: 600 };  // the example under each threshold, km/h
 const OV_FONTS = ['Consolas', 'Cascadia Mono', 'Courier New', 'Lucida Console', 'Segoe UI', 'Bahnschrift', 'Arial', 'Tahoma', 'Verdana', 'Impact'];
 const OV_VALUES = {
-  speed: ['ias', 'tas', 'mach', 'hspeed', 'accel', 'sep', 'vne', 'mne', 'margin', 'airframe_pct', 'swept'],
+  speed: ['speed', 'ias', 'tas', 'mach', 'hspeed', 'accel', 'sep', 'vne', 'mne', 'margin', 'airframe_pct', 'swept'],
   gearflaps: ['gear', 'gear_max', 'gear_pct', 'flaps', 'flaps_max', 'flaps_pct', 'airbrake'],
   flight: ['alt', 'vy', 'aoa', 'aos', 'g', 'g_max', 'turn', 'turn_rate', 'turn_radius', 'roll', 'pitch', 'bank', 'heading'],
   engine: ['throttle', 'rpm', 'thrust', 'thrust_total', 'twr', 'mass', 'power', 'oil', 'fuel', 'fuel_max', 'fuel_pct', 'burn', 'fuel_time', 'range'],

@@ -3,7 +3,7 @@
    cfg.pylons = { slot: "<official option name>" | { w: "<catalog weapon key>", n: count[, cw: "<My weapons id>", mod] } } */
 'use strict';
 
-const WCATS = ['aam_ir', 'aam_radar', 'agm', 'atgm', 'rockets', 'bombs', 'guided_bombs', 'nuke', 'torpedoes', 'mines', 'fuel', 'pods'];
+const WCATS = ['aam_ir', 'aam_radar', 'sam', 'agm', 'atgm', 'rockets', 'bombs', 'guided_bombs', 'nuke', 'torpedoes', 'mines', 'fuel', 'pods', 'gun'];
 const NEEDS = { radar: 'need.radar', laser: 'need.laser', saclos: 'need.saclos', tv: 'need.tv' };
 const LP = { slot: null, q: '', cat: '', nonStd: false, weapons: null, loading: null };
 

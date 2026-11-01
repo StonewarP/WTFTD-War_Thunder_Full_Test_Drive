@@ -145,10 +145,12 @@ function arScore(it, use) {
 
 const arBest = (c, u) => ((AR.best ||= {})[c + u] ??= Math.max(0.0001, ...AR.data.items.filter(it => it.c === c).map(it => arScore(it, u))));
 
+// searching: its name, or what carries it (S-300 finds the 5V55R)
+const arFound = (it, q) => (it._find ??= norm([arName(it), it.id, ...(AR.data.carriers[it.id] || []).map(id => I18N.unit(id))].join(' '))).includes(q);
+
 function arItems() {
   const q = norm(AR.q);
-  let list = AR.data.items.filter(it => it.c === AR.cat && (!AR.g || it.g === AR.g) && (!AR.nat || it.nat?.includes(AR.nat))
-    && (!q || norm(arName(it) + ' ' + it.id).includes(q)));
+  let list = AR.data.items.filter(it => it.c === AR.cat && (!AR.g || it.g === AR.g) && (!AR.nat || it.nat?.includes(AR.nat)) && (!q || arFound(it, q)));
   const sort = AR.use && AR.sort === 'score' ? 'score' : AR.sort;
   const val = sort === 'score' ? (it => arScore(it, AR.use)) : sort === 'name' ? null : (it => arVal(it, sort));
   list.sort((a, b) => {
@@ -324,7 +326,11 @@ function bindWeapons() {
     }
     if (d.arrow && !e.target.closest('.ar-detail, button, input')) { AR.open = AR.open === d.arrow ? '' : d.arrow; return renderWeaponTable(); }
   });
-  $('#arSearch').addEventListener('input', debounce(e => { AR.q = e.target.value; renderWeaponTable(); }, 120));
+  $('#arSearch').addEventListener('input', debounce(e => {
+    AR.q = e.target.value;
+    const q = norm(AR.q), hit = q && !arItems().length && AR.data.items.find(it => arFound(it, q));  // it's in another category: go there
+    if (hit) { AR.cat = hit.c; AR.g = ''; renderWeapons(); } else renderWeaponTable();
+  }, 120));
   $('#arNat').addEventListener('change', e => { AR.nat = e.target.value; renderWeaponTable(); });
   const trayClick = e => {
     const b = e.target.closest('button'); if (!b) return;

@@ -594,6 +594,8 @@ option { background: var(--surface); }
 .shell-pick { display: flex; align-items: center; gap: 10px; margin: 6px 0 8px; }
 .shell-pick label { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .shell-pick select { flex: 1; min-width: 0; }
+.shell-pick.part label { width: 118px; flex: none; white-space: normal; }
+.mod-switches { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; margin-bottom: 6px; }
 .opt-group-title svg { vertical-align: -2px; }
 .pylons { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .pylon { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: center; }
@@ -699,6 +701,8 @@ option { background: var(--surface); }
 .ed-map { position: relative; min-height: 0; border-right: 1px solid var(--line); }
 .ed-map canvas { position: absolute; inset: 0; display: block; cursor: crosshair; touch-action: none; }
 .ed-map canvas.placing { cursor: copy; }
+.ed-map canvas.routing { cursor: crosshair; }
+.ed-wavehint { display: block; margin: -6px 0 14px; }
 .ed-menu { position: absolute; z-index: 5; min-width: 210px; max-width: 300px; padding: 5px; display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
 .ed-menu button { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent;
@@ -742,6 +746,7 @@ option { background: var(--surface); }
 .ed-row.active { border-color: var(--accent); background: var(--accent-soft); }
 .ed-row.removed span { text-decoration: line-through; color: var(--muted); }
 .seg-wrap3 { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
+.seg-wrap2 { display: grid; grid-template-columns: repeat(2, 1fr); width: 100%; }
 .ed-panel .btn-danger { margin-top: 10px; align-self: flex-start; }
 .ed-auto { margin: 10px 0 6px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface); }
 .ed-auto summary { cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }

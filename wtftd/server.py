@@ -910,11 +910,11 @@ def weapon_keys() -> dict:
         out: dict = {}
         for key, w in catalog.items():
             folder = str(w.get("p", "")).replace("\\", "/").split("/")[-2].lower()
-            payload = cdk.PAYLOADS.get(folder)
+            payload = "rocket" if w.get("air") else cdk.PAYLOADS.get(folder)
             if w.get("pod") or not payload:
                 continue
             d = builder.load(builder.blk_to_path(w["p"]))
-            blocks = d.get(payload) if isinstance(d, dict) else None
+            blocks = builder.launched_rockets(d) if w.get("air") else d.get(payload) if isinstance(d, dict) else None
             for b in blocks if isinstance(blocks, list) else [blocks]:
                 if not isinstance(b, dict):
                     continue
@@ -935,8 +935,10 @@ def weapon_base(key: str) -> dict | None:
     if not w or not SAFE_ID.match(key) or w.get("pod"):
         return None
     folder = str(w.get("p", "")).replace("\\", "/").split("/")[-2].lower()
-    payload = cdk.PAYLOADS.get(folder)
+    payload = "rocket" if w.get("air") else cdk.PAYLOADS.get(folder)
     d = builder.load(builder.blk_to_path(w["p"])) if payload else None
+    if w.get("air"):  # a launcher: the rocket block it will have on a pylon
+        d = {"rocket": builder.launched_missile(d) or next(iter(builder.launched_rockets(d)), None)}
     block = d.get(payload) if isinstance(d, dict) else None
     block = block[0] if isinstance(block, list) and block else block
     if not isinstance(block, dict):
@@ -1015,7 +1017,7 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     fm_data = None
     if (body.get("cheats") or {}).get("noOverload") and veh["c"] in ("air", "heli"):
         mods["noStructural"] = True  # unbreakable airframe: the flight model's breaking limits raised
-    if veh["c"] in ("air", "heli") and (mods.get("noStructural") or mods.get("thrustMul") or mods.get("superMobility")):
+    if veh["c"] in ("air", "heli") and (mods.get("noStructural") or mods.get("thrustMul") or mods.get("superMobility") or mods.get("engineFrom")):
         # the flight model itself (local game files): breaking limits, jets' thrust table
         fm = str((det.get("st") or {}).get("fm") or "")
         if fm:
@@ -1023,16 +1025,21 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     if isinstance(body.get("pylons"), dict):
         body["pylons"] = custom_weapons(body["pylons"])
     non_std = any(isinstance(v, dict) for v in (body.get("pylons") or {}).values())
-    if mods.get("invulnerable") or non_std:
-        # needs the local game files (damage model, pylon layout for non-standard weapons)
+    if mods.get("invulnerable") or non_std or any(mods.get(k) for k in ("sensors", "sensorsAdd", "avionics", "warningVoice", "crewVoice")):
+        # needs the local game files (damage model, pylon layout for non-standard weapons, what the unit has)
         unit_data = builder.load(builder.unit_file(vid, veh["c"]))
+    engine = str(mods.get("engineFrom") or "")
+    donor = str((STATE.get_details().get(engine, {}).get("st") or {}).get("fm") or "") if SAFE_ID.match(engine) else ""
     try:
         files, preset, unit_class, pkg = cdk.build_files(vid, veh["c"], det, mods, host,
                                                          body.get("pylons"), air_method, unit_data,
-                                                         STATE.get_catalog(), fm_data=fm_data)
+                                                         STATE.get_catalog(), fm_data=fm_data,
+                                                         engine_fm=builder.load(builder.fm_file(donor)) if donor else None)
     except cdk.CdkError as e:
         raise mission.MissionError(str(e))
-    body = dict(body, unitClass=unit_class, _pkg=pkg)
+    body = dict(body, unitClass=unit_class, _pkg=pkg, crewCountry=mods.get("crewCountry"))
+    if any(isinstance(g, dict) and g.get("swap") for g in (mods.get("guns") or {}).values()):
+        body["ammo"] = []  # the shells picked were the old gun's
     if preset:
         body["preset"] = preset
     return body, files

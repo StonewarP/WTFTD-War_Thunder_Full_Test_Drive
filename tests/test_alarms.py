@@ -11,7 +11,7 @@ from array import array
 from pathlib import Path
 from unittest import mock
 
-from wtftd import alarms, battle, builder, flightlog
+from wtftd import alarms, battle, blk, builder, cdk, flightlog
 
 SU30 = {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400, 9400], "eng": 2}
 J10 = {"v": 1543, "m": 2.1, "gear": 620, "flaps": [[0.1, 550], [1, 400]], "fuel": [5945, 6220.02], "eng": 1}
@@ -287,6 +287,108 @@ class Settings(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(alarms, "beep") as beep:
             alarms.play({"hz": 900, "ms": 80, "sound": "gone.wav"}, 70, Path(tmp))
             beep.assert_called_once_with(900, 80, 70)
+
+
+class SurfaceMissiles(unittest.TestCase):
+    GUIDED = {"bulletName": "x", "guidanceType": "radar", "guidance": {"workTime": 30.0}, "loadFactorMax": 40.0}
+
+    def test_a_launcher_is_a_gun_holding_a_missile(self):
+        launcher = {"cannon": True, "bullet": {"mass": 900.0, "bulletType": "sam_tank", "mesh": "m", "rocket": {**self.GUIDED, "mesh": "m_deployed"}}}
+        missile = builder.launched_missile(launcher)
+        self.assertEqual((missile["mass"], missile["guidanceType"], missile["mesh"]), (900.0, "radar", "m_deployed"))
+        self.assertNotIn("rocket", missile)
+
+    def test_a_few_are_written_as_an_aircrafts(self):
+        self.assertEqual(builder.launched_missile({"rocket": self.GUIDED})["bulletName"], "x")
+
+    def test_guns_and_plain_rockets_are_not_missiles(self):
+        for launcher in ({"bullet": {"mass": 1.0}}, {"bullet": {"rocket": {"guidanceType": "none"}}}, {"rocket": {"mass": 1.0}}, None, []):
+            self.assertIsNone(builder.launched_missile(launcher), launcher)
+
+    def test_on_a_pylon(self):
+        air = cdk.airborne({**self.GUIDED, "bulletType": "sam_tank", "mesh": "deployed"}, "body", True)
+        self.assertTrue(air["rocketGun"])
+        self.assertEqual((air["mesh"], air["bullets"]), ("body", 1))
+        self.assertEqual((air["rocket"]["bulletType"], air["rocket"]["finsLatAccel"]), ("aam", 40.0))
+        self.assertNotIn("mesh", air["rocket"])
+        self.assertEqual(blk.loads(blk.dumps(air))["rocket"]["bulletName"], "x")
+
+    def test_an_atgm_keeps_its_type(self):
+        self.assertEqual(cdk.airborne({"bulletType": "atgm_tank"}, "m", False)["rocket"]["bulletType"], "atgm_tank")
+
+
+class Aircraft(unittest.TestCase):
+    FM = {"EngineType0": {"Main": {"Type": "Jet", "Thrust": 100.0, "Mass": 900.0}, "Afterburner": {"Boost": 1.5}, "Controls": {"X": 1.0}}}
+    OTHER = {"EngineType0": {"Main": {"Type": "Jet", "Thrust": 200.0, "Extra": 3, "Mass": 700.0}, "Afterburner": {"Boost": 2.0}, "Controls": {"X": 9.0}}}
+
+    def text(self, write):
+        b = cdk.Blk()
+        write(b)
+        return str(b)
+
+    def test_another_radar_and_what_it_lacked(self):
+        mods = {"sensors": {"0": "us_an_apg_63"}, "sensorsAdd": {"rwr": "us_rwr"}}
+        text = self.text(lambda b: cdk._sensors(b, {"se": ["su_n_001ve", "su_spo"]}, mods, {"sensors": {}}))
+        self.assertIn('"@override:sensor[1]"{', text)
+        self.assertIn('blk":t="gameData/sensors/us_an_apg_63.blk"', text)
+        self.assertIn('sensor{ blk:t="gameData/sensors/us_rwr.blk" }', text)
+
+    def test_sensors_on_an_aircraft_with_none(self):
+        text = self.text(lambda b: cdk._sensors(b, {}, {"sensorsAdd": {"radar": "x"}}, {}))
+        self.assertTrue(text.startswith("sensors{"))
+
+    def test_only_a_plain_file_name_gets_in(self):
+        self.assertEqual(self.text(lambda b: cdk._sensors(b, {"se": ["a"]}, {"sensors": {"0": "../x"}, "sensorsAdd": {"radar": 'a"b'}}, {})), "\n")
+
+    def test_avionics_override_or_add(self):
+        text = self.text(lambda b: cdk._avionics(b, {"avionics": {"laserDesignator": True, "hasHelmetDesignator": False, "nope": True}}, {"laserDesignator": False}))
+        self.assertIn('"@override:laserDesignator":b=yes', text)
+        self.assertIn("hasHelmetDesignator:b=no", text)
+        self.assertNotIn("nope", text)
+
+    def test_another_engine(self):
+        out = cdk._engine_overrides(self.FM, self.OTHER)
+        self.assertEqual(out[("EngineType0", "Main", "Thrust")], ("r", 200.0))
+        self.assertEqual(out[("EngineType0", "Main", "Extra")], ("+i", 3))  # a value ours doesn't have
+        self.assertEqual(out[("EngineType0", "Afterburner", "Boost")], ("r", 2.0))
+        self.assertNotIn(("EngineType0", "Main", "Type"), out)
+        self.assertNotIn(("EngineType0", "Controls", "X"), out)
+
+    def test_the_cockpits_voice(self):
+        text = self.text(lambda b: cdk._voices(b, {"warningVoice": "rita"}, {"Sound": {"voiceWarningSystem": "betty"}}))
+        self.assertIn('"@override:voiceWarningSystem":t="rita"', text)
+        self.assertIn("voiceWarningSystem:t=", self.text(lambda b: cdk._voices(b, {"warningVoice": "rita"}, {"Sound": {}})))
+
+    def test_a_special_crew_voice(self):
+        self.assertIn('specialSpeechLanguage:t="SmMaria"', self.text(lambda b: cdk._voices(b, {"crewVoice": "SmMaria"}, {})))
+        self.assertEqual(self.text(lambda b: cdk._voices(b, {"crewVoice": 'x" evil', "warningVoice": "nobody"}, {})), "\n")
+
+    def test_a_jet_takes_no_propeller_engine(self):
+        with self.assertRaises(cdk.CdkError):
+            cdk._engine_overrides(self.FM, {"EngineType0": {"Main": {"Type": "Inline"}}})
+
+
+class Ground(unittest.TestCase):
+    def setUp(self):
+        self.seen = {"valid": True, "army": "tank", "type": "tankModels/ussr_t_72b", "speed": 41.0}
+        self.watch = alarms.Watch(lambda p: json.dumps(self.seen).encode() if p == "/indicators" else None, dict, save=lambda: None)
+        self.watch.enabled = True
+
+    def test_a_tank_is_followed_without_an_aircraft(self):
+        self.watch.tick()
+        self.assertTrue(self.watch.flying)
+        self.assertEqual(self.watch.last["speed"], 41.0)
+        self.assertEqual(self.watch.display, [])  # no overlay for tanks yet: an aircraft's lines would say nothing
+
+    def test_its_own_overlay(self):
+        self.watch.set_config(self.watch.base, {"type:tank": alarms.clean({"lines": [{"text": "{speed} km/h"}]}, WORDS)})
+        self.watch.tick()
+        self.assertEqual(self.watch.display[0][0], "41 km/h")
+
+    def test_an_aircraft_is_not_a_tank(self):
+        self.seen["army"] = "air"
+        self.watch.tick()
+        self.assertFalse(self.watch.flying)
 
 
 class Archive(unittest.TestCase):

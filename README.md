@@ -130,21 +130,27 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 - **Loadout**: every official preset, or a **pylon editor** laid out like the game's (presets as rows,
   pylons as columns, game icons). Turn on **non-standard weapons** to mount any of the game's ~2,300 air
   weapons on any pylon — missiles, bombs, rockets, torpedoes, pods, and **nuclear bombs** (RN-28, RN-40,
-  B61, AN-52, KB-1, RDS-4, RDS-37) — with a warning when the aircraft lacks the radar / laser designator /
+  B61, AN-52, KB-1, RDS-4, RDS-37) — and the **missiles, rockets and guns of ground vehicles and ships** (S-300, Pantsir,
+  Aster, Smerch...: not checked in game yet), with a warning when the aircraft lacks the radar / laser designator /
   guidance the weapon needs. Pylons fire one at a time, as in the game
 - **My weapons**: your own versions of the game's missiles, bombs, rockets and torpedoes (see below), on
   your pylons and on AI aircraft
 - **Ammunition**: 4 shell slots with round counts for tanks; belts per gun for aircraft, helicopters and ships; the
   game's own shell and belt icons; **flares / chaff split** for countermeasure launchers (beta, see *Known limits*)
 - **Modifications** (custom vehicles): engine power, mass, top speed, brakes, turret speed, thrust,
-  reload, ammo capacity, shell velocity / mass / explosive / penetration…
+  reload, ammo capacity, shell velocity / mass / explosive / penetration… On aircraft: another radar or warning receiver,
+  another aircraft's engine, avionics on or off. On tanks and ships: another weapon in place of a gun. For all: the crew's
+  language and voices. Not checked in game yet
 - **Scenario editor** on the level's real tactical map, read from the game files:
   - drag any unit (and your start) to move it — ground units are put **on the ground** using the map's heightmap;
-  - add ground, air or naval units as **allies or enemies**, remove units, swap their vehicle;
+  - add ground, air or naval units as **allies or enemies**, non-playable ones too (S-300 launcher and radars, carriers,
+    trains...), **objects** (AA guns, trucks, buildings, radars, infantry), remove units, swap their vehicle;
   - the units of the game's templates (test flight targets) can change vehicle too;
   - **vehicles by BR**: enemies, allies or a selection get vehicles of their own kind at your vehicle's BR (they
     follow it when you take another one) or at a BR you pick, from the nations you choose;
   - behaviour: still, aggressive, return fire or passive; enemies can **hunt you**, allies can **escort you**;
+  - **routes** drawn on the map, shared by the units selected for a convoy, and **waves of enemies**, each one coming when
+    the one before is destroyed. Not checked in game yet;
   - shows where the scenario really spawns you (runway / start area) and the units it teleports
 - **Ground battle maps**: the game's Domination layouts (79 on 55 maps) from either side's spawn, with the capture
   zones and the other side's spawn in the editor (a solo sandbox: no AI, score or capture)
@@ -164,7 +170,7 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   Any line can have its own alert on any value (`fuel < 15 %`, `G > 9`) and show under conditions of its own, in up to
   four text blocks with columns, a frame and a background, with an outline and its own colours for names, values and
   units. It reads the game's local data about your own aircraft only, nothing is added to the game
-- **Flight data** (Windows): live curves of what the game reports in flight (speed, altitude, G, turn time, fuel use...),
+- **Flight data** (Windows): live curves of what the game reports, in flight and in tanks and ships (speed, altitude, G, turn time, fuel use...),
   and a recorder: CSV logs for Excel, replayed in the app, with a **flight report** (top speed, best climb, best
   sustained turn, time to climb, fuel used) and an **export for Tacview**; saved views, and the curves as a picture
 - **Cockpit window** (Windows): your aircraft's instruments as dials, in a window of their own for a second screen
@@ -328,7 +334,7 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
   Gaijin's servers and the official vehicle files). Share the setup instead.
 - "Non-playable units" come from the game files (AI, removed, unreleased) and may not load or behave oddly.
 - My weapons: a weapon carried in a launcher of its own (pods, multiple racks) can't be modified yet, nor
-  ground-launched missiles (tank ATGMs, SAMs). The Advanced values are the game's own and not all of them have
+  ground-launched missiles on the vehicles that carry them (on a pylon, they can). The Advanced values are the game's own and not all of them have
   been tried in game: change one thing at a time ([checklist](docs/ingame-checklist.md)).
 - Research path: modules, crew training and the rank requirements are not counted.
 - In flight: My overlay, the alarms, Flight data and the Cockpit window are Windows only. They were mostly flown on jets
@@ -352,6 +358,7 @@ wtftd/                      Python backend (stdlib only)
   builder.py                datamine or game files -> data/*.json
   vromfs.py                 the game's own files: .vromfs.bin containers, binary BLK
   armament.py               Weapons page data (missiles, bombs, rockets, torpedoes)
+  cdk.py + builder.py       sensors, engines, avionics, weapons on pylons of any kind
   alarms.py / flightlog.py  in-flight values, alarms and overlay (Windows) / CSV flight logs, report, Tacview export
   battle.py                 the game's chat and battle log
   waveout.py / tray.py      sound on the output you pick / the app window: minimized, notification area (Windows)

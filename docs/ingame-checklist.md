@@ -340,6 +340,23 @@ Turn them on first: In flight → My overlay → Turn on the overlay and alarms 
 - [ ] **Jets and propeller aircraft** overlays load by themselves, and a helicopter takes neither.
 - [ ] **App window**: starts minimized; minimized, it leaves the taskbar for the notification area and a click brings it
   back; WTFTD closes when the game does, not during a loading screen.
+- [ ] **SPAA missile on a pylon** (Su-30MKK with a 5V55R, then an IR and a beam-riding one): the mission loads, the loadout
+  shows it, the aircraft locks and fires it, it guides and hits. A failure there says if the rewritten file needs more.
+- [ ] **Another radar** (Su-30MKK with an F-15's): it locks, its own range and modes; a radar added to an aircraft without one.
+- [ ] **Another engine** (a jet with another jet's): thrust and fuel use follow, it doesn't flame out or crash the mission.
+- [ ] **Avionics**: a laser designator or CCIP switched on where the aircraft has none: does the sight show it?
+- [ ] **Guns on pylons**: a tank gun under a wing fires, and rounds count; an aircraft without pylons fires from its muzzle.
+- [ ] **A tank with an S-300 launcher instead of its gun**: does the mission load, does it aim, does it fire?
+- [ ] **Objects on a map**: AA gun, truck, building, radar, infantry, each loads; a carrier, a train.
+- [ ] **Overlay in a tank and a ship**: its profile loads, `{speed}` shows; which other values /indicators gives there.
+- [ ] **Voices**: with the game's Crew language on Crew country, does the mission's country change the crew's language, on
+  an aircraft and on a tank (a custom tank may speak its host vehicle's language)? Rita in place of Betty; a special crew voice.
+- [ ] **Routes**: a tank, a truck, a ship and an aircraft follow their points at the speed asked, stop at the end or go round
+  again. Three units sharing a route keep their gaps. Does a ground unit get stuck on a straight line across a slope or a river?
+- [ ] **Waves**: wave 2 is absent at the start, comes at its place 5 s after wave 1 is destroyed, with the hint; a delayed unit
+  with a route drives it; aircraft come in at their height and speed; with *First wave again*, the first comes back, twice.
+  Do Hold fire and Stays still hold on coming in, and do passive enemies of the Targets setting stay passive?
+- [ ] **Non-playable units on a map**: an S-300 launcher and its radars load in a mission, and fire or not; which others do.
 - [ ] **Overlay**: shown in flight, gone on Alt+Tab, back afterwards, never takes the focus, clicks go through it.
   Beeps go on during an Alt+Tab.
 - [ ] **A-4 or Mirage III** (take-off rockets counted out of the engines): recognised? How many `throttle` fields

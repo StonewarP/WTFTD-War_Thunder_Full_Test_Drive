@@ -4,7 +4,9 @@ import json
 import unittest
 
 from wtftd import armament as A
-from wtftd.builder import DM, base_stats, build_battle_words, flight_limits, load
+from wtftd import blk
+from wtftd import cdk
+from wtftd.builder import DM, base_stats, build_battle_words, flight_limits, launched_missile, load
 
 W = DM / "aces.vromfs.bin_u" / "gamedata" / "weapons"
 FM = DM / "aces.vromfs.bin_u" / "gamedata" / "flightmodels" / "fm"
@@ -36,6 +38,16 @@ class ReferenceWeapons(unittest.TestCase):
     def test_s8ko(self):
         s = item("rocketguns", "su_s_8ko_rocket", "rocket")
         self.assertEqual((s["v"], s["pen"]), (650, 420))
+
+    def test_the_s300s_missile_as_an_aircraft_carries_it(self):
+        missile = launched_missile(load(W / "groundmodels_weapons" / "508mm_s300ps_5v55_rocket_launcher.blkx"))
+        self.assertEqual((missile["bulletName"], missile["mass"]), ("508mm_5v55r", 1664.0))
+        text = cdk._air_copy({"p": "gameData/Weapons/groundModels_weapons/508mm_s300ps_5v55_rocket_launcher.blk", "c": "sam"}, "test")
+        air = blk.loads(text.split("\n", 1)[1])
+        self.assertTrue(air["rocketGun"])
+        self.assertEqual((air["mesh"], air["rocket"]["bulletType"], air["rocket"]["mass"]), ("s300ps_missile_5v55r", "aam", 1664.0))
+        self.assertIn("radarSeeker", air["rocket"]["guidance"])
+        self.assertNotIn("mesh", air["rocket"])
 
     def test_b61_yield(self):
         self.assertEqual(item("bombguns", "us_b61_30kt", "nuke")["yld"], 30.0)

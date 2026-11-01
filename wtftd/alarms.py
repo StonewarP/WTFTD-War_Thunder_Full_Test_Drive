@@ -62,13 +62,13 @@ FIELDS = {"ias": ("IAS, km/h", 0), "tas": ("TAS, km/h", 0), "mach": ("M", 2), "a
           "bank": ("aviahorizon_roll", 1), "fuel": ("Mfuel, kg", 0), "fuel_max": ("Mfuel0, kg", 0),
           "throttle": ("throttle 1, %", 0), "rpm": ("RPM 1", 0), "thrust": ("thrust 1, kgs", 0),
           "power": ("power 1, hp", 0), "oil": ("oil temp 1, C", 0), "gear": ("gear, %", 0), "flaps": ("flaps, %", 0),
-          "airbrake": ("airbrake, %", 0)}
+          "airbrake": ("airbrake, %", 0), "speed": ("speed", 0)}
 COMPUTED = {"vne": 0, "mne": 2, "gear_max": 0, "flaps_max": 0, "margin": 0, "airframe_pct": 0, "gear_pct": 0,
             "flaps_pct": 0, "fuel_pct": 0, "hspeed": 0, "turn": 1, "turn_rate": 1, "turn_radius": 0, "accel": 1, "sep": 1,
             "burn": 0, "range": 0, "mass": 0, "thrust_total": 0, "twr": 2}  # see computed(): name -> decimals
 SERIES = [*FIELDS, *COMPUTED]  # the numbers curves and logs follow
 # their columns in a log, when the game's field name isn't one
-COLUMNS = {"heading": "Heading, deg", "g_max": "Max G", "pitch": "Pitch, deg", "bank": "Bank, deg", "vne": "Max speed, km/h",
+COLUMNS = {"speed": "Speed, km/h", "heading": "Heading, deg", "g_max": "Max G", "pitch": "Pitch, deg", "bank": "Bank, deg", "vne": "Max speed, km/h",
            "mne": "Max Mach", "gear_max": "Gear max speed, km/h", "flaps_max": "Flaps max speed, km/h",
            "margin": "Speed left, km/h", "airframe_pct": "Airframe limit, %", "gear_pct": "Gear limit, %",
            "flaps_pct": "Flaps limit, %", "fuel_pct": "Fuel, %", "hspeed": "Horizontal speed, km/h", "turn": "Turn, s",
@@ -482,6 +482,12 @@ def flying(raw: bytes | None, in_mission=lambda: True) -> dict | None:
     return None if state.get("Mfuel, kg") == 0 and not in_mission() else state
 
 
+def driving(raw: bytes | None) -> dict | None:
+    """/indicators in a tank or a ship: their numbers are there, /state is an aircraft's."""
+    data = read_indicators(raw)
+    return data if data.get("army") in ("tank", "ship") else None
+
+
 def reported_type(indicators: dict) -> str | None:
     """The vehicle id the game itself names in /indicators."""
     kind = indicators.get("type")
@@ -795,7 +801,10 @@ class Watch:
         """One reading of /state; returns the time until the next one."""
         wanted = self.enabled or self.log or time.monotonic() - self.viewed < VIEW_S
         state = flying(self.get("/state"), self.in_mission) if wanted else None
-        self.flying = state is not None
+        vehicle = driving(self.get("/indicators")) if wanted and state is None else None
+        self.flying = state is not None or vehicle is not None
+        if vehicle:
+            return self.drive(vehicle)
         if state is None:
             self.display = self.sample(self.preview) if self.preview else []
             self.warn = False
@@ -835,6 +844,28 @@ class Watch:
             for name in on:
                 play(cfg["lines"][name]["rule"] if isinstance(name, int) else cfg["alarms"][name], cfg["volume"], self.sounds)
         return cfg["pollMs"] / 1000
+
+    def drive(self, values: dict) -> float:
+        """A tank or a ship: curves, logs and its overlay ("type:tank", "type:ship": an aircraft's lines mean nothing there);
+        no limits, so only the lines' own alerts."""
+        self.current, self.profile = None, f"type:{values['army']}" if f"type:{values['army']}" in self.profiles else ""
+        self._flight = str(values.get("type") or "vehicle").rsplit("/", 1)[-1]
+        self.last = numbers(values)
+        self.record(values)
+        cfg = self.preview or self.profiles.get(self.profile)
+        on = own_alerts(cfg, values) if cfg and self.enabled else []
+        self.warn = bool(on)
+        if self.preview or not self.enabled:
+            self.display = self.sample(self.preview) if self.preview else []
+        else:
+            self.display = lines_for(cfg, values, on) if cfg else []
+        if cfg:
+            self.cfg = cfg
+        if on and not self.muted and time.monotonic() - self._last_beep >= self.cfg["repeat"] / 1000:
+            self._last_beep = time.monotonic()
+            for i in on:
+                play(self.cfg["lines"][i]["rule"], self.cfg["volume"], self.sounds)
+        return self.cfg["pollMs"] / 1000
 
     def run(self):
         while True:

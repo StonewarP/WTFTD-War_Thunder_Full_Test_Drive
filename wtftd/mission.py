@@ -99,7 +99,11 @@ def _strip_airfield_spawn(node, wing: str):
 
 
 EDITABLE_BLOCKS = ("tankModels", "armada", "ships")
+COUNTRIES = ("usa", "germany", "ussr", "britain", "japan", "china", "italy", "france", "sweden", "israel")
+OBJECT_BLOCKS = ("air_defence", "structures", "wheeled_vehicles", "tracked_vehicles", "radars", "infantry")  # placed, not swapped
 ATTACK_TYPES = ("fire_at_will", "return_fire", "hold_fire", "dont_aim")
+ROUTE_POINTS = 40
+WAVE_PAUSE = 5.0  # s between the end of a wave and the next one
 _CLASS = re.compile(r"^[A-Za-z0-9_\-.]{1,120}$")
 
 
@@ -408,6 +412,82 @@ def take_over_units(m: dict, names: set) -> set:
     return brought
 
 
+def _route(u: dict, e: dict):
+    """Points drawn in the editor: the game drives the unit along them by itself, from the start or when it appears."""
+    try:
+        speed = max(1.0, min(float(e.get("routeSpeed") or 40), 3000.0))
+    except (TypeError, ValueError):
+        speed = 40.0
+    way = {}
+    for p in (e.get("route") or [])[:ROUTE_POINTS]:
+        try:
+            pos = [float(p["x"]), float(p["y"]), float(p["z"])]
+        except (KeyError, TypeError, ValueError):
+            continue
+        way[f"{u['name']}_wp_{len(way) + 1:02d}"] = {
+            "type": "normal", "tm": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], pos],
+            "props": {"speed": speed, "moveType": "MOVETO_STRAIGHT", "tas": False, "shouldKeepFormation": False,
+                      "canUsePathFinder": False}}
+    if way:
+        u["way"] = way
+        u["closed_waypoints"] = bool(e.get("routeLoop"))
+
+
+def apply_waves(m: dict, waves: dict, edits: dict, stay: list, passive: list):
+    """Enemies by wave (waves: {number: [unit]}): the first is there at the start, each next one comes when the one
+    before is destroyed, the way the game's test flights bring their targets in: delayed units, unitRespawn in a zone
+    of their own. waveLoop: after the last one, the first again."""
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
+    if not isinstance(triggers, dict):
+        return
+    order = sorted(waves)
+    loop = bool(edits.get("waveLoop"))
+    text = _clean_text(edits.get("waveText"), "Wave {n}")
+    for k, n in enumerate(order):
+        _append_unit(m["units"], "squad", {"name": f"wtftd_wave_{n}", "tm": copy.deepcopy(waves[n][0]["tm"]),
+                                           "props": {"squad_members": [u["name"] for u in waves[n]]}})
+        for u in waves[n]:
+            if k:
+                u["props"]["isDelayed"] = True
+            if k or loop:
+                area = {"type": "Sphere", "objLayer": 0, "props": {}}
+                _place_area(area, u["tm"])
+                m.setdefault("areas", {})[f"wtftd_wave_{u['name']}"] = area
+
+    def bring(k: int) -> dict:
+        names = [u["name"] for u in waves[order[k]]]
+        actions: dict = {"wait": {"time": WAVE_PAUSE}}
+        if loop:  # they were destroyed: back to life first
+            actions["unitRestore"] = {"target": names, "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True}
+        spawns = [{"delay": 0.0, "offset": [0.0, 0.0, 0.0], "object": x, "target": f"wtftd_wave_{x}"} for x in names]
+        actions["unitRespawn"] = spawns if len(spawns) > 1 else spawns[0]
+        # lost on coming in: the game's scripts set their targets passive again too
+        held = [{"object": [x for x in names if x in group], flag: True} for group, flag in ((stay, "cannotMove"), (passive, "cannotShoot"))
+                if set(names) & set(group)]
+        if held:
+            actions["unitSetProperties"] = held if len(held) > 1 else held[0]
+        actions["playHint"] = _hint(text.replace("{n}", str(k + 1)))
+        return actions
+
+    for k, n in enumerate(order):
+        after = k + 1 if k + 1 < len(order) else 0 if loop else None
+        if after is None:
+            break
+        actions = bring(after)
+        if after != k and (after + 1 < len(order) or loop):
+            actions["triggerEnable"] = {"target": [f"wtftd_wave_{order[after]}_end"]}
+        t = _trigger({"periodicEvent": {"time": 2.0}}, actions, after == k)
+        t["is_enabled"] = k == 0
+        t["conditions"] = {"unitWhenCountMatches": {"object_type": "isAlive", "object_marking": 0, "func": "less", "value": 1,
+                                                    "object": f"wtftd_wave_{n}"}}
+        triggers[f"wtftd_wave_{n}_end"] = t
+
+
+def _wave_units(units: dict) -> set:
+    return {n for s in _as_list(units.get("squad")) if isinstance(s, dict) and str(s.get("name")).startswith("wtftd_wave_")
+            for n in _as_list((s.get("props") or {}).get("squad_members"))}
+
+
 def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
     """Map editor changes:
     units: {name: {cls, count, attack, behavior, remove, side, x, y, z}}   existing units of the scenario
@@ -416,10 +496,12 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
     player: {x, y, z, yaw}   moves the player's start
     side:     "ally" | "enemy" (default for added units: enemy)
     behavior: "" | "stay" (cannotMove) | "hunt" (unitAttackTarget on the player)
-              | "follow" (unitMoveTo following the player: escort)
+              | "follow" (unitMoveTo following the player: escort) | "route" (route, routeSpeed, routeLoop: _route)
+    wave:     1..9 on enemies (apply_waves; waveLoop, waveText at the top of edits)
     attack:   "" | fire_at_will | return_fire | hold_fire (+ cannotShoot)"""
     units = m.setdefault("units", {})
     stay, hunt, passive, sleep, follow, shoot = [], [], [], [], [], []
+    waves: dict = {}
     _, _, pu = _find_player(units, wing)
     my_army = (pu.get("props") or {}).get("army", 1) if pu else 1
     enemy_army = 2 if my_army == 1 else 1
@@ -444,6 +526,10 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             except (TypeError, ValueError, IndexError):
                 pass
         behavior(name, e)
+        if e.get("behavior") == "route":
+            _route(u, e)
+        if e.get("wave") in range(1, 10) and props.get("army") != my_army:
+            waves.setdefault(int(e["wave"]), []).append(u)
 
     def behavior(name: str, e: dict):
         b = e.get("behavior")
@@ -490,7 +576,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
                 _strip_unit_moves(a, moved)
 
     for i, a in enumerate((edits.get("add") or [])[:300]):
-        if not isinstance(a, dict) or a.get("block") not in EDITABLE_BLOCKS or not _CLASS.match(str(a.get("cls", ""))):
+        if not isinstance(a, dict) or a.get("block") not in EDITABLE_BLOCKS + OBJECT_BLOCKS or not _CLASS.match(str(a.get("cls", ""))):
             continue
         block = a["block"]
         try:
@@ -498,7 +584,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             yaw = float(a.get("yaw", 0))
         except (TypeError, ValueError):
             continue
-        props = copy.deepcopy(UNIT_DEFAULTS[block])
+        props = copy.deepcopy(UNIT_DEFAULTS.get(block, UNIT_DEFAULTS["tankModels"]))
         props["army"] = my_army if a.get("side") == "ally" else enemy_army
         props["attack_type"] = "fire_at_will"
         u = {"name": f"wtftd_unit_{i + 1:02d}", "tm": _yaw_tm(yaw, x, y, z), "unit_class": a["cls"], "objLayer": 1,
@@ -532,6 +618,8 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             else:
                 _hold_start(m, wing, pu["tm"], player, zone_info(sid) if sid else None)
 
+    if waves:
+        apply_waves(m, waves, edits, stay, passive)
     actions: dict = {}
     if sleep:
         actions["unitPutToSleep"] = {"target": sleep}
@@ -857,9 +945,11 @@ def apply_hotkeys(m: dict, wing: str, ch: dict, air: bool, texts: dict | None, s
     if not isinstance(triggers, dict) or not isinstance(variables, dict):
         return
     enemies = _enemy_units(m.get("units") or {})
-    if ch.get("targetsBack") and enemies:
+    waves = _wave_units(m.get("units") or {})
+    revive = [n for n in enemies if n not in waves]  # a wave only ends with its units destroyed, the next ones wait for that
+    if ch.get("targetsBack") and revive:
         triggers["wtftd_targets_back"] = _trigger({"periodicEvent": {"time": TARGETS_BACK_EVERY}}, {"unitRestore": {
-            "target": enemies, "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True}}, True)
+            "target": revive, "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True}}, True)
     if not ch.get("hotkeys"):
         return
     tx = {k: _clean_text((texts or {}).get(k), v) for k, v in HOTKEY_TEXTS.items()}
@@ -902,7 +992,8 @@ def apply_hotkeys(m: dict, wing: str, ch: dict, air: bool, texts: dict | None, s
     if enemies:
         toggle("passive", bool(ch.get("passiveEnemies")), {"unitSetProperties": {"object": enemies, "cannotShoot": True}},
                {"unitSetProperties": {"object": enemies, "cannotShoot": False}})
-        action("targets", {"unitRestore": {"target": enemies, "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True}})
+        if revive:
+            action("targets", {"unitRestore": {"target": revive, "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True}})
     action("repair", {"unitRestore": restore})
     if start_tm:
         m.setdefault("areas", {})["wtftd_key_start"] = {
@@ -1111,6 +1202,8 @@ def build(cfg: dict) -> tuple[str, str]:
     desc = " ".join(str(cfg.get("description") or "").split())[:1000]
     if desc:
         mission["locDesc"] = desc
+    if cfg.get("crewCountry") in COUNTRIES:  # what the crew's language follows, with the game's Crew language on Auto or Crew country
+        mission["country_allies"] = mission["country_axis"] = cfg["crewCountry"]
     if cfg.get("environment") in ENVIRONMENTS:
         mission["environment"] = cfg["environment"]
     if cfg.get("weather") in WEATHERS:
