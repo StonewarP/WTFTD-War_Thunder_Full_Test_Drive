@@ -39,6 +39,7 @@ then builds `data/`. Rebuild the data by hand with `python -m wtftd.builder --no
 | `wtftd/alarms.py` | In-flight values, alarms and overlay (Windows): game's `/state` + flight model limits; UI in `web/overlay.js` |
 | `wtftd/flightlog.py` | CSV flight logs (`user/logs`); curves in `web/flight.js` |
 | `wtftd/battle.py` | The game's chat and battle log; UI in `web/battle.js` |
+| `wtftd/replays.py` | My battles: the player's own results from the game's replays, indexed in `.cache/battles.json`; UI in `web/history.js` |
 | `wtftd/blk.py` | BLK text format writer / reader |
 | `web/` | UI: plain HTML / CSS / JavaScript, no build step |
 | `web/locales/` | UI translations |

@@ -14,7 +14,7 @@ const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', brita
 const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
 // the top menu: each menu's pages, shown as sub-tabs under it when it has several
 const MENUS = { vehicles: ['vehicles', 'setups'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
-                inflight: ['overlay', 'flight', 'battle'] };
+                inflight: ['overlay', 'flight', 'battle', 'history'] };
 const AVIONICS = ['laserDesignator', 'havePointOfInterestDesignator', 'hasHelmetDesignator', 'haveCCIPForGun', 'haveCCIPForRocket', 'haveCCIPForBombs', 'haveCCRPForBombs', 'haveCCRPForGun'];
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
 const WEATHERS = ['clear', 'good', 'hazy', 'thin_clouds', 'cloudy', 'cloudy_windy', 'overcast', 'poor', 'rain', 'thunder', 'blind'];
@@ -200,6 +200,7 @@ async function boot() {
   bindOverlay();
   bindFlight();
   bindBattle();
+  bindHistory();
   bindMaps();
   bindLibrary();
   showView('vehicles');
@@ -604,6 +605,7 @@ function showView(name) {
   else leaveOverlayView();
   if (name === 'flight') openFlightView();
   if (name === 'battle') openBattleView();
+  if (name === 'history') openHistoryView();
 }
 
 // ------------------------------------------------------------------ vehicle drawer

@@ -192,6 +192,11 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   sustained turn, time to climb, fuel used) and an **export for Tacview**; saved views, and the curves as a picture
 - **Cockpit window** (Windows): your aircraft's instruments as dials, in a window of their own for a second screen
 - **Battle**: the game's chat and battle log, live, in their own tab, with a filter, and saved to a text file if you like
+- **My battles**: your own history from the replays the game saves: date, map, game mode, vehicle, result, kills, deaths,
+  assists, score, damage; totals and a summary by vehicle; filters by game mode, vehicle, map, dates and result. A vehicle
+  opens its panel, a map opens that map. Only your own line is read: other players' names and numbers are neither kept nor
+  shown. A replay doesn't hold the result of a battle you left before the end, and the game keeps its last 100 autosaved
+  replays (rename one in the game to keep it)
 - **Feedback** button: write a few words and GitHub's bug or idea form opens filled in; you read it and send it with
   your own account
 - **11 languages**: English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština,
@@ -279,6 +284,8 @@ custom vehicle files (**Settings → Remove custom vehicle files**) before playi
 The **In flight** tools only read what the game publishes on your own PC (`localhost:8111`): your aircraft's values, and
 the chat and battle log you see in game. No enemy position is used. The overlay is a separate window: nothing is
 injected and nothing touches the game. It isn't endorsed by Gaijin either.
+
+**My battles** only reads the replays on your PC, after the battle, and keeps your own line: no other player's name or stats.
 
 The **3D views** only read your own game's files on your PC to show them: nothing is copied, exported or sent. They aren't
 endorsed by Gaijin either.
@@ -409,12 +416,13 @@ wtftd/                      Python backend (stdlib only)
   cdk.py + builder.py       sensors, engines, avionics, weapons on pylons of any kind
   alarms.py / flightlog.py  in-flight values, alarms and overlay (Windows) / CSV flight logs, report, Tacview export
   battle.py                 the game's chat and battle log
+  replays.py                My battles: the player's own results, from the game's replay files
   waveout.py / tray.py      sound on the output you pick / the app window: minimized, notification area (Windows)
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
-                            overlay.js / flight.js / battle.js = In flight, cockpit.html = the cockpit window,
+                            overlay.js / flight.js / battle.js / history.js = In flight, cockpit.html = the cockpit window,
                             editor.js = scenario editor, model3d.js / map3d.js / lzdecode.js = the 3D views
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)

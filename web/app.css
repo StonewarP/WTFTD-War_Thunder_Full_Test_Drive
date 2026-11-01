@@ -234,11 +234,11 @@ kbd { font: 600 10.5px var(--font); color: var(--muted); border: 1px solid var(-
 .results-count { font: 600 13px var(--font); color: var(--muted); letter-spacing: .02em; }
 .results-count b { color: var(--text); font-size: 15px; margin-right: 4px; }
 .select-inline { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
-select, input[type=text], input[type=number] {
+select, input[type=text], input[type=number], input[type=date] {
   height: 34px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text);
   padding: 0 10px; outline: none; transition: border-color .15s, box-shadow .15s;
 }
-select:focus, input[type=text]:focus, input[type=number]:focus { border-color: rgba(243, 179, 61, .6); box-shadow: 0 0 0 3px rgba(243, 179, 61, .12); }
+select:focus, input[type=text]:focus, input[type=number]:focus, input[type=date]:focus { border-color: rgba(243, 179, 61, .6); box-shadow: 0 0 0 3px rgba(243, 179, 61, .12); }
 select { padding-right: 28px; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237d8799' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; background-size: 16px; }
 option { background: var(--surface); }
 
@@ -1334,6 +1334,17 @@ body.sub-on .subtabs { display: flex; }
 .ov-shot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ov-shot label { cursor: pointer; }
 .ov-style { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--text-2); }
+/* my battles */
+.mb-totals { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.mb-totals .vstat { padding: 10px 14px; gap: 2px; }
+.mb-totals .vstat b { font: 750 20px var(--font-display); }
+.mb-totals .vstat small { font-size: 11.5px; }
+.mb-note { margin: 8px 0 0; }
+.mb-vehicles { max-height: 260px; }
+.mb-table th.num, .mb-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mb-link { display: inline-flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; color: var(--text); cursor: pointer; }
+.mb-link:hover { color: var(--accent-2); }
+.mb-link img { width: 48px; height: 28px; object-fit: contain; flex: none; }
 /* feedback */
 #fbText { width: 100%; min-height: 120px; resize: vertical; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--bg-2); color: var(--text); font: inherit; }
 .fb-added { display: block; margin-top: 6px; overflow-wrap: anywhere; }

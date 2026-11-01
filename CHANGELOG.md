@@ -4,6 +4,15 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.23.0 — not released yet
+
+- **My battles** (In flight menu): your own battle history, read from the replays the game saves on your PC. Date, map, game
+  mode, vehicle, result, time played, kills, deaths, assists, score and damage, newest first; totals (battles, win rate, kills
+  per death, time played) and a summary by vehicle for what the filters show. Filter by game mode, vehicle, map, dates and
+  result. A vehicle opens its panel, a map opens that map. Test drives and missions stay hidden behind a switch. Only your own
+  line is read out of a replay: nobody else's name or numbers are kept or shown. Replays are read once, then the page opens
+  at once. Needs **Autosave Replays** in the game's options; the game keeps the last 100, so older battles leave the list.
+
 ## 0.22.1 — 2026-11-01
 
 - **Security**: a shared map or mission could run a script in the app when opened in the scenario editor. Its values are now

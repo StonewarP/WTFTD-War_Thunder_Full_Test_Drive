@@ -489,6 +489,15 @@ within 1 % of the speed, heading equal to the compass), the cockpit window's val
 - [ ] **Session recap** (not built yet): the battle log's kill line is `=FrEB= StonewarP (␗Su-30MKK) détruit [ai] MiG-15bis`;
   the line where you get killed by someone was never seen. Note it, in French and in English.
 
+## 2u. My battles (new)
+
+Checked on 107 real replays of game 2.59.0.92, all Air RB and test drives. To check with other replays:
+
+- [ ] An Arcade and a Simulator battle show AB and SB: only RB (low nibble 5 of the header's byte 688) was seen.
+- [ ] A Ground and a Naval battle: their mode, vehicles (a tank + an aircraft), kills, and the damage column.
+- [ ] A custom battle and an event: a mode that isn't in `cta/planes`, `tanks`, `ships` or `helicopters` shows only its difficulty.
+- [ ] A replay being written during a battle: counted as not read, listed once the battle ends.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

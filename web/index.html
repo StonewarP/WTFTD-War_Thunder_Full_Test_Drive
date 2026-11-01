@@ -88,6 +88,7 @@
   <button class="subtab hidden" data-view="overlay" role="tab"><span data-i18n="nav.overlay"></span></button>
   <button class="subtab hidden" data-view="flight" role="tab"><span data-i18n="nav.flight"></span></button>
   <button class="subtab" data-view="battle" role="tab"><span data-i18n="nav.battle"></span></button>
+  <button class="subtab" data-view="history" role="tab"><span data-i18n="nav.history"></span></button>
 </nav>
 
 <div class="update-banner hidden" id="updateBanner"></div>
@@ -367,6 +368,20 @@
         <section><h3 class="ov-h" data-i18n="bt.chat"></h3><div class="bt-log" id="btChat" role="log"></div></section>
         <section><h3 class="ov-h" data-i18n="bt.log"></h3><div class="bt-log" id="btLog" role="log"></div></section>
       </div>
+    </div>
+
+    <div class="view hidden" id="view-history">
+      <div class="page-head"><div><h2 data-i18n="mb.title"></h2><p class="muted" data-i18n="mb.hint"></p></div></div>
+      <div class="fl-bar hidden" id="mbBar">
+        <select id="mbMode" data-i18n-title="mb.mode"></select>
+        <select id="mbVehicle" data-i18n-title="mb.vehicle"></select>
+        <select id="mbMap" data-i18n-title="mb.map"></select>
+        <label class="bt-size"><span data-i18n="mb.from"></span><input id="mbFrom" type="date"></label>
+        <label class="bt-size"><span data-i18n="mb.to"></span><input id="mbTo" type="date"></label>
+        <div class="seg" id="mbResult"><button class="active" data-r="" data-i18n="fl.all"></button><button data-r="win" data-i18n="mb.win"></button><button data-r="loss" data-i18n="mb.loss"></button><button data-r="left" data-i18n="mb.left"></button></div>
+        <label class="switch"><input type="checkbox" id="mbOffline"><span class="sw"></span><span data-i18n="mb.offline"></span></label>
+      </div>
+      <div id="mbBody"></div>
     </div>
 
     <div class="view hidden" id="view-mymaps">
@@ -688,6 +703,7 @@
 <script src="overlay.js"></script>
 <script src="flight.js"></script>
 <script src="battle.js"></script>
+<script src="history.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 <script src="lzdecode.js"></script>

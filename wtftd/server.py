@@ -20,8 +20,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, models, sights, terrain, \
-    uninstall, vromfs, waveout
+from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, models, replays, sights, \
+    terrain, uninstall, vromfs, waveout
 from .paths import CACHE, DATA, HOME, USER, WEB
 
 ROOT = HOME
@@ -120,6 +120,21 @@ def write_json(path: Path, data):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)
     tmp.replace(path)
+
+
+BATTLES = CACHE / "battles.json"  # derived from the game's replays: goes with the cache
+_battles_lock = threading.Lock()  # two pages open: one scan at a time, one writer
+
+
+def battles() -> dict:
+    """My battles: the player's own results, from the game's replays."""
+    gd = STATE.game_dir()
+    with _battles_lock:
+        known = read_json(BATTLES, None)
+        index = replays.refresh(gd / "Replays" if gd else None, known)
+        if index != known:
+            write_json(BATTLES, index)
+    return {"game": gd is not None, **replays.listing(index)}
 
 
 # --------------------------------------------------------------------------- images
@@ -553,6 +568,8 @@ class Handler(BaseHTTPRequestHandler):
                     ARCHIVE.add(seen)
                 return self.send_json(seen)
             return self.send_json({"error": "not found"}, 404)
+        if route == "battles":
+            return self.send_json(battles())
         if route.startswith("flight/"):
             return self.send_json(flight_status(int(route.split("/", 1)[1]) if route.split("/", 1)[1].isdecimal() else 0))
         if route == "flight-logs":
