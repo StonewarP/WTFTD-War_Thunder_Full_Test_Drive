@@ -4,7 +4,7 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## 0.23.0 — not released yet
+## 0.23.0 — 2026-11-01
 
 - **Challenges** (My missions menu): scored missions for the picked vehicle, each with a goal in the game's objectives, a timer
   and a real win or failure. Tanks: firing range at known distances, moving targets, waves. Aircraft: a course of gates against

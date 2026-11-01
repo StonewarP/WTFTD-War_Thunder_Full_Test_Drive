@@ -4,9 +4,12 @@ import hashlib
 import importlib
 import json
 import math
+import runpy
 import struct
+import sys
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -248,6 +251,14 @@ class Source(unittest.TestCase):
         st, started = self.check(meta, "2.59.0.93")
         self.assertTrue(st["available"])
         self.assertEqual(len(started), 1)
+
+    def test_command_line_builds_through_the_real_module(self):
+        """Weapons read builder.DM: from `python -m` a copy of the module would stay on the datamine, and with no data yet the Weapons page came out empty."""
+        with mock.patch.object(builder, "build") as run, mock.patch.object(game, "detect_game_dir", lambda: self.root), \
+                mock.patch.object(sys, "argv", ["wtftd.builder", "--game"]), warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # runpy says the module is already imported: that's the point
+            runpy.run_module("wtftd.builder", run_name="__main__")
+        run.assert_called_once_with(pull=True, source="game", game_dir=self.root)
 
     def test_other_source_is_rebuilt(self):
         self.settings["dataSource"] = "game"

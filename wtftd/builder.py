@@ -2575,5 +2575,6 @@ def _build(progress, source: str):
 if __name__ == "__main__":
     from .game import detect_game_dir
     use_game = "--game" in sys.argv
-    build(pull="--no-pull" not in sys.argv, source="game" if use_game else "datamine",
-          game_dir=detect_game_dir() if use_game else None)
+    from . import builder  # not this copy: python -m runs the file as __main__, and the build's other modules read the real module's DM
+    builder.build(pull="--no-pull" not in sys.argv, source="game" if use_game else "datamine",
+                  game_dir=detect_game_dir() if use_game else None)
