@@ -769,8 +769,8 @@ class Watch:
 
     def read_log(self):
         """The battle log (/hudmsg), a few times a second: an aircraft breaking up in the air keeps its engines running, only
-        this says it's gone. Nothing local gives the player's name and the log names everybody: it's the name on the line
-        that comes with an impact of ours, so that nobody else's crash can ever silence the alarms."""
+        this says it's gone. The game's API doesn't give the player's name and the log names everybody: it comes from the
+        replays, and from the line that comes with an impact of ours, so that nobody else's crash can ever silence the alarms."""
         self._readings += 1
         if self._readings % LOG_EVERY:
             return
@@ -780,7 +780,7 @@ class Watch:
         for name in filter(None, (crash_name(x["text"], words) for x in lines)):
             if self.crash:
                 self.pilot = name
-            elif name == self.pilot:
+            elif name == self.pilot or battle.named(name, self.past.get("pilot", "")):
                 self._silent = time.monotonic() + BREAK_UP_S
 
     def follow_battle(self):

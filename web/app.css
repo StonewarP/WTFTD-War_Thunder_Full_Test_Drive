@@ -507,7 +507,7 @@ option { background: var(--surface); }
 }
 @media (max-width: 1000px) {
   :root { --side-w: 210px; }
-  .brand-text span, .status, #btnLaunchTop span { display: none; }
+  .brand-text span, .status, #btnLaunchTop span, #accountName { display: none; }
   .brand { min-width: 0; }
 }
 @media (max-width: 760px) {
@@ -1335,6 +1335,7 @@ body.sub-on .subtabs { display: flex; }
 .ov-shot label { cursor: pointer; }
 .ov-style { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--text-2); }
 /* my battles */
+#accountName { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mb-totals { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .mb-totals .vstat { padding: 10px 14px; gap: 2px; }
 .mb-totals .vstat b { font: 750 20px var(--font-display); }

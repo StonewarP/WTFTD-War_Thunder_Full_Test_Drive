@@ -1248,6 +1248,26 @@ class BattleLog(unittest.TestCase):
         self.look()
         self.beep.assert_not_called()
 
+    def test_the_replays_give_the_name_before_any_crash(self):
+        self.watch.past = {"pilot": "StonewarP"}  # without the clan's tag, which can change
+        self.log.append(self.OTHER)
+        self.look()
+        self.assertTrue(self.beep.called)  # somebody else's crash silences nothing
+        self.log.append(self.MINE)
+        self.look()
+        self.beep.reset_mock()
+        self.look()
+        self.beep.assert_not_called()
+
+    def test_a_replay_name_that_differs_from_the_log_loses_nothing(self):
+        self.watch.past = {"pilot": "StonewarP@steam"}
+        self.learnt()
+        self.log.append(self.MINE)
+        self.look()
+        self.beep.reset_mock()
+        self.look()
+        self.beep.assert_not_called()
+
     def test_it_lasts_until_the_next_spawn_at_most(self):
         self.learnt()
         self.log.append(self.MINE)

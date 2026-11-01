@@ -268,6 +268,16 @@ class Overlay(unittest.TestCase):
         self.assertEqual(self.watch.tally.kills, 0)
         self.assertEqual(len(self.asked), 2)  # My battles read once per battle, not at every look
 
+    def test_the_name_reaches_the_crash_detection(self):
+        self.watch.crash_words = lambda: ["hascrashed."]
+        self.ticks()
+        self.log.append({"id": 1, "time": 50, "msg": "=X= Foe (MiG-29) has crashed."})
+        self.ticks()
+        self.assertEqual(self.watch._silent, 0)
+        self.log.append({"id": 2, "time": 60, "msg": "=TAG= Myself (F-16AM) has crashed."})
+        self.ticks()
+        self.assertGreater(self.watch._silent, 0)
+
     def test_without_a_name_the_live_numbers_say_so(self):
         self.watch.stats = dict
         self.ticks(alarms.LOG_EVERY + 1)

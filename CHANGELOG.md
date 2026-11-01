@@ -16,6 +16,9 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   battles, and kills, deaths and kills per death of the battle under way, counted from the battle log lines that name you. They
   go in any line. Only your own: nobody else's numbers. Data schema 31 (the battle log's verbs in every language): the data is
   rebuilt once.
+- **Crash detection**: your name now comes from your replays, so a break-up in the air stops the alarms the first time too, not
+  only after a first crash has shown which name is yours. It also stands in the top bar, like an account name: a click opens
+  My battles.
 
 ## 0.22.1 — 2026-11-01
 

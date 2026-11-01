@@ -87,15 +87,24 @@ function mbRender() {
     ${MB.skipped ? `<p class="hint mb-note">${esc(t('mb.skipped', { n: MB.skipped }))}</p>` : ''}`;
 }
 
+// the replays also give the player's name: it stands in the top bar like an account's
+async function mbLoad() {
+  Object.assign(MB, await api('battles'));
+  $('#accountName').textContent = MB.rows[0]?.me || '';
+  $('#btnAccount').classList.toggle('hidden', !MB.rows.length);
+}
+
 async function openHistoryView() {
   mbRender();
   try {
-    Object.assign(MB, await api('battles'));
+    await mbLoad();
     mbRender();
   } catch (e) { toastErr(e); }
 }
 
 function bindHistory() {
+  mbLoad().catch(() => {});  // no game, no name: no button
+  $('#btnAccount').addEventListener('click', () => showView('history'));
   for (const [el, key] of [['#mbMode', 'mode'], ['#mbVehicle', 'vehicle'], ['#mbMap', 'map'], ['#mbFrom', 'from'], ['#mbTo', 'to']]) {
     $(el).addEventListener('change', e => { MB[key] = e.target.value; mbRender(); });
   }

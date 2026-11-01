@@ -46,7 +46,7 @@ def duel(text: str, words: dict) -> tuple | None:
     return None
 
 
-def _named(side: str, name: str) -> bool:
+def named(side: str, name: str) -> bool:
     """Is this side of a line the player: "=TAG= Name (vehicle)"?"""
     who = side.split(" (", 1)[0]
     return who == name or who.endswith(" " + name)
@@ -67,9 +67,9 @@ class Tally:
             if name not in text:
                 continue
             fight = duel(text, words)
-            if fight and _named(fight[0], name):
+            if fight and named(fight[0], name):
                 self.kills += " (" in fight[1]
-            elif (fight and _named(fight[1], name)) or (_named(text, name) and any(
+            elif (fight and named(fight[1], name)) or (named(text, name) and any(
                     "".join(text.split()).endswith(w) for w in (*words.get("crashed", []), *words.get("lost", [])))):
                 self.deaths += x["time"] - self.died >= ANOTHER_LIFE_S
                 self.died = x["time"]

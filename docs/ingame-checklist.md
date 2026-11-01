@@ -404,9 +404,9 @@ checked against the game's own log (`onAircraftDead`, `water_explosion_big`): 2 
 found within 0.1 s; no false alarm on a landing, a belly landing, 11 G pulls and 20 minutes of flying.
 
 A break-up in the air (wings gone at 1,607 km/h, 23 G) keeps the engines running: the battle log (`/hudmsg`, live) tells
-it, from `NET_PLAYER_HAS_CRASHED` in the game's language files. The log names everybody and nothing local gives the
-player's name: it's taken from the line that comes with an impact of ours, then only that name counts. Replayed on the
-same flight: the name learnt 0.4 s after the first impact, the beeps of the break-up stopped.
+it, from `NET_PLAYER_HAS_CRASHED` in the game's language files. The log names everybody and the game's API doesn't give the
+player's name: it comes from the replays (My battles), and from the line that comes with an impact of ours; only that name
+counts. Replayed on the same flight: the name learnt 0.4 s after the first impact, the beeps of the break-up stopped.
 
 - [x] **Into water**: same numbers, at high speed in the Surobi lake (Afghanistan).
 - [ ] **Slowly into water**: when the aircraft floats, then sinks?
@@ -414,7 +414,8 @@ same flight: the name learnt 0.4 s after the first impact, the beeps of the brea
 - [ ] **Helicopter**: does `RPM` read above 500 at all? Below that nothing is detected.
 - [ ] **Engine shot out, then gliding to the ground**: no engine left to fall to 0, so no detection: acceptable?
 - [ ] **Hide the overlay after a crash** on: gone at the impact, back at the next spawn.
-- [ ] **Break-up in the air** as the first crash of the session: no name yet, so the beeps go on for those few seconds.
+- [ ] **Break-up in the air** as the first crash of the session: with a replay on the PC the beeps stop at once; without one, no
+  name yet, so they go on for those few seconds.
 - [ ] **A real battle**: another player's crash, in the same aircraft too, doesn't silence the alarms.
 - [ ] The game in **another language** (English, Russian, Japanese): the name gets learnt.
 
