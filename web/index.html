@@ -95,6 +95,8 @@
   <button class="subtab" data-view="battle" role="tab"><span data-i18n="nav.battle"></span></button>
   <button class="subtab" data-view="history" role="tab"><span data-i18n="nav.history"></span></button>
   <button class="subtab hidden" data-view="bench" role="tab"><span data-i18n="nav.bench"></span></button>
+  <button class="subtab" data-view="missions" role="tab"><span data-i18n="nav.missions"></span></button>
+  <button class="subtab" data-view="challenges" role="tab"><span data-i18n="nav.challenges"></span></button>
 </nav>
 
 <div class="update-banner hidden" id="updateBanner"></div>
@@ -468,6 +470,15 @@
       <h3 class="list-head" data-i18n="missions.created"></h3>
       <div class="list" id="missionList"></div>
     </div>
+
+    <div class="view hidden" id="view-challenges">
+      <div class="page-head"><div><h2 data-i18n="nav.challenges"></h2><p class="muted" data-i18n="cg.hint"></p></div></div>
+      <div class="fl-bar">
+        <div class="pk-slot" id="cgVehicle" role="button" tabindex="0"></div>
+        <div class="seg" id="cgDiff"><button data-diff="easy" data-i18n="cg.diff.easy"></button><button data-diff="normal" data-i18n="cg.diff.normal"></button><button data-diff="hard" data-i18n="cg.diff.hard"></button></div>
+      </div>
+      <div id="cgBody"></div>
+    </div>
   </section>
 
   <div class="pickbar" id="pickbar"></div>
@@ -776,6 +787,7 @@
 <script src="hangar.js"></script>
 <script src="mods.js"></script>
 <script src="bench.js"></script>
+<script src="challenges.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 <script src="lzdecode.js"></script>

@@ -42,7 +42,7 @@ Only the latest release is supported: fixes ship in a new version.
   one other name kept is a teammate's who shot you down, in `user\teamkills.json`: the battle log's killers stay in memory until
   the replay says which team they were on, and enemies are dropped. Nothing leaves your PC.
 - **What it reads while you fly:** the game's local page on `127.0.0.1:8111`, on your PC: your aircraft's values, its
-  marker on the map, the chat and the battle log. On Windows, to recognise the aircraft, one key of the game's
+  marker on the map, the chat and the battle log, and for Challenges the state of your mission's objective. On Windows, to recognise the aircraft, one key of the game's
   `global.blk` (the aircraft it saved), read only. The overlay is a separate window: nothing is injected into the game.
 - **What it downloads:** unless you read your installed game, the community
   [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine)

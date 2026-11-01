@@ -216,6 +216,10 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   ammunition, loadouts, Weapons tab items, maps, each with its old and new value. The official notes list the key changes, this
   shows everything that moved in the numbers. Filters by name, nation, vehicle type, game mode and your own vehicles; a vehicle
   opens its panel, a weapon its row, a map its map. It starts with the next game update, and keeps the last 30 patches
+- **Challenges**: scored missions for the vehicle you picked: firing range, moving targets, waves of tanks or fighters, a course of gates,
+  bombing, missile evasion, helicopter and naval ranges. A goal in the game's objectives, a timer, a real win or failure, three
+  difficulties, no cheats; your best times stay in the tab, a result plays again in one click and a challenge can be shared. Results
+  come in while WTFTD is open.
 - **My battles**: your own history from the replays the game saves: date, map, game mode, vehicle, result, kills, deaths,
   assists, score, damage; totals and a summary by vehicle; filters by game mode, vehicle, map, dates and result. A vehicle
   opens its panel, a map opens that map. Your name and squadron tag stand in the top bar like an account name. Only your own line is read,
@@ -458,6 +462,7 @@ wtftd/                      Python backend (stdlib only)
   hangar.py                 My hangar: owned vehicles, lineups and research plan, kept in user/hangar.json
   bench.py                  Test bench: finds the valid stretches of a recorded test, results in user/bench.json
   mods.py                   Skins and sounds: untrusted archives, what WTFTD installed, config.blk's one line
+  challenges.py             Challenges: what's where on each map, results in user/challenges.json
   waveout.py / tray.py      sound on the output you pick / the app window: minimized, notification area (Windows)
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
@@ -465,6 +470,7 @@ web/                        UI (HTML/CSS/JS, no build step), web/locales = trans
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
                             overlay.js / flight.js / battle.js / history.js = In flight, cockpit.html = the cockpit window,
                             changes.js = What changed, hangar.js = My hangar, mods.js = Skins and sounds, bench.js = Test bench,
+                            challenges.js = Challenges,
                             editor.js = scenario editor, model3d.js / map3d.js / lzdecode.js = the 3D views
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)

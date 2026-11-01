@@ -1295,6 +1295,7 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 /* ------------------------------------------------------------------ Flight data */
 .fl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
 .fl-bar select { max-width: 420px; }
+.cg-map { width: 190px; }
 .fl-chart { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 14px; min-height: 120px; }
 .fl-chart canvas { display: block; width: 100%; cursor: crosshair; }
 .fl-chart canvas.hidden { display: none; }

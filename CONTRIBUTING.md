@@ -44,6 +44,7 @@ then builds `data/`. Rebuild the data by hand with `python -m wtftd.builder --no
 | `wtftd/hangar.py` | My hangar: owned vehicles, lineups and research plan in `user/hangar.json`, checked on the way in and out; UI and the matchmaking rule in `web/hangar.js` |
 | `wtftd/bench.py` | Test bench: the player flies a guided test in a generated mission, `analyse()` keeps the valid stretches of the recording and says why it refused the rest, results in `user/bench.json`. `TESTS` says what each test checks and how it finds a result: a new test takes one line there and one function. It reads, never sends: no input of any kind goes to the game. UI in `web/bench.js` |
 | `wtftd/mods.py` | Skins and sounds: untrusted `.zip` and folders, `user/mods_manifest.json`, the one line of `config.blk`. It's the only code that changes a game setting: see `SECURITY.md`. UI in `web/mods.js`, skin textures in `web/model3d.js` |
+| `wtftd/challenges.py` | Challenges: scored missions, what stands where on each map, results in `user/challenges.json` from the game's `/mission.json` and the replays. The rules are `mission.apply_challenge`; UI in `web/challenges.js` |
 | `wtftd/blk.py` | BLK text format writer / reader |
 | `web/` | UI: plain HTML / CSS / JavaScript, no build step |
 | `web/locales/` | UI translations |

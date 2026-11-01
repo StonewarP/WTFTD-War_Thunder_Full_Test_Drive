@@ -18,7 +18,7 @@ from pathlib import Path
 
 from . import battle, vromfs
 
-VERSION = 1  # of the rows in the index: another one reads every file again
+VERSION = 2  # of the rows in the index: another one reads every file again
 MAGIC = b"\xe5\xac\x00\x10"
 HEADER = 1096  # the fixed fields end with the battle class
 RESULTS_MAX = 1 << 20  # about 26 KB in the largest of 106 real battles: a damaged offset can't load a whole recording
@@ -48,13 +48,14 @@ def _row(head: bytes, comments: dict, name: str) -> dict | None:
     offline = cls == "singleMission" or "UserMissions" in mission or level == "firing_range"
     folder = re.match(r"gamedata/missions/cta/(\w+)/", mission)
     crafts = comments.get("uiScriptsData", {}).get("playersInfo", {}).get(f"__int_{author}", {}).get("crafts", {})
-    made = re.search(r"wtftd_([^/\\]+)\.blk$", mission)  # WTFTD's own missions: no players' list, the file's named after the vehicle
+    made = re.search(r"wtftd_(?:ch-(\w+)-(\w+)-)?([^/\\]+)\.blk$", mission)  # WTFTD's own missions: no players' list, the file's named after the vehicle
     return {
         "file": name, "me": me["name"], "clan": me.get("clanTag", ""), "start": struct.unpack_from("<I", head, 908)[0], "level": level, "offline": offline,
         "title": _text(head, 780, 128) if offline else "",  # a battle's name is its map
         "kind": KINDS.get(folder.group(1), "") if folder else "", "diff": DIFFICULTIES.get(head[688] & 15, ""),
         "result": STATUS.get(comments.get("status"), "left"), "played": int(comments["timePlayed"]),
-        "vehicles": list(dict.fromkeys(crafts.values())) or ([made.group(1)] if made else []),
+        "vehicles": list(dict.fromkeys(crafts.values())) or ([made.group(3)] if made else []),
+        **({"challenge": made.group(1, 2)} if made and made.group(1) else {}),
         "kills": me.get("kills", me.get("airKills", 0)) + me.get("groundKills", 0) + me.get("navalKills", 0),
         "ai": me.get("aiKills", 0) + me.get("aiGroundKills", 0) + me.get("aiNavalKills", 0),  # AI vehicles: apart from the kills per death
         "deaths": me.get("deaths", 0), "assists": me.get("assists", 0), "score": me.get("score", 0),

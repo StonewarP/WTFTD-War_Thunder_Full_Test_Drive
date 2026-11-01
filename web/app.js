@@ -13,7 +13,7 @@ const NATIONS = ['usa', 'germany', 'ussr', 'britain', 'japan', 'china', 'italy',
 const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', britain: '#2f8a63', japan: '#d65a5a', china: '#e2a92b', italy: '#2fa262', france: '#4766dd', sweden: '#f0c637', israel: '#4fa6e3', other: '#5b6b84' };
 const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
 // the top menu: each menu's pages, shown as sub-tabs under it when it has several
-const MENUS = { vehicles: ['vehicles', 'setups', 'hangar', 'changes', 'mods'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
+const MENUS = { vehicles: ['vehicles', 'setups', 'hangar', 'changes', 'mods'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions', 'challenges'],
                 inflight: ['overlay', 'flight', 'battle', 'history', 'bench'] };
 const AVIONICS = ['laserDesignator', 'havePointOfInterestDesignator', 'hasHelmetDesignator', 'haveCCIPForGun', 'haveCCIPForRocket', 'haveCCIPForBombs', 'haveCCRPForBombs', 'haveCCRPForGun'];
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
@@ -205,6 +205,7 @@ async function boot() {
   bindHangar();
   bindMods();
   bindBench();
+  bindChallenges();
   bindMaps();
   bindLibrary();
   showView(store.get('startView', 'vehicles'));
@@ -633,6 +634,7 @@ function showView(name) {
   if (name === 'changes') openChangesView();
   if (name === 'hangar') openHangarView();
   if (name === 'mods') openModsView();
+  if (name === 'challenges') openChallengesView();
 }
 
 // ------------------------------------------------------------------ vehicle drawer
@@ -1296,17 +1298,18 @@ function missionPayload() {
   };
 }
 
-async function generate(btn) {
+async function generate(btn, extra = {}) {
   btn.disabled = true;
   btn.querySelector('span').textContent = t('action.generating');
   try {
     await edAutoRefresh();  // map editor units that follow your vehicle's BR
-    const r = await api('generate', missionPayload());
-    S.lastGen = { vid: S.cfg.vehicle, file: r.file, title: missionPayload().title };  // stays shown above the button
+    const body = { ...missionPayload(), ...extra };
+    const r = await api('generate', body);
+    S.lastGen = { vid: S.cfg.vehicle, file: r.file, title: body.title };  // stays shown above the button
     if (S.sel && S.sel.id === S.cfg.vehicle) renderDrawer();
     toast({
       title: t('toast.generated', { file: r.file }),
-      sub: t('toast.generatedHint', { title: missionPayload().title }) + (r.cdkFiles?.length ? ' ' + t('toast.cdkHint', { n: r.cdkFiles.length }) : '')
+      sub: t('toast.generatedHint', { title: body.title }) + (r.cdkFiles?.length ? ' ' + t('toast.cdkHint', { n: r.cdkFiles.length }) : '')
         + (r.sight?.error ? ' ' + t('sight.failed', { error: r.sight.error })
           : r.sight?.vehicles?.length ? ' ' + t('sight.installed', { file: r.sight.file, vehicle: r.sight.vehicles.map(x => I18N.unit(x)).join(', ') }) : ''),
       ms: r.sight ? 20000 : 12000,
