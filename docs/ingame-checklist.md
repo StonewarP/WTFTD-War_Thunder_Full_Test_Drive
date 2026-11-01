@@ -330,6 +330,8 @@ Turn them on first: In flight → My overlay → Turn on the overlay and alarms 
 - [ ] **Glow** (My overlay → Glow around the screen): shows with an alarm, goes with it, not after a crash, never takes the
   focus, clicks go through it, and fits a borderless game (not an exclusive fullscreen one).
 - [ ] **Glow's size and flash**: both follow the settings during a real alarm, and the first flash doesn't stall the overlay.
+- [ ] **Glow's colour**: its own colour during a real alarm, the alert colour again once cleared, and a profile's colour on its
+  aircraft. The window itself was read on screen out of game; the game in front wasn't checked.
 - [ ] **A line's own alert** (say fuel % under 15): colour, beep and glow, gone with it; a condition hides and shows a line.
 - [ ] **Sounds**: volume heard, a `.wav` per alarm plays and comes back to the beep if its file is removed, mute key, beeps
   only with the game in front, none with the engines stopped.

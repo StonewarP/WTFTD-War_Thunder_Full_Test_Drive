@@ -51,7 +51,7 @@ function ovBlockEl(i) {
 function ovDraw() {
   const box = $('#ovScreen'), c = OV.cfg;
   box.style.aspectRatio = `${OV.screen[0]} / ${OV.screen[1]}`;
-  box.style.boxShadow = c.glow ? `inset 0 0 ${box.clientHeight * c.glowSize / 100}px ${c.alert}` : '';
+  box.style.boxShadow = c.glow ? `inset 0 0 ${box.clientHeight * c.glowSize / 100}px ${c.glowColor || c.alert}` : '';
   box.style.setProperty('--ov-flash', `${c.flashMs}ms`);
   const k = box.clientWidth / OV.screen[0];
   const look = { fontFamily: `"${c.font}", monospace`, fontWeight: c.bold ? 700 : 400, fontStyle: c.italic ? 'italic' : 'normal' };
@@ -231,7 +231,8 @@ function ovRenderProfiles(st) {
   $('#ovActive').textContent = st.aircraft ? t('ov.active', { aircraft: I18N.unit(st.aircraft), profile: ovProfileName(st.active) }) : '';
 }
 
-// the colours that can follow the text: a cross takes them back to it
+// the colours that can follow the text, or the alert colour for the glow: a cross takes them back to it
+const ovFollowed = key => OV.cfg[key] || (key === 'glowColor' ? OV.cfg.alert : OV.cfg.color);
 function ovShowClears() {
   $$('#view-overlay [data-ovclear]').forEach(b => b.classList.toggle('hidden', !OV.cfg[b.dataset.ovclear]));
 }
@@ -246,7 +247,7 @@ function ovRender(st) {
   $('#ovOnScreen').checked = st.onScreen;
   $$('#view-overlay [data-ov]').forEach(el => {
     if (el.type === 'checkbox') el.checked = OV.cfg[el.dataset.ov];
-    else el.value = el.type === 'color' ? OV.cfg[el.dataset.ov] || OV.cfg.color : OV.cfg[el.dataset.ov];
+    else el.value = el.type === 'color' ? ovFollowed(el.dataset.ov) : OV.cfg[el.dataset.ov];
   });
   ovShowClears();
   $$('#view-overlay [data-ovkey]').forEach(el => { el.value = OV.cfg[el.dataset.ovkey + 'Name']; });
@@ -340,6 +341,7 @@ function bindOverlay() {
       if (el.type === 'number' && Number.isNaN(value)) return;
       OV.cfg[el.dataset.ov] = value;
       if (el.dataset.ov === 'size' || el.dataset.ov === 'color') ovRenderLines();  // what lines without their own show
+      if (el.dataset.ov === 'alert') $('#ovGlowColor').value = ovFollowed('glowColor');
       ovShowClears();
       ovDraw();
     } else if (el.dataset.ol) {
@@ -386,7 +388,7 @@ function bindOverlay() {
     if (b.dataset.ovtest) { await ovFlush(); return api('overlay-test', { alarm: b.dataset.ovtest, profile: OV.profile }).catch(toastErr); }
     if ('ovruletest' in b.dataset) { await ovFlush(); return api('overlay-test', { line: i, profile: OV.profile }).catch(toastErr); }
     if (b.dataset.ovpick) { OV.pick = b.dataset.ovpick; return $('#ovSoundFile').click(); }
-    if (b.dataset.ovclear) { OV.cfg[b.dataset.ovclear] = ''; $(`[data-ov="${b.dataset.ovclear}"]`).value = OV.cfg.color; ovShowClears(); return ovSave(); }
+    if (b.dataset.ovclear) { OV.cfg[b.dataset.ovclear] = ''; $(`[data-ov="${b.dataset.ovclear}"]`).value = ovFollowed(b.dataset.ovclear); ovShowClears(); ovDraw(); return ovSave(); }
     if (b.dataset.ocadd) { lines[i][b.dataset.ocadd].more = [...(lines[i][b.dataset.ocadd].more || []), { value: 'alt', op: '>', at: 0 }]; }
     else if (b.dataset.ocdel) { lines[i][b.dataset.ocdel].more.splice(+b.closest('.ov-cond').dataset.n - 1, 1); }
     else if (b.dataset.olclear) { lines[i][b.dataset.olclear] = ''; }

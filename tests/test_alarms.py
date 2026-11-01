@@ -479,6 +479,39 @@ class Glow(unittest.TestCase):
         self.assertEqual(self.alpha(small, 400, 200, 40), 0)
         self.assertGreater(self.alpha(big, 400, 200, 40), 0)
 
+    def test_its_colour_follows_the_alert_s_by_default(self):
+        cfg = alarms.clean({"alert": "#123456"}, WORDS)
+        self.assertEqual((cfg["glowColor"], alarms.glow_color(cfg)), ("", "#123456"))
+        self.assertEqual(alarms.clean(None, WORDS)["glowColor"], "")
+
+    def test_a_colour_of_its_own(self):
+        cfg = alarms.clean({"alert": "#123456", "glowColor": "#00ff80"}, WORDS)
+        self.assertEqual(alarms.glow_color(cfg), "#00ff80")
+        self.assertEqual(alarms.glow_pixels((8, 4), alarms.glow_color(cfg))[:4], bytes((90, 180, 0, 180)))
+        self.assertEqual(cfg["alert"], "#123456")  # the lines keep theirs
+
+    def test_an_odd_colour_is_the_alert_s(self):
+        for odd in ("red", "#12", "#GGGGGG", "#12345678", 7, True, None, ["#00FF00"]):
+            self.assertEqual(alarms.glow_color(alarms.clean({"alert": "#123456", "glowColor": odd}, WORDS)), "#123456", odd)
+
+    def test_a_profile_has_its_own(self):
+        watch = alarms.Watch(lambda path: None, dict, save=lambda: None)
+        watch.set_config(alarms.clean({"alert": "#FF0000"}, WORDS), {"j_10c": alarms.clean({"glowColor": "#00FF00"}, WORDS)})
+        self.assertEqual(alarms.glow_color(watch.cfg), "#FF0000")
+        watch.current = "j_10c"
+        watch.pick()
+        self.assertEqual(alarms.glow_color(watch.cfg), "#00FF00")
+
+    def test_the_page_offers_it(self):
+        page = (alarms.WEB / "index.html").read_text(encoding="utf-8")
+        script = (alarms.WEB / "overlay.js").read_text(encoding="utf-8")
+        self.assertIn('data-ov="glowColor"', page)
+        self.assertIn('data-ovclear="glowColor"', page)
+        self.assertIn("c.glowColor || c.alert", script)  # the preview
+        for code in ("en", "fr", "de", "es", "it", "pt", "pl", "cs", "ru", "ja", "zh"):
+            words = json.loads((alarms.WEB / "locales" / f"{code}.json").read_text(encoding="utf-8"))
+            self.assertTrue(words["ov.glowColor"] and words["ov.sameAsAlert"], code)
+
     def test_off_by_default(self):
         self.assertFalse(alarms.clean(None, WORDS)["glow"])
         self.assertTrue(alarms.clean({"glow": True}, WORDS)["glow"])

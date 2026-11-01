@@ -158,7 +158,7 @@ def defaults(words: dict) -> dict:
     return {"x": round(700 * scale), "y": round(55 * scale), "font": "Consolas", "size": round(40 * scale), "bold": False,
             "italic": False, "spacing": 0, "outline": 0, "outlineColor": "#000000", "blocks": [], "valueColor": "", "unitColor": "",
             "pctAlways": False, **_look({}),
-            "glowSize": GLOW_SIZE, "glowFlash": False, "flashMs": 500, "volume": 100, "soundFocus": False, "soundEngine": False,
+            "glowSize": GLOW_SIZE, "glowColor": "", "glowFlash": False, "flashMs": 500, "volume": 100, "soundFocus": False, "soundEngine": False,
             "pollMs": round(POLL_S * 1000), "logMs": round(SAMPLE_S * 1000), "muteKey": [], "muteKeyName": "", "holdKey": [], "holdKeyName": "",
             "color": "#E6E6E6", "alert": "#FF0000", "opacity": 100, "show": True, "hotkey": [], "hotkeyName": "",
             "logKey": [], "logKeyName": "", "hideCrash": False, "glow": False, "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS, "sound": ""} for n, (at, hz) in ALARMS.items()},
@@ -251,7 +251,7 @@ def clean(cfg, words: dict) -> dict:
            "pctAlways": _flag(cfg.get("pctAlways"), base["pctAlways"]),
            "italic": _flag(cfg.get("italic"), base["italic"]), "spacing": _num(cfg.get("spacing"), base["spacing"], -50, 200),
            "outline": _num(cfg.get("outline"), base["outline"], 0, 4), "outlineColor": _color(cfg.get("outlineColor"), base["outlineColor"]),
-           "glowSize": _num(cfg.get("glowSize"), base["glowSize"], 3, 50), "glowFlash": _flag(cfg.get("glowFlash"), base["glowFlash"]),
+           "glowSize": _num(cfg.get("glowSize"), base["glowSize"], 3, 50), "glowColor": _color(cfg.get("glowColor"), ""), "glowFlash": _flag(cfg.get("glowFlash"), base["glowFlash"]),
            "flashMs": _num(cfg.get("flashMs"), base["flashMs"], 200, 4000), "volume": _num(cfg.get("volume"), base["volume"], 0, 100),
            "soundFocus": _flag(cfg.get("soundFocus"), base["soundFocus"]), "soundEngine": _flag(cfg.get("soundEngine"), base["soundEngine"]),
            "pollMs": _num(cfg.get("pollMs"), base["pollMs"], 50, 1000), "logMs": _num(cfg.get("logMs"), base["logMs"], 100, 10000),
@@ -915,6 +915,10 @@ class Watch:
             self.overlay.join(1)
 
 
+def glow_color(cfg: dict) -> str:
+    return cfg["glowColor"] or cfg["alert"]
+
+
 def glow_pixels(size: tuple, color: str, reach: int = GLOW_SIZE) -> bytes:
     """A screen-sized picture for paint_glow, premultiplied BGRA: the colour at the edges, fading to nothing inside."""
     width, height = size
@@ -1074,8 +1078,8 @@ def run_overlay(watch: Watch):
             on_game = cfg["show"] and not watch.hidden and not held and game_focused()
             # ShowWindow rather than Tk: Tk would take the focus
             user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE if lines and (watch.preview or on_game) else SW_HIDE)
-            if cfg["glow"] and (cfg["alert"], cfg["glowSize"]) != painted:  # ahead of the first alarm: it takes a moment on a big screen
-                painted = cfg["alert"], cfg["glowSize"]
+            if cfg["glow"] and (glow_color(cfg), cfg["glowSize"]) != painted:  # ahead of the first alarm: it takes a moment on a big screen
+                painted = glow_color(cfg), cfg["glowSize"]
                 paint_glow(glow_hwnd, screen(), glow_pixels(screen(), *painted))
             warn = watch.preview or (watch.warn and not watch.hidden and game_focused())
             user32.ShowWindow(glow_hwnd, SW_SHOWNOACTIVATE if cfg["glow"] and warn and (lit or not cfg["glowFlash"]) else SW_HIDE)

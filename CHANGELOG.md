@@ -64,6 +64,8 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   or ship, by the name the app gives it, in your language. A custom vehicle shows its real vehicle's name. What the app can't
   recognise shows the id the game gives. It's your choice: the default lines don't have it.
 - **No more sound for an unknown aircraft**: the overlay still says so, in words, and only real alarms make a sound.
+- **Glow colour** (My overlay, Glow): the glow around the screen can have its own colour, for all aircraft or per aircraft or
+  type. Until you pick one it stays the alert colour, so nothing changes.
 - **Translations**: the research path, research cost and purchase cost are now translated in every language.
 - **Motor burn** (Weapons): read from the motor format the game now uses for more and more missiles, such as the R-60 from 2.60 on,
   which had lost the value. Data schema 32: the data is rebuilt once.

@@ -182,7 +182,7 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   in a click-through window (speed against the limit, altitude, fuel, any value the game sends), limits as speeds,
   percentages or both, placed on a picture of your screen with the game's HUD or your own screenshot; and beeps near
   your aircraft's breaking speeds with your thresholds and sounds or your own (mp3, wav...), on the sound output you
-  choose, with a glow around the screen if you like, of the size you want and flashing or not; they stop when you crash.
+  choose, with a glow around the screen if you like, of the colour and size you want and flashing or not; they stop when you crash.
   Any line can have its own alert on any value (`fuel < 15 %`, `G > 9`) and show under conditions of its own, in up to
   four text blocks with columns, a frame and a background, with an outline and its own colours for names, values and
   units. A key mutes the alarms, another hides the overlay. A line can also show **the name of what you're in**, and **your
