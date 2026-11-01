@@ -676,6 +676,15 @@ class Watching(unittest.TestCase):
         self.assertEqual(self.texts()[1:], ["IAS    1500 / N/A km/h", "MACH   0.50 / N/A"])  # the game's own values remain
         self.beep.assert_not_called()
 
+    def test_the_overlay_can_wait_for_a_known_aircraft(self):
+        self.watch.set_config(alarms.clean({"hideUnknown": True}, WORDS), {})
+        self.model = None
+        self.fly()
+        self.assertEqual(self.watch.display, [])
+        self.model = "j_10c"
+        self.fly()
+        self.assertIn("IAS", self.texts()[0])
+
     def test_changing_aircraft_in_the_hangar(self):
         self.fly()
         self.assertIs(self.watch._lim, J10)

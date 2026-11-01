@@ -163,7 +163,7 @@ def defaults(words: dict) -> dict:
             "glowSize": GLOW_SIZE, "glowColor": "", "glowFlash": False, "flashMs": 500, "volume": 100, "soundFocus": False, "soundEngine": False,
             "pollMs": round(POLL_S * 1000), "logMs": round(SAMPLE_S * 1000), "muteKey": [], "muteKeyName": "", "holdKey": [], "holdKeyName": "",
             "color": "#E6E6E6", "alert": "#FF0000", "opacity": 100, "show": True, "hotkey": [], "hotkeyName": "",
-            "logKey": [], "logKeyName": "", "hideCrash": False, "glow": False, "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS, "sound": ""} for n, (at, hz) in ALARMS.items()},
+            "logKey": [], "logKeyName": "", "hideCrash": False, "hideUnknown": False, "glow": False, "repeat": REPEAT_MS, "alarms": {n: {"on": True, "at": at, "hz": hz, "ms": BEEP_MS, "sound": ""} for n, (at, hz) in ALARMS.items()},
             "lines": [line("IAS", "{ias} / {vne} km/h {swept}", alarm="airframe"), line("MACH", "{mach} / {mne}", alarm="airframe"),
                       line(words["gear"], "{ias} / {gear_max} km/h", "gear", "gear"),
                       line(words["flaps"], "{ias} / {flaps_max} km/h", "flaps", "flaps"),
@@ -248,7 +248,8 @@ def clean(cfg, words: dict) -> dict:
            "size": _num(cfg.get("size"), base["size"], 6, 400), "bold": _flag(cfg.get("bold"), base["bold"]),
            "color": _color(cfg.get("color"), base["color"]), "alert": _color(cfg.get("alert"), base["alert"]),
            "opacity": _num(cfg.get("opacity"), base["opacity"], 10, 100), "show": _flag(cfg.get("show"), base["show"]),
-           "hideCrash": _flag(cfg.get("hideCrash"), base["hideCrash"]), "glow": _flag(cfg.get("glow"), base["glow"]),
+           "hideCrash": _flag(cfg.get("hideCrash"), base["hideCrash"]), "hideUnknown": _flag(cfg.get("hideUnknown"), base["hideUnknown"]),
+           "glow": _flag(cfg.get("glow"), base["glow"]),
            "valueColor": _color(cfg.get("valueColor"), ""), "unitColor": _color(cfg.get("unitColor"), ""), **_look(cfg),
            "pctAlways": _flag(cfg.get("pctAlways"), base["pctAlways"]),
            "italic": _flag(cfg.get("italic"), base["italic"]), "spacing": _num(cfg.get("spacing"), base["spacing"], -50, 200),
@@ -873,7 +874,7 @@ class Watch:
         note = self.words["unknown"] if not lim else self.words["unbreakable"] if self._unbreakable else None
         tint = cfg["alert"] if not lim else cfg["color"]
         status = [(note, tint, cfg["size"], False, 0, [(note, tint)])] if note else []
-        self.display = [] if wreck and cfg["hideCrash"] else status + lines_for(cfg, values, on)
+        self.display = [] if (wreck and cfg["hideCrash"]) or (not lim and cfg["hideUnknown"]) else status + lines_for(cfg, values, on)
         rpm = _engines(state)[0]
         silent = self.muted or (cfg["soundFocus"] and not game_focused()) or (cfg["soundEngine"] and rpm and not any(rpm))
         if on and not silent and time.monotonic() - self._last_beep >= cfg["repeat"] / 1000:

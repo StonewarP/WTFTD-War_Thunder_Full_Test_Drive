@@ -583,6 +583,7 @@
   "ov.bgHint": "Take a screenshot in flight and pick it here, or paste it with Ctrl+V: you then place the text on your real HUD. Without one, this is an outline of the HUD on a 16:9 screen.",
   "ov.show": "Show the window in flight (off: beeps only)",
   "ov.hideCrash": "Hide the overlay after a crash (the beeps always stop)",
+  "ov.hideUnknown": "Hide the overlay while the aircraft is unknown",
   "ov.glow": "Glow around the screen during an alarm",
   "ov.italic": "Italic",
   "ov.spacing": "Line spacing, px",
