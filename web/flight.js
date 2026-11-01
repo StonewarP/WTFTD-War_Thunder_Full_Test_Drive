@@ -214,6 +214,13 @@ async function flSource(name) {
   if (!name) flPoll();
 }
 
+// a recording from elsewhere (a Test bench run): its curves, report and Tacview export
+async function flOpenLog(name) {
+  FL.log = name;
+  showView('flight');
+  await flSource(name);
+}
+
 async function openFlightView() {
   await flLogs(FL.log);
   flPoll();

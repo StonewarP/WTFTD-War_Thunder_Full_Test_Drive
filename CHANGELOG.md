@@ -60,6 +60,16 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   only on request, and the README and `SECURITY.md` say so. WTFTD doesn't browse or download mods. Archives are untrusted: paths that leave
   their folder, links, executables and scripts, oversized or over-compressed files refuse the whole archive, and nothing is written
   outside `UserSkins` and `sound/mod`. What you installed by hand is shown and never touched. Uninstall has a part for this.
+- **Test bench** (In flight menu, Windows): hard numbers instead of the stat card, measured in the game. Pick an aircraft or helicopter,
+  from the page or a button in its panel, a loadout and the fuel, then a test: top speed, climb, sustained turn, acceleration, hard turn,
+  stall speed. WTFTD writes a user mission for it (air start at the right height and speed, clear weather, an open map, nobody else), with the
+  test in its description. You fly: no key or input of any kind goes to the game, the app only reads its local data. While you fly the page
+  says what to do and what holds (throttle, gear, flaps, bank, height, speed); when you leave, it finds the valid stretches of the recording by
+  itself and says why it refused the rest. Results are saved by aircraft, loadout and game version in `user/bench.json`, as curves in the look of
+  Flight data: top speed by altitude, climb by altitude, turn time by speed, several runs laid over each other, with the stat card next
+  to them. *Compare* gets measured rows, the vehicle panel a quiet Measured block, and a run opens in Flight data with its report and Tacview
+  file. Each result states its fuel, loadout, altitude and modifications; a custom vehicle or a run with cheats is marked as not comparable
+  and stays out of Compare. Helicopters get top speed, climb and acceleration. Not flown in the game yet: see the checklist.
 - **Translations**: the research path, research cost and purchase cost are now translated in every language.
 - **Motor burn** (Weapons): read from the motor format the game now uses for more and more missiles, such as the R-60 from 2.60 on,
   which had lost the value. Data schema 32: the data is rebuilt once.

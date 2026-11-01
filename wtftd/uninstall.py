@@ -7,7 +7,7 @@ WTFTD added to it (the custom vehicle files of its manifest, the missions it cre
   cache     .cache: the datamine copy or the unpacked game files, pictures, maps, logs, the index of My battles (the app
             window's profile goes once WTFTD has closed)
   data      data: the game database built from the game files
-  user      user: settings, My vehicles / maps / missions, flight logs, the teamkills of My battles, the What changed history, My hangar (the
+  user      user: settings, My vehicles / maps / missions, flight logs, the teamkills of My battles, the What changed history, My hangar, Test bench results (the
             custom vehicle manifest stays unless cdk goes too)
   app       the app itself (packaged app only: WTFTD.exe, WTFTD.app), once WTFTD has closed
 """

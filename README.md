@@ -191,6 +191,14 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 - **Flight data** (Windows): live curves of what the game reports, in flight and in tanks and ships (speed, altitude, G, turn time, fuel use...),
   and a recorder: CSV logs for Excel, replayed in the app, with a **flight report** (top speed, best climb, best
   sustained turn, time to climb, fuel used) and an **export for Tacview**; saved views, and the curves as a picture
+- **Test bench** (Windows): hard numbers on an aircraft or helicopter instead of the stat card. Pick a test, a loadout and the fuel: WTFTD
+  writes a mission (air start, clear weather, an open map, nobody else) with the test in its description. You fly it, the app only reads
+  the game's local data, and it keeps the valid stretches by itself and says why it refused the others: throttle, flaps, bank, height
+  or speed not held, game paused. Top speed by altitude, climb rate and time to altitude, sustained turn (360° time, radius, G by speed),
+  acceleration between two speeds, speed lost in a hard turn, slowest level flight. Results are saved by aircraft, loadout and game
+  version, as curves you can lay over each other, next to the stat card's numbers. They show in *Compare* and in the vehicle panel, and a
+  run opens in Flight data with its report and Tacview file. Every result states its fuel, loadout, altitude and modifications; a custom
+  vehicle or a run with cheats is marked as not comparable and stays out of Compare
 - **Cockpit window** (Windows): your aircraft's instruments as dials, in a window of their own for a second screen
 - **Battle**: the game's chat and battle log, live, in their own tab, with a filter, and saved to a text file if you like
 - **Economy**: what a vehicle costs and earns, for the game mode you choose: repair cost stock and with all upgrades, Silver Lions and
@@ -308,6 +316,8 @@ The **In flight** tools only read what the game publishes on your own PC (`local
 the chat and battle log you see in game. No enemy position is used. The overlay is a separate window: nothing is
 injected and nothing touches the game. It isn't endorsed by Gaijin either.
 
+The **Test bench** presses no key and sends no input of any kind: you fly, it reads the same local values, your own aircraft's only.
+
 **My battles** only reads the replays on your PC, after the battle, and keeps your own line: no enemy's name, nobody's stats, and
 the only other names it keeps are teammates who shot you down, on your PC, for you to report them in the game if you want. In
 the overlay, the numbers of the battle under way count only the battle log lines that name you.
@@ -420,6 +430,8 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
   in test flights: helicopters, propeller aircraft, real battles and the other game languages are less tested
   ([checklist](docs/ingame-checklist.md)). Variable-sweep wings show the swept-back limit (the game doesn't send the wing
   position), and thrust/weight reads a little high when loaded (the game doesn't tell the weapons' mass).
+- Test bench: helicopters get top speed, climb and acceleration only. Its stall speed is where level flight at idle gives way, not the
+  wing's stall: the game's instructor can hold the nose up. It hasn't been flown in the game yet ([checklist](docs/ingame-checklist.md)).
 - macOS support is new and less tested than Windows. The packaged app is built for Apple silicon; on an Intel
   Mac, [run from source](#run-from-source).
 
@@ -444,6 +456,7 @@ wtftd/                      Python backend (stdlib only)
   replays.py                My battles: the player's own results, from the game's replay files
   patches.py                What changed: the comparison of two game versions, kept in user/patches.json
   hangar.py                 My hangar: owned vehicles, lineups and research plan, kept in user/hangar.json
+  bench.py                  Test bench: finds the valid stretches of a recorded test, results in user/bench.json
   mods.py                   Skins and sounds: untrusted archives, what WTFTD installed, config.blk's one line
   waveout.py / tray.py      sound on the output you pick / the app window: minimized, notification area (Windows)
   uninstall.py              Settings → Uninstall
@@ -451,7 +464,7 @@ wtftd/                      Python backend (stdlib only)
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
                             overlay.js / flight.js / battle.js / history.js = In flight, cockpit.html = the cockpit window,
-                            changes.js = What changed, hangar.js = My hangar, mods.js = Skins and sounds,
+                            changes.js = What changed, hangar.js = My hangar, mods.js = Skins and sounds, bench.js = Test bench,
                             editor.js = scenario editor, model3d.js / map3d.js / lzdecode.js = the 3D views
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)

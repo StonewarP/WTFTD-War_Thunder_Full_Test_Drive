@@ -81,7 +81,7 @@ function renderCompareTable() {
   }).join('');
   const upg = list.some(v => v.su && Object.keys(v.su).length) ? upgSwitchHTML(list.some(v => v.su && ['air', 'heli'].includes(v.c))) : '';
   $('#cmpTable').innerHTML = `${upg}<table class="cmp"><thead><tr><th></th>${head}</tr></thead><tbody>
-    ${brRows}${statRows}
+    ${brRows}${statRows}${bnCompareRows(list)}
     <tr><th>${esc(t('compare.guns'))}</th>${list.map(v => `<td class="cmp-wrap">${guns(v)}</td>`).join('')}</tr>
     <tr><th>${esc(t('compare.shells'))}</th>${list.map(v => `<td class="cmp-wrap">${shells(v)}</td>`).join('')}</tr>
     ${list.some(v => v.wp?.length) ? `<tr><th>${esc(t('compare.pylons'))}</th>${list.map(v => `<td>${pylonW(v)}</td>`).join('')}</tr>` : ''}

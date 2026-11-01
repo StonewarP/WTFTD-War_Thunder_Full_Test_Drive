@@ -43,6 +43,7 @@ REPEAT_MS = 300
 BEEP_MS = 150
 UNKNOWN_BEEP = (300, 500)
 SAMPLE_S = 1.0  # curves and logs: a reading a second
+BENCH_S = 0.2  # a test bench run: a 360° timed on a heading that moves between two readings
 TRACE_MAX = 3600  # an hour of curves
 VIEW_S = 5  # the Flight data tab asks every second: without it for this long, nobody is looking
 BURN_S, BURN_MIN_S = 30, 5  # fuel burn: over this long at most, once there is this much (the game gives whole kg)
@@ -678,6 +679,7 @@ class Watch:
         self.last = {}  # the latest reading (every tick, not one a second), for the cockpit window
         self.log = None
         self.log_lock = threading.Lock()
+        self.bench = False  # a test is armed: readings come faster than the player's rate, see bench.py
         self.trend = Trend()
         self._seq, self._sampled, self._flight = 0, 0.0, "flight"
         self.stopping = threading.Event()
@@ -730,7 +732,7 @@ class Watch:
     def record(self, values: dict):
         """A reading a second for the curves and the log."""
         now = time.monotonic()
-        if now - self._sampled < self.cfg["logMs"] / 1000:
+        if now - self._sampled < (BENCH_S if self.bench else self.cfg["logMs"] / 1000):
             return
         self._sampled = now
         row = numbers(values)
