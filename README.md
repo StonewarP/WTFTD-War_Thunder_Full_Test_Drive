@@ -335,6 +335,8 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
 - For aircraft and ships, belts are matched to gun groups in order (best effort).
 - SAM batteries (FSAF SAMP/T, NASAMS, Buk-M3...): the launchers are units of their own, so Unlimited ammo doesn't refill
   them, and the game limits each one to its real load (8 Aster-30 on the SAMP/T).
+- A ground missile made of several parts (Aster-30, CAMM, Pantsir...) on an aircraft's pylon: in flight its parts sit inside
+  each other, its fins stay folded and its booster stays on. The game only sets them right when a launcher fires it.
 - A few scenarios pick their spawn / enemies from your vehicle's nation (Mozdok heli / UCAV, Denmark
   hydrobase); the editor shows their default branch.
 - Missions and custom vehicles are local: they can't be played together online (custom battles / co-op use

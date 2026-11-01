@@ -280,14 +280,19 @@ AIR_GUN = {"rocketGun": True, "preset_cost": 20, "bullets": 1, "shotFreq": 1000.
 AIR_ROCKET = {"statType": "hydra", "dragCx": 0.018, "iconType": "missile_type_b_air_to_air_midrange"}
 
 
-def airborne(missile: dict, mesh: str, sam: bool) -> dict:
+def airborne(missile: dict, mesh: str, sam: bool, anim: str = "") -> dict:
     """A ground or ship missile or rocket as an aircraft's weapon: a rocketGun holding it in a `rocket` block (see
-    builder.launched_rockets)."""
+    builder.launched_rockets). As the game's own, `mesh` on the pylon and `mesh_deployed` in flight (us_starstreak).
+    `anim` is the launcher's animation: without an animChar the Aster-30 doesn't show on a pylon (checked in game)."""
     rocket = {**AIR_ROCKET, **{k: v for k, v in missile.items() if k != "mesh"}}
     rocket.setdefault("finsLatAccel", rocket.get("loadFactorMax", 30.0))
     if sam:
         rocket["bulletType"] = "aam"  # what the aircraft's lock and launch logic looks for
-    return {**AIR_GUN, "mesh": mesh, "rocket": rocket}
+    gun = {**AIR_GUN, "mesh": mesh, "mesh_deployed": missile.get("mesh", mesh), "rocket": rocket}
+    anim = missile.get("shellAnimChar") or anim
+    if anim:
+        gun["animChar"] = anim
+    return gun
 
 
 def _apply(node: dict, tree: dict):
@@ -307,10 +312,52 @@ def _air_copy(w: dict, what: str, mod=None) -> str | None:
         return None
     bullets = [b for b in launcher.get("bullet", []) if isinstance(b, dict)] if isinstance(launcher.get("bullet"), list) else [launcher.get("bullet")]
     mesh = next((b["mesh"] for b in bullets if isinstance(b, dict) and b.get("mesh")), launcher.get("mesh", ""))
-    air = airborne(missile, mesh, w.get("c") == "sam")
+    air = airborne(missile, mesh, w.get("c") == "sam", launcher.get("animChar", ""))
     if isinstance(mod, dict):
         _apply(air, _weapon_changes(w, mod, "rocket"))
     return f"{MARKER} - {what}\n{blk.dumps(air)}"
+
+
+# Models holding the missile's launch tube: {model: (tube and covers, the missile's parts)}. Only a container hides a part
+# (hiddenNode), and takes the others off the pylon as it leaves (cap). The part named after the model faces forward.
+TUBED = {
+    "57e6_rocket": ("57e6_container_cap_01 57e6_container_cap_02 57e6_rocket_container",
+                    "57e6_rocket engine stab_01 stab_01_01 stab_01_02 stab_01_03 stab_01_04 stab_02 stab_03 stab_04"),
+    "9m311_rocket": ("9m311_container 9m311_container_cap",
+                     "9m311_rocket engine stab_01 stab_01_01 stab_01_02 stab_01_03 stab_01_04 stab_02 stab_03 stab_04"),
+    "9m317m_rocket": ("hatch_01 hatch_02", "9m317m_rocket stabilizer_01 stabilizer_02 stabilizer_03 stabilizer_04"),
+    "aster30_rocket": ("cap_01 cap_02", "aster30_rocket engine stab_01 stab_02 stab_03 stab_04"),
+    "camm_er_rocket": ("camm_er_rocket_container cap_01 cap_02", "camm_er_rocket roll_01 roll_02 roll_03 roll_04"),
+    "fb10_rocket": ("fb10_container_cap fb10_rocket_container",
+                    "fb10_rocket stab_01 stab_01_01 stab_01_02 stab_01_03 stab_01_04 stab_02 stab_03 stab_04"),
+    "fk_2000_rocket": ("cap_01 cap_02 fk_2000_rocket_container", "engine fk_2000_rocket roll_01 roll_02 roll_03 roll_04"),
+    "fm_3000_rocket": ("cap_01", "fm_3000_rocket roll_01 roll_02 roll_03 roll_04 roll_05 roll_06 roll_07 roll_08"),
+    "i_derby_er_rocket": ("cap_01 cap_02 cap_03 i_derby_er_rocket_container", "i_derby_er_rocket"),
+    "iris_t_sl_rocket": ("cap_01 cap_02 iris_t_sl_rocket_container", "iris_t_sl_rocket"),
+    "r_2s_rocket": ("r_2s_container r_2s_container_cap_01 r_2s_container_cap_02", "engine r_2s_rocket stab_01 stab_02 stab_03 stab_04"),
+    "roland_rocket": ("roland_rocket_cap_01 roland_rocket_cap_02 roland_rocket_cap_03 roland_rocket_container", "roland_rocket"),
+    "starstreak_hvm_rocket": ("starstreak_hvm_cap starstreak_hvm_container", "starstreak_hvm_engine starstreak_hvm_rocket"),
+    "type_03_chusam_rocket": ("cap_01 cap_02", "type_03_chusam_rocket"),
+}
+
+
+def _in_tube(path: str, text: str) -> dict | None:
+    """The files of a missile whose model holds its launch tube: at `path`, a container hanging the model without the tube;
+    beside it the missile of `text` (an _air_copy), with no pylon model or animation, which would bring the tube back (seen in
+    game). None for other models."""
+    air = blk.loads(text.split("\n", 1)[1])
+    tube = TUBED.get(str(air.get("mesh")).lower())
+    if not tube:
+        return None
+    folder, stem = path.rsplit("/", 1)
+    missile = f"{folder}_missile/{stem}"
+    box = {"container": True, "mesh": air["mesh"], "useEmitter": True, "emitter": air["mesh"].lower(), "hiddenNode": tube[0].split(),
+           "cap": tube[1].split(), "blk": missile, "bullets": 1, "amountPerTier": 1, "mass": air["rocket"].get("mass", 100.0)}
+    flying = text.replace(f'\nmesh:t="{air["mesh"]}"\n', "\n", 1)
+    if air.get("animChar"):
+        box["animChar"] = air["animChar"]
+        flying = flying.replace(f'\nanimChar:t="{air["animChar"]}"\n', "\n", 1)
+    return {path: f'{text.split(chr(10), 1)[0]}\n{blk.dumps(box)}', missile: flying}
 
 
 def _custom_weapon(w: dict, mod, what: str) -> str | None:
@@ -754,6 +801,7 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
         emitters = {s["i"]: s.get("e") for s in details.get("sl") or details.get("lp") or []}
         chosen, extras = [], []
         variants: dict[tuple, str] = {}  # (weapon file, its changes) -> modified copy
+        tubes: set[str] = set()  # those of them that are containers
         raw: list[tuple] = []  # aircraft without pylons: plain weapons in the loadout
         if pylons:
             slots = {str(s["i"]): {o["n"] for o in s["o"]} for s in details.get("sl") or details.get("lp") or []}
@@ -783,7 +831,11 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
                                 stem = w["p"].replace("\\", "/").rsplit("/", 1)[-1]
                                 variants[key] = f"gameData/Weapons/wtftd/{name.lower()}_{len(variants) + 1}/{stem}"
                                 files[variants[key]] = custom
-                            w = dict(w, p=variants[key])
+                                tube = _in_tube(variants[key], custom) if w.get("air") else None
+                                if tube:
+                                    files.update(tube)
+                                    tubes.add(variants[key])
+                            w = dict(w, p=variants[key], pod=variants[key] in tubes)
                         extras.append((int(k), w, emitters[int(k)], n))  # any weapon of the game on that pylon
         # Aircraft with pylons (WeaponSlots) only take "slot + preset" entries in a loadout: a bare
         # Weapon{trigger, blk, emitter} there is ignored by the game. So each non-standard weapon

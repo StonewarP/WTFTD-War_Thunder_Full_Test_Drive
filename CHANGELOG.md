@@ -34,7 +34,9 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 - My overlay is laid out as tabs of cards under the preview: Lines, Blocks, Look, Alarms, Behaviour.
 - **Every weapon on your pylons** (Loadout → non-standard weapons): the missiles and rockets of ground vehicles and ships
   (S-300, Pantsir, Aster, Smerch...), rewritten as an aircraft's in a file of their own, and every gun of the game. Aircraft
-  without pylons get one, at their gun's muzzle. Data schema 27. Not checked in game yet.
+  without pylons get one, at their gun's muzzle. Data schema 27. A missile with two models is folded on the pylon and
+  unfolded in flight. One whose model holds its launch tube (Aster-30, IRIS-T SLM, CAMM...) hangs without tube and covers
+  (Aster-30 checked in game, the others not). Not checked in game yet for the rest.
 - **Build your aircraft** (vehicle panel → Modifications): swap its radar and warning receivers for any others of the game,
   add those it lacks, give it another aircraft's engine (jets from jets, propellers from propellers), and switch its avionics:
   laser designator, point of interest, helmet sight, CCIP and CCRP. Not checked in game yet.

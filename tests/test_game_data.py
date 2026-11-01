@@ -47,6 +47,7 @@ class ReferenceWeapons(unittest.TestCase):
         self.assertTrue(air["rocketGun"])
         self.assertEqual((air["mesh"], air["rocket"]["bulletType"], air["rocket"]["mass"]), ("s300ps_missile_5v55r", "aam", 1664.0))
         self.assertIn("radarSeeker", air["rocket"]["guidance"])
+        self.assertEqual((air["mesh_deployed"], air["animChar"]), ("s300ps_missile_5v55r_deployed", "s300ps_missile_5v55r_char"))
         self.assertNotIn("mesh", air["rocket"])
 
     def test_b61_yield(self):

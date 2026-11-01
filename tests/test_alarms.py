@@ -310,8 +310,53 @@ class SurfaceMissiles(unittest.TestCase):
         self.assertTrue(air["rocketGun"])
         self.assertEqual((air["mesh"], air["bullets"]), ("body", 1))
         self.assertEqual((air["rocket"]["bulletType"], air["rocket"]["finsLatAccel"]), ("aam", 40.0))
+        self.assertEqual(air["mesh_deployed"], "deployed")  # hung folded, flown unfolded, as us_starstreak
         self.assertNotIn("mesh", air["rocket"])
         self.assertEqual(blk.loads(blk.dumps(air))["rocket"]["bulletName"], "x")
+
+    def test_one_model_for_both(self):
+        self.assertEqual(cdk.airborne(self.GUIDED, "body", False)["mesh_deployed"], "body")
+
+    def test_an_animation_shows_it_on_the_pylon(self):
+        # Aster-30: invisible without an animChar, and it has one for flight and one for its launcher
+        aster = {**self.GUIDED, "shellAnimChar": "aster30_rocket_deployed_char"}
+        self.assertEqual(cdk.airborne(aster, "aster30_rocket", True, "aster30_rocket_char")["animChar"], "aster30_rocket_deployed_char")
+        self.assertEqual(cdk.airborne(self.GUIDED, "9m113_rocket_deployed", False, "9m113_rocket_char")["animChar"], "9m113_rocket_char")
+        self.assertNotIn("animChar", cdk.airborne(self.GUIDED, "mim_104_patriot_missile", True))
+
+    def aster(self):
+        return f"{cdk.MARKER} - x\n" + blk.dumps(cdk.airborne({**self.GUIDED, "mass": 450.0, "mesh": "aster30_rocket"}, "aster30_rocket", True, "aster30_rocket_char"))
+
+    def test_in_its_launch_tube(self):
+        # the Aster-30's model holds the covers of its tube: only a container hides them (checked in game), and its part
+        # named after the model faces forward: from a jet emitter the missile left backward
+        at = "gameData/Weapons/wtftd/rafale_c_f3_1/aster.blk"
+        files = cdk._in_tube(at, self.aster())
+        box = blk.loads(files[at].split("\n", 1)[1])
+        self.assertTrue(box["container"])
+        self.assertEqual((box["mesh"], box["emitter"], box["hiddenNode"]), ("aster30_rocket", "aster30_rocket", ["cap_01", "cap_02"]))
+        self.assertEqual(box["cap"], ["aster30_rocket", "engine", "stab_01", "stab_02", "stab_03", "stab_04"])
+        self.assertEqual((box["blk"], box["bullets"], box["mass"], box["animChar"]),
+                         ("gameData/Weapons/wtftd/rafale_c_f3_1_missile/aster.blk", 1, 450.0, "aster30_rocket_char"))
+        missile = blk.loads(files[box["blk"]].split("\n", 1)[1])
+        self.assertNotIn("mesh", missile)  # the container shows it on the pylon: a model here would bring the covers back
+        self.assertNotIn("animChar", missile)  # so would an animation (seen in game)
+        self.assertEqual(missile["mesh_deployed"], "aster30_rocket")
+
+    def test_any_other_model_stays_a_missile(self):
+        text = f"{cdk.MARKER} - x\n" + blk.dumps(cdk.airborne(self.GUIDED, "mim_104_patriot_missile", True))
+        self.assertIsNone(cdk._in_tube("a/b.blk", text))
+
+    def test_a_tube_on_a_pylon(self):
+        details = {"sl": [{"i": 1, "e": "rocket_001", "o": []}, {"i": 2, "e": "rocket_002", "o": []}], "am": [], "pr": [], "b": "armada"}
+        catalog = {"aster": {"p": "gameData/Weapons/groundmodels_weapons/aster.blk", "c": "sam", "t": "aam", "air": 1}}
+        with mock.patch.object(cdk, "_air_copy", return_value=self.aster()):
+            files = cdk.build_files("x", "air", details, {}, "", {"1": {"w": "aster", "n": 1}, "2": {"w": "aster", "n": 1}}, "custom", None, catalog)[0]
+        self.assertEqual(sorted(k for k in files if "Weapons/wtftd" in k),
+                         ["gameData/Weapons/wtftd/x_1/aster.blk", "gameData/Weapons/wtftd/x_1_missile/aster.blk"])
+        text = next(v for k, v in files.items() if "weaponPresets" in k)
+        self.assertEqual(text.count('blk:t="gameData/Weapons/wtftd/x_1/aster.blk"'), 2)
+        self.assertNotIn("bullets", text)  # a container says how many it holds
 
     def test_an_atgm_keeps_its_type(self):
         self.assertEqual(cdk.airborne({"bulletType": "atgm_tank"}, "m", False)["rocket"]["bulletType"], "atgm_tank")
