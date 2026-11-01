@@ -13,7 +13,7 @@ const NATIONS = ['usa', 'germany', 'ussr', 'britain', 'japan', 'china', 'italy',
 const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', britain: '#2f8a63', japan: '#d65a5a', china: '#e2a92b', italy: '#2fa262', france: '#4766dd', sweden: '#f0c637', israel: '#4fa6e3', other: '#5b6b84' };
 const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
 // the top menu: each menu's pages, shown as sub-tabs under it when it has several
-const MENUS = { vehicles: ['vehicles', 'setups', 'hangar', 'changes'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
+const MENUS = { vehicles: ['vehicles', 'setups', 'hangar', 'changes', 'mods'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
                 inflight: ['overlay', 'flight', 'battle', 'history'] };
 const AVIONICS = ['laserDesignator', 'havePointOfInterestDesignator', 'hasHelmetDesignator', 'haveCCIPForGun', 'haveCCIPForRocket', 'haveCCIPForBombs', 'haveCCRPForBombs', 'haveCCRPForGun'];
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
@@ -55,7 +55,7 @@ async function api(path, body) {
   const opt = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
   const r = await fetch('/api/' + path, opt);
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || r.statusText);
+  if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { data });
   return data;
 }
 async function getData(name) {
@@ -203,6 +203,7 @@ async function boot() {
   bindHistory();
   bindChanges();
   bindHangar();
+  bindMods();
   bindMaps();
   bindLibrary();
   showView(store.get('startView', 'vehicles'));
@@ -629,6 +630,7 @@ function showView(name) {
   if (name === 'history') openHistoryView();
   if (name === 'changes') openChangesView();
   if (name === 'hangar') openHangarView();
+  if (name === 'mods') openModsView();
 }
 
 // ------------------------------------------------------------------ vehicle drawer
@@ -931,6 +933,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
         <div class="hero-stats">${brs}</div>
         ${statsBlockHTML(v)}
         ${S.ai ? '' : chPanelLine(v)}
+        ${S.ai ? '' : moPanelHTML(v)}
         ${limitsHTML(d.st?.lim)}
       </div>
       ${S.ai ? `<div class="ai-banner">${icon('target', 'ic-sm')}<div><b>${esc(t('ai.title'))}</b>${esc(t('ai.hint'))}</div></div>` : ''}
@@ -1147,6 +1150,8 @@ function bindDrawer() {
       case 'aiCancel': return aiEnd(false);
       case 'fav': return toggleFav(v.id);
       case 'own': return hgToggle(v.id);
+      case 'skin3d': return moPreview(b.dataset.skin);
+      case 'skinOpen': return moOpen('skin', b.dataset.skin);
       case 'goal': return hgAddGoal(v.id);
       case 'changes': return chShowVehicle(v);
       case 'ecoMode': return setFilter({ brMode: +b.dataset.mode });
@@ -1589,7 +1594,7 @@ async function cdkCleanup() {
 
 
 // ------------------------------------------------------------------ uninstall (Settings): what WTFTD put on this PC
-const UN_PARTS = ['cdk', 'missions', 'cache', 'data', 'user', 'app'];
+const UN_PARTS = ['cdk', 'missions', 'mods', 'cache', 'data', 'user', 'app'];
 let unInfo = null, unArmed = false;
 const fmtBytes = n => (n >= 1e9 ? (n / 1e9).toFixed(2) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB');
 
@@ -1602,6 +1607,7 @@ async function openUninstall() {
   const i = unInfo;
   const hint = {
     cdk: t('uninstall.cdkHint', { n: i.cdk.files }), missions: t('uninstall.missionsHint', { n: i.missions.files }),
+    mods: t(i.mods.config ? 'uninstall.modsConfigHint' : 'uninstall.modsHint', { skins: i.mods.skins, sounds: i.mods.sounds }),
     cache: t('uninstall.cacheHint', { size: fmtBytes(i.cache.bytes) }), data: t('uninstall.dataHint', { size: fmtBytes(i.data.bytes) }),
     user: t('uninstall.userHint', { size: fmtBytes(i.user.bytes) }),
     app: i.app.available ? t('uninstall.appHint', { path: i.app.path }) : t(i.app.translocated ? 'uninstall.appMac' : 'uninstall.appSource'),
@@ -1651,6 +1657,7 @@ async function onUninstallClick(ev) {
   }
   $('#dlgUninstall').close();
   toast({ title: t('uninstall.done'), sub: parts.map(p => t('uninstall.' + p)).join(' · '), ms: 6000 });
+  if (res.removed?.mods?.kept) toast({ title: t('uninstall.modsKept'), err: true, ms: 0 });
   if (parts.includes('data') || parts.includes('user')) { setTimeout(() => location.reload(), 1500); return; }
   try { S.status = await api('status'); renderStatus(); refreshMissions(); } catch { /* keep the page */ }
 }

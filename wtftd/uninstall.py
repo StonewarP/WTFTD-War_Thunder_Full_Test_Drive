@@ -1,8 +1,9 @@
-"""Settings → Uninstall: removes what WTFTD put on this PC, part by part. War Thunder itself is never touched,
-only what WTFTD added to it (the custom vehicle files of its manifest, the missions it created).
+"""Settings → Uninstall: removes what WTFTD put on this PC, part by part. War Thunder itself is never touched, only what
+WTFTD added to it (the custom vehicle files of its manifest, the missions it created, skins and sound mods) and config.blk's one line.
 
   cdk       custom vehicle files in the game's content/pkg_local and pkg_user (cdk.cleanup, from the manifest)
   missions  missions created by WTFTD in the game's UserMissions (wtftd_*.blk, and the other names it saved a setup for)
+  mods      skins and sound mods WTFTD installed, from its manifest, and config.blk back as it was (mods.remove_all)
   cache     .cache: the datamine copy or the unpacked game files, pictures, maps, logs, the index of My battles (the app
             window's profile goes once WTFTD has closed)
   data      data: the game database built from the game files
@@ -19,10 +20,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import cdk, game, sights
+from . import cdk, game, mods, sights
 from .paths import CACHE, DATA, FROZEN, HOME, USER
 
-PARTS = ("cdk", "missions", "cache", "data", "user", "app")
+PARTS = ("cdk", "missions", "mods", "cache", "data", "user", "app")
 WINDOW_PROFILE = "app-window"  # the app window's browser profile: in use while it is open
 
 
@@ -82,6 +83,7 @@ def info(game_dir: Path | None) -> dict:
     return {
         "cdk": {"files": sum(1 for f in cdk.read_manifest(USER) if game_dir and (game_dir / "content" / f).exists())},
         "missions": {"files": len(mission_files(game_dir))},
+        "mods": mods.counts(),
         "cache": {"bytes": _size(CACHE)},
         "data": {"bytes": _size(DATA)},
         "user": {"bytes": _size(USER)},
@@ -160,8 +162,8 @@ def _after_exit(paths: list[Path], pid: int | None = None) -> None:
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def run(parts: list[str], game_dir: Path | None) -> dict:
-    """Removes the chosen parts. Returns {removed: {part: count}, quit: WTFTD must close now (the app goes)}."""
+def run(parts: list[str], game_dir: Path | None, running: bool = False) -> dict:
+    """Removes the chosen parts. Returns {removed: {part: count}, quit: WTFTD must close now (the app goes)}. running: the game is."""
     parts = [p for p in PARTS if p in parts]
     removed: dict = {}
     if "cdk" in parts:
@@ -175,6 +177,8 @@ def run(parts: list[str], game_dir: Path | None) -> dict:
             except OSError:
                 pass
         removed["missions"] = n
+    if "mods" in parts and game_dir:
+        removed["mods"] = mods.remove_all(game_dir, running)
     if "cache" in parts:
         _rmtree(CACHE, keep={WINDOW_PROFILE})
         removed["cache"] = 1
@@ -183,7 +187,10 @@ def run(parts: list[str], game_dir: Path | None) -> dict:
         removed["data"] = 1
     if "user" in parts:
         # without its manifest, the custom vehicle files left in the game could no longer be removed
-        _rmtree(USER, keep=set() if "cdk" in parts else {cdk._manifest_path(USER).name, sights._manifest(USER).name})
+        keep = set() if "cdk" in parts else {cdk._manifest_path(USER).name, sights._manifest(USER).name}
+        if "mods" not in parts or mods.BACKUP.exists():  # likewise: what's in the game, and config.blk's line
+            keep |= {mods.MANIFEST.name, mods.BACKUP.name}
+        _rmtree(USER, keep=keep)
         removed["user"] = 1
     later: list[Path] = []
     app = app_path()

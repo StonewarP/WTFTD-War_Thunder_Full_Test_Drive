@@ -386,10 +386,78 @@ function mdTop(bytes) {
   return { fourcc: String.fromCharCode(...bytes.subarray(4, 8)), d3d: h.getUint32(4, true), w, h: ht, top: data.subarray(start, start + size(0)) };
 }
 
+// A skin's .tga: {w, h, rgba} with the top row first, as the game's textures are; null for what can't be drawn (a palette, a cut file).
+// The game exports them from the bottom up
+function mdTga(bytes) {
+  const type = bytes[2], w = bytes[12] | bytes[13] << 8, h = bytes[14] | bytes[15] << 8, bits = bytes[16], top = bytes[17] & 0x20, size = bits / 8;
+  if (bytes.length < 18 || !w || !h || (type !== 2 && type !== 10) || (bits !== 24 && bits !== 32)) return null;
+  const rgba = new Uint8Array(w * h * 4);
+  let p = 18 + bytes[0], at = 0;
+  const pixel = () => {
+    const row = Math.floor(at / w), o = ((top ? row : h - 1 - row) * w + at % w) * 4;
+    rgba[o] = bytes[p + 2]; rgba[o + 1] = bytes[p + 1]; rgba[o + 2] = bytes[p]; rgba[o + 3] = size === 4 ? bytes[p + 3] : 255;
+    at++;
+  };
+  while (at < w * h) {
+    if (type === 2) { if (p + size > bytes.length) return null; pixel(); p += size; continue; }
+    if (p >= bytes.length) return null;
+    const head = bytes[p++], n = (head & 127) + 1;
+    if (head & 128 && p + size > bytes.length) return null;
+    for (let i = 0; i < n && at < w * h; i++) {
+      if (!(head & 128) && p + size > bytes.length) return null;
+      pixel();
+      if (!(head & 128)) p += size;
+    }
+    if (head & 128) p += size;
+  }
+  return { w, h, rgba };
+}
+
+// A skin's .dds: the top level, as mdTop gives it, or {w, h, rgba} for plain 32-bit pixels; null for another format
+function mdDds(bytes) {
+  if (bytes.length < 128 || bytes[0] !== 68 || bytes[1] !== 68 || bytes[2] !== 83 || bytes[3] !== 32) return null;
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), h = v.getUint32(12, true), w = v.getUint32(16, true);
+  const flags = v.getUint32(80, true), fourcc = String.fromCharCode(...bytes.subarray(84, 88));
+  if (!w || !h) return null;
+  if (flags & 4) {
+    const block = { DXT1: 8, ATI1: 8, DXT3: 16, DXT5: 16, ATI2: 16 }[fourcc], size = block * Math.ceil(w / 4) * Math.ceil(h / 4);
+    return block && 128 + size <= bytes.length ? { fourcc, w, h, top: bytes.subarray(128, 128 + size) } : null;
+  }
+  if (v.getUint32(88, true) !== 32 || 128 + w * h * 4 > bytes.length) return null;
+  const masks = [92, 96, 100, 104].map(o => v.getUint32(o, true)), shift = m => (m ? Math.log2(m & -m) : 0), rgba = new Uint8Array(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
+    const x = v.getUint32(128 + i * 4, true);
+    masks.forEach((m, c) => { rgba[i * 4 + c] = m ? (x & m) >>> 0 >>> shift(m) : 255; });
+  }
+  return { w, h, rgba };
+}
+
+// a skin's texture on the graphics card, null if it can't be drawn: the caller keeps the normal paint
+async function mdSkinTexture(ctx, folder, file) {
+  const res = await fetch(`/api/mods/skin/${encodeURIComponent(folder)}/${encodeURIComponent(file)}`);
+  if (!res.ok) return null;
+  const bytes = new Uint8Array(await res.arrayBuffer()), surface = /\.dds$/i.test(file) ? mdDds(bytes) : mdTga(bytes), gl = ctx.gl;
+  if (!surface) return null;
+  if (surface.top) return mdSurface(ctx, surface, 4096);
+  const out = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, out);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, surface.w, surface.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, surface.rgba);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  ctx.textures.push(out);
+  return out;
+}
+
 async function mdTexture(ctx, name, { low = false, max = 4096 } = {}) {
   const res = await fetch(`/api/model-texture${low ? '-low' : ''}/${encodeURIComponent(name)}`);
   if (!res.ok) return null;
-  const surface = mdTop(new Uint8Array(await res.arrayBuffer())), gl = ctx.gl, format = surface && mdFormat(gl, surface.fourcc);
+  return mdSurface(ctx, mdTop(new Uint8Array(await res.arrayBuffer())), max);
+}
+
+function mdSurface(ctx, surface, max) {
+  const gl = ctx.gl, format = surface && mdFormat(gl, surface.fourcc);
   if (!format) return null;
   const { w, h: ht, top } = surface, src = gl.createTexture(), out = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
@@ -433,8 +501,11 @@ function mdSlots(m) {
 }
 
 // the model shows at once, and each texture joins it when it arrives
-async function mdLoadTextures(mesh, token) {
+// skin: a skin of the vehicle ({name, replace: [{from, to}]}), whose textures take the place of those their names start with
+async function mdLoadTextures(mesh, token, skin) {
   const jobs = new Map();
+  const skinFile = name => skin?.replace.find(r => name.toLowerCase().startsWith(r.from))?.to;
+  let drawn = 0;
   for (const g of mesh.groups) {
     g.tex = {};
     for (const [slot, name] of Object.entries(mdSlots(g.material))) {
@@ -451,7 +522,9 @@ async function mdLoadTextures(mesh, token) {
     while (queue.length && token === MD.token) {
       const [name, users] = queue.shift();
       try {
-        const tex = await mdTexture(MD, name);
+        const file = skinFile(name), painted = file ? await mdSkinTexture(MD, skin.name, file).catch(() => null) : null;
+        if (painted) drawn++;
+        const tex = painted || await mdTexture(MD, name);
         if (tex && token === MD.token) for (const [g, slot] of users) g.tex[slot] = tex;
       } catch (e) { console.warn(name, e); }
       done++;
@@ -459,6 +532,7 @@ async function mdLoadTextures(mesh, token) {
     }
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
+  if (skin && token === MD.token) $('#mdInfo').textContent += ` · ${t(drawn ? 'mo.showing' : 'mo.noPreview', { name: skin.name })}`;
 }
 
 function mdClear() {
@@ -575,7 +649,7 @@ async function mdControls(id, title, mesh, view) {
   if (view) Object.assign(MD, view);
 }
 
-async function openModel(kind, id, title, view) {
+async function openModel(kind, id, title, view, skin) {
   const token = ++MD.token;
   mdClear();
   if (!view) { MD.hiddenParts.clear(); $('#mdBar').classList.add('hidden'); }
@@ -592,7 +666,7 @@ async function openModel(kind, id, title, view) {
     if (!mesh.triangles) throw new Error('an empty model');
     mdShow(mesh);
     if (kind === 'name') mdControls(id, title, mesh, view);
-    await mdLoadTextures(mesh, token);
+    await mdLoadTextures(mesh, token, skin);
   } catch (e) {
     console.warn(e);
     if (token === MD.token) $('#mdInfo').textContent = t('model.none');

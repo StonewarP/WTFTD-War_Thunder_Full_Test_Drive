@@ -89,6 +89,7 @@
   <button class="subtab" data-view="mymaps" role="tab"><span data-i18n="nav.myMaps"></span><span class="tab-count" id="myMapCount"></span></button>
   <button class="subtab" data-view="weapons" role="tab"><span data-i18n="nav.weapons"></span></button>
   <button class="subtab" data-view="myweapons" role="tab"><span data-i18n="nav.myWeapons"></span><span class="tab-count" id="myWeaponCount"></span></button>
+  <button class="subtab" data-view="mods" role="tab"><span data-i18n="nav.mods"></span><span class="tab-count" id="modsCount"></span></button>
   <button class="subtab hidden" data-view="overlay" role="tab"><span data-i18n="nav.overlay"></span></button>
   <button class="subtab hidden" data-view="flight" role="tab"><span data-i18n="nav.flight"></span></button>
   <button class="subtab" data-view="battle" role="tab"><span data-i18n="nav.battle"></span></button>
@@ -169,6 +170,14 @@
       <div class="page-head"><div><h2 data-i18n="nav.hangar"></h2><p class="muted" data-i18n="hg.hint"></p></div></div>
       <div class="seg hg-tabs" id="hgTabs" role="tablist"><button data-tab="owned" data-i18n="hg.tab.owned"></button><button data-tab="lineups" data-i18n="hg.tab.lineups"></button><button data-tab="plan" data-i18n="hg.tab.plan"></button></div>
       <div id="hgBody"></div>
+    </div>
+
+    <div class="view hidden" id="view-mods">
+      <div class="page-head"><div><h2 data-i18n="nav.mods"></h2><p class="muted" data-i18n="mo.hint"></p></div></div>
+      <div class="seg hg-tabs" id="moTabs" role="tablist"><button data-tab="skins" data-i18n="mo.skins"></button><button data-tab="sounds" data-i18n="mo.sounds"></button></div>
+      <div id="moBody"></div>
+      <input type="file" id="moZip" accept=".zip" hidden>
+      <input type="file" id="moFolder" webkitdirectory hidden>
     </div>
 
     <div class="view hidden" id="view-changes">
@@ -602,6 +611,13 @@
   </div>
 </dialog>
 
+<dialog class="modal" id="dlgSkin">
+  <h3 data-i18n="mo.askTitle"></h3>
+  <p class="muted" data-i18n="mo.askHint"></p>
+  <div id="moAsk"></div>
+  <datalist id="moVehicles"></datalist>
+  <div class="row gap mo-ask-foot"><button class="btn btn-ghost" data-close data-i18n="action.cancel"></button><button class="btn btn-primary" id="moAskGo" data-i18n="mo.install"></button></div>
+</dialog>
 <dialog class="modal modal-model" id="dlgModel">
   <div class="modal-inner">
     <div class="modal-head"><h3><svg class="ic"><use href="#i-cube"/></svg><span id="mdTitle"></span></h3>
@@ -730,6 +746,7 @@
 <script src="history.js"></script>
 <script src="changes.js"></script>
 <script src="hangar.js"></script>
+<script src="mods.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 <script src="lzdecode.js"></script>

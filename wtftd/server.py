@@ -18,9 +18,9 @@ from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, hangar, maptex, mission, models, patches, replays, sights, \
+from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, hangar, maptex, mission, models, mods, patches, replays, sights, \
     terrain, uninstall, vromfs, waveout
 from .paths import CACHE, DATA, HOME, USER, WEB
 
@@ -336,6 +336,23 @@ def api_vehicle(vid: str):
     return d
 
 
+def game_up() -> bool:
+    """The game is running, where the app can tell (Windows)."""
+    return alarms.available() and alarms.game_running()
+
+
+def vehicle_ids():
+    return STATE.get_details().keys()
+
+
+def mods_status() -> dict:
+    gd = STATE.game_dir()
+    if not gd:
+        return {"game": False, "skins": [], "sounds": [], "sound": {}, "running": False}
+    return {"game": True, "skins": mods.skins(gd, vehicle_ids()), "sounds": mods.sounds(gd), "sound": mods.sound_state(gd), "running": game_up(),
+            "allowed": {k: sorted(v) for k, v in mods.ALLOWED.items()}}
+
+
 def list_generated():
     gd = STATE.game_dir()
     if not gd:
@@ -584,6 +601,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(battles())
         if route == "hangar":
             return self.send_json(hangar.load())
+        if route == "mods":
+            return self.send_json(mods_status())
+        if route.startswith("mods/skin/"):  # a skin's texture, for the 3D view
+            folder, _, file = route[len("mods/skin/"):].partition("/")
+            gd = STATE.game_dir()
+            path = mods.skin_file(gd, folder, file) if gd else None
+            return self.send_game_bytes(path.read_bytes() if path else None)
         if route == "changes":
             return self.send_json(patches.index())
         if route.startswith("changes/"):
@@ -687,6 +711,8 @@ class Handler(BaseHTTPRequestHandler):
             PAGE["bye"] = time.time()
             return self.send_json({"ok": True})
         PAGE["seen"] = time.time()
+        if route == "mods/upload":  # the one body that can be large: a stream with limits of its own, not read_body's
+            return self.mods_upload()
         try:
             body = self.read_body()
         except ValueError as e:
@@ -695,10 +721,61 @@ class Handler(BaseHTTPRequestHandler):
             return self.post_api(route, body)
         except mission.MissionError as e:
             return self.send_json({"error": str(e)}, 400)
+        except mods.ModsError as e:
+            return self.send_json({"error": e.code, "code": e.code, "name": e.name}, 400)
         except OSError as e:
             return self.send_json({"error": f"File error: {e}"}, 500)
 
+    def mods_action(self, action: str, body: dict):
+        """Every step comes from a click of the player: the page sends nothing on its own."""
+        gd = STATE.game_dir()
+        if action == "forget":
+            mods.forget(body.get("token"))
+            return self.send_json({"ok": True})
+        if not gd:
+            raise mods.ModsError("noGame")
+        if action == "inspect":
+            return self.send_json(mods.inspect(body.get("token"), body.get("kind"), vehicle_ids()))
+        if action == "install":
+            mods.install(gd, body.get("token"), body.get("kind"), body.get("vehicles"), vehicle_ids(), game_up())
+        elif action == "remove":
+            mods.remove(gd, body.get("kind"), body.get("name"), game_up())
+        elif action == "sound":
+            mods.set_sound(gd, body.get("on") is True, game_up())
+        elif action == "open":
+            target = gd / mods.SKINS if body.get("kind") == "skin" else gd.joinpath(*mods.SOUNDS)
+            name = body.get("name")
+            if body.get("kind") == "skin" and name:
+                target = gd / mods.SKINS / mods.safe_path(name)[0]
+            target.mkdir(parents=True, exist_ok=True)
+            game.open_folder(target)
+        else:
+            return self.send_json({"error": "unknown route"}, 404)
+        return self.send_json(mods_status())
+
+    def mods_upload(self):
+        q = parse_qs(urlparse(self.path).query)
+        one = lambda k: (q.get(k) or [""])[0]  # noqa: E731
+        try:
+            length = int(self.headers.get("Content-Length") or -1)
+        except ValueError:
+            length = -1
+        try:
+            mods.receive(one("token"), one("path"), self.rfile, length, one("kind"))
+        except mods.ModsError as e:
+            while length > 0:  # the page reads an answer only once it has sent all it had; a refusal comes before reading any of it
+                chunk = self.rfile.read(min(length, 1 << 20))
+                if not chunk:
+                    break
+                length -= len(chunk)
+            return self.send_json({"error": e.code, "code": e.code, "name": e.name}, 400)
+        except OSError as e:
+            return self.send_json({"error": f"File error: {e}"}, 500)
+        return self.send_json({"ok": True})
+
     def post_api(self, route: str, body: dict):
+        if route.startswith("mods/"):
+            return self.mods_action(route[5:], body)
         if route == "level-cells":  # the page has read the level's table, the unpacking needs zstd
             gd = STATE.game_dir()
             return self.send_game_bytes(models.level_cells(gd, str(body.get("level")), int(body.get("start") or 0), body.get("cells") or []) if gd else None)
@@ -874,7 +951,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(list_generated())
         if route == "uninstall":
             parts = [p for p in (body.get("parts") or []) if p in uninstall.PARTS]
-            res = uninstall.run(parts, STATE.game_dir())
+            res = uninstall.run(parts, STATE.game_dir(), game_up())
             if res["quit"]:  # the app goes: the page shows its goodbye, then WTFTD closes its window and quits
                 def leave():
                     uninstall.close_app_window()  # its files would stay locked in WTFTD's folder

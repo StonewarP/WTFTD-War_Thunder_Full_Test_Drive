@@ -52,6 +52,14 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   say what was earned. Custom vehicles in Settings list what you own first and warn about a host that isn't, and What changed's *my
   vehicles* filter includes the hangar. It's kept in `user/hangar.json`, and goes with *Your settings and library* in Uninstall. A file
   nothing can read is kept aside as `user/hangar.bad.json`, and the app says so.
+- **Skins and sounds** (Vehicles menu): your skins by vehicle, in a page and in each vehicle's panel, installed from a `.zip` or a folder you
+  pick, removed, and shown on the vehicle in the 3D view from their `.tga` or `.dds`. WTFTD works out the vehicle from the skin's files
+  and asks when it can't tell. Sound mods install from a `.zip`, with a clear on/off switch, off by default. Turning it on adds one
+  line to the game's `config.blk`, `enable_mod:b=yes`, and no other byte; a copy of the file stays in `user/`, turning it off puts the file
+  back, and it's refused while the game runs, which may write the file as it exits. This is the one setting of the game WTFTD changes,
+  only on request, and the README and `SECURITY.md` say so. WTFTD doesn't browse or download mods. Archives are untrusted: paths that leave
+  their folder, links, executables and scripts, oversized or over-compressed files refuse the whole archive, and nothing is written
+  outside `UserSkins` and `sound/mod`. What you installed by hand is shown and never touched. Uninstall has a part for this.
 - **Translations**: the research path, research cost and purchase cost are now translated in every language.
 - **Motor burn** (Weapons): read from the motor format the game now uses for more and more missiles, such as the R-60 from 2.60 on,
   which had lost the value. Data schema 32: the data is rebuilt once.

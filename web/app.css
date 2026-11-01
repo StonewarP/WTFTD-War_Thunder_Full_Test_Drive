@@ -1392,6 +1392,24 @@ body.sub-on .subtabs { display: flex; }
 td.hg-actions { height: 48px; }
 .hg-goals { max-width: none; margin-top: 10px; }
 .hg-goals .list-title { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+/* skins and sounds */
+.mo-warn { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.mo-warn p { margin: 0; }
+.mo-switch { margin-bottom: 12px; }
+.mo-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.mo-actions .btn { height: 34px; }
+.mo-actions .muted { margin-left: auto; }
+.mo-list { max-width: none; }
+.mo-list .list-item { min-height: 64px; }
+.mo-list .list-title { display: flex; align-items: center; gap: 8px; min-height: 22px; overflow-wrap: anywhere; }
+.mo-list .list-actions { flex: none; align-items: center; }
+.mo-panel { display: flex; flex-direction: column; gap: 6px; }
+.mo-skin { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 9px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; }
+.mo-skin span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mo-ask-row { display: grid; grid-template-columns: 1fr; gap: 4px; margin: 10px 0; }
+.mo-ask-row b { overflow-wrap: anywhere; }
+.mo-ask-row input { width: 100%; height: 34px; }
+.mo-ask-foot { justify-content: flex-end; margin-top: 12px; }
 /* what changed */
 #chBar select, #chBar .search, #chBar .seg { height: 34px; }
 .ch-totals { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); grid-auto-rows: 1fr; margin: 0 0 14px; }

@@ -19,9 +19,19 @@ Only the latest release is supported: fixes ship in a new version.
     settings, saved setups, flight logs, the chat and battle log if you save them, the sounds you add, game database,
     image cache, the numbers that changed between game versions, the vehicles you mark as owned and your lineups;
   - `War Thunder\UserMissions\`: the missions you create;
+  - only when you ask, `War Thunder\UserSkins\` and `War Thunder\sound\mod\`: the skins and sound mods you install. Each file is listed in
+    `user\mods_manifest.json`, and only those are ever removed: what you put there by hand is shown and left alone;
+  - only when you turn on *Use sound mods*, one line of `War Thunder\config.blk`, `enable_mod:b=yes` in its `sound` block, and no other byte.
+    It's the one setting of the game WTFTD changes. A copy of the file stays in `user\config.blk.bak`, it's refused while the game runs,
+    and turning the switch off or uninstalling puts the file back;
   - with custom vehicles on: new files under `War Thunder\content\pkg_local` and `content\pkg_user` only —
     never a path that replaces a game file. Every file is listed in `user\cdk_manifest.json` and
     *Settings → Remove custom vehicle files* deletes them.
+- **Skin and sound archives are untrusted.** WTFTD doesn't browse or download mods. Nothing from a `.zip` is written until all of it has
+  passed: paths that leave their folder, absolute paths, links, password-protected files and file types outside a short list (no
+  executables, no scripts) refuse the whole archive, as do too many files, too large a total and compression past 300 to 1. Files
+  are written under `UserSkins` and `sound\mod` only. Large files reach the app through one route of its own, which keeps the local page
+  check and its own size limits; every other request stays limited to 2 MB.
 - **What it reads:** with *Read my installed game*, the game's `aces`, `char`, `lang` and `mis.vromfs.bin` files, read
   only, instead of downloading the datamine.
 - **What it reads for the 3D views:** the game's `.grp` and `.dxp.bin` packs, `dynModelDesc.bin`, `riDesc.bin`, `levels/*.bin` and

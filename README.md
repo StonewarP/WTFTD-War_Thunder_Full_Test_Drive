@@ -196,6 +196,9 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 - **Economy**: what a vehicle costs and earns, for the game mode you choose: repair cost stock and with all upgrades, Silver Lions and
   Research Points rewards, free repairs, research and purchase cost. In the vehicle panel, as sort and range filters, in the comparison
   and along the research path, worked out as the game's own card does
+- **Skins and sounds**: skins by vehicle, in the Vehicles menu and in each vehicle's panel, installed from a `.zip` or a folder you pick, and
+  shown on the vehicle in the 3D view. Sound mods from a `.zip`, with a clear on/off switch. WTFTD removes only what it installed. It
+  doesn't browse or download mods: they come from third parties, and the game warns when one stops working. The switch is off by default
 - **My hangar**: what you own, marked by you in one click on a card, the tree or the panel, or by whole rank or nation; the vehicles of My
   battles are offered, never assumed. Named lineups per nation and game mode, with the rating they play at and can meet, by the official
   wiki's matchmaking rules, a warning on a vehicle far below the top, the total repair cost and rewards, and a test drive in one click.
@@ -218,8 +221,9 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
   weapon and map names follow the game's own translations. UI translations
   other than English were machine-assisted and may contain mistakes: corrections are welcome. Some of the newest texts
   are still in English in the languages other than French
-- **Uninstall** from Settings: everything, or only some parts (custom vehicle files in the game, missions,
-  cache, game database, your settings and library, the app itself); War Thunder itself is never touched
+- **Uninstall** from Settings: everything, or only some parts (custom vehicle files in the game, missions, the skins and sound mods
+  WTFTD installed, cache, game database, your settings and library, the app itself); War Thunder itself is never touched: only
+  what WTFTD added to it goes, and `config.blk` goes back as it was
 - **Your library**: *My vehicles* (saved setups), *My maps* (scenario variants from the editor) and *My weapons*, each
   under its menu, and *My missions* (saved vehicle + map pairs and the missions created)
 - **Share** a vehicle setup, a map or a mission with a friend: a short code to paste, or a `.wtftd` file — they
@@ -294,6 +298,11 @@ the game's own files and mechanisms. Custom vehicles add files to the game's `co
 `userVehicles` mechanism modders use) — never replacing a game file, and only used by your offline missions.
 There are no known bans for it, but it isn't endorsed by Gaijin: use it at your own risk, and remove the
 custom vehicle files (**Settings → Remove custom vehicle files**) before playing online if you want a clean install.
+
+WTFTD doesn't change the game's settings, with one exception you turn on yourself: **Use sound mods** adds the line `enable_mod:b=yes` to the
+`sound` block of `config.blk`, the game's own way, and no other byte. It's off by default, refused while the game runs, and turning it
+off or uninstalling puts the file back. Skins are the game's own feature and only you see them. Sound mods come from third parties: the
+game warns when one stops working, can turn them off, and some game modes don't allow them.
 
 The **In flight** tools only read what the game publishes on your own PC (`localhost:8111`): your aircraft's values, and
 the chat and battle log you see in game. No enemy position is used. The overlay is a separate window: nothing is
@@ -435,13 +444,14 @@ wtftd/                      Python backend (stdlib only)
   replays.py                My battles: the player's own results, from the game's replay files
   patches.py                What changed: the comparison of two game versions, kept in user/patches.json
   hangar.py                 My hangar: owned vehicles, lineups and research plan, kept in user/hangar.json
+  mods.py                   Skins and sounds: untrusted archives, what WTFTD installed, config.blk's one line
   waveout.py / tray.py      sound on the output you pick / the app window: minimized, notification area (Windows)
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
                             overlay.js / flight.js / battle.js / history.js = In flight, cockpit.html = the cockpit window,
-                            changes.js = What changed, hangar.js = My hangar,
+                            changes.js = What changed, hangar.js = My hangar, mods.js = Skins and sounds,
                             editor.js = scenario editor, model3d.js / map3d.js / lzdecode.js = the 3D views
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)

@@ -542,6 +542,20 @@ The rating and range come from the official wiki's Matchmaking page. What only t
 - [ ] Test drive on a lineup's vehicle: the mission starts with that vehicle, ground, air and naval.
 - [ ] A host vehicle chosen from the *Owned* group in Settings works in a custom vehicle mission.
 
+## 2y. Skins and sounds (new)
+
+Everything was checked in a made-up game folder: nothing below has run on a real install. On a real one:
+
+- [ ] A skin installed from a `.zip` shows in the game's Customization, in the vehicle's user skins list.
+- [ ] A skin of a ground vehicle in the 3D view: the camouflage on the second texture coordinates (only an aircraft was seen so far).
+- [ ] A `.dds` skin in the 3D view, right way up.
+- [ ] A real sound mod: Use sound mods on, the game starts and shows "Sound modification enabled".
+- [ ] Turn it off, then compare `config.blk` with `user/config.blk.bak` taken before: same bytes, or only what the game saved since.
+- [ ] Game running: the switch is locked, and turning on or off is refused. Close the game: it works.
+- [ ] A game that exits with the line on keeps it, and the switch still turns it off.
+- [ ] Uninstall, part *Skins and sound mods*: what WTFTD installed goes, what you added by hand stays, `config.blk` is back.
+- [ ] macOS: the game's folders and config.blk at these paths (the running check is Windows only).
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own
