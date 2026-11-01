@@ -388,7 +388,7 @@ function edUnitState(u) {
 function edSide(u) {
   if (u.player) return 'player';
   if (!u.edit && !u.added) return 'other';  // scenery / objects, whatever their team
-  if (u.side) return u.side;
+  if (u.side === 'ally' || u.side === 'enemy') return u.side;  // a shared map can hold anything
   if (u.added) return 'enemy';
   if (!u.army) return 'other';
   return u.army === (ED.data.army || 1) ? 'ally' : 'enemy';
@@ -402,7 +402,7 @@ const edMovable = u => u.added || (u.edit && !u.tpl && !u.removed);
 // a route: points drawn on the map, shared by the units selected (a convoy keeps the gaps of its start)
 const edRoutable = u => !u.tpl && ED_ROUTE_BLOCKS.includes(u.block);
 const edRouteUnits = () => edSelUnits().filter(edRoutable);
-const edRouteSpeed = st => st.routeSpeed || (st.block === 'armada' ? st.speed || 450 : ED_ROUTE_SPEED[st.block]);
+const edRouteSpeed = st => +st.routeSpeed || (st.block === 'armada' ? +st.speed || 450 : ED_ROUTE_SPEED[st.block]);
 const edRouteAt = (st, x, z) => ({ x: Math.round(x), z: Math.round(z),
   y: st.block === 'armada' ? Math.round(st.y) : st.block === 'ships' ? 0 : Math.round(edGroundY(x, z) * 10) / 10 });
 function edRoutePoint(x, z) {
@@ -1321,10 +1321,10 @@ function edAutoHTML(selection) {
       <button class="${src === 'me' ? 'active' : ''}" data-edauto="src:me"${my ? '' : ' disabled'}>${esc(t('editor.auto.mine', { br: my ? my.toFixed(1) : '–' }))}</button>
       <button class="${src === 'br' ? 'active' : ''}" data-edauto="src:br">${esc(t('editor.auto.custom'))}</button></div>
       ${src === 'me' ? `<small class="muted">${esc(t('editor.auto.followHint'))}</small>` : ''}
-      ${src === 'br' ? `<div class="slider-row" style="margin-top:8px"><input type="range" min="1" max="14.3" step="0.3" data-edautof="br" value="${a.br}"><output>BR ${(+a.br).toFixed(1)}</output></div>` : ''}</div>
+      ${src === 'br' ? `<div class="slider-row" style="margin-top:8px"><input type="range" min="1" max="14.3" step="0.3" data-edautof="br" value="${+a.br}"><output>BR ${(+a.br).toFixed(1)}</output></div>` : ''}</div>
     <div class="field"><label>${esc(t('editor.auto.nation'))} <span class="muted">· ${esc(a.nations.length ? a.nations.map(nationName).join(', ') : t('editor.auto.allNations'))}</span></label>
       <div class="nations ed-nations${a.nations.length ? ' has-active' : ''}">${NATIONS.map(x => `<button class="nation${a.nations.includes(x) ? ' active' : ''}" data-edauto="nat:${x}" title="${esc(nationName(x))}">
-        <img src="${flagImg(x)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'fallback',textContent:'${x.slice(0, 3).toUpperCase()}'}))"></button>`).join('')}</div>
+        <img src="${flagImg(x)}" alt=""></button>`).join('')}</div>
       ${a.nations.length ? `<button class="btn btn-ghost btn-sm" data-edauto="natAll">${esc(t('editor.auto.allNations'))}</button>` : ''}</div>
     <div class="field"><label>${esc(t('editor.fire'))}</label><div class="seg">
       ${[['', 'editor.asScenario'], ['fire_at_will', 'editor.fire.aggressive']].map(([k, l]) => `<button class="${(a.fire || '') === k ? 'active' : ''}" data-edauto="fire:${k}">${esc(t(l))}</button>`).join('')}</div>
@@ -1476,7 +1476,7 @@ function edRenderPanel() {
     ${sideSeg}
     ${edTurnable().length ? edHeadingField(st.yaw, 'uyaw') : ''}
     <div class="field-row">
-      <div class="field"><label>${esc(t('editor.count'))}</label><input type="number" min="1" max="12" data-edf="count" value="${st.count || 1}"></div>
+      <div class="field"><label>${esc(t('editor.count'))}</label><input type="number" min="1" max="12" data-edf="count" value="${+st.count || 1}"></div>
       <div class="field"><label>${esc(t('editor.fire'))}</label><select data-edf="attack">
         ${[['', 'editor.asScenario'], ['fire_at_will', 'editor.fire.aggressive'], ['return_fire', 'editor.fire.return'], ['hold_fire', 'editor.fire.passive']]
           .filter(([k]) => k || !u.added).map(([k, l]) => `<option value="${k}"${(st.attack || '') === k && (k || !u.added) ? ' selected' : ''}>${esc(t(l))}</option>`).join('')}
@@ -1532,7 +1532,7 @@ function edFilterHTML(cats) {
   return `<div class="ed-filters">
     <div class="side-title">${esc(t('filters.nations'))}</div>
     <div class="nations${f.nations.length ? ' has-active' : ''}">${NATIONS.map(x => `<button class="nation${f.nations.includes(x) ? ' active' : ''}" data-edvf="nat:${x}" title="${esc(nationName(x))}">
-      <img src="${flagImg(x)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'fallback',textContent:'${x.slice(0, 3).toUpperCase()}'}))"></button>`).join('')}</div>
+      <img src="${flagImg(x)}" alt=""></button>`).join('')}</div>
     <div class="side-title">${esc(t('filters.rank'))}</div>
     <div class="ranks">${Array.from({ length: maxRank }, (_, k) => k + 1).map(r => `<button class="rank-chip${f.ranks.includes(r) ? ' active' : ''}" data-edvf="rank:${r}">${ROMAN[r] || r}</button>`).join('')}</div>
     <div class="side-title">${esc(t('filters.br'))}</div>
@@ -1577,7 +1577,7 @@ function edRouteHTML(sts) {
       ${n ? `<button class="icon-btn" data-edact="routeBack" title="${esc(t('editor.routeBack'))}">${icon('x', 'ic-sm')}</button>
       <button class="icon-btn" data-edact="routeClear" title="${esc(t('editor.routeClear'))}">${icon('trash', 'ic-sm')}</button>` : ''}
     </div></div>
-    <div class="field-row"><div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" min="1" max="3000" data-edm="routeSpeed" value="${speed ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>
+    <div class="field-row"><div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" min="1" max="3000" data-edm="routeSpeed" value="${esc(speed ?? '')}" placeholder="${esc(t('editor.mixed'))}"></div>
       <div class="field"><label>${esc(t('editor.routeEnd'))}</label><select data-edm="routeLoop">${loop === undefined ? `<option value="__mixed" selected disabled>${esc(t('editor.mixed'))}</option>` : ''}
         <option value="0"${loop === false ? ' selected' : ''}>${esc(t('editor.routeStop'))}</option>
         <option value="1"${loop ? ' selected' : ''}>${esc(t('editor.routeLoop'))}</option></select></div></div>`;

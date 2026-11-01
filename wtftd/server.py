@@ -63,7 +63,7 @@ class State:
 
     def game_dir(self) -> Path | None:
         custom = self.settings().get("gameDir")
-        if custom:
+        if custom and not on_network(custom):
             p = Path(custom).expanduser()
             return (game.resolve_game_dir(p) or p) if p.exists() else None
         return game.detect_game_dir()
@@ -281,12 +281,22 @@ def app_version() -> dict:
 _oodle_memo: dict = {}
 
 
+# the page runs nothing but the app's own script files, and loads or sends nothing elsewhere: whatever a shared file holds
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; "
+       "font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
+
+def on_network(path) -> bool:
+    """A Windows network path (\\\\host\\share, //host/share): opening one reaches another machine."""
+    return str(path or "")[:2] in ("\\\\", "//", "\\/", "/\\")
+
+
 def oodle_dll(gd: Path | None) -> str | None:
     """Oodle runtime used to read the game's map textures: the one set in Settings, else auto-detected (once)."""
     custom = STATE.settings().get("oodleDll")
     if custom:
         custom = str(Path(custom).expanduser())
-        return custom if Path(custom).is_file() else None
+        return custom if not on_network(custom) and Path(custom).is_file() else None
     key = str(gd)
     if key not in _oodle_memo:
         _oodle_memo[key] = maptex.find_oodle(gd)
@@ -436,6 +446,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "public, max-age=2592000, immutable" if cache else "no-cache")
+        if ctype.startswith("text/html"):
+            self.send_header("Content-Security-Policy", CSP)
         self.end_headers()
         self.wfile.write(body)
 
@@ -727,6 +739,8 @@ class Handler(BaseHTTPRequestHandler):
                       "audioDevice", "battleLog", "startMinimized", "trayMinimize", "closeWithGame"):
                 if k in body:
                     s[k] = body[k]
+            if on_network(s.get("gameDir")) or on_network(s.get("oodleDll")):  # what the app runs and loads stays on this PC
+                return self.send_json({"error": "Pick something on this PC, not on a network path."}, 400)
             if s.get("gameDir") and not game.resolve_game_dir(Path(s["gameDir"]).expanduser()):
                 return self.send_json({"error": "This folder does not look like a War Thunder install."}, 400)
             if s.get("oodleDll") and maptex.oodle_version(Path(s["oodleDll"]).name) is None:

@@ -7,7 +7,7 @@ const WCATS = ['aam_ir', 'aam_radar', 'sam', 'agm', 'atgm', 'rockets', 'bombs', 
 const NEEDS = { radar: 'need.radar', laser: 'need.laser', saclos: 'need.saclos', tv: 'need.tv' };
 const LP = { slot: null, q: '', cat: '', nonStd: false, weapons: null, loading: null };
 
-const ammoIcon = ic => (ic ? `<img class="wicon" src="/img/ammo/${encodeURIComponent(ic)}.png" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'wicon-ph'}))">` : '<span class="wicon-ph"></span>');
+const ammoIcon = ic => (ic ? `<img class="wicon" src="/img/ammo/${encodeURIComponent(ic)}.png" alt="" loading="lazy">` : '<span class="wicon-ph"></span>');
 
 async function loadWeapons() {
   if (LP.weapons) return LP.weapons;
@@ -36,8 +36,8 @@ function cellHTML(d, slot, val, editable, active) {
   } else if (val && typeof val === 'object') {
     const w = LP.weapons?.[val.w];
     if (w) {
-      inner = ammoIcon(w.ic) + (val.n > 1 ? `<span class="wcount">${val.n}</span>` : '') + (val.cw ? '<i class="lmine">★</i>' : '');
-      title = `${val.n || 1}× ${pylonWeaponName(val)}`;
+      inner = ammoIcon(w.ic) + (val.n > 1 ? `<span class="wcount">${+val.n}</span>` : '') + (val.cw ? '<i class="lmine">★</i>' : '');
+      title = `${+val.n || 1}× ${pylonWeaponName(val)}`;
       warn = needWarning(d, w.g);
     }
   }
@@ -158,7 +158,7 @@ function summaryHTML(d) {
     } else {
       const w = LP.weapons?.[val.w];
       const warn = w ? needWarning(d, w.g) : '';
-      rows.push(`<li class="${warn ? 'warn' : ''}"><b>${s.i}</b>${ammoIcon(w?.ic)}<span>${val.n || 1}× ${esc(pylonWeaponName(val))} <i class="chip ${val.cw ? 'info' : 'dim'}">${esc(t(val.cw ? 'myw.chip' : 'loadout.nonStd'))}</i>${warn ? `<em>⚠ ${esc(warn)}</em>` : ''}</span></li>`);
+      rows.push(`<li class="${warn ? 'warn' : ''}"><b>${s.i}</b>${ammoIcon(w?.ic)}<span>${+val.n || 1}× ${esc(pylonWeaponName(val))} <i class="chip ${val.cw ? 'info' : 'dim'}">${esc(t(val.cw ? 'myw.chip' : 'loadout.nonStd'))}</i>${warn ? `<em>⚠ ${esc(warn)}</em>` : ''}</span></li>`);
     }
   }
   return rows.length ? `<ul class="lsummary">${rows.join('')}</ul>` : `<p class="hint" style="margin-top:8px">${esc(t('loadout.pickHint'))}</p>`;

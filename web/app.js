@@ -84,13 +84,21 @@ document.addEventListener('load', e => {
   img.classList.add('loaded');
   if (!IMG_OK.has(img.getAttribute('src'))) { IMG_OK.add(img.getAttribute('src')); saveImgOk(); }
 }, true);
+// what stands in for a picture that doesn't load (here, not in the markup: the page allows no inline code)
 document.addEventListener('error', e => {
   const img = e.target;
-  if (img.tagName !== 'IMG' || !img.getAttribute('src')?.startsWith('/img/unit/')) return;
-  IMG_BAD.add(img.getAttribute('src'));
-  IMG_OK.delete(img.getAttribute('src'));
-  img.remove();
+  if (img.tagName !== 'IMG') return;
+  const src = img.getAttribute('src') || '';
+  if (src.startsWith('/img/unit/')) {
+    IMG_BAD.add(src);
+    IMG_OK.delete(src);
+    img.remove();
+  } else if (img.classList.contains('shell')) img.remove();
+  else if (img.classList.contains('wicon')) img.replaceWith(Object.assign(document.createElement('span'), { className: 'wicon-ph' }));
+  else if (img.closest('.nation')) img.replaceWith(Object.assign(document.createElement('span'), { className: 'fallback', textContent: src.slice(10, 13).toUpperCase() }));
+  else if (src.startsWith('/img/flag/')) img.style.visibility = 'hidden';
 }, true);
+document.addEventListener('click', e => e.target.closest('[data-close]')?.closest('dialog').close());
 const flagImg = n => `/img/flag/${n}.svg`;
 const brOf = (v, mode = S.f.brMode) => v.br?.[mode] ?? null;
 const fmtBR = b => (b == null ? '—' : b.toFixed(1));
@@ -102,7 +110,7 @@ const blockFor = cat => ({ ground: 'tankModels', air: 'armada', heli: 'armada', 
 
 function flagHTML(n, cls = 'flag') {
   if (!n || n === 'other') return `<span class="${cls}"></span>`;
-  return `<img class="${cls}" src="${flagImg(n)}" alt="${esc(nationName(n))}" title="${esc(nationName(n))}" loading="lazy" onerror="this.style.visibility='hidden'">`;
+  return `<img class="${cls}" src="${flagImg(n)}" alt="${esc(nationName(n))}" title="${esc(nationName(n))}" loading="lazy">`;
 }
 
 function debounce(fn, ms) { let h; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); }; }
@@ -246,7 +254,7 @@ function buildSidebar() {
       <svg><use href="#i-${CAT_ICON[c]}"/></svg><span>${esc(t('cat.' + c))}</span><span class="n">${I18N.num(counts[c] || 0)}</span></button>`).join('');
 
   $('#nations').innerHTML = NATIONS.map(n => `<button class="nation${S.f.nations.includes(n) ? ' active' : ''}" data-n="${n}" title="${esc(nationName(n))}">
-      <img src="${flagImg(n)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'fallback',textContent:'${n.slice(0, 3).toUpperCase()}'}))"></button>`).join('');
+      <img src="${flagImg(n)}" alt=""></button>`).join('');
   $('#nations').classList.toggle('has-active', S.f.nations.length > 0);
 
   const maxRank = Math.max(8, ...S.vehicles.map(v => v.r || 0));
@@ -951,7 +959,7 @@ function loadoutBody(v, d) {
 // draws it, its bullets in order repeated up to 4 (a countermeasure: once)
 const shellImg = tp => {
   const ic = S.bulletIcons?.icons || {}, id = ic[String(tp || '').split('@')[0]] || ic.default_shell;
-  return id ? `<img class="shell" src="/img/ammo/${encodeURIComponent(id)}.png" alt="" loading="lazy" onerror="this.remove()">` : '';
+  return id ? `<img class="shell" src="/img/ammo/${encodeURIComponent(id)}.png" alt="" loading="lazy">` : '';
 };
 function beltIcons(o, once = false) {
   const types = o?.t || [];

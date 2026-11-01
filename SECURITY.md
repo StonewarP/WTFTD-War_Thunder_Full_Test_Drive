@@ -12,7 +12,8 @@ Only the latest release is supported: fixes ship in a new version.
 ## What WTFTD does on your PC
 
 - **Local server only.** The app runs a small web server on `127.0.0.1` (never reachable from the network).
-  It only answers WTFTD's own page: requests from other websites are refused.
+  It only answers WTFTD's own page: requests from other websites are refused, and that page only runs the app's own
+  scripts (a Content-Security-Policy, which also stops it from loading or sending anything elsewhere).
 - **Files it writes:**
   - `%LOCALAPPDATA%\WTFTD` on Windows, `~/Library/Application Support/WTFTD` on macOS (or the source folder):
     settings, saved setups, flight logs, the chat and battle log if you save them, the sounds you add, game database,

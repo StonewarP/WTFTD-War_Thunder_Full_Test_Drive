@@ -281,10 +281,12 @@ const under = { ofs: [0, 0], cell: 32, w: 3, h: 3, hmin: 5, hscale: 0, grid: new
 const holed = vm.runInThisContext('m3Grid')({ pos, idx: new Uint32Array([0, 1, 2]) }, info, under);
 const height = (G, i, j) => G.hmin + G.grid[j * G.w + i] * G.hscale / 65535;
 const inside = vm.runInThisContext('edInZone'), box = { type: 'Box', x: 100, z: 0, sx: 200, sz: 40, yaw: 90 }, round = { type: 'Cylinder', x: 0, z: 0, sx: 30, sz: 30, yaw: 0 };
+const sideOf = vm.runInThisContext('edSide'), speedOf = vm.runInThisContext('edRouteSpeed'), hostile = '"><img src=x onerror=alert(1)>';
+const shared = { side: sideOf({ added: 1, side: hostile }), speed: speedOf({ block: 'tankModels', routeSpeed: hostile }), air: speedOf({ block: 'armada', speed: hostile }), kept: speedOf({ block: 'tankModels', routeSpeed: 45 }) };
 const zones = [inside(box, 110, 95), inside(box, 110, 105), inside(box, 125, 0), inside(round, 21, 21), inside(round, 22, 22)];
 const pos2 = [], idx2 = [], lathe = vm.runInThisContext('m3Lathe'), cube = lathe([[0, 1], [Math.SQRT2, 1, true], [Math.SQRT2, -1, true]], 4, Math.PI / 4, pos2, idx2);
 const corners = pos2.slice(12).map(v => Math.round(v * 1000) / 1000);
-console.log(JSON.stringify({ w: T.w, cell: T.cell, hmin: T.hmin, hscale: T.hscale, mid: height(T, 1, 1), empty, hole: height(holed, 0, 2), kept: height(holed, 2, 0), zones, cube, corners, top: idx2.length }));
+console.log(JSON.stringify({ w: T.w, cell: T.cell, hmin: T.hmin, hscale: T.hscale, mid: height(T, 1, 1), empty, hole: height(holed, 0, 2), kept: height(holed, 2, 0), zones, cube, corners, top: idx2.length, shared }));
 """
 
 
@@ -302,6 +304,7 @@ class Relief(unittest.TestCase):
         self.assertEqual(got["corners"][:3], [1, 1, 1])
         self.assertEqual(max(map(abs, got["corners"])), 1)  # a box of four sides reaches its corners
         self.assertEqual((got["cube"]["faces"], got["cube"]["edges"]), (48, 24))
+        self.assertEqual(got["shared"], {"side": "enemy", "speed": 30, "air": 450, "kept": 45})  # what a shared map says stays no markup
 
 
 @unittest.skipUnless(shutil.which("node"), "needs node")

@@ -61,6 +61,25 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class ThePage(unittest.TestCase):
+    def test_it_runs_only_the_apps_own_scripts(self):
+        self.assertIn("script-src 'self';", server.CSP)
+        self.assertIn("connect-src 'self';", server.CSP)
+
+    def test_nothing_inline_for_the_policy_to_stop(self):
+        web = Path(server.__file__).parent.parent / "web"
+        for f in [*web.glob("*.html"), *web.glob("*.js")]:
+            text = f.read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"""\son[a-z]+=["']""", f.name)
+            self.assertNotRegex(text, r"<script(?![^>]*\ssrc=)", f.name)
+
+    def test_network_paths_are_refused(self):
+        for p in (r"\\host\share\oo2core_9_win64.dll", "//host/share/a.dll", r"\\host@80\s\a.dll", r"\\?\UNC\host\s\a.dll", r"/\host\s\a.dll"):
+            self.assertTrue(server.on_network(p), p)
+        for p in (r"C:\Games\oo2core_9_win64.dll", "D:/War Thunder", "~/oodle.dylib", "/Applications/x", "", None):
+            self.assertFalse(server.on_network(p), p)
+
+
 class UnbreakableAirframe(unittest.TestCase):
     def test_breaking_limits_raised(self):
         from wtftd import cdk

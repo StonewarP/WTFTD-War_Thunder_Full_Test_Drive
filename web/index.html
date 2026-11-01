@@ -11,15 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=3">
   <meta name="theme-color" content="#0a0d11">
   <link rel="stylesheet" href="app.css">
-  <script>
-    // apply the theme before first paint (no dark/light flash)
-    (function () {
-      var t = 'dark';
-      try { t = JSON.parse(localStorage.getItem('wtftd.theme')) || 'dark'; } catch (e) {}
-      if (t === 'system') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-      document.documentElement.dataset.theme = t;
-    })();
-  </script>
+  <script src="boot.js"></script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -531,7 +523,7 @@
 <dialog class="modal" id="dlgMission">
   <div class="modal-inner">
     <div class="modal-head"><h3><svg class="ic"><use href="#i-gear"/></svg><span data-i18n="mission.title"></span></h3>
-      <button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div>
+      <button class="icon-btn" data-close><svg class="ic"><use href="#i-x"/></svg></button></div>
     <div class="modal-body" id="missionDlgBody" style="padding-bottom:18px"></div>
   </div>
 </dialog>
@@ -539,7 +531,7 @@
 <dialog class="modal modal-map" id="dlgMap">
   <div class="modal-inner">
     <div class="modal-head"><h3><svg class="ic"><use href="#i-map"/></svg><span id="mapDlgName"></span></h3>
-      <button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div>
+      <button class="icon-btn" data-close><svg class="ic"><use href="#i-x"/></svg></button></div>
     <div class="modal-body" id="mapDlgBody"></div>
   </div>
 </dialog>
@@ -547,7 +539,7 @@
 <dialog class="modal" id="dlgShare">
   <div class="modal-inner">
     <div class="modal-head"><h3><svg class="ic"><use href="#i-share"/></svg><span data-i18n="share.title"></span></h3>
-      <button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div>
+      <button class="icon-btn" data-close><svg class="ic"><use href="#i-x"/></svg></button></div>
     <div class="modal-body share-body">
       <b id="shareWhat"></b>
       <p class="muted" data-i18n="share.text"></p>
@@ -561,7 +553,7 @@
 <dialog class="modal" id="dlgImport">
   <div class="modal-inner">
     <div class="modal-head"><h3><svg class="ic"><use href="#i-share"/></svg><span data-i18n="share.importTitle"></span></h3>
-      <button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div>
+      <button class="icon-btn" data-close><svg class="ic"><use href="#i-x"/></svg></button></div>
     <div class="modal-body share-body">
       <p class="muted" data-i18n="share.importText"></p>
       <textarea id="importCode" rows="5" spellcheck="false" placeholder="WTFTD1.…"></textarea>
@@ -574,7 +566,7 @@
 <dialog class="modal modal-model" id="dlgModel">
   <div class="modal-inner">
     <div class="modal-head"><h3><svg class="ic"><use href="#i-cube"/></svg><span id="mdTitle"></span></h3>
-      <div class="row gap"><span class="muted" id="mdInfo"></span><button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div></div>
+      <div class="row gap"><span class="muted" id="mdInfo"></span><button class="icon-btn" data-close><svg class="ic"><use href="#i-x"/></svg></button></div></div>
     <canvas id="mdCanvas"></canvas>
     <div class="md-bar hidden" id="mdBar"></div>
     <div class="md-hint muted" data-i18n="model.hint"></div>
@@ -584,7 +576,7 @@
 <dialog class="modal modal-compare" id="dlgCompare">
   <div class="modal-inner">
     <div class="modal-head"><h3><svg class="ic"><use href="#i-sliders"/></svg><span data-i18n="compare.title"></span></h3>
-      <button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div>
+      <button class="icon-btn" data-close><svg class="ic"><use href="#i-x"/></svg></button></div>
     <div class="cmp-scroll" id="cmpTable"></div>
   </div>
 </dialog>
@@ -592,7 +584,7 @@
 <dialog class="modal modal-compare" id="dlgWcmp">
   <div class="modal-inner">
     <div class="modal-head"><h3><svg class="ic"><use href="#i-sliders"/></svg><span data-i18n="arm.compareTitle"></span></h3>
-      <button class="icon-btn" onclick="this.closest('dialog').close()"><svg class="ic"><use href="#i-x"/></svg></button></div>
+      <button class="icon-btn" data-close><svg class="ic"><use href="#i-x"/></svg></button></div>
     <div class="cmp-scroll" id="wcmpTable"></div>
   </div>
 </dialog>

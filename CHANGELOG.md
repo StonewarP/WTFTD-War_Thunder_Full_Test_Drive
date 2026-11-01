@@ -4,6 +4,14 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.22.1 — 2026-11-01
+
+- **Security**: a shared map or mission could run a script in the app when opened in the scenario editor. Its values are now
+  checked, and the page only runs the app's own scripts. **Update, and don't import a share from someone you don't trust in an
+  older version.**
+- **Security**: the game folder and the Oodle runtime can no longer be on a network path. A mapped drive letter still works.
+- A shared map's side, count, route speed and BR are read as what they should be, and pylon counts too.
+
 ## 0.22.0 — 2026-11-01
 
 - **Ground missiles**: SPAA missiles were missing in missions. SAM launchers and ATGMs now start on a named missile set, as
