@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, hangar, maptex, mission, models, mods, patches, replays, sights, \
+from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, challenges, flightlog, game, hangar, maptex, mission, models, mods, patches, replays, sights, \
     terrain, uninstall, vromfs, waveout
 from .paths import CACHE, DATA, HOME, USER, WEB
 
@@ -124,7 +124,9 @@ def write_json(path: Path, data):
 
 BATTLES = CACHE / "battles.json"  # derived from the game's replays: goes with the cache
 TEAMKILLS = USER / "teamkills.json"  # the player's own record: a replay can't rebuild it
+CHALLENGES = USER / "challenges.json"
 _battles_lock = threading.Lock()  # two pages open: one scan at a time, one writer
+_challenges_lock = threading.Lock()  # the page, the game's watch
 
 
 def battles() -> dict:
@@ -145,7 +147,32 @@ def battles() -> dict:
             WATCH.killed_by.extend(waiting)
             if filed:
                 write_json(TEAMKILLS, read_json(TEAMKILLS, []) + filed)
+    with _challenges_lock:
+        data = read_challenges()
+        if challenges.merge(data, listed["rows"]):
+            write_json(CHALLENGES, data)
     return {"game": gd is not None, **listed, "teamkills": read_json(TEAMKILLS, [])}
+
+
+def read_challenges() -> dict:
+    return challenges.clean(read_json(CHALLENGES, None))
+
+
+def challenge_loop():
+    """While the game is there, the objective of a challenge being played. Seconds apart: the game holds the result only for that long."""
+    live = challenges.Live()
+    while True:
+        raw = _wt_get("/mission.json")
+        try:
+            with _challenges_lock:
+                data = read_challenges()
+                done = live.tick(raw, data["made"], time.time())
+                if done:
+                    challenges.add_result(data, done)
+                    write_json(CHALLENGES, data)
+        except Exception:  # never let the thread die
+            pass
+        time.sleep(1 if raw else 5)
 
 
 # --------------------------------------------------------------------------- images
@@ -599,6 +626,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": "not found"}, 404)
         if route == "battles":
             return self.send_json(battles())
+        if route == "challenges":
+            battles()  # the replays' results first
+            return self.send_json({"list": challenges.catalog(), "results": read_challenges()["results"]})
         if route == "hangar":
             return self.send_json(hangar.load())
         if route == "mods":
@@ -783,6 +813,8 @@ class Handler(BaseHTTPRequestHandler):
             gd = STATE.game_dir()
             if not gd:
                 return self.send_json({"error": "War Thunder folder not found. Set it in Settings."}, 400)
+            if body.get("challenge"):
+                body = challenges.plan(body, STATE.get_vehicles())
             setup = dict(body)
             body, files = self.prepare_cdk(body)
             name, text = mission.build(body)
@@ -807,6 +839,11 @@ class Handler(BaseHTTPRequestHandler):
             um.mkdir(exist_ok=True)
             out = um / name
             out.write_text(text, encoding="utf-8")
+            if body.get("challenge"):
+                with _challenges_lock:
+                    data = read_challenges()
+                    challenges.remember(data, body)
+                    write_json(CHALLENGES, data)
             ai_names = [k for f in (body.get("_aiFiles") or {}).values() for k in f]
             sight = install_sight(body)
             return self.send_json({"ok": True, "file": name, "path": str(out), "cdkFiles": sorted(files) + sorted(ai_names),
@@ -1403,6 +1440,7 @@ def serve(port: int = 8777) -> tuple[ThreadingHTTPServer, str]:
     httpd.daemon_threads = True
     threading.Thread(target=auto_update_loop, daemon=True).start()
     threading.Thread(target=map_capture_loop, daemon=True).start()
+    threading.Thread(target=challenge_loop, daemon=True).start()
     threading.Thread(target=warm_weapon_icons, daemon=True).start()
     threading.Thread(target=lambda: models.warm(STATE.game_dir()), daemon=True).start()
     if alarms.available():

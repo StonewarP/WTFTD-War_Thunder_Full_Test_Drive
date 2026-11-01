@@ -556,6 +556,43 @@ Everything was checked in a made-up game folder: nothing below has run on a real
 - [ ] Uninstall, part *Skins and sound mods*: what WTFTD installed goes, what you added by hand stays, `config.blk` is back.
 - [ ] macOS: the game's folders and config.blk at these paths (the running check is Windows only).
 
+## 2z. Challenges (new)
+
+No mission here has been played: the blocks are copied from the game's own missions, the rest is the game's to show. Before starting:
+keep WTFTD open, turn **Autosave Replays** on, pick the vehicle in the app, then My missions → Challenges → *Create mission*. Missions are
+under Single missions → User missions, titled `Challenge: <name> (<difficulty>) - <vehicle> - <map>`, in the app's language.
+
+**First, on one mission**: `Challenge: Firing range (Normal) - T-72A - Shooting Range`. Destroy the 4 trucks straight ahead.
+
+- [ ] It loads, on the Shooting Range, facing the trucks, no respawn screen.
+- [ ] The objective's text shows as written in the app, and in Russian or Chinese too (app language changed, mission created again).
+- [ ] The hint comes 3 s in. The timer counts down from 2:30. The HUD counts the targets left.
+- [ ] All trucks destroyed: the objective is ticked, the game's victory screen 3 s later.
+- [ ] In the app, a few seconds later: the row's chip says *Best …*, and My results has it. **If nothing comes**, the game names the objective otherwise: read `http://127.0.0.1:8111/mission.json` during the mission and note its `text`.
+- [ ] Play again, let the timer run out: objective failed, failure screen, one more try in My results.
+- [ ] Again, get destroyed (or leave the tank to burn): same failure at once, no respawn.
+- [ ] Quick radio message 7 restarts the mission, and the timer starts over. Does the pause menu offer Restart too, and the failure screen?
+- [ ] My battles, switch *Test drives and missions*: the mission is there, with the T-72A and *Won* or *Lost*, not *Left*.
+- [ ] **Close WTFTD**, win once, open it again: does the win show? Yes means replays hold a result for a mission that ends (`status`): note it. No means WTFTD must stay open.
+- [ ] A pause of 30 s in a mission: is the replay's time without it? Compare My results with the timer.
+
+**Then one mission each.** *Normal*, in the vehicle you like, unless said.
+
+| Mission title starts with | Do | Expect |
+|---|---|---|
+| `Challenge: Moving targets` | Shoot the 3 trucks crossing ahead | They drive 600 m back and forth at 30 km/h, without stopping or going off the road of their route |
+| `Challenge: Hold the line` | Stay put, destroy what comes | 2 tanks of your battle rating drive at you from 1400 m and fire; next wave 5 s after, with a hint; the third wave destroyed wins. No win at the start |
+| `Challenge: Gate course` | Fly to the marker | One marker at a time, on the HUD and map; 8 gates at about 1200 m; each gives a hint; the last one wins. Try it in a jet and a slow aircraft: is the time allowed fair? |
+| `Challenge: Bombing run` | Destroy the 6 trucks 8 km ahead | They stand on the ground, not in the air or buried, and are marked |
+| `Challenge: Air defence` | Shoot down what comes | Fighters of your battle rating come at your height 6 km out and attack; next wave 5 s after each |
+| `Challenge: Missile evasion` | Break away, use flares | 2 MiG-29 turn on you and **fire missiles**: the core of it. Alive after 1:30 wins. If they only use guns, note it |
+| `Challenge: Helicopter range` | Lift off, destroy the 4 trucks | Starts on the ground, engine as in a bare map; the same site as the Firing range |
+| `Challenge: Naval gunnery` | Sink the 3 boats, in a ship and in a boat | The boats float, hold still, don't fire; on Port and on the fjord (the two maps) |
+
+- [ ] The other maps of Firing range, Rocky Canyon and Falkland Islands: trucks on the ground in sight? The heights come from the game's heightmaps, trees and buildings don't.
+- [ ] A truck dropped from too high or stuck in the ground: note the map and the distance.
+- [ ] Hard: 10 gates, 200 m wide: reachable?
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

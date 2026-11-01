@@ -126,6 +126,13 @@ class Reading(Temp):
                              mission="D:/Games/tanks/War Thunder/UserMissions/wtftd_rafale_c_f3.blk"))
         self.assertTrue(row["offline"])
         self.assertEqual((row["vehicles"], row["title"], row["kind"], row["result"]), (["rafale_c_f3"], "Test Drive: Rafale - Range", "", "left"))
+        self.assertNotIn("challenge", row)
+
+    def test_a_challenges_file_names_it_and_its_vehicle(self):
+        comments = {**results(""), "player": player(ME, "Myself"), "uiScriptsData": {"playersInfo": {}}}
+        row = self.read(wrpl(comments, level="levels/avg_training_ground.bin", cls="singleMission",
+                             mission="D:/Games/War Thunder/UserMissions/wtftd_ch-range-hard-ussr_t_72a.blk"))
+        self.assertEqual((row["vehicles"], row["challenge"]), (["ussr_t_72a"], ("range", "hard")))
 
     def test_offline_by_each_sign(self):
         for extra in ({"cls": "singleMission"}, {"mission": "D:/WT/UserMissions/my_own.blk"}, {"level": "levels/firing_range.bin"}):

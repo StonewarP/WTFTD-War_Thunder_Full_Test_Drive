@@ -923,7 +923,7 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
 # action (repair, targets back, back to the start) or switches an option: the key's trigger asks a second,
 # disabled one to check its conditions (triggerActivate), which turns the option on (actions) or off
 # (else_actions) by a mission variable; while an option is on, a third trigger keeps it applied.
-HOTKEYS = {"immortal": 1, "reload": 2, "passive": 3, "repair": 4, "targets": 5, "start": 6, "help": 9}
+HOTKEYS = {"immortal": 1, "reload": 2, "passive": 3, "repair": 4, "targets": 5, "start": 6, "restart": 7, "help": 9}
 HOTKEY_TEXTS = {  # English fallback; the app sends them in the player's language
     "on": "{what}: on", "off": "{what}: off",
     "immortal": "Invulnerable", "reload": "No reload", "passive": "Passive targets", "repair": "Repaired",
@@ -1022,6 +1022,116 @@ def apply_hotkeys(m: dict, wing: str, ch: dict, air: bool, texts: dict | None, s
     triggers["wtftd_key_help"]["actions"]["playHint"] = _hint(tx["help"], 12.0)
     intro = _trigger({"periodicEvent": {"time": 3.0}}, {"playHint": _hint(tx["intro"], 8.0)}, False)
     triggers["wtftd_key_intro"] = intro
+
+
+# ---------------------------------------------------------------------------- challenges
+# A scored mission (wtftd/challenges.py makes the units, this the rules): one objective, a countdown, a real end. Block
+# shapes as in the game's own single missions: malta_s02 (timer, end), free_flight_preset01 (points to fly through),
+# aircraft_countermeasures_flares (an aircraft told to fire at the player), aircraft_aam_mclos (restart).
+CH_END_WAIT = 3.0  # s between the objective's result and the end: the app reads the result then
+CH_TIME, CH_NO_TIME = "wtftd_ch_time", "wtftd_ch_no_time"  # s left; a variable at 0 hides the game's timer
+CH_TEXTS = {"goal": "Challenge", "start": "", "gate": "Gate {n} of {total}"}  # English fallback; the app sends them in the player's language
+
+
+def _ch_objective(m: dict, goal: str):
+    """The game shows an objective's name as its text: a name no language file knows shows as it is written."""
+    m.setdefault("mission_objectives", {"isCategory": True, "is_enabled": True})[goal] = {
+        "is_enabled": False, "comments": "WTFTD", "type": "abstractMissionObjective",
+        "props": {"isPrimary": True, "timeLimit": 1800, "scoreConst": 100, "scoreTime": 400}, "onSuccess": {}, "onFailed": {}}
+
+
+def _ch_end(goal: str, won: bool, others: list) -> dict:
+    """The objective's result, the timer gone, the game's own end of mission."""
+    end = {"missionCompleted": {"timer": False, "debriefingTimer": 2}} if won else {"missionFailed": {"timer": False, "debriefingTimer": 5}}
+    return {"triggerDisable": {"target": others}, "moSetObjectiveStatus": {"target": goal, "status": 2 if won else 3},
+            "missionSetTimeIndicator": {"var": CH_NO_TIME}, "wait": {"time": CH_END_WAIT}, **end}
+
+
+def _ch_mark(area: str, visible: bool) -> dict:
+    return {"visible": visible, "primary": False, "scale": 1.0, "oriented": False, "ignoreDifficulty": True, "target": area}
+
+
+def _ch_gates(m: dict, gates: list, radius: float, text: str) -> list:
+    """Points to fly through in order, the next one marked on the map and the HUD. -> their triggers, first enabled."""
+    names = [f"wtftd_ch_gate_{i + 1}" for i in range(len(gates))]
+    out = []
+    for i, name in enumerate(names):
+        m.setdefault("areas", {})[name] = {"type": "Point", "tm": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], list(gates[i])], "objLayer": 0, "props": {}}
+        following = names[i + 1:i + 2]
+        t = _trigger({"periodicEvent": {"time": 0.25}}, {
+            "missionMarkAsWaypoint": [_ch_mark(name, False), *(_ch_mark(x, True) for x in following)],
+            "playHint": _hint(text.replace("{n}", str(i + 1)).replace("{total}", str(len(gates))), 2.0)}, False)
+        t["is_enabled"] = i == 0
+        t["conditions"] = {"playersDistanceBetween": {"value": float(radius), "math": "3D", "players": "isAlive", "target_type": "isAlive",
+                                                      "check_players": "any", "check_targets": "any", "target": name}}
+        if following:
+            t["actions"]["triggerEnable"] = {"target": [f"{following[0]}_passed"]}
+        out.append((f"{name}_passed", t))
+    return out
+
+
+def apply_challenge(m: dict, wing: str, ch: dict):
+    """ch (challenges.plan): limit (s), rule, texts (see CH_TEXTS), and by rule
+      destroy  targets: units to destroy
+      waves    the enemies of apply_waves: the last wave destroyed wins
+      gates    gates: [[x, y, z]], radius
+      survive  the timer running out wins; attackers: aircraft told to fire at the player
+    Time out and death end it. A bare map's respawn goes: a death is the end here."""
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
+    tx = {k: _clean_text((ch.get("texts") or {}).get(k), v) for k, v in CH_TEXTS.items()}
+    triggers.pop("wtftd_respawn", None)
+    goal, rule = tx["goal"], ch["rule"]
+    _ch_objective(m, goal)
+    m.setdefault("variables", {}).update({CH_TIME: int(ch["limit"]), CH_NO_TIME: 0})
+    units = m.setdefault("units", {})
+    start: dict = {"moAddMissionObjective": {"target": goal, "object_var_comp_op": "equal", "object_var_name": ""},
+                   "missionSetTimeIndicator": {"var": CH_TIME}}
+    clock: dict = {"varModify": {"var": CH_TIME, "operator": "subAB", "value": 1.0}, "missionSetTimeIndicator": {"var": CH_TIME}}
+    won = None  # the trigger that wins, when it isn't the timer
+    squad = None
+    if rule == "destroy":
+        squad = "wtftd_ch_targets"
+        first = next(u for v in units.values() for u in _as_list(v) if isinstance(u, dict) and u.get("name") == ch["targets"][0])
+        _append_unit(units, "squad", {"name": squad, "tm": copy.deepcopy(first["tm"]), "props": {"squad_members": list(ch["targets"])}})
+        start["unitSetIndication"] = {"set": True, "target": squad, "target_marking": 0, "object_var_name": "", "object_var_comp_op": "equal", "object_var_value": 0}
+        clock["missionSetTargetsIndicator"] = {"target_type": "isAlive", "target_marking": 0, "delta": 0, "icon": ch.get("icon", "tank"), "icon army": 2,
+                                               "set": True, "object_var_name": "", "object_var_comp_op": "equal", "object_var_value": 0, "target": squad}
+    elif rule == "waves":
+        numbers = sorted(int(s["name"].rsplit("_", 1)[1]) for s in _as_list(units.get("squad")) if str(s.get("name")).startswith("wtftd_wave_"))
+        squad = f"wtftd_wave_{numbers[-1]}"
+        triggers[f"wtftd_wave_{numbers[-2]}_end"]["actions"]["triggerEnable"] = {"target": ["wtftd_ch_won"]}  # absent at the start: it'd count as destroyed
+    if squad:
+        won = _trigger({"periodicEvent": {"time": 1.0}}, {}, False)
+        won["is_enabled"] = rule == "destroy"
+        won["conditions"] = {"unitWhenCountMatches": {"object_type": "isAlive", "object_marking": 0, "func": "less", "value": 1, "object": squad}}
+    gates = []
+    if rule == "gates":
+        gates = _ch_gates(m, ch["gates"], ch["radius"], tx["gate"])
+        start["missionMarkAsWaypoint"] = _ch_mark("wtftd_ch_gate_1", True)
+        won = gates[-1][1]
+    triggers["wtftd_ch_start"] = _trigger({"initMission": {}}, start, False)
+    triggers.update(gates)
+    triggers["wtftd_ch_clock"] = _trigger({"periodicEvent": {"time": 1.0}}, clock, True)
+    if tx["start"]:
+        triggers["wtftd_ch_hint"] = _trigger({"periodicEvent": {"time": 3.0}}, {"playHint": _hint(tx["start"], 10.0)}, False)
+    if ch.get("attackers"):  # lost when they turn or lose sight: given again
+        attacks = [{"playerAttracted": False, "object": n, "attack_type": "attack_target", "target": wing, "weaponType": "all"} for n in ch["attackers"]]
+        triggers["wtftd_ch_attack"] = _trigger({"periodicEvent": {"time": 10.0}}, {"unitAttackTarget": attacks if len(attacks) > 1 else attacks[0]}, True)
+
+    time_up = _trigger({"periodicEvent": {"time": 1.0}}, {}, False)
+    time_up["conditions"] = {"varCompareInt": {"var_value": CH_TIME, "value": 1, "comparasion_func": "less"}}
+    dead = _trigger({"periodicEvent": {"time": 0.5}}, {}, False)
+    dead["conditions"] = {"playersWhenStatus": {"players": "isKilled", "check_players": "any"}}
+    ending = {"wtftd_ch_time_up": (time_up, rule == "survive"), "wtftd_ch_dead": (dead, False)}
+    if won:
+        ending[gates[-1][0] if gates else "wtftd_ch_won"] = (won, True)
+    stop = ["wtftd_ch_clock", *ending]
+    for name, (t, result) in ending.items():
+        t["actions"].update(_ch_end(goal, result, [x for x in stop if x != name]))
+        triggers[name] = t
+    restart = _trigger({"periodicEvent": {"time": 0.1}}, {"missionRestart": {}}, False)
+    restart["conditions"] = _key_cond("restart")
+    triggers["wtftd_ch_restart"] = restart
 
 
 def safe_name(s: str) -> str:
@@ -1199,6 +1309,8 @@ def build(cfg: dict) -> tuple[str, str]:
         cheats.pop("hostileEnemies", None)
     apply_cheats(m, wing, cheats, air=block == "armada")
     apply_hotkeys(m, wing, cheats, block == "armada", cfg.get("hotkeyTexts"), unit.get("tm"))
+    if isinstance(cfg.get("_challenge"), dict):
+        apply_challenge(m, wing, cfg["_challenge"])
 
     # ---- template units given another vehicle in the editor: the mission declares them itself
     eu = (cfg.get("edits") or {}).get("units") or {}

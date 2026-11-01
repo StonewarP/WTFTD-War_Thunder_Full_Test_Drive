@@ -6,6 +6,14 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## 0.23.0 — not released yet
 
+- **Challenges** (My missions menu): scored missions for the picked vehicle, each with a goal in the game's objectives, a timer
+  and a real win or failure. Tanks: firing range at known distances, moving targets, waves. Aircraft: a course of gates against
+  the clock, bombing, waves of fighters, missile evasion. Helicopters and ships: their own range. Pick a map and a difficulty,
+  create the mission as usual, no cheats. Your best time by challenge, vehicle and difficulty comes back in the tab while WTFTD
+  is open, from the game's local data on your own mission, exact when the game saved a replay. A result creates the mission again
+  in one click, a challenge goes in a share code, and finished ones show in My battles with the test missions. Nothing of it
+  has been played yet: the in-game checklist has the list. The game's race triggers are left out: only its multiplayer missions
+  use them, so the gates are its single missions' waypoints.
 - **My battles** (In flight menu): your own battle history, read from the replays the game saves on your PC. Date, map, game
   mode, vehicle, result, time played, kills, deaths, assists, score and damage, newest first; totals (battles, win rate, kills
   per death, time played) and a summary by vehicle for what the filters show. Filter by game mode, vehicle, map, dates and

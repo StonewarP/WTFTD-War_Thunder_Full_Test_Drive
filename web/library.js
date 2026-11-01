@@ -274,6 +274,8 @@ async function importShared(text) {
       (S.variants ||= []).push({ id: 'v' + newId(), name, sid, edits: data.edits || null, map: data.map || null });
       await persistVariants();
       showView('mymaps');
+    } else if (kind === 'challenge') {
+      await cgImport(data);
     } else {
       const cb = data.v === 2 ? { ...data, id: newId(), created: Date.now(), variantId: '' } : comboFromSetup(data.cfg, name);
       delete cb.app; delete cb.v; delete cb.kind;
