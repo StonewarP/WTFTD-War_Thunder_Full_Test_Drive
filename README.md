@@ -5,6 +5,9 @@
 >
 > **Disclaimer** — I'm not a professional developer: WTFTD is a hobby project, built with the help of AI
 > tools. The code is open and tested, but expect rough edges, and check it yourself if in doubt.
+> I first made it for myself and I'm sharing it completely openly. I'm the only one testing it, so if you
+> find a bug, don't hesitate to [report it](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/new/choose):
+> I'll fix it quickly.
 
 [![Latest release](https://img.shields.io/github/v/release/StonewarP/WTFTD-War_Thunder_Full_Test_Drive?include_prereleases&label=download)](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/releases)
 [![Tests](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/actions/workflows/tests.yml/badge.svg)](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/actions/workflows/tests.yml)
