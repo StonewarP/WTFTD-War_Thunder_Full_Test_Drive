@@ -41,6 +41,7 @@ then builds `data/`. Rebuild the data by hand with `python -m wtftd.builder --no
 | `wtftd/battle.py` | The game's chat and battle log; UI in `web/battle.js` |
 | `wtftd/replays.py` | My battles: the player's own results from the game's replays, indexed in `.cache/battles.json`; UI in `web/history.js` |
 | `wtftd/patches.py` | What changed: compares the old database with the new one at each new game version, keeps the last patches in `user/patches.json`. Its `FIELDS` table says what's compared: a new value takes one line there. UI in `web/changes.js` |
+| `wtftd/hangar.py` | My hangar: owned vehicles, lineups and research plan in `user/hangar.json`, checked on the way in and out; UI and the matchmaking rule in `web/hangar.js` |
 | `wtftd/blk.py` | BLK text format writer / reader |
 | `web/` | UI: plain HTML / CSS / JavaScript, no build step |
 | `web/locales/` | UI translations |

@@ -83,6 +83,7 @@
 <nav class="subtabs" role="tablist">
   <button class="subtab" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
   <button class="subtab" data-view="setups" role="tab"><span data-i18n="nav.myVehicles"></span><span class="tab-count" id="setupCount"></span></button>
+  <button class="subtab" data-view="hangar" role="tab"><span data-i18n="nav.hangar"></span><span class="tab-count" id="hangarCount"></span></button>
   <button class="subtab" data-view="changes" role="tab"><span data-i18n="nav.changes"></span><span class="tab-count" id="changeCount"></span></button>
   <button class="subtab" data-view="maps" role="tab"><span data-i18n="nav.maps"></span></button>
   <button class="subtab" data-view="mymaps" role="tab"><span data-i18n="nav.myMaps"></span><span class="tab-count" id="myMapCount"></span></button>
@@ -132,6 +133,7 @@
     <div class="side-section">
       <div class="side-title" data-i18n="filters.options"></div>
       <label class="switch"><input type="checkbox" id="optFav"><span class="sw"></span><span data-i18n="filters.favorites"></span></label>
+      <label class="switch"><input type="checkbox" id="optOwned"><span class="sw"></span><span data-i18n="filters.owned"></span></label>
       <label class="switch"><input type="checkbox" id="optPrem"><span class="sw"></span><span data-i18n="filters.premium"></span></label>
       <label class="switch" data-i18n-title="filters.hiddenHint"><input type="checkbox" id="optHidden"><span class="sw"></span><span data-i18n="filters.hidden"></span></label>
     </div>
@@ -159,8 +161,14 @@
       </div>
       <div class="tree hidden" id="tree"></div>
       <div class="grid" id="grid"></div>
-      <div class="empty hidden" id="gridEmpty"><svg class="ic-xl"><use href="#i-search"/></svg><p data-i18n="results.empty"></p></div>
+      <div class="empty hidden" id="gridEmpty"><svg class="ic-xl"><use href="#i-search"/></svg><p data-i18n="results.empty"></p><button class="btn btn-sm hidden" id="gridHangar" data-i18n="nav.hangar"></button></div>
       <div id="sentinel"></div>
+    </div>
+
+    <div class="view hidden" id="view-hangar">
+      <div class="page-head"><div><h2 data-i18n="nav.hangar"></h2><p class="muted" data-i18n="hg.hint"></p></div></div>
+      <div class="seg hg-tabs" id="hgTabs" role="tablist"><button data-tab="owned" data-i18n="hg.tab.owned"></button><button data-tab="lineups" data-i18n="hg.tab.lineups"></button><button data-tab="plan" data-i18n="hg.tab.plan"></button></div>
+      <div id="hgBody"></div>
     </div>
 
     <div class="view hidden" id="view-changes">
@@ -721,6 +729,7 @@
 <script src="battle.js"></script>
 <script src="history.js"></script>
 <script src="changes.js"></script>
+<script src="hangar.js"></script>
 <script src="maps.js"></script>
 <script src="library.js"></script>
 <script src="lzdecode.js"></script>

@@ -533,6 +533,15 @@ Repair costs and rewards match the official wiki on 26 vehicles, read at 2.59.0.
 - [ ] A vehicle's card in the game's shop shows the panel's numbers, stock and with all modules, in each mode.
 - [ ] A premium vehicle's free repairs: 30 in the panel, a bought vehicle of the tree 10. The wiki doesn't list them.
 
+## 2x. My hangar (new)
+
+The rating and range come from the official wiki's Matchmaking page. What only the game can show:
+
+- [ ] A ground lineup's rating here is the one shown under "To Battle!", in each mode.
+- [ ] A lineup in Air Arcade: the same, with three aircraft of different ratings (A/2 + B/4 + C/4, rounded up).
+- [ ] Test drive on a lineup's vehicle: the mission starts with that vehicle, ground, air and naval.
+- [ ] A host vehicle chosen from the *Owned* group in Settings works in a custom vehicle mission.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

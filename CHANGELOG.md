@@ -41,6 +41,17 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   the game's own card does, rounding included, and match the official wiki on the 26 vehicles checked. A premium vehicle's reward
   includes its premium bonus: the wiki's 2 x 172 % is 344 % here. No estimate of battles to research a vehicle, and no repair bill in My
   battles: a replay doesn't say what was earned or paid. Data schema 33: the data is rebuilt once.
+- **My hangar** (Vehicles menu): what you own, your lineups and what to research next. The game doesn't tell the app what you own, so
+  you mark it: one click on a card, in the tree or in the vehicle panel, or a whole rank or nation at once in a table of what you own,
+  with Undo. Vehicles found in My battles are offered, never marked for you. An *Owned only* filter joins the others, and the tree shows
+  what's yours at a glance. **Lineups**, named, per nation and game mode, from what you own or from any vehicle if you're planning: the
+  rating they play at, what they can meet, by the official wiki's Matchmaking page (the highest vehicle, the Air Arcade average, the
+  aircraft chosen in Air Realistic, the naval limit, and Simulator's own lists), a warning on a vehicle 1.0 or more below the top, as the
+  game warns in a squad, and the total repair cost and rewards. A vehicle opens its panel, and Test drive creates its mission. **Research
+  plan**: goals in order, with the research path minus what you own, and the RP and SL left. No estimate of battles: a replay doesn't
+  say what was earned. Custom vehicles in Settings list what you own first and warn about a host that isn't, and What changed's *my
+  vehicles* filter includes the hangar. It's kept in `user/hangar.json`, and goes with *Your settings and library* in Uninstall. A file
+  nothing can read is kept aside as `user/hangar.bad.json`, and the app says so.
 - **Translations**: the research path, research cost and purchase cost are now translated in every language.
 - **Motor burn** (Weapons): read from the motor format the game now uses for more and more missiles, such as the R-60 from 2.60 on,
   which had lost the value. Data schema 32: the data is rebuilt once.

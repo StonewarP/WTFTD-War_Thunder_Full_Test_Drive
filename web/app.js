@@ -13,7 +13,7 @@ const NATIONS = ['usa', 'germany', 'ussr', 'britain', 'japan', 'china', 'italy',
 const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', britain: '#2f8a63', japan: '#d65a5a', china: '#e2a92b', italy: '#2fa262', france: '#4766dd', sweden: '#f0c637', israel: '#4fa6e3', other: '#5b6b84' };
 const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
 // the top menu: each menu's pages, shown as sub-tabs under it when it has several
-const MENUS = { vehicles: ['vehicles', 'setups', 'changes'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
+const MENUS = { vehicles: ['vehicles', 'setups', 'hangar', 'changes'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions'],
                 inflight: ['overlay', 'flight', 'battle', 'history'] };
 const AVIONICS = ['laserDesignator', 'havePointOfInterestDesignator', 'hasHelmetDesignator', 'haveCCIPForGun', 'haveCCIPForRocket', 'haveCCIPForBombs', 'haveCCRPForBombs', 'haveCCRPForGun'];
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
@@ -45,7 +45,7 @@ const S = {
   showAllScen: false,
   pick: Object.assign({ vehicle: '', scenario: '' }, store.get('pick', {})),  // vehicle + map of the mission (maps.js)
   showUnofficial: false,
-  f: Object.assign({ cat: 'all', nations: [], ranks: [], brMode: 1, brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', sort: 'br', view: 'tree', stats: {}, wsel: [] }, store.get('filters', {})),
+  f: Object.assign({ cat: 'all', nations: [], ranks: [], brMode: 1, brMin: BR_MIN, brMax: BR_MAX, fav: false, owned: false, prem: false, hidden: false, q: '', sort: 'br', view: 'tree', stats: {}, wsel: [] }, store.get('filters', {})),
   trees: {},
   openGroups: new Set(),
 };
@@ -202,6 +202,7 @@ async function boot() {
   bindBattle();
   bindHistory();
   bindChanges();
+  bindHangar();
   bindMaps();
   bindLibrary();
   showView(store.get('startView', 'vehicles'));
@@ -267,7 +268,7 @@ function buildSidebar() {
   $$('#brMode button').forEach(b => b.classList.toggle('active', +b.dataset.mode === S.f.brMode));
   $('#brMin').value = S.f.brMin; $('#brMax').value = S.f.brMax;
   updateBrRange();
-  $('#optFav').checked = S.f.fav; $('#optPrem').checked = S.f.prem; $('#optHidden').checked = S.f.hidden;
+  $('#optFav').checked = S.f.fav; $('#optOwned').checked = S.f.owned; $('#optPrem').checked = S.f.prem; $('#optHidden').checked = S.f.hidden;
   updateSortOptions();
   renderStatFilters();
   $('#search').value = S.f.q;
@@ -293,6 +294,7 @@ function matcher() {
     if (f.roles?.length && !(v.ro || []).some(r => f.roles.includes(r))) return false;
     if (!fullBR) { const b = brOf(v); if (b == null || b < f.brMin - 0.01 || b > f.brMax + 0.01) return false; }
     if (f.fav && !S.favs.has(v.id)) return false;
+    if (f.owned && !HG.owned.has(v.id)) return false;
     if (f.prem && !v.p && !v.g) return false;
     if (q && !v._s.includes(q)) return false;
     if (!statsMatch(v) || !weaponMatch(v)) return false;
@@ -331,10 +333,16 @@ function applyFilters() {
   S.rendered = 0;
   $('#grid').innerHTML = '';
   $('#gridEmpty').classList.toggle('hidden', list.length > 0);
+  const noOwned = f.owned && !HG.owned.size;  // nothing marked yet: where to do it
+  $('#gridEmpty p').textContent = t(noOwned ? 'hg.emptyGrid' : 'results.empty');
+  $('#gridHangar').classList.toggle('hidden', !noOwned);
   $('#resultsCount').innerHTML = `<b>${I18N.num(list.length)}</b>${esc(t('results.count', { n: '' }).trim())}`;
   renderMore();
   requestAnimationFrame(fillGrid);
 }
+
+// one click on a card marks the vehicle: a span, a card is already a button
+const ownMarkHTML = (v, cls) => `<span class="${cls}${HG.owned.has(v.id) ? ' on' : ''}" data-own="${esc(v.id)}" role="button" title="${esc(t(HG.owned.has(v.id) ? 'hg.unmark' : 'hg.mark'))}">${icon('check', 'ic-sm')}</span>`;
 
 function cardHTML(v) {
   const br = brOf(v);
@@ -348,6 +356,7 @@ function cardHTML(v) {
       ${br != null ? `<span class="card-br">${fmtBR(br)}</span>` : ''}
       ${cardStatHTML(v)}
       ${S.favs.has(v.id) ? `<svg class="card-fav"><use href="#i-star"/></svg>` : ''}
+      ${ownMarkHTML(v, 'card-own')}
     </div>
     <div class="card-body">${flagHTML(v.n)}
       <div class="card-txt"><div class="card-name" title="${esc(I18N.unitFull(v.id))}">${esc(I18N.unit(v.id))}</div>
@@ -406,13 +415,13 @@ function treeCardHTML(it, ok) {
   if (!v) return '';
   const f = it.f || [];
   const br = brOf(v);
-  const cls = ['tcard', f.includes('gift') || v.p ? 'prem' : '', f.includes('clan') ? 'clan' : '', f.includes('removed') ? 'removed' : '',
+  const cls = ['tcard', HG.owned.has(v.id) ? 'owned' : '', f.includes('gift') || v.p ? 'prem' : '', f.includes('clan') ? 'clan' : '', f.includes('removed') ? 'removed' : '',
     ok(v) ? '' : 'dim', S.sel?.id === v.id ? 'selected' : ''].join(' ');
   const tag = f.includes('removed') ? 'badge.removed' : f.includes('clan') ? 'badge.squadron' : f.includes('event') ? 'badge.event' : '';
   return `<button class="${cls}" data-id="${esc(v.id)}" title="${esc(I18N.unitFull(v.id))}" style="--tint:${NATION_TINT[v.n] || NATION_TINT.other}">
     <span class="tcard-img">${unitImgTag(v.id)}<svg class="ph"><use href="#i-${CAT_ICON[v.c]}"/></svg></span>
     <span class="tcard-name">${esc(I18N.unit(v.id))}</span>
-    <span class="tcard-meta">${br != null ? `<b>${fmtBR(br)}</b>` : ''}${tag ? `<i>${esc(t(tag))}</i>` : ''}${S.favs.has(v.id) ? `<svg class="tfav"><use href="#i-star"/></svg>` : ''}</span>
+    <span class="tcard-meta">${br != null ? `<b>${fmtBR(br)}</b>` : ''}${tag ? `<i>${esc(t(tag))}</i>` : ''}${S.favs.has(v.id) ? `<svg class="tfav"><use href="#i-star"/></svg>` : ''}${ownMarkHTML(v, 'tcard-own')}</span>
   </button>`;
 }
 
@@ -473,6 +482,8 @@ function renderTree() {
 }
 
 function onTreeClick(e) {
+  const own = e.target.closest('[data-own]');
+  if (own) return hgToggle(own.dataset.own);
   const b = e.target.closest('button');
   if (!b) return;
   if (b.dataset.pick) return setFilter({ nations: [b.dataset.pick], cat: TREE_CATS.includes(S.f.cat) ? S.f.cat : 'ground' });
@@ -487,7 +498,12 @@ function onTreeClick(e) {
 // ------------------------------------------------------------------ UI bindings
 function bindUI() {
   const grid = $('#grid');
-  grid.addEventListener('click', e => { const c = e.target.closest('.card'); if (c) openVehicle(c.dataset.id); });
+  grid.addEventListener('click', e => {
+    const own = e.target.closest('[data-own]');
+    if (own) return hgToggle(own.dataset.own);
+    const c = e.target.closest('.card');
+    if (c) openVehicle(c.dataset.id);
+  });
   const tree = $('#tree');
   tree.addEventListener('click', onTreeClick);
   $('#viewMode').addEventListener('click', e => {
@@ -545,10 +561,11 @@ function bindUI() {
   const brChanged = debounce(applyFilters, 120);
   ['#brMin', '#brMax'].forEach(s => $(s).addEventListener('input', () => { updateBrRange(); brChanged(); }));
   $('#optFav').addEventListener('change', e => setFilter({ fav: e.target.checked }));
+  $('#optOwned').addEventListener('change', e => setFilter({ owned: e.target.checked }));
   $('#optPrem').addEventListener('change', e => setFilter({ prem: e.target.checked }));
   $('#optHidden').addEventListener('change', e => setFilter({ hidden: e.target.checked }));
   $('#sort').addEventListener('change', e => setFilter({ sort: e.target.value }));
-  $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, prem: false, hidden: false, q: '', stats: {}, wsel: [], roles: [] }));
+  $('#btnReset').addEventListener('click', () => setFilter({ cat: 'all', nations: [], ranks: [], brMin: BR_MIN, brMax: BR_MAX, fav: false, owned: false, prem: false, hidden: false, q: '', stats: {}, wsel: [], roles: [] }));
   $('#search').addEventListener('input', debounce(e => { S.f.q = e.target.value; applyFilters(); }, 90));
 
   $$('.tab').forEach(b => b.addEventListener('click', () => showView(S.menuPage[b.dataset.menu] || menuPages(b.dataset.menu)[0])));
@@ -561,6 +578,7 @@ function bindUI() {
   $('#btnUninstall').addEventListener('click', openUninstall);
   $('#dlgUninstall').addEventListener('click', onUninstallClick);
   $('#dlgUninstall').addEventListener('change', renderUninstallState);
+  $('#setHosts').addEventListener('change', hostWarnings);
   $('#btnUpdate').addEventListener('click', () => startUpdate($('#updateLog'), $('#btnUpdate')));
   $('#btnRemoveDatamine').addEventListener('click', async () => {
     try {
@@ -610,6 +628,7 @@ function showView(name) {
   if (name === 'battle') openBattleView();
   if (name === 'history') openHistoryView();
   if (name === 'changes') openChangesView();
+  if (name === 'hangar') openHangarView();
 }
 
 // ------------------------------------------------------------------ vehicle drawer
@@ -899,6 +918,7 @@ function renderDrawer({ keepScroll = true, reveal = null } = {}) {
             ${v.h ? `<span class="tagx hid">${esc(t('badge.hidden'))}</span>` : v.p ? `<span class="tagx prem">${esc(t('badge.premium'))}</span>` : ''}</div>
           <div class="hero-actions">
             <button class="icon-btn${fav ? ' on' : ''}" data-act="fav" title="${esc(t(fav ? 'drawer.unfavorite' : 'drawer.favorite'))}">${icon('star')}</button>
+            <button class="icon-btn${HG.owned.has(v.id) ? ' on' : ''}" data-act="own" title="${esc(t(HG.owned.has(v.id) ? 'hg.unmark' : 'hg.mark'))}">${icon('check')}</button>
             ${compareButtonHTML(v)}
             <button class="icon-btn" data-act="model3d" title="${esc(t('model.view'))}">${icon('cube')}</button>
             <a class="icon-btn" href="https://wiki.warthunder.com/unit/${encodeURIComponent(v.id)}" target="_blank" rel="noopener" title="${esc(t('drawer.wiki'))}">${icon('ext')}</a>
@@ -1126,6 +1146,8 @@ function bindDrawer() {
       case 'aiApply': return aiEnd(true);
       case 'aiCancel': return aiEnd(false);
       case 'fav': return toggleFav(v.id);
+      case 'own': return hgToggle(v.id);
+      case 'goal': return hgAddGoal(v.id);
       case 'changes': return chShowVehicle(v);
       case 'ecoMode': return setFilter({ brMode: +b.dataset.mode });
       case 'compare': return toggleCompare(v.id);
@@ -1687,9 +1709,13 @@ async function openSettings() {
   $('#setHosts').innerHTML = ['ground', 'air', 'heli', 'boat', 'ship'].map(cat => {
     const list = S.vehicles.filter(x => x.c === cat && !x.h).sort((a, b) => (a.r - b.r) || I18N.unit(a.id).localeCompare(I18N.unit(b.id)));
     const cur = hosts[cat] || st.cdk?.defaultHosts?.[cat] || '';
+    const options = l => l.map(x => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(I18N.unit(x.id))} (${esc(nationName(x.n))}, ${ROMAN[x.r] || x.r})</option>`).join('');
+    const owned = list.filter(hgOwns), group = (key, l) => `<optgroup label="${esc(t(key))}">${options(l)}</optgroup>`;
     return `<label class="host-row"><span>${icon(CAT_ICON[cat], 'ic-sm')}${esc(t('cat.' + cat))}</span>
-      <select data-host="${cat}"><option value="">—</option>${list.map(x => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(I18N.unit(x.id))} (${esc(nationName(x.n))}, ${ROMAN[x.r] || x.r})</option>`).join('')}</select></label>`;
+      <select data-host="${cat}"><option value="">—</option>${owned.length ? group('hg.tab.owned', owned) + group('hg.others', list.filter(x => !hgOwns(x))) : options(list)}</select>
+      <small class="host-warn hidden"></small></label>`;
   }).join('');
+  hostWarnings();
   $('#cdkFiles').textContent = t('settings.cdkFiles', { n: st.cdk?.present || 0 });
   $('#setAirMethod').value = st.cdk?.airMethod || 'custom';
   $('#setAutoUpdate').checked = st.settings?.autoUpdate !== false;
@@ -1700,6 +1726,15 @@ async function openSettings() {
   renderSource($('#setSource'), st.dataSource);
   $('#rowDatamine').classList.toggle('hidden', !(st.datamineCopy && st.data?.source === 'game'));
   $('#dlgSettings').showModal();
+}
+
+// a host must be owned, and the hangar knows: with nothing marked there it has no opinion
+function hostWarnings() {
+  $$('#setHosts .host-row').forEach(row => {
+    const id = row.querySelector('select').value, warn = row.querySelector('.host-warn'), v = S.byId.get(id), off = !HG.owned.size || !v || hgOwns(v);
+    warn.classList.toggle('hidden', off);
+    warn.textContent = off ? '' : t('hg.hostNotOwned');
+  });
 }
 
 async function saveSettings() {

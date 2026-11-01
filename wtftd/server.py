@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, maptex, mission, models, patches, replays, sights, \
+from . import DONATE, REPO, __version__, alarms, battle, builder, cdk, flightlog, game, hangar, maptex, mission, models, patches, replays, sights, \
     terrain, uninstall, vromfs, waveout
 from .paths import CACHE, DATA, HOME, USER, WEB
 
@@ -582,6 +582,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": "not found"}, 404)
         if route == "battles":
             return self.send_json(battles())
+        if route == "hangar":
+            return self.send_json(hangar.load())
         if route == "changes":
             return self.send_json(patches.index())
         if route.startswith("changes/"):
@@ -854,6 +856,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "variants must be a list"}, 400)
             write_json(USER / "variants.json", [v for v in body["variants"] if isinstance(v, dict)][:500])
             return self.send_json({"ok": True})
+        if route == "hangar":
+            return self.send_json(hangar.save(body))
         if route == "setups":
             if not isinstance(body.get("setups"), list):
                 return self.send_json({"error": "setups must be a list"}, 400)

@@ -279,15 +279,22 @@ function cardStatHTML(v) {
 }
 
 // the line of vehicles to research up to this one (v.rq = the one before it), with what it costs in all and what each pays in RP
-function researchPathHTML(v) {
+function researchPath(v) {
   const path = [];
   for (let x = v; x && !path.includes(x) && path.length < 80; x = S.byId.get(x.rq)) path.unshift(x);
-  if (path.length < 2) return '';
-  const sum = k => path.reduce((n, x) => n + (x.s?.[k] || 0), 0);
+  return path;
+}
+
+// done: what the player has, left out of the sums; in the panel, the plan's button
+function researchPathHTML(v, done = HG.owned, panel = done === HG.owned) {
+  const path = researchPath(v), left = path.filter(x => !done.has(x.id));
+  if (path.length < 2) return panel ? `<div class="rpath"><button class="btn btn-sm btn-ghost" data-act="goal">${esc(t('hg.addGoal'))}</button></div>` : '';
+  const sum = k => left.reduce((n, x) => n + (x.s?.[k] || 0), 0);
   const cost = (x, k) => (x.s?.[k] ? `${I18N.num(x.s[k])} ${STATS[k].unit}` : '—');
-  return `<details class="rpath"><summary>${esc(t('path.title'))} · ${esc(t('path.count', { n: path.length }))} · ${I18N.num(sum('rp'))} RP · ${I18N.num(sum('sl'))} SL</summary>
-    <ol>${path.map(x => `<li><span>${esc(I18N.unit(x.id))}</span><span>${cost(x, 'rp')}</span><span>${cost(x, 'sl')}</span><span title="${esc(t('stat.rpm'))}">${esc(fmtStat('rpm', x.s?.rpm))}</span></li>`).join('')}</ol>
-    <small class="muted">${esc(t('path.note'))}</small></details>`;
+  const sums = `${t(left.length < path.length ? 'hg.left' : 'path.count', { n: left.length })} · ${I18N.num(sum('rp'))} RP · ${I18N.num(sum('sl'))} SL`;
+  return `<details class="rpath"><summary>${esc(t('path.title'))}${panel ? ` · ${esc(sums)}` : ''}</summary>
+    <ol>${path.map(x => `<li class="${done.has(x.id) ? 'done' : ''}"><span>${esc(I18N.unit(x.id))}</span><span>${cost(x, 'rp')}</span><span>${cost(x, 'sl')}</span><span title="${esc(t('stat.rpm'))}">${esc(fmtStat('rpm', x.s?.rpm))}</span></li>`).join('')}</ol>
+    <small class="muted">${esc(t('path.note'))}</small>${panel ? `<button class="btn btn-sm btn-ghost rpath-goal" data-act="goal">${esc(t('hg.addGoal'))}</button>` : ''}</details>`;
 }
 
 // the panel's Economy block: the mode's numbers, repairs stock and with all upgrades when they differ

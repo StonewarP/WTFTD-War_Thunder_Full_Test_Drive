@@ -196,6 +196,10 @@ breaks, and records the flight: live curves, a flight report, a cockpit window f
 - **Economy**: what a vehicle costs and earns, for the game mode you choose: repair cost stock and with all upgrades, Silver Lions and
   Research Points rewards, free repairs, research and purchase cost. In the vehicle panel, as sort and range filters, in the comparison
   and along the research path, worked out as the game's own card does
+- **My hangar**: what you own, marked by you in one click on a card, the tree or the panel, or by whole rank or nation; the vehicles of My
+  battles are offered, never assumed. Named lineups per nation and game mode, with the rating they play at and can meet, by the official
+  wiki's matchmaking rules, a warning on a vehicle far below the top, the total repair cost and rewards, and a test drive in one click.
+  A research plan: goals in order, the research path minus what you own, with the RP and SL left
 - **What changed**: a real comparison between two game versions, in the Vehicles menu. Each time the game data is rebuilt for a
   new version, WTFTD compares the old database with the new one: new and removed vehicles, battle ratings, performance, costs,
   ammunition, loadouts, Weapons tab items, maps, each with its old and new value. The official notes list the key changes, this
@@ -430,13 +434,14 @@ wtftd/                      Python backend (stdlib only)
   battle.py                 the game's chat and battle log
   replays.py                My battles: the player's own results, from the game's replay files
   patches.py                What changed: the comparison of two game versions, kept in user/patches.json
+  hangar.py                 My hangar: owned vehicles, lineups and research plan, kept in user/hangar.json
   waveout.py / tray.py      sound on the output you pick / the app window: minimized, notification area (Windows)
   uninstall.py              Settings → Uninstall
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
                             overlay.js / flight.js / battle.js / history.js = In flight, cockpit.html = the cockpit window,
-                            changes.js = What changed,
+                            changes.js = What changed, hangar.js = My hangar,
                             editor.js = scenario editor, model3d.js / map3d.js / lzdecode.js = the 3D views
 data/                       game database, generated on first launch (not versioned)
 tests/                      automated tests (python -m unittest discover -s tests -t .)
