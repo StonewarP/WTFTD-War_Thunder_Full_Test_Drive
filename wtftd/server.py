@@ -807,9 +807,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def _ammo_groups(det: dict) -> list:
-    """A vehicle's ammo groups as mission.write_bullets wants them (aircraft: weapon tags too)."""
-    keys = ("p", "n", "trig") if det.get("b") == "armada" else ("n", "trig")
-    return [{k: g[k] for k in keys if k in g} for g in det.get("am") or [] if isinstance(g, dict)]
+    """A vehicle's ammo groups as mission.write_bullets wants them (aircraft: weapon tags too; ground: the set each
+    weapon starts on and its load)."""
+    keys = {"armada": ("p", "n", "trig"), "tankModels": ("n", "trig", "cap")}.get(det.get("b"), ("n", "trig"))
+    out = [{k: g[k] for k in keys if k in g} for g in det.get("am") or [] if isinstance(g, dict)]
+    if det.get("b") == "tankModels":
+        for e, g in zip(out, det.get("am") or []):
+            e["set"] = next((o["id"] for o in g.get("opts") or [] if not o.get("x")), "")
+    return out
 
 
 def _prepare_ai(body: dict) -> tuple[dict, dict]:

@@ -6,6 +6,13 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## 0.21.1 — not released yet
 
+- **Ground missiles**: SPAA missiles were missing in missions. SAM launchers and ATGMs now start on a named missile set, as
+  in the game's own missions, not on the default set the game hides (Crotale NG, Strela-10, Chaparral...). A missile beside
+  the gun gets a slot of its own, full (Gepard 1A2, BMP-2...). Rebuilds the data once.
+- **SAM batteries** (FSAF SAMP/T, NASAMS, Buk-M3, IRIS-T SLM, Sky Sabre...): the radar vehicle holds its launchers' missiles,
+  as in the game: 16 Aster-30 on the SAMP/T (checked in game). In game, deploy a launcher with the *Deploy launcher* key to
+  fire. Unlimited ammo doesn't reach the launchers: the battery has its 16 missiles (see Known limits).
+- **Pantsir-SM**: its missiles are read at last (they sit on pylons).
 - **Glow around the screen** (My overlay, off until you turn it on): during an alarm, a soft glow in the alert colour
   around the screen, on top of the beeps. Choose its size and make it flash, at the speed you like. Clicks go through it,
   and it never takes the focus from the game.

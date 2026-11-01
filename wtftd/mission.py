@@ -832,7 +832,8 @@ def apply_cheats(m: dict, wing: str, ch: dict, air: bool = False):
                   + unitRestore full repair / resurrect every 1 s as a fallback (not for aircraft /
                   helicopters: the repair restarts the engines, the MiG-29SMT's never got going; checked
                   in game 2026-10-08. Custom aircraft also get raised hit points.)
-      infAmmo     mission isLimitedAmmo:no + unitRestore ammoRestore every 1 s
+      infAmmo     mission isLimitedAmmo:no + unitRestore ammoRestore every 1 s (not a SAM battery's launchers, units of
+                  their own: supportPlanesRestore on the radar doesn't refill them either, checked in game 2026-11-01)
       noReload    unitForceRearmSpeed x1000 + ammo restore every 1 s (+ gun shotFreq in custom vehicles)
       infFuel     mission isLimitedFuel:no
       repairEvery unitRestore full repair every N s
@@ -1031,7 +1032,9 @@ def write_bullets(unit: dict, ammo: list, groups: list | None = None):
     each tagged with its weapon (bulletsWeapon<i> = weapon blk name), a countermeasure launcher as two sets
     (flares, then chaff), counts per launcher. Without the weapon tag the game binds slots in an order of its
     own that differs between aircraft (checked in game, 2026-10-08).
-    Without groups (tanks, ships): 4 slots, slot = ammo index, chaff in the first slot no weapon uses."""
+    Without groups (tanks, ships): 4 slots, slot = ammo index, chaff in the first slot no weapon uses.
+    Ground groups with a "set": a second weapon that only fires that named set takes a free slot, full (the game's
+    slots run one after the other; the panel's are the main gun's)."""
     groups = [g if isinstance(g, dict) else {} for g in groups or []]
     tagged = any(g.get("p") for g in groups)
     for i in range(6 if tagged else 4):
@@ -1071,6 +1074,12 @@ def write_bullets(unit: dict, ammo: list, groups: list | None = None):
         if slot < 4:
             unit[f"bullets{slot}"] = sid
             unit[f"bulletsCount{slot}"] = cnt
+    unused = [i for i in range(4) if not unit[f"bulletsCount{i}"]]
+    for g in groups[1:]:
+        if g.get("set") and unused:
+            slot = unused.pop(0)
+            unit[f"bullets{slot}"] = g["set"]
+            unit[f"bulletsCount{slot}"] = _count(g.get("cap"))
 
 
 def build(cfg: dict) -> tuple[str, str]:

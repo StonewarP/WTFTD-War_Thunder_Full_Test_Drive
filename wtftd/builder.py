@@ -36,7 +36,7 @@ from pathlib import Path
 from . import vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 27  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 28  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1109,6 +1109,24 @@ def preset_composition(preset: dict, fm: dict | None, wc: WeaponCache):
     return [[k, v] for k, v in counts.items()]
 
 
+def ground_side_weapons(udata: dict) -> list:
+    """A ground vehicle's weapons outside commonWeapons, as the game counts them (bulletsinfo.nut): pilons (Pantsir-SM),
+    and a SAM battery's launchers: its radar holds their missiles, the load of all of them (wpcost: ammoCount)."""
+    out = [w for sl in aslist((udata.get("WeaponPilons") or {}).get("WeaponSlot")) if isinstance(sl, dict)
+           for p in aslist(sl.get("WeaponPreset")) if isinstance(p, dict)
+           for w in aslist(p.get("Weapon")) if isinstance(w, dict)]
+    launchers: dict = {}
+    for p in aslist((udata.get("supportPlanes") or {}).get("plane")):
+        if isinstance(p, dict) and p.get("isSlave"):
+            cls = first_str(p.get("class")).rsplit("/", 1)[-1]
+            launchers[cls] = launchers.get(cls, 0) + num(p.get("count"), 1)
+    for cls, n in launchers.items():
+        for w in aslist(((load(unit_file(cls, "ground")) or {}).get("commonWeapons") or {}).get("Weapon")):
+            if isinstance(w, dict) and not w.get("dummy"):
+                out.append(dict(w, bullets=num(w.get("bullets")) * n))
+    return out
+
+
 def vehicle_ammo(udata: dict, cat: str, official_mods: set, wc: WeaponCache):
     """Ammo groups: one per distinct gun able to take alternate ammo / belts."""
     groups = []
@@ -1125,6 +1143,8 @@ def vehicle_ammo(udata: dict, cat: str, official_mods: set, wc: WeaponCache):
             weapons += [(None, x) for x in aslist(slots.get(w["slot"], {}).get(w["preset"], {}).get("Weapon")) if isinstance(x, dict) and not x.get("dummy")]
         else:
             weapons.append((wi, w))
+    if cat == "ground":
+        weapons += [(None, w) for w in ground_side_weapons(udata)]
     for wi, w in weapons:
         blk = first_str(w.get("blk")) if isinstance(w, dict) else ""
         if not blk:
@@ -1141,7 +1161,11 @@ def vehicle_ammo(udata: dict, cat: str, official_mods: set, wc: WeaponCache):
         if not sets and not default:
             continue
         opts = []
-        if default:
+        # ground missiles: the game hides the default set and names one, in its menus and missions (tank_sam_ir_caged_tft)
+        named_only = (cat == "ground" and default and first_str(default.get("t")).startswith(("sam", "atgm"))
+                      and (wc.get(blk) or {}).get("notUseDefaultBulletInGui")
+                      and any(m in official_mods and not m.endswith("_ammo_pack") for m in sets))
+        if default and not named_only:
             opts.append({"id": "", **default})
         for mod, s in sets.items():
             if mod.endswith("_ammo_pack"):
@@ -1161,6 +1185,7 @@ def vehicle_ammo(udata: dict, cat: str, official_mods: set, wc: WeaponCache):
             "cap": num(w.get("bullets")),
             "n": 1,
             "opts": opts,
+            "rank": len(opts) + bool(named_only),  # saved gun changes go by a weapon's place: it stays where it was
         }
         if wi:
             g["wi"] = wi  # 1-based index of this Weapon block in commonWeapons
@@ -1174,9 +1199,9 @@ def vehicle_ammo(udata: dict, cat: str, official_mods: set, wc: WeaponCache):
         groups.append(g)
     if cat == "ground":
         # main gun first (gunner0 with the most ammo options)
-        groups.sort(key=lambda g: (g["trig"] != "gunner0", -len(g["opts"])))
+        groups.sort(key=lambda g: (g["trig"] != "gunner0", -g["rank"]))
     for g in groups:
-        del g["blk"]
+        del g["blk"], g["rank"]
     return groups[:4]
 
 

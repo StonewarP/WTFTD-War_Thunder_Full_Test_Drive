@@ -1159,9 +1159,9 @@ function edAutoPick(units, br, nations, follow, fire = '') {
   const tree = edTreeIds();
   for (const { c, k, units: us } of groups.values()) {
     const kinds = k ? [k] : ED_AUTO_KINDS[c] || [];
-    // vehicles that fire on their own: armed (a SAM battery's slot is its radar, "<x>_fcs"), not a battery's
-    // launcher (AI ones don't fire, even with the battery's radar next to them: checked in game)
-    const cands = S.vehicles.filter(v => v.c === c && !v.h && edBR(v) && (!tree.size || tree.has(v.id)) && (v.wg?.length || v.wp?.length) && !/_launcher$/.test(v.id)
+    // vehicles that fire on their own: armed, not a SAM battery's radar ("<x>_fcs", the slot) or launcher
+    // (AI ones don't fire, even with the battery's radar next to them: checked in game)
+    const cands = S.vehicles.filter(v => v.c === c && !v.h && edBR(v) && (!tree.size || tree.has(v.id)) && (v.wg?.length || v.wp?.length) && !/_(launcher|fcs)$/.test(v.id)
       && (!nations.length || nations.includes(v.n)) && (!kinds.length || kinds.includes(v.k)));
     let near = [];
     for (const w of [0.35, 0.7, 1.4, 3, 99]) {

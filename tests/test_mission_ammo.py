@@ -1,7 +1,9 @@
 """The player's bullet slots in a mission: belts as before, countermeasures split between flares and chaff."""
+import types
 import unittest
+from unittest import mock
 
-from wtftd import mission
+from wtftd import builder, mission, server
 
 
 def slots(unit):
@@ -56,6 +58,87 @@ class BulletSlots(unittest.TestCase):
         self.assertEqual(slots(unit)[1], ("", 0))
 
 
+    def test_second_weapon_takes_a_free_slot(self):
+        # the panel's slots are the main gun's: a missile beside the gun gets its named set, full (Gepard 1A2)
+        groups = [{"n": 2, "trig": "gunner0"}, {"n": 1, "trig": "gunner1", "set": "70mm_stinger_block1_aam", "cap": 4}]
+        unit = {}
+        mission.write_bullets(unit, [{"id": "", "count": 640}, {"id": "35mm_HE", "count": 0}, {"id": "", "count": 0}, {"id": "", "count": 0}],
+                              groups)
+        self.assertEqual(slots(unit), [("", 640), ("70mm_stinger_block1_aam", 4), ("", 0), ("", 0)])
+
+    def test_group_keys_for_a_mission(self):
+        gun = {"n": 1, "trig": "gunner0", "cap": 640, "opts": [{"id": ""}, {"id": "35mm_HE"}]}
+        missile = {"n": 1, "trig": "gunner1", "cap": 4, "opts": [{"id": "not_here", "x": 1}, {"id": "70mm_stinger_block1_aam"}]}
+        self.assertEqual(server._ammo_groups({"b": "tankModels", "am": [gun, missile]}),
+                         [{"n": 1, "trig": "gunner0", "cap": 640, "set": ""},
+                          {"n": 1, "trig": "gunner1", "cap": 4, "set": "70mm_stinger_block1_aam"}])
+        self.assertNotIn("set", server._ammo_groups({"b": "armada", "am": [gun]})[0])
+
+
+MISSILE = {"bullet": {"bulletType": "sam_tank"}, "notUseDefaultBulletInGui": True, "aster_aam": {"bullet": {"bulletName": "x"}},
+           "aster_aam_ammo_pack": {"bullet": {"bulletName": "x"}}}
+GUN = {"bullet": {"bulletType": "ap_t"}, "notUseDefaultBulletInGui": True, "gun_he": {"bullet": {"bulletName": "x"}}}
+LAUNCHER = "gameData/Weapons/groundModels_weapons/380mm_aster_30_user_cannon.blk"
+
+
+class FakeWeapons:
+    """Just what vehicle_ammo reads of the weapon files."""
+    lang = types.SimpleNamespace(put=lambda *a, **k: None)
+    files = {LAUNCHER: MISSILE, "gun.blk": GUN}
+
+    def get(self, blk):
+        return self.files.get(blk)
+
+    def weapon_name(self, blk):
+        return blk.rsplit("/", 1)[-1][:-4]
+
+    def bullet_sets(self, blk):
+        d = self.files.get(blk) or {}
+        sets = {k: {"b": [k]} for k, v in d.items() if isinstance(v, dict) and k != "bullet"}
+        return ({"b": ["default"], "t": [d["bullet"]["bulletType"]]} if d else None), sets
+
+
+def ammo(unit, mods=("aster_aam", "gun_he")):
+    return builder.vehicle_ammo(unit, "ground", set(mods), FakeWeapons())
+
+
+class GroundAmmo(unittest.TestCase):
+    def test_missiles_only_have_their_named_set(self):
+        # as the game's own missions: bullets0="127mm_MIM72A_aam" (tank_sam_ir_caged_tft), never the default set
+        dummy = {"dummy": True, "trigger": "gunner0", "blk": "gameData/Weapons/dummy_weapon.blk", "bullets": 1}
+        unit = {"commonWeapons": {"Weapon": [dummy, {"trigger": "gunner1", "blk": LAUNCHER, "bullets": 8}]}}
+        self.assertEqual([o["id"] for o in ammo(unit)[0]["opts"]], ["aster_aam"])
+
+    def test_default_set_stays_for_guns_and_without_a_named_set(self):
+        unit = {"commonWeapons": {"Weapon": {"trigger": "gunner0", "blk": "gun.blk", "bullets": 40}}}
+        self.assertEqual([o["id"] for o in ammo(unit)[0]["opts"]], ["", "gun_he"])
+        unit = {"commonWeapons": {"Weapon": {"trigger": "gunner0", "blk": LAUNCHER, "bullets": 8}}}
+        self.assertEqual([o["id"] for o in ammo(unit, mods=())[0]["opts"]], ["", "aster_aam"])
+
+    def test_battery_radar_holds_its_launchers_missiles(self):
+        # FSAF SAMP/T: 2 launchers of 8 Aster-30, 16 on the radar (wpcost: ammoCount 16)
+        radar = {"supportPlanes": {"plane": [{"class": "tankModels/fr_samp_t_launcher", "isSlave": True, "count": 1}] * 2}}
+        launcher = {"commonWeapons": {"Weapon": [{"dummy": True, "blk": "gun.blk"}, {"trigger": "gunner1", "blk": LAUNCHER, "bullets": 8}]}}
+        with mock.patch.object(builder, "load", return_value=launcher) as load:
+            groups = ammo(radar)
+        self.assertIn("fr_samp_t_launcher", str(load.call_args[0][0]))
+        self.assertEqual([(g["cap"], [o["id"] for o in g["opts"]]) for g in groups], [(16, ["aster_aam"])])
+        self.assertNotIn("wi", groups[0])  # the radar has no such Weapon block for a custom vehicle to change
+
+    def test_support_plane_that_is_not_a_launcher(self):
+        with mock.patch.object(builder, "load") as load:
+            self.assertEqual(ammo({"supportPlanes": {"plane": {"class": "tankModels/drone", "count": 1}}}), [])
+        load.assert_not_called()
+
+    def test_pilon_missiles(self):
+        # Pantsir-SM: no missile in commonWeapons, one preset per missile in WeaponPilons
+        unit = {"commonWeapons": {"Weapon": {"trigger": "gunner0", "blk": "gun.blk", "bullets": 351}},
+                "WeaponPilons": {"WeaponSlot": [{"index": 0, "WeaponPreset": {"name": "aster_aam", "Weapon": {
+                    "trigger": "gunner1", "blk": LAUNCHER, "bullets": 12}}}]}}
+        self.assertEqual([(g["trig"], g["cap"], g["opts"][0]["id"]) for g in ammo(unit)],
+                         [("gunner0", 351, ""), ("gunner1", 12, "aster_aam")])
+
+
 class Cheats(unittest.TestCase):
     def rules(self, air):
         m = {"mission_settings": {"mission": {}}, "units": {}, "triggers": {"isCategory": True, "is_enabled": True}}
@@ -68,7 +151,6 @@ class Cheats(unittest.TestCase):
         self.assertNotIn("unitRestore", fast)
         self.assertTrue(fast["unitSetProperties"]["isImmortal"])
         self.assertTrue(self.rules(air=False)["unitRestore"]["fullRestore"])
-
 
     def test_targets_shoot(self):
         def unit(name, army, attack):

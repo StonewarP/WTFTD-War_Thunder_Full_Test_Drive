@@ -744,9 +744,10 @@ function normalizeCfg(v, d, cfg) {
     if (g.shells && '' in g.shells) { g.shells._ = g.shells['']; delete g.shells['']; }
   }
   if (v.c === 'ground' && Array.isArray(cfg.ammo)) {
-    c.ammo = [0, 1, 2, 3].map(i => {
+    const first = base.ammo[0]?.id ?? '';  // a missile launcher's set: setups saved before the default one was left out
+    c.ammo = !cfg.ammo.length ? base.ammo : [0, 1, 2, 3].map(i => {  // empty: a battery's radar saved before it had missiles
       const a = cfg.ammo[i];
-      return a && (a.id || a.count) ? { id: a.id ?? '', count: +a.count || 0 } : { id: i === 0 ? '' : null, count: 0 };
+      return a && (a.id || a.count) ? { id: a.id || first, count: +a.count || 0 } : { id: i === 0 ? first : null, count: 0 };
     });
   }
   if (c.heading == null) c.heading = '';

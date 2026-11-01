@@ -328,6 +328,8 @@ corrections are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md#translati
   each distance: within 1 mm of the official wiki on the shells compared.
 - Without custom vehicles, aircraft use the official presets and the vehicle must be owned.
 - For aircraft and ships, belts are matched to gun groups in order (best effort).
+- SAM batteries (FSAF SAMP/T, NASAMS, Buk-M3...): the launchers are units of their own, so Unlimited ammo doesn't refill
+  them, and the game limits each one to its real load (8 Aster-30 on the SAMP/T).
 - A few scenarios pick their spawn / enemies from your vehicle's nation (Mozdok heli / UCAV, Denmark
   hydrobase); the editor shows their default branch.
 - Missions and custom vehicles are local: they can't be played together online (custom battles / co-op use
