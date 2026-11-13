@@ -4,7 +4,7 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Not released yet
+## 0.30.1 - 2026-11-13
 
 - **Fixed: custom vehicles didn't load on Linux.** Their files now go to `content/pkg_*/gamedata` in lower case, like
   the game's own: the Linux client tells cases apart and missed `gameData`. The same on every system (checked on Windows
