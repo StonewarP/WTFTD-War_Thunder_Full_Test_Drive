@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 import re
 import shutil
-import sys
 import time
 from pathlib import Path
 
@@ -48,13 +47,9 @@ class CdkError(Exception):
 
 
 def game_data_root() -> str:
-    """Game-data path used for locally written CDK assets.
-
-    The Linux client looks up custom files in the lower-case ``gamedata`` tree.
-    Keep the spelling documented by the CDK on Windows and macOS, whose usual
-    file systems are case-insensitive.
-    """
-    return "gamedata" if sys.platform.startswith("linux") else "gameData"
+    """Game-data path used for locally written CDK assets: lower case, as the game's own files. The Linux client
+    looks custom files up in ``gamedata`` and tells cases apart; Windows doesn't mind (an F-14D's pylons, checked)."""
+    return "gamedata"
 
 
 def _unit_dir(category: str) -> str:
@@ -946,10 +941,10 @@ def write_files(game_dir: Path, user_dir: Path, files: dict[str, str], pkg: str 
     written = []
     for rel, text in files.items():
         # the same game path in another package would shadow this one (pkg_local wins over pkg_user):
-        # drop our stale copy there
+        # drop our stale copy there, in any case (0.30.0 and before wrote gameData, the game doesn't mind)
         for other in PACKAGES:
-            stale = f"{other}/{rel}"
-            if other != pkg and stale in manifest:
+            stale = next((p for p in manifest if p.lower() == f"{other}/{rel}".lower()), None)
+            if other != pkg and stale:
                 try:
                     _safe_target(content, stale).unlink()
                 except (OSError, CdkError):

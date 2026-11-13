@@ -2,7 +2,6 @@
 only answers its own page."""
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
 
 from wtftd import cdk, mission, server
@@ -31,6 +30,17 @@ class CustomVehicleFiles(unittest.TestCase):
         self.assertIn(f"pkg_local/{rel}", cdk.read_manifest(self.user))
         self.assertGreaterEqual(cdk.cleanup(self.game, self.user), 1)
         self.assertFalse(target.exists())
+
+    def test_lower_case_on_every_system(self):  # the Linux client tells cases apart
+        files = cdk.build_files("x", "air", {"st": {"fm": "fm/x.blk"}}, {}, "", None, "custom")[0]
+        self.assertEqual(sorted(files), ["gamedata/flightModels/fm/wtftd_x.blk", "gamedata/flightModels/wtftd_x.blk"])
+
+    def test_an_old_copy_in_the_other_package_goes_whatever_its_case(self):  # written as gameData until 0.30.0
+        old = "gameData/flightModels/fm/wtftd_x.blk"
+        cdk.write_files(self.game, self.user, {old: "// WTFTD\n"}, "pkg_local")
+        cdk.write_files(self.game, self.user, {"gamedata/flightModels/fm/wtftd_x.blk": "// WTFTD\n"}, "pkg_user")
+        self.assertFalse((self.game / "content" / "pkg_local" / old).exists())  # it would shadow the new one
+        self.assertEqual(cdk.read_manifest(self.user), ["pkg_user/gamedata/flightModels/fm/wtftd_x.blk"])
 
 
 class MissionNames(unittest.TestCase):
@@ -159,19 +169,6 @@ class CustomPylonWeapons(unittest.TestCase):
         with self.assertRaises(cdk.CdkError):
             cdk._custom_weapon(bomb, {"e": -1}, "x")
 
-
-class CustomAssetRoot(unittest.TestCase):
-    def test_linux_uses_the_case_sensitive_asset_root(self):
-        with mock.patch.object(cdk.sys, "platform", "linux"):
-            self.assertEqual(cdk.game_data_root(), "gamedata")
-            files = cdk.build_files("x", "air", {"st": {"fm": "fm/x.blk"}}, {}, "", None, "custom")[0]
-        self.assertIn("gamedata/flightModels/wtftd_x.blk", files)
-        self.assertIn("gamedata/flightModels/fm/wtftd_x.blk", files)
-
-    def test_other_platforms_keep_cdk_spelling(self):
-        for platform in ("win32", "darwin"):
-            with self.subTest(platform=platform), mock.patch.object(cdk.sys, "platform", platform):
-                self.assertEqual(cdk.game_data_root(), "gameData")
 
 
 class MyWeapons(unittest.TestCase):

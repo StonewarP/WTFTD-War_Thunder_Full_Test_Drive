@@ -4,6 +4,12 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## Not released yet
+
+- **Fixed: custom vehicles didn't load on Linux.** Their files now go to `content/pkg_*/gamedata` in lower case, like
+  the game's own: the Linux client tells cases apart and missed `gameData`. The same on every system (checked on Windows
+  with an F-14D on custom pylons); an old copy written as `gameData` is replaced. Found and fixed by Adams-Galaxy.
+
 ## 0.30.0 - 2026-11-12
 
 - **The overlay in a battle: from your spawn to your death.** It shows from the spawn and stays, stopped on an airfield or
