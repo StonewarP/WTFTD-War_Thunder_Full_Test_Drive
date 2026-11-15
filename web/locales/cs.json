@@ -732,6 +732,8 @@
   "ov.sameAsAlert": "Jako barva výstrahy",
   "ov.sameAsText": "Jako text",
   "ov.pctAlways": "% podvozku a klapek i po zatažení",
+  "ov.payload": "Výzbroj, kg",
+  "ov.payloadHint": "Výzbroj, kterou tento řádek přičítá k hmotnosti letounu (limit G, hmotnost, tah/hmotnost): hra ji neposílá.",
   "ov.columns": "Sloupce",
   "ov.frame": "Rámeček, px",
   "ov.frameColor": "Barva rámečku",

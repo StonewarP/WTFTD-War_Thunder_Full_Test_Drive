@@ -748,6 +748,18 @@ class Watching(unittest.TestCase):
                 clock[0] += 1
         self.assertAlmostEqual(self.watch.wep.left(self.watch._lim)["wep_s"], 118, delta=1)
 
+    def test_a_lines_weapons_carried_lower_its_g_limit(self):  # the game doesn't send their mass: set on the line
+        self.data = details({"j_10c": dict(J10, mass=9045, load=[-230000, 630000])})
+        g = {"limit": "load", "at": 90, "full": 100}
+        self.watch.set_config(alarms.clean({"lines": [{"text": "CLEAN {g_lim} {mass}", "rules": [g]},
+                                                      {"text": "LOADED {g_lim} {mass}", "payload": 2000, "rules": [g]}]}, WORDS), {})
+        self.fly(**{"Ny": 8.6, "Mfuel, kg": 2900})  # 80 % of 10.8 G clean: quiet; 93 % of the 9.2 G that break the wings loaded
+        self.assertEqual(self.texts(), ["CLEAN 10.8 11945", "LOADED 9.2 13945"])
+        self.assertEqual([x[1] for x in self.watch.display], [self.watch.cfg["color"], self.watch.cfg["alert"]])
+        self.beep.assert_called_once()  # the loaded line's alarm only
+        self.assertEqual(round(self.watch.last["g_lim"], 1), 10.8)  # curves and logs: the aircraft without weapons
+        self.assertEqual([alarms.clean({"lines": [{"payload": x}]}, WORDS)["lines"][0]["payload"] for x in (-5, 99999, "x")], [0, 50000, 0])
+
     def test_g_load_and_aoa_alarms(self):
         self.data = details({"j_10c": dict(J10, mass=9045, load=[-230000, 630000], aoa=[[-32, 35], [-31, 35]])})
         self.fly(**{"Ny": 4, "Mfuel, kg": 2900})  # 4 G of 10.8 at this mass: quiet
@@ -1448,7 +1460,7 @@ class Configuration(unittest.TestCase):
         cfg = alarms.clean({"lines": [{"text": "x" * 500, "when": "?", "alarm": "?", "color": "?", "size": -3}, "no"] * 40}, WORDS)
         self.assertEqual(len(cfg["lines"]), alarms.MAX_LINES)
         self.assertEqual(cfg["lines"][0], {"text": "x" * alarms.MAX_TEXT, "when": "always", "color": "", "size": 0, "valueColor": "",
-                                           "unitColor": "", "hideNA": False, "block": 0, "if": None, "rules": []})
+                                           "unitColor": "", "hideNA": False, "block": 0, "if": None, "payload": 0, "rules": []})
 
     def test_no_lines_at_all_is_a_choice(self):
         self.assertEqual(alarms.clean({"lines": []}, WORDS)["lines"], [])

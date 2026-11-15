@@ -732,6 +732,8 @@
   "ov.sameAsAlert": "Wie die Alarmfarbe",
   "ov.sameAsText": "Wie der Text",
   "ov.pctAlways": "Fahrwerk- und Klappen-% auch eingefahren",
+  "ov.payload": "Waffen, kg",
+  "ov.payloadHint": "Die Bewaffnung, die diese Zeile zur Flugzeugmasse zählt (G-Limit, Masse, Schub/Gewicht): Das Spiel sendet sie nicht.",
   "ov.columns": "Spalten",
   "ov.frame": "Rahmen, px",
   "ov.frameColor": "Rahmenfarbe",

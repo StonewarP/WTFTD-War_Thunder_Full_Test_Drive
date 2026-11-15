@@ -270,6 +270,12 @@ function ovShownHTML(l, i) {
       ${ovField(t('ov.barStep'), `<input type="number" data-olbar="step" min="0.1" max="100" step="any" value="${step}">`)}</span>` : '';
   return `<div class="ov-showas"><span>${esc(t('ov.showAs'))}</span>${OV_SHOWN_AS.map(how => `<label><input type="radio" name="ovshown-${i}" data-olshown value="${how}"${how === now ? ' checked' : ''}>${esc(t('ov.shown.' + how))}</label>`).join('')}${gauge}</div>`;
 }
+// a line showing a value bound to the mass: the weapons it counts in it, the game doesn't send their mass
+const OV_MASS = /\{(g_lim|g_neg|load_pct|mass|twr)\b/;
+function ovPayloadHTML(l) {
+  return `<div class="ov-showas ov-payload${OV_MASS.test(l.text) ? '' : ' hidden'}" title="${esc(t('ov.payloadHint'))}">${ovField(t('ov.payload'),
+    `<input type="number" data-ol="payload" min="0" max="50000" step="50" value="${l.payload || 0}">`)}</div>`;
+}
 // rewrites what follows the line's name (the text before its first value)
 function ovSetShown(l, how, bar = ovBarSpec(...ovBarOf(l).slice(0, 2))) {
   const kind = ovShownKind(l), at = l.text.indexOf('{'), name = at < 0 ? `${l.text.trimEnd()} ` : l.text.slice(0, at);
@@ -366,7 +372,7 @@ function ovRenderLines() {
       <label class="ov-mini ov-num"><span>${esc(t('ov.lineSize'))}</span><input type="number" data-ol="size" min="0" max="400" value="${l.size || ''}" placeholder="${esc(OV.cfg.size)}"></label>
       <label class="ov-mini ov-swatch"><span>${esc(t('ov.lineColor'))}</span><input type="color" data-ol="color" value="${esc(l.color || OV.cfg.color)}"></label>
       <button class="icon-btn ov-clear${l.color ? '' : ' hidden'}" data-ovnocolor title="${esc(t('ov.noColor'))}">${icon('x', 'ic-sm')}</button>
-      <button class="icon-btn btn-danger" data-ovdel title="${esc(t('action.delete'))}">${icon('trash')}</button>${ovShownHTML(l, i)}${ovLineAlarmsHTML(l, i)}${ovMoreHTML(l, i)}</div>`).join('');
+      <button class="icon-btn btn-danger" data-ovdel title="${esc(t('action.delete'))}">${icon('trash')}</button>${ovShownHTML(l, i)}${ovPayloadHTML(l)}${ovLineAlarmsHTML(l, i)}${ovMoreHTML(l, i)}</div>`).join('');
 }
 
 // the picture behind the text: the player's own screenshot, shrunk to what the page shows, kept in this browser profile
@@ -555,7 +561,8 @@ function bindOverlay() {
       ovDraw();
     } else if (el.dataset.ol) {
       const line = OV.cfg.lines[+el.closest('.ov-line').dataset.i];
-      line[el.dataset.ol] = el.dataset.ol === 'size' || el.dataset.ol === 'block' ? +value || 0 : value;
+      line[el.dataset.ol] = ['size', 'block', 'payload'].includes(el.dataset.ol) ? +value || 0 : value;
+      if (el.dataset.ol === 'text') $('.ov-payload', el.closest('.ov-line')).classList.toggle('hidden', !OV_MASS.test(line.text));
       const kind = el.dataset.ol === 'text' && ovShownKind(line), now = kind && ovShownAs(line, kind);  // its text written by hand
       if (now) $$('[data-olshown]', el.closest('.ov-line')).forEach(x => { x.checked = x.value === now; });
       if (el.dataset.ol === 'color') $('.ov-clear', el.closest('.ov-line')).classList.remove('hidden');

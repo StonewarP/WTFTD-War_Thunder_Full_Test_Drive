@@ -732,6 +732,8 @@
   "ov.sameAsAlert": "Come il colore di allerta",
   "ov.sameAsText": "Come il testo",
   "ov.pctAlways": "% di carrello e flap anche se retratti",
+  "ov.payload": "Armi, kg",
+  "ov.payloadHint": "L'armamento che questa riga conta nella massa dell'aereo (limite di G, massa, spinta/peso): il gioco non lo invia.",
   "ov.columns": "Colonne",
   "ov.frame": "Cornice, px",
   "ov.frameColor": "Colore della cornice",

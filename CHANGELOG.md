@@ -4,6 +4,15 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## Not released yet
+
+- **My overlay: the weapons a line carries.** A line showing the G limit, the G load (its gauge too), the mass or
+  thrust/weight has **Weapons, kg**: their mass counts in the aircraft's for that line and its alarms (Try too). The
+  game doesn't send it, so loaded the G limit read high and the wings broke before the alarm. One line per loadout, or
+  an overlay per aircraft, each keeps its own; curves and logs stay without weapons.
+- **My overlay: the lines stand apart.** Each line is a card of its own, more spaced and framed, with a bar on its left;
+  the one being edited is lit, so its settings and alarms are easy to tell from the next line's.
+
 ## 0.30.1 - 2026-11-13
 
 - **Fixed: custom vehicles didn't load on Linux.** Their files now go to `content/pkg_*/gamedata` in lower case, like

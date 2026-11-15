@@ -750,6 +750,8 @@
   "ov.sameAsAlert": "Same as the alert colour",
   "ov.sameAsText": "Same as the text",
   "ov.pctAlways": "Gear and flaps % even when retracted",
+  "ov.payload": "Weapons, kg",
+  "ov.payloadHint": "The weapons this line counts in the aircraft's mass (G limit, mass, thrust/weight): the game doesn't send it.",
   "ov.columns": "Columns",
   "ov.frame": "Frame, px",
   "ov.frameColor": "Frame colour",

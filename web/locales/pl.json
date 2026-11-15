@@ -732,6 +732,8 @@
   "ov.sameAsAlert": "Jak kolor alarmu",
   "ov.sameAsText": "Jak tekst",
   "ov.pctAlways": "% podwozia i klap także po schowaniu",
+  "ov.payload": "Uzbrojenie, kg",
+  "ov.payloadHint": "Uzbrojenie, które ta linia dolicza do masy samolotu (limit G, masa, ciąg/masa): gra go nie przesyła.",
   "ov.columns": "Kolumny",
   "ov.frame": "Ramka, px",
   "ov.frameColor": "Kolor ramki",

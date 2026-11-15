@@ -732,6 +732,8 @@
   "ov.sameAsAlert": "Igual à cor de alerta",
   "ov.sameAsText": "Igual ao texto",
   "ov.pctAlways": "% de trem e flaps mesmo recolhidos",
+  "ov.payload": "Armas, kg",
+  "ov.payloadHint": "O armamento que esta linha soma à massa do avião (limite de G, massa, empuxo/peso): o jogo não o envia.",
   "ov.columns": "Colunas",
   "ov.frame": "Moldura, px",
   "ov.frameColor": "Cor da moldura",

@@ -732,6 +732,8 @@
   "ov.sameAsAlert": "与警告色相同",
   "ov.sameAsText": "与文本相同",
   "ov.pctAlways": "收起时也显示起落架和襟翼 %",
+  "ov.payload": "挂载 kg",
+  "ov.payloadHint": "此行计入飞机质量的武器（过载极限、质量、推重比）：游戏不提供此数据。",
   "ov.columns": "列",
   "ov.frame": "边框 (px)",
   "ov.frameColor": "边框颜色",

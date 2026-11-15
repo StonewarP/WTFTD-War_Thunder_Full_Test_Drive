@@ -732,6 +732,8 @@
   "ov.sameAsAlert": "警告色と同じ",
   "ov.sameAsText": "テキストと同じ",
   "ov.pctAlways": "格納中もギアとフラップの%を表示",
+  "ov.payload": "兵装 kg",
+  "ov.payloadHint": "この行が機体質量に加える兵装の質量（Gの限界、質量、推力重量比）。ゲームはこの値を送信しません。",
   "ov.columns": "列",
   "ov.frame": "枠 (px)",
   "ov.frameColor": "枠の色",

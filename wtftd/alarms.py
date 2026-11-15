@@ -392,6 +392,7 @@ def _line(line: dict) -> dict:
             "valueColor": _color(line.get("valueColor"), ""), "unitColor": _color(line.get("unitColor"), ""),
             "size": _num(line.get("size"), 0, 0, 400), "hideNA": _flag(line.get("hideNA"), False),
             "block": _num(line.get("block"), 0, 0, MAX_BLOCKS), "if": _test(line.get("if")),
+            "payload": _num(line.get("payload"), 0, 0, 50000),
             "rules": [x for x in map(_rule, rules) if x][:MAX_RULES]}
 
 
@@ -462,8 +463,8 @@ def flaps_limit(points: list, position: float) -> float:
 
 
 def load_limits(lim: dict, state: dict) -> tuple | None:
-    """The load factors (G, negative then positive) that break the wings, at the mass flown: empty + fuel. shortcut: the
-    game doesn't tell the weapons' mass, so loaded the limit reads high; upgrade if /state ever gives the mass."""
+    """The load factors (G, negative then positive) that break the wings, at the mass flown: empty + fuel (+ a line's weapons
+    carried, see loaded: the game doesn't tell their mass, unset the limit reads high loaded)."""
     if not lim.get("load") or not lim.get("mass"):
         return None
     weight = (lim["mass"] + (state.get("Mfuel, kg") or 0)) * G
@@ -531,7 +532,7 @@ class Trend:
 def computed(lim: dict | None, state: dict, words: dict, rates: dict | None = None, always: bool = False) -> dict:
     """The values the game doesn't send. Unknown aircraft: none of those from the limits. margin: km/h left to the
     nearest airframe limit. turn (s), turn_rate, turn_radius: a level turn at this load factor and TAS. mass: empty +
-    fuel, the game doesn't tell the weapons' (shortcut: so twr reads high when loaded, until /state gives the real mass)."""
+    fuel; a line's weapons carried (its payload) give its own, see loaded."""
     out = {"swept": words["swept"] if lim and "sw" in lim else "", **(rates or {})}
     tas, climb, load, fuel = (state.get("TAS, km/h") or 0) / 3.6, state.get("Vy, m/s") or 0, state.get("Ny") or 0, state.get("Mfuel, kg") or 0
     thrust = [v for k, v in state.items() if k.startswith("thrust ") and isinstance(v, (int, float))]
@@ -598,11 +599,28 @@ def alarm_on(rule: dict, values: dict, pct: dict, red: bool = False) -> bool:
     return met(rule, values)
 
 
+PAYLOADS = "payloads"  # in a reading's values: {a line's weapons carried (kg): (its values, its %)}, see loaded
+MASS_BOUND = ("mass", "twr", "g_lim", "g_neg", "load_pct")  # what the weapons carried change
+
+
+def loaded(lim: dict, state: dict, payload: float, words: dict, pct: bool = True) -> tuple:
+    """A line's weapons carried (kg, the game doesn't send their mass): the values bound to the mass at that mass, and its
+    G load's % for the line's alarms (pct: False for a wreck or an unbreakable aircraft, as the flight's)."""
+    heavy = computed({**lim, "mass": lim["mass"] + payload}, state, words)
+    return {k: heavy[k] for k in MASS_BOUND if k in heavy}, {"load": heavy["load_pct"]} if pct and "load_pct" in heavy else {}
+
+
+def for_line(line: dict, values: dict, pct: dict) -> tuple:
+    """The values and limits' % a line sees: its own weapons carried change those bound to the mass."""
+    own = (values.get(PAYLOADS) or {}).get(line.get("payload"))
+    return ({**values, **own[0]}, {**pct, **own[1]}) if own else (values, pct)
+
+
 def own_alerts(cfg: dict, values: dict, pct: dict | None = None, red: bool = False) -> list:
     """The lines' alarms on, as (line, alarm) places. pct: percents(), what's left of it (nothing for an aircraft not
     known, unbreakable or in its wreck; no gear or flaps torn off): the aircraft's limits' alarms follow it."""
     return [(i, j) for i, line in enumerate(cfg["lines"]) for j, rule in enumerate(line.get("rules") or [])
-            if alarm_on(rule, values, pct or {}, red)]
+            if alarm_on(rule, *for_line(line, values, pct or {}), red)]
 
 
 def sound_of(cfg: dict, place: tuple) -> dict:
@@ -614,7 +632,7 @@ def closeness(cfg: dict, place: tuple, pct: dict, values: dict) -> float | None:
     """Where an alarm on stands from its threshold (0) to its break (1, its "full": 100 % of an aircraft's limit). None
     for one that beeps at its repeat."""
     a = sound_of(cfg, place)
-    v = watched(a, values, pct)
+    v = watched(a, *for_line(cfg["lines"][place[0]], values, pct))
     if a.get("full") is None or v is None:
         return None
     if a["full"] == a["at"]:
@@ -689,7 +707,7 @@ def shown(line: dict, values: dict, on: list, i: int = -1) -> bool:
     return line["when"] == "always" or (values.get(WHEN[line["when"]]) or 0) > 0
 
 
-def lines_for(cfg: dict, values: dict, on: list, feeds: dict | None = None) -> list:
+def lines_for(cfg: dict, all_values: dict, on: list, feeds: dict | None = None) -> list:
     """[(text, colour, size, blinks, block, parts), ...] of the overlay; parts: [(text, colour, blinks[, colour out of its
     turn]), ...], blinks: False, or its clock (see clock). on: the
     alarms whose lines go red, by (line, alarm) place: a line takes the colour of the last of its own that is on, and
@@ -706,6 +724,7 @@ def lines_for(cfg: dict, values: dict, on: list, feeds: dict | None = None) -> l
         for text in (feeds or {}).get(b.get("feed"), [])[-b.get("rows", FEED_ROWS):] if b.get("feed") else ():
             row(text, cfg["color"], cfg["size"], block, [(text, cfg["color"], False)])
     for i, line in enumerate(cfg["lines"]):
+        values = for_line(line, all_values, {})[0]
         text, block = fill(line["text"], values), line.get("block", 0)
         if blocks[block].get("feed") or not shown(line, values, on, i) or (line.get("hideNA") and NO_VALUE in text):
             continue
@@ -1254,6 +1273,8 @@ class Watch:
             return []
         rule = cfg["lines"][i]["rules"][j]
         base, lim, known = real or (SAMPLE_STATE, SAMPLE_LIM, {**SAMPLE_STATS, "vehicle": self.vehicle(SAMPLE_VEHICLE), "wep": "4:32", "wep_s": 272})
+        if cfg["lines"][i]["payload"] and lim.get("mass"):  # the line tried carries its weapons
+            lim = {**lim, "mass": lim["mass"] + cfg["lines"][i]["payload"]}
         state, limit, value = tried_state(rule, t["value"], cfg["lines"][i]["text"], base, lim)
         rates = self.trend.rates() if real and self.trend.points else {"burn": 95, "accel": 1.2}
         values = {**known, **state, **computed(lim, state, self.words, rates, cfg["pctAlways"])}
@@ -1551,6 +1572,8 @@ class Watch:
             self.warn, self.ringing = False, None
             return min(cfg["pollMs"] / 1000, HUD_POLL_S) if fast else cfg["pollMs"] / 1000
         pct = {k: v for k, v in percents(lim, state).items() if k not in self.broken} if lim and not self._unbreakable and not wreck else {}
+        if lim and lim.get("mass"):  # each line's weapons carried
+            values[PAYLOADS] = {p: loaded(lim, state, p, self.words, "load" in pct) for p in {x["payload"] for x in cfg["lines"]} if p}
         self.broken |= {k for k in ("gear", "flaps") if pct.get(k, 0) >= 100}  # past its breaking speed: torn off
         on = self.held(cfg, [] if wreck else own_alerts(cfg, values, pct), "beep")
         red = self.held(cfg, [] if wreck else own_alerts(cfg, values, pct, red=True), "red")  # their lines red

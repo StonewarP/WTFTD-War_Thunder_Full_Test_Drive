@@ -750,6 +750,8 @@
   "ov.sameAsAlert": "Comme la couleur d'alerte",
   "ov.sameAsText": "Comme le texte",
   "ov.pctAlways": "% train et volets même rentrés",
+  "ov.payload": "Armement, kg",
+  "ov.payloadHint": "L'armement que cette ligne compte dans la masse de l'avion (limite de G, masse, poussée/poids) : le jeu ne l'envoie pas.",
   "ov.columns": "Colonnes",
   "ov.frame": "Cadre, px",
   "ov.frameColor": "Couleur du cadre",

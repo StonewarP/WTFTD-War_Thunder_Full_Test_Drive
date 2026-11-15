@@ -1320,14 +1320,18 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 .ov-hud-live { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; font-family: Consolas, 'Microsoft YaHei', monospace; font-weight: 700; }
 .ov-zoom { padding: 12px; overflow: hidden; white-space: pre; line-height: 1.17; }
 .ov-text { display: grid; grid-auto-flow: column; justify-content: start; position: absolute; cursor: move; white-space: pre; line-height: 1.17; user-select: none; touch-action: none; outline: 1px dashed rgba(255,255,255,.35); outline-offset: 3px; }
-.ov-lines { display: flex; flex-direction: column; gap: 6px; }
-.ov-line { display: grid; grid-template-columns: auto minmax(180px, 1fr) 118px 58px 46px 26px auto; gap: 6px; align-items: end; padding: 6px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.ov-lines { display: flex; flex-direction: column; gap: 14px; }
+/* each line a card of its own: which settings belong to which line, at a glance; the one being edited lit */
+.ov-line { display: grid; grid-template-columns: auto minmax(180px, 1fr) 118px 58px 46px 26px auto; gap: 6px; align-items: end; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line-2); border-left: 4px solid var(--line-hover); border-radius: 10px; }
+.ov-line:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
 .ov-line.ov-blocks { grid-template-columns: auto minmax(180px, 1fr) 118px 58px 58px 46px 26px auto; }
 .ov-showas { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 12px; color: var(--muted); }
 .ov-showas label { display: flex; align-items: center; gap: 4px; color: var(--text-2); cursor: pointer; }
 .ov-bar-set { display: flex; gap: 6px; align-items: end; }
 .ov-bar-set .ov-mini { width: 80px; }
 .ov-bar-set .ov-mini > span:first-child { white-space: nowrap; }
+.ov-payload .ov-mini { width: 110px; }
+.ov-payload .ov-mini > span:first-child { white-space: nowrap; }
 .ov-line .icon-btn { width: 26px; height: 26px; }
 .ov-move { display: flex; flex-direction: column; }
 .ov-move .icon-btn { height: 16px; font-size: 9px; border: 0; }

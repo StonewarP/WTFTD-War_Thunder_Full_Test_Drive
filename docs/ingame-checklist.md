@@ -690,6 +690,7 @@ was heard in a real flight.
 
 - [ ] The beeps close in: spaced at the threshold, closer and closer, continuous at 100 %. No gap at the break (beeps as long as two readings)?
 - [ ] G load: a hard pull in a jet, light then loaded. Do the wings break near 100 %? Note the G shown and the G limit, with and without weapons.
+- [ ] A G line's **Weapons, kg** set to the loadout's mass: loaded, do the wings now break near 100 % of its G limit too?
 - [ ] Angle of attack: a slow, high-AoA turn. Does the stall come near 100 %? Flaps out: does the limit move as the game's?
 - [ ] Gear past its speed: torn off in the game, and its alarm quiet until the next spawn? Flaps the same.
 - [ ] WEP left (an aircraft with water or methanol injection, the A-26B): does the throttle read past 100 % with WEP, and does the time match the game's?
