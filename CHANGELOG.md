@@ -4,6 +4,95 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.31.0 - 2026-11-15
+
+- **The weapons of the vehicle packages you installed go on any aircraft's pylons** (the J-50's PL-15 and PL-10, the
+  F-22 free flight's missiles and guns, the CL-1201's bomb): **My weapons** lists them under their package, with their
+  category, guidance and mass, **View in 3D** and **Modify** (your own version of one, as of a game weapon), and the
+  pylon picker offers them in a group of their own. The install message names them. Their containers and bays, and
+  the tanks' and ships' weapons, stay out. Removing a package says which of My weapons and saved loadouts carry its
+  weapons: WTFTD leaves those pylons empty from then on.
+- **Fixed: a package's tank had one round and no reload in its own test mission** (the T-14 in its test drive): with
+  no shells picked, WTFTD emptied the mission's ammo slots, and a mod's vehicle has no load of the game's to fall back
+  on. A mission played with its own vehicle and nothing picked now keeps the shells it gives (checked in game: the
+  T-14's 20 3BM42, 5 ATGM and 10 HE-VT), and a package's tank keeps its load on any map: the shells its package's
+  missions give it, read at install (else its gun full of its own shell, as many as its file says it carries).
+- **Fixed: an imported mission that imports a file of UserMissions loaded and went back to the menu** once that file
+  was gone (the T-14's test drive imports `UserMissions/template/testflight_template.blk`, which deleting the
+  package's missions takes out of the game). WTFTD now keeps a copy of what such a mission imports, when it imports it
+  (from a package or a .zip), and writes it beside the mission it makes (`UserMissions/<mission>.imports/`, which goes
+  with that mission). A mission imported before, whose file is gone, is refused with a message saying which file it
+  needs instead of sending the game back to its menu: install its package again, or import it again. A .zip whose
+  templates have no player of their own imports its mission instead of being refused whole.
+- **A package's vehicle that the game won't draw is told** (the Ratte): its 3D model is in the format of an older
+  modding kit, which the game replaces with an empty one ("old dynModel format detected (replacing with stub)" in its
+  log), so the vehicle is invisible in battle although it drives. The install message says so, and Mods → Vehicles
+  marks the package *Invisible in game*. Only the mod's author can fix it, by exporting the model again with the current
+  kit. A package installed before keeps no mark until it is installed again.
+- **Delete several created missions at once**: in My missions → Created in the game, tick them (or *All*), then
+  **Delete (n)** and a second click to confirm.
+- **My missions → Created in the game also lists the vehicle packages' missions**, as the game shows them among the
+  user missions: their title (from their `locName`, as in game: "[T-14] Test Drive"), their package, **Load** for
+  their vehicle, and the bin, which takes that one mission out of the game (the vehicle stays; the folder's texts go
+  with its last mission). Imported missions get the same titles in My missions.
+- **Fixed: deleting a created mission left its texts** (`usr_<mission>.csv`) in the game's UserMissions folder; those
+  left before are cleaned up.
+- **Fixed: the overlay showed in the hangar with the F-15EX.** The game shows it at 3 km/h with fuel in its tanks: out
+  of a battle, an aircraft whose engines are stopped and that is slower than 30 km/h now counts as on show too.
+- **Skins for several vehicles** (checked on five shared skins: F-4 MECHA2077, F-15 Ellen, F-14 New Jersey, T-90A,
+  Go 229): a skin with a `.blk` named after each of several vehicles is for all of them, as the game reads it, without
+  asking. It shows in each one's panel, and in Mods as its first vehicle and how many more (all of them under the
+  pointer). A skin whose flat textures pack a thousand times isn't refused any more: the archive as a whole is what's
+  checked against a zip bomb. Plain 8192-pixel textures (256 MB) are read at 4096 in the 3D view.
+- **Mods → Vehicles lists a package in a few words**: two of its vehicles and how many more (the CL-1201: "CL-1201,
+  [CIWS] ×4 +3"), all of them under the pointer; the install message names only that package's.
+- **Several mods at once.** **Install .zip files** (in any of the Mods tabs) takes several archives at once, and
+  archives dropped on the Mods view install too: vehicle packages, skins and sound mods mixed, each told from its files
+  and put where it belongs, one after the other (a skin WTFTD can't place asks, then the next one goes on; one that
+  fails says why and the others still install).
+- **A package never replaces what's in the game: it goes in as a copy.** A vehicle named like one of the game's (the
+  FA-22+'s Su-33) goes into a folder of the package's name (`fa_22_2/su_33`), with its flight model reachable from
+  there, and the package's missions fly that copy; 3D models and textures named like ones in the game (the F-22 free
+  flight's `su_33`, `f_14d`, `empty_glass`) are renamed in the package's own files, same length, and what names them
+  follows. The game's own vehicles, models and textures stay as they are; the install says what was copied. Such
+  packages used to be refused.
+- **More vehicle packages install, read as the game reads them** (checked on the CL-1201, the Ratte, the T-14 and
+  the F-22 free flight): a vehicle file that includes one of the game's and changes it (`include`, `@override`,
+  `@delete`), numbers written in quotes, comments inside comments, a byte order mark; a package without its `content/`
+  folder (`pkg_local` at the top, as its README says to copy it); a vehicle in a folder of its own
+  (`units/tankModels/p1000_ratte/...`), which WTFTD's missions name as the package's do; `.png` pictures (a HUD's). A
+  file that names no model isn't taken for a vehicle, two vehicles of the same name are told apart by their id, and
+  only real missions count as a package's test missions.
+- **3D view of more mods**: models in an older layout whose parts list their meshes (the Ratte's), tracks packed with zstd, and a
+  camouflage whose name doesn't say camo (the T-14's).
+- **Pictures for mods.** A package's vehicle (the J-50 and the like) and each skin now get a picture of their own in
+  the lists, as the game's vehicles do: WTFTD draws it once with its 3D view, in the background (as it starts and after
+  an install), and keeps it in its cache. A skin whose files change is drawn again; one none of whose textures can be
+  drawn keeps its vehicle's picture.
+- **3D view of a mod's vehicle.** The 3D view reads the packs made with the game's modding kit (`GRP3` models,
+  version 3 texture packs, packed with zstd) and the materials such a model carries: the J-50 shows with its textures.
+- **Sound mods install with the game running too**: heard from its next start. Removing one and the *Use sound
+  mods* switch still wait for the game closed (it may use the banks, and writes `config.blk` back as it exits).
+- **Top menu**: My missions now comes before Weapons (Vehicles, Maps, My missions, Weapons, In flight); the bar
+  with your vehicle and map shows in My missions too.
+- **Vehicles of their own (mods).** The **Skins and sounds** tab becomes **Mods**, with a **Vehicles** tab: a custom-vehicle package (a `.zip` with
+  `content/` and `UserMissions/`, as players share them) is installed into the game as its README says, even with the game running (it's there after a
+  restart; removing waits for the game closed), only under `content/pkg_local`, `content/pkg_user` and `UserMissions`, and **Delete** takes it all back. Its vehicles
+  join WTFTD's, labelled *Mod*: their breaking limits come from their own flight model (alarms, My overlay), and they
+  go onto any map, their missions naming them as they are. Its test missions are imported like game missions.
+- **Fixed: an imported mission's texts didn't show in game.** The game reads them from `usr_<the mission's file
+  name>.csv`: they now follow the name WTFTD gives the mission. Create the mission again to get them.
+- **Import a game mission.** **Import** (My maps, My missions) now also takes a War Thunder user mission, as players
+  share them: its `.zip` (or its `.blk`), picked or dropped on the window. Each mission in it is read and checked (WTFTD
+  runs nothing of it) and gives three entries: the mission as its creator made it in **My missions**, its map (targets,
+  zones, rules, texts) in **My maps**, marked *imported*, and the vehicle its creator gave the player, with its preset
+  and ammo, in **My vehicles**. The map then plays with any other vehicle (only the player's changes), and the vehicle
+  on any other map; a vehicle you don't own drives through custom vehicles. The mission's `.csv` texts go into the
+  game with it. Imported again, a mission replaces its entries; another mission under the same file name is kept apart.
+  With the mission's ammo unlimited, its vehicle gets the game's load (not the few shells the mission sets). A mission
+  on a map the game doesn't have (a terrain of its own) is refused. Its map and mission can't be shared (a friend's
+  WTFTD hasn't got it: send the `.zip`), and once none of its entries is left, its copy goes.
+
 ## 0.30.2 - 2026-11-15
 
 - **My overlay: the weapons a line carries.** A line showing the G limit, the G load (its gauge too), the mass or

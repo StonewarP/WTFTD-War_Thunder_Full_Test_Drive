@@ -1,4 +1,4 @@
-/* WTFTD — Skins and sounds: what the player installs into the game, by their own click (wtftd/mods.py holds the rules). Names of files and
+/* WTFTD — Mods (skins, sounds, vehicles of their own): what the player installs into the game, by their own click (wtftd/mods.py holds the rules). Names of files and
    folders come from what the player picked and from whoever made it: they are data, every one goes through esc() or into textContent. */
 'use strict';
 
@@ -9,30 +9,56 @@ const moErr = e => toast({ title: e.data?.code ? t('mo.err.' + e.data.code, { na
 
 async function moAction(path, body) {
   try {
-    Object.assign(MO, await api('mods/' + path, body));
+    const r = await api('mods/' + path, body);
+    Object.assign(MO, r);
     moRefresh();
-    return true;
+    return r;
   } catch (e) { moErr(e); return false; }
 }
 
 function moRefresh() {
-  $('#modsCount').textContent = MO.skins.length + MO.sounds.length || '';
+  $('#modsCount').textContent = MO.skins.length + MO.sounds.length + (MO.vehicles || []).length || '';
   if (!$('#view-mods').classList.contains('hidden')) moRender();
   if (S.sel && $('#drawer .hero')) renderDrawer();
+  moPictures();
+}
+
+// the pictures the encyclopedia has none of: a package's vehicles and the skins, drawn once with the 3D view (mdCapture)
+// and kept by WTFTD; one at a time, in the background, each tried once a session
+const MO_SHOTS = { busy: false, tried: new Set() };
+async function moPictures() {
+  if (MO_SHOTS.busy || !S.byId || !MO.game) return;
+  MO_SHOTS.busy = true;
+  try {
+    for (;;) {
+      const v = S.vehicles.find(x => x.mod && !x.pic && !MO_SHOTS.tried.has('v' + x.id));
+      const s = v ? null : MO.skins.find(x => !x.pic && S.byId.has(x.vehicle) && !MO_SHOTS.tried.has('s' + x.name));
+      if (!v && !s) return;
+      MO_SHOTS.tried.add(v ? 'v' + v.id : 's' + s.name);
+      const png = await mdCapture(v ? v.id : s.vehicle, s || undefined).catch(e => { console.warn(e); return null; });
+      if (!png) continue;
+      const data = await new Promise((done, fail) => Object.assign(new FileReader(), { onload: e => done(e.target.result.split(',')[1]), onerror: fail }).readAsDataURL(png));
+      const r = await api('capture', { kind: v ? 'unit' : 'skin', id: v ? v.id : s.name, png: data }).catch(() => null);
+      if (!r) continue;
+      if (v) { v.pic = true; IMG_BAD.delete(unitImg(v.id)); applyFilters(); } else { s.pic = r.pic; moRefresh(); }
+    }
+  } finally { MO_SHOTS.busy = false; }
 }
 
 // the block of the vehicle panel: this vehicle's skins
 function moPanelHTML(v) {
-  const list = MO.skins.filter(s => s.vehicle === v.id);
+  const list = MO.skins.filter(s => (s.vehicles || [s.vehicle]).includes(v.id));
   if (!list.length) return '';
   return `<div class="lim"><div class="lim-title">${esc(t('mo.skins'))}</div><div class="mo-panel">${list.map(s => `<div class="mo-skin"><span title="${esc(s.name)}">${esc(s.name)}</span>
-      <button class="icon-btn" data-act="skin3d" data-skin="${esc(s.name)}" title="${esc(t('mo.preview'))}">${icon('cube', 'ic-sm')}</button>
+      <button class="icon-btn" data-act="skin3d" data-skin="${esc(s.name)}" data-vid="${esc(v.id)}" title="${esc(t('mo.preview'))}">${icon('cube', 'ic-sm')}</button>
       <button class="icon-btn" data-act="skinOpen" data-skin="${esc(s.name)}" title="${esc(t('mo.openFolder'))}">${icon('folder', 'ic-sm')}</button></div>`).join('')}</div></div>`;
 }
 
-function moPreview(name) {
+// vid: the vehicle to show it on, when it fits several (the panel's own)
+function moPreview(name, vid) {
   const skin = MO.skins.find(s => s.name === name);
-  if (skin) openModel('vehicle', skin.vehicle, `${I18N.unit(skin.vehicle)} · ${skin.name}`, undefined, skin);
+  const on = skin && (skin.vehicles || []).includes(vid) ? vid : skin?.vehicle;
+  if (skin) openModel('vehicle', on, `${I18N.unit(on)} · ${skin.name}`, undefined, skin);
 }
 
 const moOpen = (kind, name) => api('mods/open', { kind, name }).catch(moErr);
@@ -45,9 +71,9 @@ function moRemoveButton(kind, name) {
 function moSkinsHTML() {
   const row = s => {
     const v = S.byId.get(s.vehicle);
-    return `<div class="list-item">${v ? listThumb(v.id) : `<div class="list-thumb">${icon('file')}</div>`}
+    return `<div class="list-item">${s.pic ? `<div class="list-thumb"><img src="${esc(s.pic)}" alt=""></div>` : v ? listThumb(v.id) : `<div class="list-thumb">${icon('file')}</div>`}
       <div class="list-main"><div class="list-title">${v ? flagHTML(v.n) : ''}<span>${esc(s.name)}</span>${s.ours ? '' : `<span class="chip dim">${esc(t('mo.byHand'))}</span>`}</div>
-        <div class="list-sub">${v ? mbVehicle(v.id) : esc(t('mo.unknown'))} · ${esc(t('mo.files', { n: s.files }))} · ${esc(moSize(s.bytes))}</div></div>
+        <div class="list-sub">${v ? mbVehicle(v.id) : esc(t('mo.unknown'))}${(s.vehicles || []).length > 1 ? ` <span class="muted" title="${esc(s.vehicles.map(id => I18N.unit(id)).join(', '))}">+${s.vehicles.length - 1}</span>` : ''} · ${esc(t('mo.files', { n: s.files }))} · ${esc(moSize(s.bytes))}</div></div>
       <div class="list-actions">${v ? `<button class="btn btn-sm" data-mo3d="${esc(s.name)}">${icon('cube', 'ic-sm')}<span>${esc(t('mo.preview'))}</span></button>` : ''}
         <button class="icon-btn" data-moopen="${esc(s.name)}" title="${esc(t('mo.openFolder'))}">${icon('folder')}</button>
         ${s.ours ? moRemoveButton('skin', s.name) : ''}</div></div>`;
@@ -55,7 +81,7 @@ function moSkinsHTML() {
   return `<div class="mo-actions"><button class="btn" data-mopick="zip" data-kind="skin"${MO.busy ? ' disabled' : ''}>${icon('file', 'ic-sm')}<span>${esc(t('mo.fromZip'))}</span></button>
       <button class="btn" data-mopick="folder"${MO.busy ? ' disabled' : ''}>${icon('folder', 'ic-sm')}<span>${esc(t('mo.fromFolder'))}</span></button>
       <button class="btn btn-ghost" data-moroot="skin">${esc(t('mo.openFolder'))}</button>
-      <span class="muted">${esc(MO.busy ? t('mo.working') : t('mo.skinCount', { n: MO.skins.length }))}</span></div>
+      <span class="muted">${esc(MO.busy ? moWorking() : t('mo.skinCount', { n: MO.skins.length }))}</span></div>
     ${MO.skins.length ? `<div class="list mo-list">${MO.skins.map(row).join('')}</div>` : `<div class="empty">${icon('cube', 'ic-xl')}<p>${esc(t('mo.noSkin'))}</p><p>${esc(t('mo.noSkinHint'))}</p></div>`}`;
 }
 
@@ -65,20 +91,64 @@ function moSoundsHTML() {
       <div class="list-sub">${esc(t('mo.files', { n: m.files }))} · ${esc(moSize(m.bytes))}</div></div>
     <div class="list-actions">${m.ours ? moRemoveButton('sound', m.name) : ''}</div></div>`;
   const locked = MO.running || !st.block || (st.on && !st.ours) || (!st.on && !MO.sounds.length);
-  const note = MO.running ? 'mo.gameRunning' : !st.block ? 'mo.err.noBlock' : st.on && !st.ours ? 'mo.onByHand' : st.on ? 'mo.onHint' : 'mo.offHint';
+  const note = MO.running ? 'mo.soundRunning' : !st.block ? 'mo.err.noBlock' : st.on && !st.ours ? 'mo.onByHand' : st.on ? 'mo.onHint' : 'mo.offHint';
   return `<div class="mo-warn">${icon('target', 'ic-sm')}<p class="hint">${esc(t('mo.soundWarning'))}</p></div>
     <label class="switch mo-switch"><input type="checkbox" id="moSound"${st.on ? ' checked' : ''}${locked ? ' disabled' : ''}><span class="sw"></span><span>${esc(t('mo.useSounds'))}</span></label>
     <p class="hint mb-note">${esc(t(note))}</p>
-    <div class="mo-actions"><button class="btn" data-mopick="zip" data-kind="sound"${MO.busy || MO.running ? ' disabled' : ''}>${icon('file', 'ic-sm')}<span>${esc(t('mo.fromZip'))}</span></button>
+    <div class="mo-actions"><button class="btn" data-mopick="zip" data-kind="sound"${MO.busy ? ' disabled' : ''}>${icon('file', 'ic-sm')}<span>${esc(t('mo.fromZip'))}</span></button>
       <button class="btn btn-ghost" data-moroot="sound">${esc(t('mo.openFolder'))}</button>
-      <span class="muted">${esc(MO.busy ? t('mo.working') : t('mo.soundCount', { n: MO.sounds.length }))}</span></div>
+      <span class="muted">${esc(MO.busy ? moWorking() : t('mo.soundCount', { n: MO.sounds.length }))}</span></div>
     ${MO.sounds.length ? `<div class="list mo-list">${MO.sounds.map(row).join('')}</div>` : `<div class="empty">${icon('file', 'ic-xl')}<p>${esc(t('mo.noSound'))}</p></div>`}`;
+}
+
+// a package's vehicles among WTFTD's, named: Vehicles, the vehicle bar, My vehicles (after an install or a removal)
+function moVehiclesIn(list) {
+  I18N.addUnits(Object.fromEntries(list.map(v => [v.id, v.name])));
+  for (const v of list) v._s = norm(v.name) + '|' + norm(v.id);
+  S.vehicles = S.vehicles.filter(v => !v.mod).concat(list);
+  S.byId = new Map(S.vehicles.map(v => [v.id, v]));
+  applyFilters();
+  moPictures();
+}
+
+// a vehicle package goes out with the game closed: it may hold its files open (it goes in any time, used from the next start)
+async function moGameClosed(kind) {
+  try { await moLoad(); } catch { /* the last state stands */ }
+  if (MO.running) toast({ title: t(kind === 'sound' ? 'mo.soundRemoveRunning' : 'mo.vehicleRemoveRunning'), err: true, ms: 7000 });
+  return !MO.running;
+}
+
+// a package's vehicles in a few words: those of one name once (the CL-1201's four [CIWS] turrets: "[CIWS] x4"), two of
+// them, then how many more; all of them where the pointer rests
+function moShortNames(vehicles) {
+  const groups = new Map();
+  for (const v of vehicles) {
+    const name = v.name.endsWith(` (${v.id})`) ? v.name.slice(0, -v.id.length - 3) : v.name;  // the id that tells twins apart
+    groups.set(name, (groups.get(name) || 0) + 1);
+  }
+  const names = [...groups].map(([name, n]) => (n > 1 ? `${name} ×${n}` : name));
+  return names.slice(0, 2).join(', ') + (names.length > 2 ? ` +${names.length - 2}` : '');
+}
+
+function moVehiclesHTML() {
+  const hidden = p => p.vehicles.filter(v => v.invisible);  // an old modding kit's model: the game draws nothing (mo.invisible)
+  const row = p => `<div class="list-item"><div class="list-thumb">${icon('air')}</div>
+    <div class="list-main"><div class="list-title"><span title="${esc(p.vehicles.map(v => v.name).join(', '))}">${esc(moShortNames(p.vehicles) || p.name)}</span><span class="chip dim">${esc(p.name)}</span>
+      ${hidden(p).length ? `<span class="chip warn" title="${esc(t('mo.invisible', { names: moShortNames(hidden(p)) }))}">${esc(t('mo.invisibleChip'))}</span>` : ''}</div>
+      <div class="list-sub">${p.missions.length ? `${esc(t('mo.testMissions', { names: p.missions.join(', ') }))} · ` : ''}${esc(t('mo.files', { n: p.files }))} · ${esc(moSize(p.bytes))}</div></div>
+    <div class="list-actions">${moRemoveButton('vehicle', p.name)}</div></div>`;
+  const list = MO.vehicles || [];
+  return `<div class="mo-warn">${icon('target', 'ic-sm')}<p class="hint">${esc(t('mo.vehicleWarning'))}</p></div>
+    ${MO.running ? `<p class="hint mb-note">${esc(t('mo.vehicleRunning'))}</p>` : ''}
+    <div class="mo-actions"><button class="btn" data-mopick="zip" data-kind="vehicle"${MO.busy ? ' disabled' : ''}>${icon('file', 'ic-sm')}<span>${esc(t('mo.fromZip'))}</span></button>
+      <span class="muted">${esc(MO.busy ? moWorking() : t('mo.vehicleCount', { n: list.length }))}</span></div>
+    ${list.length ? `<div class="list mo-list">${list.map(row).join('')}</div>` : `<div class="empty">${icon('air', 'ic-xl')}<p>${esc(t('mo.noVehicle'))}</p><p>${esc(t('mo.noVehicleHint'))}</p></div>`}`;
 }
 
 function moRender() {
   $$('#moTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === MO.tab));
   $('#moTabs').classList.toggle('hidden', !MO.game);
-  $('#moBody').innerHTML = !MO.game ? `<div class="empty">${icon('folder', 'ic-xl')}<p>${esc(t('mb.noGame'))}</p></div>` : MO.tab === 'skins' ? moSkinsHTML() : moSoundsHTML();
+  $('#moBody').innerHTML = !MO.game ? `<div class="empty">${icon('folder', 'ic-xl')}<p>${esc(t('mb.noGame'))}</p></div>` : MO.tab === 'skins' ? moSkinsHTML() : MO.tab === 'vehicles' ? moVehiclesHTML() : moSoundsHTML();
 }
 
 async function moLoad() {
@@ -88,6 +158,20 @@ async function moLoad() {
 
 async function openModsView() {
   try { await moLoad(); } catch (e) { toastErr(e); }
+  moRender();
+}
+
+const moWorking = () => t('mo.working') + (MO.step ? ` ${MO.step}` : '');
+
+// several .zip at once, picked or dropped on the Mods view, of any kind: one after the other, each where it belongs (the
+// app tells a vehicle package, a sound mod and skins apart); one that fails says why and the others go on
+async function moSendMany(files) {
+  if (MO.busy) return toast({ title: moWorking(), ms: 3000 });
+  for (const [i, file] of files.entries()) {
+    MO.step = files.length > 1 ? `${i + 1}/${files.length}` : '';
+    await moSend([{ file, path: file.name }], 'auto');
+  }
+  MO.step = '';
   moRender();
 }
 
@@ -105,8 +189,8 @@ async function moSend(files, kind) {
     }
     const found = await api('mods/inspect', { token: MO.token, kind });
     const unclear = (found.skins || []).filter(s => !s.sure);
-    if (unclear.length) moAsk(unclear, kind);
-    else await moFinish(kind, {});
+    if (unclear.length) await moAsk(unclear, found.kind || kind);
+    else await moFinish(found.kind || kind, {});
   } catch (e) {
     moErr(e);
     api('mods/forget', { token: MO.token }).catch(() => {});
@@ -120,13 +204,43 @@ function moAsk(list, kind) {
   $('#moVehicles').innerHTML = S.vehicles.filter(v => !v.h).map(v => `<option value="${esc(hgGoalName(v))}"></option>`).join('');
   $('#moAsk').innerHTML = list.map(s => `<label class="mo-ask-row"><b>${esc(s.folder)}</b><small class="muted">${esc(t('mo.files', { n: s.files }))} · ${esc(moSize(s.bytes))}</small>
     <input type="search" list="moVehicles" data-folder="${esc(s.folder)}" spellcheck="false" autocomplete="off" placeholder="${esc(t('mo.askVehicle'))}" value="${esc(S.byId.has(s.vehicle) ? hgGoalName(S.byId.get(s.vehicle)) : '')}"></label>`).join('');
-  MO.waiting = kind;
   $('#dlgSkin').showModal();
+  return new Promise(done => { MO.waiting = { kind, done }; });  // the next file waits for the answer
+}
+
+const moFew = names => names.slice(0, 4).join(', ') + (names.length > 4 ? ` +${names.length - 4}` : '');
+
+// a vehicle package installed or removed: its weapons come into the pylon catalog and My weapons, or leave them
+async function moWeaponsChanged() {
+  await reloadWeapons();
+  if (!$('#view-myweapons').classList.contains('hidden')) renderMyWeapons();
+  if (S.sel) renderDrawer();
+}
+
+// a vehicle package about to go: its weapons go with it, and the pylons of My weapons and saved loadouts that carry
+// them are left empty from then on (WTFTD finds them no more)
+async function moWeaponsGo(pkg) {
+  await loadWeapons();
+  const keys = new Set(packageWeapons().filter(([, w]) => w.pkg === pkg).map(([k]) => k));
+  if (!keys.size) return;
+  const carried = val => val && typeof val === 'object' && keys.has(val.w);
+  const n = MW.list.filter(cw => keys.has(cw.w)).length + S.loadouts.filter(sl => Object.values(sl.pylons || {}).some(carried)).length;
+  toast({ title: t('mo.weaponsGo', { names: moFew([...keys].map(k => I18N.weapon(k))) }), sub: n ? t('mo.weaponsUsed', { n }) : '', err: n > 0, ms: n ? 10000 : 6000 });
 }
 
 async function moFinish(kind, vehicles) {
   const ok = await moAction('install', { token: MO.token, kind, vehicles });
-  if (ok) toast({ title: t('mo.installed') });
+  if (ok && kind === 'vehicle') {  // its vehicles among WTFTD's, its test missions imported
+    moVehiclesIn(ok.modVehicles || []);
+    const c = ok.copies || {}, copies = [...(c.vehicles || []).map(id => I18N.unit(id)), ...(c.models || []), ...(c.textures || [])];
+    const hidden = (ok.installed || []).filter(v => v.invisible), arms = ok.weapons || [];
+    toast({ title: t('mo.vehicleInstalled', { names: moShortNames(ok.installed || []) }), err: hidden.length > 0,
+      sub: (hidden.length ? t('mo.invisible', { names: moShortNames(hidden) }) + ' ' : '') + (copies.length ? t('mo.copies', { names: copies.join(', ') }) + ' ' : '')
+        + (arms.length ? t('mo.weaponsIn', { names: moFew(arms) }) + ' ' : '') + (ok.running ? t('mo.vehicleRestart') + ' ' : '') + t('mo.vehicleInstalledHint'),
+      ms: ok.running || copies.length || hidden.length || arms.length ? 14000 : 8000 });
+    moWeaponsChanged();
+    await addImportedMissions(ok.missions || []);
+  } else if (ok) toast({ title: t('mo.installed'), sub: kind === 'sound' && ok.running ? t('mo.soundRestart') : '', ms: ok.running ? 9000 : 6000 });
   else api('mods/forget', { token: MO.token }).catch(() => {});
 }
 
@@ -142,16 +256,26 @@ function bindMods() {
     const b = e.target.closest('button');
     if (!b) return;
     const d = b.dataset;
-    if (d.mopick === 'zip') { $('#moZip').dataset.kind = d.kind; return $('#moZip').click(); }
+    if (d.morm && (d.kind === 'vehicle' || d.kind === 'sound') && !(await moGameClosed(d.kind))) return;
+    if (d.mopick === 'zip') return $('#moZip').click();
     if (d.mopick === 'folder') return $('#moFolder').click();
     if (d.moroot) return moOpen(d.moroot);
     if (d.moopen) return moOpen('skin', d.moopen);
     if (d.mo3d) return moPreview(d.mo3d);
     if (d.morm) {
       const key = `${d.kind}|${d.morm}`;
-      if (MO.arm !== key) { MO.arm = key; return moRender(); }
+      if (MO.arm !== key) {
+        MO.arm = key;
+        if (d.kind === 'vehicle') moWeaponsGo(d.morm);
+        return moRender();
+      }
       MO.arm = '';
-      return moAction('remove', { kind: d.kind, name: d.morm });
+      const r = await moAction('remove', { kind: d.kind, name: d.morm });
+      if (r && d.kind === 'vehicle') {
+        moVehiclesIn(r.modVehicles || []);
+        moWeaponsChanged();
+      }
+      return;
     }
     mbFollow(e);
   });
@@ -162,9 +286,9 @@ function bindMods() {
     else moRender();
   });
   $('#moZip').addEventListener('change', e => {
-    const file = e.target.files[0];
+    const files = [...e.target.files];
     e.target.value = '';
-    if (file) moSend([{ file, path: file.name }], e.target.dataset.kind);
+    if (files.length) moSendMany(files);
   });
   $('#moFolder').addEventListener('change', e => {
     const files = [...e.target.files].map(file => ({ file, path: file.webkitRelativePath || file.name }));
@@ -178,10 +302,17 @@ function bindMods() {
       if (!v) { el.focus(); return toast({ title: t('mo.askVehicle'), err: true, ms: 3000 }); }
       vehicles[el.dataset.folder] = v.id;
     }
-    const kind = MO.waiting;
+    const { kind, done } = MO.waiting;
     MO.waiting = null;
     $('#dlgSkin').close();
     await moFinish(kind, vehicles);
+    done();
   });
-  $('#dlgSkin').addEventListener('close', () => { if (MO.waiting) { MO.waiting = null; api('mods/forget', { token: MO.token }).catch(() => {}); } });
+  $('#dlgSkin').addEventListener('close', () => {
+    if (!MO.waiting) return;
+    const { done } = MO.waiting;
+    MO.waiting = null;
+    api('mods/forget', { token: MO.token }).catch(() => {});
+    done();
+  });
 }

@@ -4,6 +4,23 @@ import unittest
 from wtftd import blk
 
 
+class ModFiles(unittest.TestCase):
+    """What mods' files hold that the game reads: an include, numbers in quotes, comments inside comments."""
+
+    def test_an_include_is_kept_for_the_reader(self):
+        self.assertEqual(blk.loads('include "b_52h.blk"\n"@override:model":t="cl1201"\n'), {"@include": "b_52h.blk", "@override:model": "cl1201"})
+
+    def test_a_number_in_quotes(self):
+        self.assertEqual(blk.loads('Vne:r="1000.0"\nangles:p2="10.0, 10.0"\n'), {"Vne": 1000.0, "angles": [10.0, 10.0]})
+
+    def test_comments_inside_a_comment(self):
+        text = 'a{\n  /*b{\n    /*c{ x:i=1 }*/\n    y:i=2\n  }*/\n  z:i=3\n}\n'
+        self.assertEqual(blk.loads(text), {"a": {"z": 3}})
+
+    def test_a_parameter_named_include(self):
+        self.assertEqual(blk.loads('include:t="x"\n'), {"include": "x"})
+
+
 class BlkRoundTrip(unittest.TestCase):
     def test_types_survive_a_round_trip(self):
         d = {

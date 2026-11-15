@@ -474,6 +474,11 @@ option { background: var(--surface); }
 .page-head p { margin: 0; }
 .list { display: flex; flex-direction: column; gap: 8px; max-width: 980px; }
 .list-item { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); }
+/* My missions, Created in the game: a box to pick each, and the bar that deletes the picked ones (aligned on them) */
+.mm-bulk { display: flex; align-items: center; gap: 14px; padding: 0 15px 8px; }
+.mm-all { display: flex; align-items: center; gap: 14px; cursor: pointer; }
+.mm-pick { display: grid; place-items: center; flex: none; cursor: pointer; }
+.mm-all input, .mm-pick input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .list-item:hover { border-color: var(--line-hover); }
 .list-thumb { width: 86px; height: 50px; border-radius: 8px; background: var(--surface-3); display: grid; place-items: center; overflow: hidden; flex: none; }
 .list-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -1218,7 +1223,7 @@ body.pick-on .compare-tray { max-width: calc(100% - var(--side-w) - 560px); }
   .layout.drawer-open .pickbar { display: none; }
   .pk-slot { width: auto; flex: 1; }
 }
-body.pick-on #view-vehicles, body.pick-on #view-mymaps, body.pick-on #view-setups { padding-bottom: 96px; }
+body.pick-on #view-vehicles, body.pick-on #view-mymaps, body.pick-on #view-setups, body.pick-on #view-missions { padding-bottom: 96px; }
 /* fixed presets: the game's 13 columns, narrower so they fit the panel */
 .lgrid.fixed { grid-template-columns: minmax(80px, 1.2fr) repeat(var(--lcols), 24px); }
 .lgrid.fixed .lcell { width: 24px; height: 34px; }
@@ -1238,6 +1243,11 @@ body.no-sidebar .sidebar, body.no-sidebar #compareTray { display: none; }
 
 /* ------------------------------------------------------------------ My weapons */
 .mw-thumb .wicon { width: 40px; height: 40px; }
+/* My weapons: the vehicle packages' weapons, under the player's own, one title per package */
+.mw-group { margin-top: 18px; }
+.mw-group h3 { margin: 0 0 4px; font-size: 15px; }
+#myWeaponList .empty:has(+ .mw-group) { padding: 32px 20px; }
+#myWeaponList > .opt-group-title { margin: 6px 0 0; }
 .mw-changes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .mw-changes .chip b { color: var(--accent-2); font-weight: 700; }
 .ar-table td.ar-mod { text-align: right; white-space: nowrap; }

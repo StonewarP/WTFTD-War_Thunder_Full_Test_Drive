@@ -13,7 +13,7 @@ from pathlib import Path
 
 from . import blk
 
-from .paths import DATA
+from .paths import DATA, USER
 
 ENVIRONMENTS = ["Day", "Morning", "Noon", "Evening", "Dusk", "Dawn", "Night"]
 WEATHERS = ["clear", "good", "hazy", "thin_clouds", "cloudy", "cloudy_windy", "overcast", "poor", "rain", "thunder", "blind"]
@@ -39,10 +39,13 @@ class MissionError(Exception):
     pass
 
 
+IMPORTED = USER / "imported"  # game missions imported into My maps: usr_<name>.json (see imports)
+
+
 def load_scenario(sid: str) -> dict:
     if not re.fullmatch(r"[a-z0-9_]+", sid or ""):
         raise MissionError("Invalid scenario id")
-    path = DATA / "scenarios" / f"{sid}.json"
+    path = (IMPORTED if sid.startswith("usr_") else DATA / "scenarios") / f"{sid}.json"
     if not path.exists():
         raise MissionError(f"Unknown scenario: {sid}")
     with open(path, encoding="utf-8") as f:
@@ -1264,11 +1267,15 @@ def build(cfg: dict) -> tuple[str, str]:
         _append_unit(units, block, unit)
 
     unit_class = cfg.get("unitClass") or vid
-    if not re.fullmatch(r"(userVehicles/)?[A-Za-z0-9_\-.]+", unit_class):
+    if not re.fullmatch(r"([A-Za-z0-9_\-.]+/)?[A-Za-z0-9_\-.]+", unit_class):  # userVehicles/..., a mod's folder/...
         raise MissionError("Invalid unit class")
+    own = unit.get("unit_class") == unit_class
     unit["unit_class"] = unit_class
     unit["weapons"] = cfg.get("preset", "") or ""
-    write_bullets(unit, cfg.get("ammo") or [], cfg.get("_ammoGroups"))
+    if cfg.get("ammo") or cfg.get("_ammoGroups") or not own:
+        write_bullets(unit, cfg.get("ammo") or cfg.get("_shells") or [], cfg.get("_ammoGroups"))
+    # else nothing picked for the mission's own vehicle: its shells stay. A mod's T-14 has no load of the game's to fall
+    # back on (empty slots gave it one round, checked in game): elsewhere it gets its package's (_shells)
     unit["applyAllMods"] = bool(cfg.get("allMods", True))
     ch = cfg.get("cheats") or {}
     crew = ch.get("crew") or ("expert" if ch.get("expertCrew") else "")

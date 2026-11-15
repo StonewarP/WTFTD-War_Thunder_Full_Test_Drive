@@ -47,8 +47,8 @@ function myWeaponChanges(cw) {
 
 function renderMyWeapons() {
   const el = $('#myWeaponList');
-  if (!MW.list.length) { el.innerHTML = `<div class="empty">${icon('ammo', 'ic-xl')}<p>${esc(t('myw.empty'))}</p></div>`; return; }
-  el.innerHTML = MW.list.map(cw => `<div class="list-item">
+  if (!LP.weapons) loadWeapons().then(() => { if (LP.weapons && !$('#view-myweapons').classList.contains('hidden')) renderMyWeapons(); });
+  const mine = !MW.list.length ? `<div class="empty">${icon('ammo', 'ic-xl')}<p>${esc(t('myw.empty'))}</p></div>` : MW.list.map(cw => `<div class="list-item">
       <div class="list-thumb mw-thumb">${ammoIcon(cw.ic)}</div>
       <div class="list-main"><div class="list-title">${cw.mod?.kt ? '☢ ' : ''}${esc(myWeaponName(cw))}</div>
         <div class="list-sub">${esc(t('myw.basedOn', { name: I18N.weapon(cw.w) }))}</div>
@@ -56,6 +56,23 @@ function renderMyWeapons() {
       <div class="list-actions">
         <button class="btn btn-sm" data-mwedit="${esc(cw.id)}">${icon('sliders', 'ic-sm')}<span>${esc(t('myw.edit'))}</span></button>
         <button class="icon-btn btn-danger" data-mwdel="${esc(cw.id)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`).join('');
+  el.innerHTML = mine + packageWeaponsHTML();
+}
+
+// the weapons the vehicle packages brought, under their package: any pylon takes them (the loadout picker), and
+// Modify makes one of My weapons of them as of the game's (not of a gun: the editor has nothing to change on one)
+function packageWeaponsHTML() {
+  const byPkg = new Map();
+  for (const e of packageWeapons()) byPkg.set(e[1].pkg, [...(byPkg.get(e[1].pkg) || []), e]);
+  if (!byPkg.size) return '';
+  return `<div class="mw-group"><h3>${esc(t('myw.fromPackages'))}</h3><p class="hint">${esc(t('myw.fromPackagesHint'))}</p></div>
+    ${[...byPkg].map(([pkg, list]) => `<div class="opt-group-title">${esc(pkg)}</div>${list.map(([k, w]) => `<div class="list-item">
+      <div class="list-thumb mw-thumb">${ammoIcon(w.ic)}</div>
+      <div class="list-main"><div class="list-title">${esc(I18N.weapon(k))}</div>
+        <div class="mw-changes"><span class="chip dim">${esc(I18N.tOr('wcat.' + w.c, w.c))}</span>${w.g && !w.c.startsWith('aam') ? `<span class="chip dim">${esc(t('guide.' + w.g))}</span>` : ''}${w.m ? `<span class="chip dim">${esc(I18N.num(w.m))} kg</span>` : ''}</div></div>
+      <div class="list-actions">
+        ${w.md ? `<button class="btn btn-sm btn-ghost" data-mw3d="${esc(k)}">${icon('cube', 'ic-sm')}<span>${esc(t('model.view'))}</span></button>` : ''}
+        ${w.c !== 'gun' && !w.pod ? `<button class="btn btn-sm" data-mwbase="${esc(k)}">${icon('sliders', 'ic-sm')}<span>${esc(t('myw.modify'))}</span></button>` : ''}</div></div>`).join('')}`).join('')}`;
 }
 
 // ------------------------------------------------------------------ editor
@@ -255,6 +272,8 @@ function bindMyWeapons() {
   $('#myWeaponList').addEventListener('click', async e => {
     const b = e.target.closest('button');
     if (!b) return;
+    if (b.dataset.mwbase) return openWeaponEditor({ key: b.dataset.mwbase });  // a package's weapon
+    if (b.dataset.mw3d) return openModel('name', LP.weapons?.[b.dataset.mw3d]?.md, I18N.weapon(b.dataset.mw3d));
     const cw = MW.list.find(x => x.id === (b.dataset.mwedit || b.dataset.mwdel));
     if (!cw) return;
     if (b.dataset.mwedit) openWeaponEditor({ cw });

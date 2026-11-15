@@ -97,11 +97,11 @@ function renderMyMaps() {
     const picked = S.pick.variant === sv.id;
     return `<div class="list-item"><div class="list-thumb"><span class="pk-map" data-level="${esc(s?.map || '')}"></span></div>
       <div class="list-main"><div class="list-title">${icon('star', 'ic-sm')} ${esc(sv.name)}</div>
-        <div class="list-sub">${esc(s ? `${mapName(s.map, [s])} · ${t('kind.' + s.kind)}` : sv.sid)} · ${esc(t('editor.changes', { n: editsCount(sv.edits) }))}</div></div>
+        <div class="list-sub">${sv.imported ? `<span class="pill">${esc(t('mymaps.imported'))}</span> ` : ''}${esc(s ? `${mapName(s.map, [s])} · ${t('kind.' + s.kind)}` : sv.sid)} · ${esc(t('editor.changes', { n: editsCount(sv.edits) }))}</div></div>
       <div class="list-actions">
         <button class="btn btn-sm${picked ? '' : ' btn-primary'}" data-mchoose="${esc(sv.id)}" ${s ? '' : 'disabled'}>${icon(picked ? 'check' : 'play', 'ic-sm')}<span>${esc(t('maps.choose'))}</span></button>
         <button class="btn btn-sm btn-ghost" data-mopen="${esc(sv.id)}" ${s ? '' : 'disabled'}>${esc(t('library.open'))}</button>
-        <button class="icon-btn" data-mshare="${esc(sv.id)}" title="${esc(t('share.button'))}">${icon('share')}</button>
+        <button class="icon-btn" data-mshare="${esc(sv.id)}" title="${esc(t(sv.imported ? 'share.importedNoShare' : 'share.button'))}"${sv.imported ? ' disabled' : ''}>${icon('share')}</button>
         <button class="icon-btn btn-danger" data-mdel="${esc(sv.id)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`;
   }).join('');
   observeThumbs(el);
@@ -126,6 +126,7 @@ async function onMyMapsClick(e) {
     if (S.pick.variant === sv.id) { S.pick.variant = ''; savePick(); renderPickbar(); }
     await persistVariants();
     renderMyMaps();
+    forgetImported(sv.imported);
   }
 }
 
@@ -193,19 +194,30 @@ async function refreshMissions() {
       <div class="list-actions">
         <button class="btn btn-sm" data-cchoose="${esc(cb.id)}" ${ok ? '' : 'disabled'}>${esc(t('maps.choose'))}</button>
         <button class="btn btn-sm btn-primary" data-ccreate="${esc(cb.id)}" ${ok ? '' : 'disabled'}>${icon('play', 'ic-sm')}<span>${esc(t('action.generate'))}</span></button>
-        <button class="icon-btn" data-cshare="${esc(cb.id)}" title="${esc(t('share.button'))}">${icon('share')}</button>
+        <button class="icon-btn" data-cshare="${esc(cb.id)}" title="${esc(t(cb.imported ? 'share.importedNoShare' : 'share.button'))}"${cb.imported ? ' disabled' : ''}>${icon('share')}</button>
         <button class="icon-btn btn-danger" data-cdel="${esc(cb.id)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`;
   }).join('') : `<div class="empty">${icon('save', 'ic-xl')}<p>${esc(t('combo.empty'))}</p></div>`;
-  const el = $('#missionList');
+  renderGameMissions();
+}
+
+// Created in the game: each one can be picked, and the picked ones deleted at once (a second click confirms)
+function renderGameMissions() {
+  const el = $('#missionList'), pick = S.missionPick ||= new Set();
   if (!S.missions.length) { el.innerHTML = `<div class="empty">${icon('file', 'ic-xl')}<p>${esc(t('missions.empty'))}</p></div>`; return; }
-  el.innerHTML = S.missions.map(m => {
-    const vid = m.vehicle || m.file.replace(/^wtftd_/, '').replace(/\.blk$/, '');
-    const v = S.byId.get(vid);
-    return `<div class="list-item">${listThumb(vid)}
-      <div class="list-main"><div class="list-title">${v ? flagHTML(v.n) : ''}${esc(v ? I18N.unit(v.id) : vid)}</div>
+  for (const f of [...pick]) if (!S.missions.some(m => m.file === f)) pick.delete(f);  // gone meanwhile
+  const label = S.missionArm ? t('uninstall.confirm') : `${t('action.delete')}${pick.size ? ` (${pick.size})` : ''}`;
+  const bar = S.missions.length > 1 ? `<div class="mm-bulk"><label class="mm-all"><input type="checkbox" data-mpickall${pick.size === S.missions.length ? ' checked' : ''}><span>${esc(t('cat.all'))}</span></label>
+    <button class="btn btn-sm${S.missionArm ? ' btn-danger-solid' : ' btn-ghost'}" data-mdelpicked${pick.size ? '' : ' disabled'}>${icon('trash', 'ic-sm')}<span>${esc(label)}</span></button></div>` : '';
+  el.innerHTML = bar + S.missions.map(m => {
+    const vid = m.vehicle || (m.package ? '' : m.file.replace(/^wtftd_/, '').replace(/\.blk$/, ''));
+    const v = S.byId.get(vid), name = m.package ? m.title || m.file.split('/').pop().replace(/\.blk$/, '') : v ? I18N.unit(v.id) : vid;
+    // a package's (Mods -> Vehicles): as the game lists it, with the package it came with; it has no setup to share
+    const picker = S.missions.length > 1 ? `<label class="mm-pick"><input type="checkbox" data-mpick="${esc(m.file)}"${pick.has(m.file) ? ' checked' : ''} aria-label="${esc(name)}"></label>` : '';
+    return `<div class="list-item">${picker}${vid ? listThumb(vid) : `<div class="list-thumb">${icon('file')}</div>`}
+      <div class="list-main"><div class="list-title">${v && v.n !== 'other' ? flagHTML(v.n) : ''}<span>${esc(name)}</span>${m.package ? `<span class="chip dim">${esc(m.package)}</span>` : ''}</div>
         <div class="list-sub"><code>${esc(m.file)}</code> · ${new Date(m.mtime * 1000).toLocaleString(I18N.code)}</div></div>
-      <div class="list-actions">${v ? `<button class="btn btn-sm" data-open="${esc(vid)}" data-file="${esc(m.file)}">${esc(t('action.load'))}</button>
-        <button class="icon-btn" data-fshare="${esc(m.file)}" title="${esc(t('share.button'))}">${icon('share')}</button>` : ''}
+      <div class="list-actions">${v ? `<button class="btn btn-sm" data-open="${esc(vid)}" data-file="${esc(m.file)}">${esc(t('action.load'))}</button>` : ''}
+        ${v && !m.package ? `<button class="icon-btn" data-fshare="${esc(m.file)}" title="${esc(t('share.button'))}">${icon('share')}</button>` : ''}
         <button class="icon-btn btn-danger" data-delm="${esc(m.file)}" title="${esc(t('action.delete'))}">${icon('trash')}</button></div></div>`;
   }).join('');
 }
@@ -214,15 +226,31 @@ const missionSetup = async file => {
   try { return await api('mission-setup/' + encodeURIComponent(file.replace(/\.blk$/, ''))); } catch { return null; }
 };
 
+function onMissionPick(e) {
+  const box = e.target;
+  if (box.dataset.mpick !== undefined) S.missionPick[box.checked ? 'add' : 'delete'](box.dataset.mpick);
+  else if (box.dataset.mpickall !== undefined) S.missionPick = new Set(box.checked ? S.missions.map(m => m.file) : []);
+  else return;
+  S.missionArm = false;
+  renderGameMissions();
+}
+
 async function onMissionListClick(e) {
   const b = e.target.closest('button');
   if (!b || b.disabled) return;
+  if (b.dataset.mdelpicked !== undefined) {
+    if (!S.missionArm) { S.missionArm = true; return renderGameMissions(); }
+    S.missionArm = false;
+    try { S.missions = await api('delete-mission', { files: [...S.missionPick] }); } catch (err) { toastErr(err); }
+    S.missionPick.clear();
+    return refreshMissions();
+  }
   const cb = S.combos.find(x => x.id === (b.dataset.cchoose || b.dataset.ccreate || b.dataset.cshare || b.dataset.cdel));
   if (cb) {
     if (b.dataset.cchoose && await applyCombo(cb)) toast({ title: t('library.chosen', { name: cb.name }), ms: 2500 });
     else if (b.dataset.ccreate && await applyCombo(cb)) createFromPick(b);
     else if (b.dataset.cshare) openShareObj(shareMission(cb), cb.name);
-    else if (b.dataset.cdel) { S.combos = S.combos.filter(x => x !== cb); persistCombos(); }
+    else if (b.dataset.cdel) { S.combos = S.combos.filter(x => x !== cb); persistCombos(); forgetImported(cb.imported); }
     return;
   }
   if (b.dataset.open) {
@@ -290,6 +318,65 @@ async function importShared(text) {
     $('#dlgImport').close();
     toast({ title: t('share.imported', { name }), sub: t('share.importedHint.' + kind), ms: 6000 });
   } catch (e) { toastErr(e); }
+}
+
+// a War Thunder user mission (.zip or .blk): the mission as its creator made it in My missions, its map in My maps and
+// its vehicle in My vehicles, each usable on its own; imported again, they replace the ones it gave before
+async function importGameMission(f) {
+  try {
+    if (f.size > 1.4e6) throw Object.assign(new Error('size'), { data: { code: 'size' } });
+    const data = await new Promise((ok, ko) => {
+      const r = new FileReader();
+      r.onload = () => ok(String(r.result).split(',')[1] || '');
+      r.onerror = () => ko(r.error);
+      r.readAsDataURL(f);
+    });
+    const res = await api('map-import', { name: f.name, data });
+    await addImportedMissions(res.missions);
+    $('#dlgImport').close();
+  } catch (e) {
+    toast({ title: e.data?.code ? t('share.gameErr.' + e.data.code) : t('toast.error', { msg: e.message || e }), err: true, ms: 9000 });
+  }
+}
+
+// each game mission: its map in My maps, and with a vehicle WTFTD knows, the mission as made in My missions and the vehicle
+// in My vehicles; imported again, they replace the ones it gave before
+async function addImportedMissions(missions) {
+  {
+    for (const { scenario: s, vehicle: cfg } of missions) {
+      const mine = x => x.imported !== s.id;
+      S.scenarios = S.scenarios.filter(x => x.id !== s.id).concat(s);
+      S.variants = (S.variants || []).filter(mine);
+      S.setups = S.setups.filter(mine);
+      S.combos = S.combos.filter(mine);
+      S.variants.push({ id: 'v' + newId(), name: s.name, sid: s.id, edits: null, map: null, imported: s.id });
+      if (cfg) {  // a vehicle WTFTD knows: the mission plays as made, and the vehicle elsewhere
+        // its setup as WTFTD makes one (the game's load, its defaults), the mission's own choices over it
+        const v = S.byId.get(cfg.vehicle);
+        let d = S.details.get(cfg.vehicle);
+        if (!d) { d = await api('vehicle/' + encodeURIComponent(cfg.vehicle)); S.details.set(cfg.vehicle, d); }
+        const base = vehicleOnly(defaultCfg(v, d));
+        Object.assign(cfg, { ...base, preset: cfg.preset || base.preset, ammo: cfg.ammo.length ? cfg.ammo : base.ammo, allMods: cfg.allMods });
+        S.setups.unshift({ id: newId(), name: `${I18N.unit(cfg.vehicle)} · ${s.name}`.slice(0, 100), vehicle: cfg.vehicle, cfg: vehicleOnly(cfg), created: Date.now(), imported: s.id });
+        S.combos.unshift({ ...comboFromSetup({ ...cfg, scenario: s.id, title: s.name, description: s.description, missionType: 'singleMission', fileName: `wtftd_${s.id}` }, s.name), imported: s.id });
+      }
+    }
+    await persistVariants();
+    await persistSetups();
+    await persistCombos();
+    const unknown = missions.filter(m => !m.vehicle).map(m => m.scenario.name);
+    if (missions.length) toast({ title: t('share.imported', { name: missions.map(m => m.scenario.name).join(', ') }),
+      sub: unknown.length ? t('share.importedHint.gameMapOnly', { maps: t('nav.myMaps'), names: unknown.join(', ') })
+        : t('share.importedHint.game', { missions: t('nav.missions'), maps: t('nav.myMaps'), vehicles: t('nav.myVehicles') }), ms: 8000 });
+  }
+}
+
+// an imported mission none of whose entries is left in My maps or My missions: its copy goes, and from the Maps tab
+function forgetImported(sid) {
+  if (!sid || (S.variants || []).some(v => v.sid === sid) || S.combos.some(c => c.sid === sid)) return;
+  api('map-import-delete', { sid }).catch(toastErr);
+  S.scenarios = S.scenarios.filter(x => x.id !== sid);
+  if (S.pick.scenario === sid) { S.pick.scenario = ''; S.pick.variant = ''; savePick(); renderPickbar(); }
 }
 
 // ------------------------------------------------------------------ wiring

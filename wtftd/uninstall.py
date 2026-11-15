@@ -3,7 +3,7 @@ WTFTD added to it (the custom vehicle files of its manifest, the missions it cre
 
   cdk       custom vehicle files in the game's content/pkg_local and pkg_user (cdk.cleanup, from the manifest)
   missions  missions created by WTFTD in the game's UserMissions (wtftd_*.blk, and the other names it saved a setup for)
-  mods      skins and sound mods WTFTD installed, from its manifest, and config.blk back as it was (mods.remove_all)
+  mods      skins, sound mods and vehicle packages WTFTD installed, from its manifest, and config.blk back as it was (mods.remove_all)
   cache     .cache: the datamine copy or the unpacked game files, pictures, maps, logs, the index of My battles (the app
             window's profile goes once WTFTD has closed)
   data      data: the game database built from the game files
@@ -20,7 +20,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import cdk, game, mods, sights
+from . import cdk, game, imports, mods, sights
 from .paths import CACHE, DATA, FROZEN, HOME, USER
 
 PARTS = ("cdk", "missions", "mods", "cache", "data", "user", "app")
@@ -176,6 +176,7 @@ def run(parts: list[str], game_dir: Path | None, running: bool = False) -> dict:
                 n += 1
             except OSError:
                 pass
+            shutil.rmtree(p.with_name(imports.BESIDE.format(p.stem)), ignore_errors=True)  # what it imports (imports.for_game)
         removed["missions"] = n
     if "mods" in parts and game_dir:
         removed["mods"] = mods.remove_all(game_dir, running)

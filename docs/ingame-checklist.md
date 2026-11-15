@@ -701,6 +701,88 @@ was heard in a real flight.
 - [ ] Next overlay key: goes through the overlays, back to the aircraft's own at the next spawn.
 - [ ] The hangar: no overlay with the Swiss F/A-18C or the F-2A ADTW (they read fuel there), nor any other aircraft.
 
+## 2ae. Game missions imported (new)
+
+**What was built.** Import takes a user mission's `.zip` or `.blk`: each mission is kept as a scenario of its own
+(`user/imported/usr_<name>.json`, its texts beside it) and gives a mission, a map and a vehicle. Checked with
+*WT Smart Test Drive*, a user mission shared by a player: 2 missions on `avg_training_ground`, 161 targets,
+a Leopard 2PL and a BT-5. Not played in game yet.
+
+- [ ] The mission from My missions plays as its creator made it: targets, their respawn, the presets' choice.
+- [ ] Its texts (`usr_<name>.csv`, copied into `UserMissions`) show in game, names and hints, once WTFTD renamed the mission.
+- [ ] Its map with another vehicle, an aircraft too (the player's unit changes block).
+- [ ] Its vehicle on another map, and a creator's vehicle you don't own (custom vehicles).
+- [ ] Its map edited (Edit on the map: 160 targets listed, checked out of game) and saved as a variant: the mission keeps its rules.
+
+## 2af. Vehicles of their own (new)
+
+**What was built.** Mods → Vehicles installs a custom-vehicle package into the game (content/pkg_*,
+UserMissions), lists its vehicles among WTFTD's (limits from their own flight model) and imports its test missions.
+Checked with the J-50 (J50_v014.zip, 58 MB) in a made-up game folder only.
+
+- [ ] The J-50 installed from WTFTD flies in its own test mission (My missions), with its model and PL-15/PL-10.
+- [ ] The J-50 on another map from WTFTD; its alarms and My overlay with its limits (1,540 km/h, Mach 2.1).
+- [ ] Delete leaves the game as it was; the game starts fine after it.
+- [ ] An imported mission's texts (`usr_<mission file>.csv`) show once the mission is created again.
+
+## 2ag. Packages installed as copies (new)
+
+**What was built.** A package bringing a vehicle, a 3D model or a texture named like one of the game's installs it
+as a copy: the vehicle into `<package folder>/<name>.blk` (as the Ratte's tank sits in `p1000_ratte/`), with a flight
+model that includes the original by `#/develop/gameBase/` next to it (as WTFTD's custom aircraft do), and the models
+and textures renamed in place. Checked only in a made-up game folder (FA-22+, F-22 free flight).
+
+- [ ] FA-22+: its Su-33 copy (`fa_22_2/su_33`) flies from WTFTD with the mod's model; the game's Su-33 is unchanged.
+- [ ] F-22 free flight: its Su-33 and F-14D AI planes show the mod's models; the game's Su-33 and F-14 look as before.
+- [ ] A copied aircraft in a folder finds its flight model (the relay next to it), on Windows and Linux.
+- [ ] The Ratte (`p1000_ratte/uk_a17_mk_1_tetrarch`) from WTFTD; the CL-1201 (the game's B-52H with changes).
+
+## 2ah. Vehicles the game won't draw (new)
+
+**What was built.** A package's model in an older modding kit's layout (its parts list their meshes in a table after
+the scene's head, `models.old_layout`) marks its vehicle: the install message warns and Mods → Vehicles shows
+*Invisible in game*. Seen once in game: the Ratte drives invisible, its log says "old dynModel format detected
+(replacing with stub)" for p1000, p1000_dmg and p1000_xray, the three models WTFTD flags. Among 39 installed mod packs
+nothing else is flagged, nor any of 178 game models sampled.
+
+- [ ] Another flagged package (if one turns up) is invisible in its own test mission too, with the same log line.
+- [ ] Unflagged packages (J-50, T-14, CL-1201, F-22 free flight, FA-22+) show their models in battle.
+
+## 2ai. What an imported mission imports of UserMissions (new)
+
+**What was built.** The T-14's test drive imports `UserMissions/template/testflight_template.blk` (which imports
+`testFlight_sound_areas.blk`); once the package's missions were deleted, the mission WTFTD made of it loaded and went
+back to the menu. WTFTD now keeps those files with the imported mission and writes them into
+`UserMissions/<mission>.imports/`, the mission's imports pointed there; one it has no copy of and that's gone stops the
+mission with a message. Checked in a made-up game folder only (files written, imports pointed, deleted with the mission).
+
+- [ ] The T-14 installed again, its missions and templates deleted in My missions: the Armata test drive from WTFTD
+      (My maps, with the T-14 or another tank) loads and plays, targets and sounds there.
+- [ ] The game's own list of user missions shows the `.imports` files: say whether that bothers.
+
+Seen in game (2026-11-15, three test missions from the T-14's): with empty ammo slots the T-14 had one round and no
+reload, gun and machine guns (fixed: the mission's own shells stay, test A gave a full stock and the shell choice). In
+the mod's own type (`training`, test C) it has no shell choice; in neither does it rearm in the zone, nor do its shells
+show icons (the HUD reads them from the vehicle's shop data, which a mod's vehicle hasn't got).
+
+- [ ] The Armata test drive created again from WTFTD: full stock and shell choice, as test A.
+
+## 2aj. The packages' weapons on any pylon (new)
+
+**What was built.** The weapons a package installs in `content/pkg_local/gamedata/Weapons/` (rocketGuns, bombGuns,
+torpedoes, mines, drop tanks, equipment, guns lying in `Weapons/`) join the pylon catalog (`mods.package_weapons`):
+My weapons lists them under their package, the pylon picker offers them, Modify works from their own file. A pylon
+names the package's file (`gamedata/Weapons/rocketGuns/j50_pl15_internal.blk`); a modified one includes it by
+`#/develop/gameBase/` (as the F-22 free flight's own radars include its template). WTFTD's custom vehicle files go to
+`pkg_user`, the packages' to `pkg_local`. Checked in a made-up game folder only (J-50 and CL-1201: listed, 3D, editor,
+the mission's files; the J-50 removed, its pylons left out).
+
+- [ ] An F-16A with the J-50's PL-15 on a custom pylon: it shows on the pylon, locks (a radar aircraft) and flies.
+- [ ] The same with a modified PL-15 (My weapons, Mach ×2): its own values in flight.
+- [ ] The CL-1201's bomb and an F-22 free flight missile on another aircraft.
+- [ ] The J-50 package removed, the game starts and a custom vehicle that carried the PL-15 before loads again once
+      launched from WTFTD (its old files name the gone weapon until then).
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

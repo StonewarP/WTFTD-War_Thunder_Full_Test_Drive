@@ -9,11 +9,26 @@ const LP = { slot: null, q: '', cat: '', nonStd: false, weapons: null, loading: 
 
 const ammoIcon = ic => (ic ? `<img class="wicon" src="/img/ammo/${encodeURIComponent(ic)}.png" alt="" loading="lazy">` : '<span class="wicon-ph"></span>');
 
+// the game's pylon weapons, and those the vehicle packages installed brought (pkg: its package, named by it)
 async function loadWeapons() {
   if (LP.weapons) return LP.weapons;
-  if (!LP.loading) LP.loading = getData('weapons.json').then(w => { LP.weapons = w; return w; }).catch(() => ({}));
+  if (!LP.loading) {
+    LP.loading = Promise.all([getData('weapons.json'), api('mod-weapons').catch(() => ({}))]).then(([w, theirs]) => {
+      I18N.addWeapons(Object.fromEntries(Object.entries(theirs).map(([k, x]) => [k, x.name])));
+      LP.weapons = { ...theirs, ...w };
+      return LP.weapons;
+    }).catch(() => ({}));
+  }
   return LP.loading;
 }
+
+// a vehicle package installed or removed: its weapons come or go
+function reloadWeapons() {
+  LP.weapons = LP.loading = null;
+  return loadWeapons();
+}
+
+const packageWeapons = () => Object.entries(LP.weapons || {}).filter(([, w]) => w.pkg);
 
 // pylons: the game's WeaponSlots, else (fixed presets only) the attachment points their presets use
 const pylonsOf = d => (d.sl?.length ? d.sl : d.lp) || [];
@@ -211,7 +226,7 @@ function summaryHTML(d) {
     } else {
       const w = LP.weapons?.[val.w];
       const warn = w ? needWarning(d, w.g) : '';
-      rows.push(`<li class="${warn ? 'warn' : ''}"><b>${s.i}</b>${ammoIcon(w?.ic)}<span>${+val.n || 1}× ${esc(pylonWeaponName(val))} <i class="chip ${val.cw ? 'info' : 'dim'}">${esc(t(val.cw ? 'myw.chip' : 'loadout.nonStd'))}</i>${warn ? `<em>⚠ ${esc(warn)}</em>` : ''}</span></li>`);
+      rows.push(`<li class="${warn ? 'warn' : ''}"><b>${s.i}</b>${ammoIcon(w?.ic)}<span>${+val.n || 1}× ${esc(pylonWeaponName(val))} <i class="chip ${val.cw ? 'info' : 'dim'}">${esc(val.cw ? t('myw.chip') : w?.pkg || t('loadout.nonStd'))}</i>${warn ? `<em>⚠ ${esc(warn)}</em>` : ''}</span></li>`);
     }
   }
   return rows.length ? `<ul class="lsummary">${rows.join('')}</ul>` : `<p class="hint" style="margin-top:8px">${esc(t('loadout.pickHint'))}</p>`;
@@ -221,7 +236,8 @@ function pickerHTML(v, d) {
   const slot = pylonsOf(d).find(s => s.i === LP.slot);
   if (!slot) return '';
   const cur = S.cfg.pylons[slot.i];
-  const cats = WCATS.filter(cat => slot.o.some(o => o.c === cat) || (LP.nonStd && LP.weapons && Object.values(LP.weapons).some(w => w.c === cat)));
+  const cats = WCATS.filter(cat => slot.o.some(o => o.c === cat) || packageWeapons().some(([, w]) => w.c === cat)
+    || (LP.nonStd && LP.weapons && Object.values(LP.weapons).some(w => w.c === cat)));
   const countBox = cur && typeof cur === 'object'
     ? `<label class="lcount">${esc(t('editor.count'))} <input type="number" min="1" max="8" value="${cur.n || 1}" data-lcount></label>` : '';
   return `<div class="lpicker">
@@ -254,7 +270,7 @@ function pickerListHTML(d, slot) {
   if (LP.nonStd && LP.weapons) {
     const counts = {};
     for (const [k, w] of Object.entries(LP.weapons)) {
-      if (LP.cat && w.c !== LP.cat) continue;
+      if (w.pkg || (LP.cat && w.c !== LP.cat)) continue;  // a package's: in its own group
       const name = I18N.weapon(k);
       if (q && !norm(name + ' ' + k).includes(q)) continue;
       counts[w.c] = (counts[w.c] || 0) + 1;
@@ -279,8 +295,16 @@ function pickerListHTML(d, slot) {
       return `<button class="lp-item${sel ? ' active' : ''}${warn ? ' warn' : ''}" data-lpickcw="${esc(cw.id)}" title="${esc(warn || t('myw.basedOn', { name: I18N.weapon(cw.w) }))}">
         ${ammoIcon(cw.ic || w.ic)}<span>${cw.mod?.kt ? '☢ ' : ''}${esc(cw.name)}</span><i class="chip info">${esc(t('myw.chip'))}</i>${warn ? '<i class="lwarn">!</i>' : ''}</button>`;
     }).join('')}</div>` : '';
+  // the vehicle packages' weapons (the J-50's PL-15...): any pylon too, shown as My weapons are
+  const theirs = packageWeapons().filter(([k, w]) => (!LP.cat || w.c === LP.cat) && (!q || norm(`${I18N.weapon(k)} ${w.pkg} ${k}`).includes(q)));
+  const theirsHTML = theirs.length ? `<div class="lp-group lp-mine"><div class="opt-group-title">${esc(t('myw.fromPackages'))}</div>
+    ${theirs.map(([k, w]) => {
+      const warn = needWarning(d, w.g), sel = cur && typeof cur === 'object' && cur.w === k && !cur.cw;
+      return `<button class="lp-item${sel ? ' active' : ''}${warn ? ' warn' : ''}" data-lpickw="${esc(k)}" title="${esc(warn)}">
+        ${ammoIcon(w.ic)}<span>${esc(I18N.weapon(k))}</span><i class="chip dim">${esc(w.pkg)}</i>${warn ? '<i class="lwarn">!</i>' : ''}</button>`;
+    }).join('')}</div>` : '';
   const order = [...WCATS, 'other'];
-  const html = mineHTML + order.filter(cat => groups[cat]).map(cat => `<div class="lp-group"><div class="opt-group-title">${esc(I18N.tOr('wcat.' + cat, cat))}</div>
+  const html = mineHTML + theirsHTML + order.filter(cat => groups[cat]).map(cat => `<div class="lp-group"><div class="opt-group-title">${esc(I18N.tOr('wcat.' + cat, cat))}</div>
       ${groups[cat].std.join('')}${groups[cat].ext.join('')}</div>`).join('');
   return html || `<p class="hint">${esc(t('results.empty'))}</p>`;
 }

@@ -2106,16 +2106,9 @@ def build_weapon_catalog(wc: "WeaponCache", progress=None) -> dict:
                 cat, g = cl
                 entry = {"p": path, "c": cat, "g": g, "t": TRIGGERS.get(cat, "bombs"), "pod": num(d.get("bullets"), 1) or 1}
             else:
-                cl = classify_weapon(d, folder)
-                if not cl:
+                entry = air_weapon_entry(d, folder, path)
+                if not entry:
                     continue
-                cat, g = cl
-                if f.stem in NUKES:
-                    cat = "nuke"
-                entry = {"p": path, "c": cat, "g": g, "t": TRIGGERS.get(cat, "bombs")}
-                mass = _numval((_payload(d)[1] or {}).get("mass"))
-                if mass:
-                    entry["m"] = round(mass, 1)  # kg: the game's loadout grid puts the heaviest in the middle
             key = wc.weapon_name(path)
             out[key] = entry
     for folder in SURFACE_FOLDERS:
@@ -2140,15 +2133,35 @@ def build_weapon_catalog(wc: "WeaponCache", progress=None) -> dict:
             out[key] = entry
     for folder in ("", *SURFACE_FOLDERS):  # guns: the aircraft's lie loose in Weapons
         for f in sorted((base / folder).glob("*.blkx")):
-            rounds = gun_rounds(load(f))
-            if not rounds or GUN_SKIP.search(f.stem):
-                continue
             path = f"gameData/Weapons/{folder}/{f.stem}.blk" if folder else f"gameData/Weapons/{f.stem}.blk"
-            out[wc.weapon_name(path)] = {"p": path, "c": "gun", "g": "", "t": "machine gun" if rounds == 500 else "cannon", "gun": rounds}
+            entry = air_weapon_entry(load(f), "", path)
+            if entry:
+                out[wc.weapon_name(path)] = entry
     build_sensors(wc.lang)
     build_objects(wc.lang)
     log(f"  {len(out)} weapons", progress)
     return out
+
+
+def air_weapon_entry(d, folder: str, path: str) -> dict | None:
+    """The catalog entry of a weapon file an aircraft carries, from one of CATALOG_FOLDERS (not a container) or, folder
+    "", a gun; None for a file that isn't one. The game's and the vehicle packages' (mods.package_weapons)."""
+    if not folder:
+        rounds = gun_rounds(d)
+        if not rounds or GUN_SKIP.search(basename(path)):
+            return None
+        return {"p": path, "c": "gun", "g": "", "t": "machine gun" if rounds == 500 else "cannon", "gun": rounds}
+    cl = classify_weapon(d, folder)
+    if not cl:
+        return None
+    cat, g = cl
+    if basename(path) in NUKES:
+        cat = "nuke"
+    entry = {"p": path, "c": cat, "g": g, "t": TRIGGERS.get(cat, "bombs")}
+    mass = _numval((_payload(d)[1] or {}).get("mass"))
+    if mass:
+        entry["m"] = round(mass, 1)  # kg: the game's loadout grid puts the heaviest in the middle
+    return entry
 
 
 def aircraft_caps(udata: dict, catalog: dict, slot_keys: set) -> list:

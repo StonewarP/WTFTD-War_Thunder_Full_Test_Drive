@@ -1002,6 +1002,13 @@ class Watching(unittest.TestCase):
         moving = {**hangar, "IAS, km/h": 300}
         self.assertEqual(alarms.flying(json.dumps(moving).encode(), lambda: False), moving)  # in the air, a map or not
 
+    def test_an_aircraft_on_show_rolling_in_the_hangar(self):  # the F-15EX, read live on 2.61 (2026-11-15)
+        hangar = state(**{"IAS, km/h": 3, "TAS, km/h": 3, "Mfuel, kg": 1791, "Mfuel0, kg": 16050, "RPM 1": 0, "RPM 2": 0})
+        self.assertIsNone(alarms.flying(json.dumps(hangar).encode(), lambda: False))
+        self.assertEqual(alarms.flying(json.dumps(hangar).encode(), lambda: True), hangar)  # stopped in a battle: still a flight
+        taxiing = {**hangar, "RPM 1": 4000, "RPM 2": 4000}
+        self.assertEqual(alarms.flying(json.dumps(taxiing).encode(), lambda: False), taxiing)  # its engines running
+
     def test_the_menus_are_not_a_flight(self):  # as read in the hangar on 2.59
         hangar = state(**{"IAS, km/h": 1, "Mfuel, kg": 0, "RPM 1": 0})
         self.assertIsNone(alarms.flying(json.dumps(hangar).encode(), lambda: False))

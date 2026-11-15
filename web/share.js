@@ -79,14 +79,20 @@ function bindShare() {
   $('#importFile').addEventListener('change', async e => {
     const f = e.target.files?.[0];
     e.target.value = '';
-    if (f) importShared(await f.text());
+    if (f) /\.(zip|blk)$/i.test(f.name) ? importGameMission(f) : importShared(await f.text());
   });
   // drop a .wtftd file anywhere on the window
   window.addEventListener('dragover', e => { if ([...(e.dataTransfer?.items || [])].some(i => i.kind === 'file')) e.preventDefault(); });
   window.addEventListener('drop', async e => {
-    const f = [...(e.dataTransfer?.files || [])].find(x => /\.(wtftd|json)$/i.test(x.name));
+    const zips = [...(e.dataTransfer?.files || [])].filter(x => /\.zip$/i.test(x.name));
+    if (zips.length && !$('#view-mods').classList.contains('hidden')) {  // on the Mods view: mods, as many as dropped
+      e.preventDefault();
+      return moSendMany(zips);
+    }
+    const f = [...(e.dataTransfer?.files || [])].find(x => /\.(wtftd|json|zip|blk)$/i.test(x.name));
     if (!f) return;
     e.preventDefault();
-    importShared(await f.text());
+    if (/\.(zip|blk)$/i.test(f.name)) importGameMission(f);
+    else importShared(await f.text());
   });
 }

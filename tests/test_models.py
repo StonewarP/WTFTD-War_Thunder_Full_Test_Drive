@@ -237,6 +237,137 @@ class Textures(unittest.TestCase):
         self.assertIsNone(models.texture(self.game, "../../settings"))
 
 
+def own_model():
+    """A model as a mod's are made (the J-50's shape): its two texture names and its one material inside, its block of
+    materials and vertices packed with zstd (one frame and a byte of padding); then what the page reads, stored plain."""
+    names = struct.pack("<IIQ", 28, 2, 0) + b"a_c*\0b_n*\0\0\0" + struct.pack("<II", 16, 21)
+    material = bytearray(models.MATERIAL)
+    struct.pack_into("<I", material, 0x44, 32)
+    struct.pack_into("<4i", material, 0x50, 0, -1, 1, -1)
+    plain = struct.pack("<IIQ", 48, 1, 0) + bytes(16) + b"dynamic_simple\0".ljust(16, b"\0") + bytes(material)
+    packed = vromfs.zstd.compress(plain) + b"\0"
+    head = struct.pack("<5I", 4, 2, 1, 0, 0xC0000000 | len(plain)) + struct.pack("<I", len(names)) + names
+    model = head + struct.pack("<I", models.ZSTD_BLOCK | len(packed)) + packed + b"dump"
+    shown = head[:16] + struct.pack("<I", len(plain)) + head[20:] + plain + b"dump"
+    return model, shown
+
+
+def dxp3(entries):
+    """A mod's texture pack (version 3, shorter records), its textures packed with zstd: (name, width, bytes)."""
+    n = len(entries)
+    names_at, headers_at, records_at, strings_at = 0x30, 0x30 + 8 * n, 0x30 + 40 * n, 0x30 + 52 * n
+    strings, spots = b"", []
+    for name, *_ in entries:
+        spots.append(strings_at + len(strings))
+        strings += name.encode() + b"\0"
+    size = strings_at + len(strings)
+    dump = b"".join(struct.pack("<IIQ", at, n, 0) for at in (names_at, headers_at, records_at))
+    dump += b"".join(struct.pack("<Q", at) for at in spots)
+    data, ofs, records = b"", 16 + size, b""
+    for _, width, body in entries:
+        packed = vromfs.zstd.compress(body) + b"\0"
+        dump += b"DDSx" + struct.pack("<4sIHH", b"DXT1", models.ZSTD_TEX | 0x11, width, width) + bytes(8) + struct.pack("<II", len(body), len(packed))
+        records += struct.pack("<III", 0, ofs, len(packed))
+        ofs += len(packed)
+        data += packed
+    return b"DxP2" + struct.pack("<III", 3, n, size) + dump + records + strings + data
+
+
+@unittest.skipUnless(vromfs.available(), "zstd: Python 3.14")
+class ModPacks(unittest.TestCase):
+    """A vehicle of a mod (Mods -> Vehicles): its own GRP3 and version 3 packs, packed with zstd, which the page doesn't unpack."""
+
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.game = Path(d.name)
+        res = self.game / "content" / "pkg_local" / "res" / "pkg_local_"
+        res.mkdir(parents=True)
+        self.model, self.shown = own_model()
+        self.bones = b"bones" * 10
+        packed = vromfs.zstd.compress(self.bones)
+        tree = struct.pack("<II", 0x01200000, 0x80000003) + struct.pack("<I", models.ZSTD_BLOCK | len(packed)) + packed
+        (res / "j50.grp").write_bytes(b"GRP3" + grp([(models.DYNMODEL, "j50", self.model), (models.SKELETON, "j50_skeleton", tree)])[4:])
+        (res / "j50.dxp.bin").write_bytes(dxp3([("j50_body_c*", 8, b"colour"), ("j50_body_n*", 16, b"normal")]))
+        models._cache.clear()
+        self.addCleanup(models._cache.clear)
+
+    def test_its_model_its_skeleton_and_its_materials(self):
+        body = models.read(self.game, "j50")
+        size, tree, mats = struct.unpack_from("<III", body, 0)
+        self.assertEqual(body[12:12 + size], self.shown)
+        self.assertEqual(body[12 + size:12 + size + tree], struct.pack("<II", 0x01200000 | len(self.bones), 3) + self.bones)
+        self.assertEqual(json.loads(body[-mats:]), {"R": [{"cls": "dynamic_simple", "t0": "a_c", "t2": "b_n"}]})
+
+    def test_the_games_materials_come_first(self):
+        found = {"j50": {"R": [{"cls": "dynamic_masked_chrome_bump"}]}}
+        with mock.patch.object(models, "materials", return_value=found):
+            body = models.read(self.game, "j50")
+        self.assertEqual(json.loads(body[-struct.unpack_from("<I", body, 8)[0]:]), found["j50"])
+
+    def test_its_textures_unpacked(self):
+        body = models.texture(self.game, "j50_body_n")
+        self.assertEqual(body[32:], b"normal")
+        self.assertEqual(struct.unpack_from("<I", body, 8)[0], 0x11)  # no packing left for the page to undo
+        self.assertEqual(struct.unpack_from("<HI", body, 12)[0], 16)
+        self.assertEqual(struct.unpack_from("<I", body, 28)[0], 6)
+        self.assertEqual(models.texture(self.game, "j50_body_c")[32:], b"colour")
+
+    def test_a_package_installed_is_listed_again(self):
+        self.assertIn((models.DYNMODEL, "j50"), models.index(self.game))
+        (self.game / "content" / "pkg_local" / "res" / "pkg_local_" / "j50.grp").unlink()
+        self.assertIn((models.DYNMODEL, "j50"), models.index(self.game))  # kept while the app runs
+        models.forget()
+        self.assertNotIn((models.DYNMODEL, "j50"), models.index(self.game))
+
+    def test_its_skinned_parts_unpacked_too(self):  # the Ratte's tracks
+        plain = b"vertices" * 20
+        packed = vromfs.zstd.compress(plain) + b"\0"
+        section = struct.pack("<II", 1, 20 + 8 + len(packed) + 8) + bytes(20) + struct.pack("<II", 0xC0000000 | 16, models.ZSTD_BLOCK | len(packed))
+        got, blocks = models._unzstd_skins(b"model" * 8 + section + packed + b"deflated")
+        self.assertEqual(blocks, [plain])
+        self.assertEqual(got, b"model" * 8 + struct.pack("<II", 1, 20 + 4 + len(plain) + 8) + bytes(20) + struct.pack("<I", 16) + plain + b"deflated")
+
+    def test_a_game_model_is_left_as_it_is(self):
+        plain = struct.pack("<5I", 4, 0xFFFFFFFF, 0xFFFFFFFF, 0, 0xC0000010) + b"oodle block"
+        self.assertIsNone(models._own_materials(plain))
+        self.assertEqual(models._unzstd_skins(plain), (plain, []))
+
+
+def scene_model(rigids_at, plain=False):
+    """A model cut down to what old_layout walks: its texture names, its block of vertices (packed, or plain with one
+    buffer of 3 vertices of 8 bytes and 12 bytes of indices), its dump (one scene), its node names, its first scene."""
+    dump = struct.pack("<II", 0, 1) + bytes(8)
+    if plain:
+        head = bytes(16) + struct.pack("<II", 24, 1) + struct.pack("<4I", 3, 8, 12, 0) + bytes(16)
+        word, vdata = len(head), head + bytes(3 * 8 + 12)
+    else:
+        word, vdata = 0xC0000000 | 99, struct.pack("<I", models.ZSTD_BLOCK | 5) + b"zstd!"
+    return (struct.pack("<5I", len(dump), 1, 0, 0, word) + struct.pack("<I", 4) + b"a_c\0" + vdata + dump
+            + struct.pack("<I", 6) + b"names\0" + struct.pack("<I", rigids_at) + bytes(28))
+
+
+class OldLayout(unittest.TestCase):
+    """A mod made with an old modding kit (the Ratte): the game draws an empty stub instead of its model."""
+
+    def test_its_parts_after_a_table_of_meshes(self):
+        for plain in (False, True):
+            with self.subTest(plain=plain):
+                self.assertTrue(models.old_layout(scene_model(0x60, plain)))
+                self.assertFalse(models.old_layout(scene_model(0x20, plain)))  # as every model of the game
+
+    def test_a_model_cut_short_isnt_told_old(self):
+        self.assertFalse(models.old_layout(scene_model(0x60)[:44]))
+
+    def test_a_packs_old_models_by_name(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "p1000_ratte.grp"
+            p.write_bytes(grp([(models.DYNMODEL, "p1000", scene_model(0x60)), (models.DYNMODEL, "t_14", scene_model(0x20)),
+                               (models.SKELETON, "p1000_skeleton", scene_model(0x60))]))
+            self.assertEqual(models.old_models(p), {"p1000"})
+            self.assertEqual(models.old_models(Path(d) / "none.grp"), set())
+
+
 class Names(unittest.TestCase):
     def test_a_vehicle_names_its_model(self):
         with mock.patch.object(models.builder, "load", side_effect=[None, {"model": "t_80u"}]):

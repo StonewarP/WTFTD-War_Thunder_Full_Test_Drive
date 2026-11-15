@@ -10,6 +10,8 @@ from . import builder, terrain, vromfs
 
 DYNMODEL, SKELETON, RENDINST = 0xB4B7D9C4, 0x56F81B6D, 0x77F8232F
 PAIRED = 0x20000  # a texture stored as the difference to another one
+PACKING, ZSTD_TEX, ZSTD_BLOCK = 0xE0000000, 0x20000000, 0x40000000  # how a texture or a block of a model is packed
+MATERIAL = 0xA8  # a material inside a model: its colours, shader class, 16 texture slots, parameters
 _NAME = re.compile(r"^[A-Za-z0-9_\-.]{1,120}$")
 _cache: dict = {}
 _locks = {kind: threading.Lock() for kind in ("models", "materials", "objects", "textures", "assets")}
@@ -22,7 +24,7 @@ def _pack(path: Path, found: dict):
     """Adds a pack's models, skeletons and placed objects to found: {(class, name): (path, offset, end)}."""
     with path.open("rb") as f:
         head = f.read(16)
-        if len(head) < 16 or head[:4] != b"GRP2":
+        if len(head) < 16 or head[:4] not in (b"GRP2", b"GRP3"):  # GRP3: a mod's, made with the game's modding kit
             return
         data = head + f.read(struct.unpack_from("<I", head, 4)[0] + 64)
     name_ofs = struct.unpack_from("<I", data, 16)[0]
@@ -56,6 +58,13 @@ def _list_models(game: Path) -> dict:
                 except (OSError, struct.error, ValueError, IndexError):
                     pass  # a pack the game is updating: its models are left out
     return found
+
+
+def forget():
+    """A package of models installed or removed (Mods -> Vehicles): the packs are listed again when next asked."""
+    for kind in ("models", "textures"):
+        with _locks[kind]:
+            _cache.pop(kind, None)
 
 
 def index(game: Path) -> dict:
@@ -116,6 +125,7 @@ def _dxp(path: Path, found: dict):
             return
         dump = f.read(struct.unpack_from("<I", head, 12)[0])
     names_at, count = struct.unpack_from("<II", dump, 0)
+    v3 = struct.unpack_from("<I", head, 4)[0] >= 3  # a mod's pack: shorter records
     headers_at = struct.unpack_from("<I", dump, 0x10)[0]
     records_at = struct.unpack_from("<I", dump, 0x20)[0]
     for i in range(count):
@@ -124,7 +134,7 @@ def _dxp(path: Path, found: dict):
             continue
         at = struct.unpack_from("<Q", dump, names_at + i * 8)[0]
         name = dump[at:dump.index(b"\0", at)].decode("utf-8", "replace").split("*")[0].lower()
-        ofs, packed = struct.unpack_from("<II", dump, records_at + i * 24 + 0x0C)
+        ofs, packed = struct.unpack_from("<II", dump, records_at + i * 12 + 4 if v3 else records_at + i * 24 + 0x0C)
         found[name] = (path, ofs, packed or struct.unpack_from("<I", header, 0x18)[0], header)
 
 
@@ -327,7 +337,153 @@ def texture(game: Path, name: str, hq: bool = True) -> bytes | None:
         return None
     with e[0].open("rb") as f:
         f.seek(e[1])
-        return e[3] + f.read(e[2])
+        data = f.read(e[2])
+    flags = struct.unpack_from("<I", e[3], 8)[0]
+    if flags & PACKING == ZSTD_TEX and vromfs.available():  # a mod's: the page only unpacks the game's own packing
+        data = _unzstd(data)
+        head = bytearray(e[3])
+        struct.pack_into("<I", head, 8, flags & ~PACKING)
+        struct.pack_into("<I", head, 28, len(data))
+        return bytes(head) + data
+    return e[3] + data
+
+
+def _unzstd(data: bytes) -> bytes:
+    """One zstd frame: what may follow it is padding."""
+    return vromfs.zstd.ZstdDecompressor().decompress(data)
+
+
+def _cstr(b: bytes, at: int) -> str:
+    return b[at:b.index(b"\0", at)].decode("utf-8", "replace")
+
+
+def _model_block(model: bytes) -> tuple[int, int, int]:
+    """Where a model's materials and vertices start (after its own texture names), and their packing word."""
+    word = struct.unpack_from("<I", model, 16)[0]
+    return 24 + struct.unpack_from("<I", model, 20)[0], word, struct.unpack_from("<I", model, 4)[0]
+
+
+def _own_materials(model: bytes) -> dict | None:
+    """A model that carries its texture names and materials (a mod's; dynModelDesc.bin has the game's): {"R": [material]},
+    as _material makes them. None for one that doesn't, or whose block the page alone can unpack."""
+    try:
+        at, word, tex_n = _model_block(model)
+        if tex_n == 0xFFFFFFFF:
+            return None
+        names = model[24:at]
+        ofs, n = struct.unpack_from("<II", names, 0)
+        tex = [_cstr(names, struct.unpack_from("<I", names, ofs + 4 * i)[0]).rstrip("*") for i in range(n)]
+        if word & PACKING == 0xC0000000:
+            size = struct.unpack_from("<I", model, at)[0]
+            if size & 0xC0000000 != ZSTD_BLOCK or not vromfs.available():
+                return None
+            head = _unzstd(model[at + 4:at + 4 + (size & 0x3FFFFFFF)])
+        else:
+            head = model[at:at + word]
+        return {"R": _materials_in(head, tex), "tex": tex}
+    except (struct.error, ValueError, IndexError, vromfs.zstd.ZstdError if vromfs.zstd else ValueError):
+        return None
+
+
+def _materials_in(head: bytes, tex: list) -> list:
+    """The materials at the start of a block of materials and vertices, unpacked."""
+    mofs, mn = struct.unpack_from("<II", head, 0)
+    out = []
+    for i in range(mn):
+        m = mofs + i * MATERIAL
+        cls, slots = _cstr(head, struct.unpack_from("<I", head, m + 0x44)[0]), struct.unpack_from("<4i", head, m + 0x50)
+        out.append({"cls": cls, **{f"t{k}": tex[s] for k, s in enumerate(slots) if 0 <= s < len(tex)}})
+    return out
+
+
+def old_layout(model: bytes) -> bool:
+    """A model in the layout of an old modding kit, its parts listing their meshes in a table after the scene's 0x20-byte
+    head (the Ratte's): the game replaces it with an empty stub ("old dynModel format detected"), so the vehicle is
+    invisible in battle. The walk of web/model3d.js mdModel, nothing unpacked: every game model has its parts at 0x20."""
+    try:
+        dump_size, tex_n = struct.unpack_from("<II", model, 0)
+        word = struct.unpack_from("<I", model, 16)[0]
+        p = 20 if tex_n == 0xFFFFFFFF else 24 + struct.unpack_from("<I", model, 20)[0]
+        if word & PACKING == 0xC0000000:  # packed (zstd or Oodle): its length word, then the block
+            p += 4 + (struct.unpack_from("<I", model, p)[0] & 0x3FFFFFFF)
+        elif word & 0xC0000000:
+            return False  # a packing the page doesn't read either
+        else:  # plain: the head, then each buffer's vertices and indices
+            at, n = struct.unpack_from("<II", model, p + 16)
+            for i in range(n):
+                vertices, w1, w2, flags = struct.unpack_from("<4I", model, p + at + 32 * i)
+                word += vertices * (w1 & 0xFF) + ((w1 >> 8) | (w2 >> 28) << 24 if flags & 0x200 else w2 & 0x0FFFFFFF)
+            p += word
+        lods = struct.unpack_from("<I", model, p + 4)[0]  # the dump: its scenes' table, their count
+        p += dump_size
+        p += 4 + struct.unpack_from("<I", model, p)[0]  # the node names
+        return lods > 0 and struct.unpack_from("<I", model, p)[0] > 0x20  # the first scene's parts
+    except struct.error:
+        return False
+
+
+def old_models(grp: Path) -> set:
+    """The models of a pack in that old layout (see old_layout), by name."""
+    found: dict = {}
+    try:
+        _pack(grp, found)
+        with grp.open("rb") as f:
+            out = set()
+            for (cid, name), (_, ofs, end) in found.items():
+                f.seek(ofs)
+                if cid == DYNMODEL and old_layout(f.read(end - ofs)):
+                    out.add(name)
+            return out
+    except (OSError, struct.error, ValueError, IndexError):
+        return set()
+
+
+def _unzstd_model(model: bytes) -> bytes:
+    """The model with its zstd block of materials and vertices stored plain, which the page reads."""
+    at, word, _ = _model_block(model)
+    size = struct.unpack_from("<I", model, at)[0] & 0x3FFFFFFF
+    if word & PACKING != 0xC0000000:
+        return model
+    plain = _unzstd(model[at + 4:at + 4 + size])
+    return model[:16] + struct.pack("<I", word & 0x3FFFFFFF) + model[20:at] + plain + model[at + 4 + size:]
+
+
+ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
+
+
+def _unzstd_skins(model: bytes) -> tuple[bytes, list]:
+    """The block of the skinned parts (a tank's tracks: the Ratte's) packed with zstd too, stored plain: its section
+    starts with 1 (one variant) and its size, 20 bytes, then the block's packing word, its size, its frame. The section's
+    size grows with the block. Then the blocks unpacked, for their materials."""
+    i, blocks = model.find(ZSTD_MAGIC, 36), []
+    while i >= 36:
+        word, size = struct.unpack_from("<II", model, i - 8)
+        at, n = i - 36, size & 0x3FFFFFFF
+        if word & PACKING == 0xC0000000 and size & 0xC0000000 == ZSTD_BLOCK and struct.unpack_from("<I", model, at)[0] == 1:
+            try:
+                plain = _unzstd(model[i:i + n])
+            except vromfs.zstd.ZstdError:
+                plain = None  # not a block after all
+            if plain is not None:
+                total = struct.unpack_from("<I", model, at + 4)[0] + len(plain) - 4 - n
+                model = (model[:at + 4] + struct.pack("<I", total) + model[at + 8:i - 8] + struct.pack("<I", word & 0x3FFFFFFF)
+                         + plain + model[i + n:])
+                blocks.append(plain)
+                i = model.find(ZSTD_MAGIC, i - 4 + len(plain))
+                continue
+        i = model.find(ZSTD_MAGIC, i + 1)
+    return model, blocks
+
+
+def _unzstd_tree(tree: bytes) -> bytes:
+    """A skeleton packed with zstd, stored plain (its size takes 20 bits)."""
+    if len(tree) < 12:
+        return tree
+    head, word, size = struct.unpack_from("<III", tree, 0)
+    if not word & 0x80000000 or size & 0xC0000000 != ZSTD_BLOCK:
+        return tree
+    plain = _unzstd(tree[12:12 + (size & 0x3FFFFFFF)])
+    return struct.pack("<II", head & ~0xFFFFF | len(plain), word & 0x7FFFFFFF) + plain if len(plain) <= 0xFFFFF else tree
 
 
 def read(game: Path, name: str, placed: bool = False) -> bytes | None:
@@ -347,7 +503,16 @@ def read(game: Path, name: str, placed: bool = False) -> bytes | None:
     if not model:
         return None
     tree = b"" if placed else take((SKELETON, name + "_skeleton"))
-    mats = json.dumps((object_materials(game) if placed else materials(game)).get(name) or {}).encode()
+    own = None if placed else _own_materials(model)
+    if own is not None:
+        (model, skins), tree = _unzstd_skins(_unzstd_model(model)), _unzstd_tree(tree)
+        tex = own.pop("tex")
+        if skins:  # its skinned parts' own materials (S, as dynModelDesc.bin names the game's)
+            try:
+                own["S"] = _materials_in(skins[0], tex)
+            except (struct.error, ValueError, IndexError):
+                pass
+    mats = json.dumps((object_materials(game) if placed else materials(game)).get(name) or own or {}).encode()
     return struct.pack("<III", len(model), len(tree), len(mats)) + model + tree + mats
 
 

@@ -1,5 +1,6 @@
 /* WTFTD — 3D viewer: a vehicle's or a weapon's model, read from the player's own game files and shown in WebGL. The layout
-   of the files follows the public Dagor Engine sources. Nothing is stored and nothing can be exported. */
+   of the files follows the public Dagor Engine sources. Nothing of the game is stored and nothing can be exported; the
+   lists keep a picture of a mod's vehicle or of a skin (mdCapture). */
 'use strict';
 
 const MD_FLOAT2 = 1, MD_FLOAT3 = 2, MD_FLOAT4 = 3, MD_E3D = 4, MD_SHORT2 = 6, MD_SHORT4N = 10;  // vertex channel types
@@ -165,6 +166,16 @@ async function mdModel(bytes) {
     const scene = r.take(new MdReader(dump, tableAt + l * 16).wide()), s = new MdReader(scene), rigidsAt = s.u32(), rigids = s.u32();
     s.skip(12);
     skinCounts.push(s.u32());
+    if (rigidsAt > 0x20) {  // an old layout (the Ratte's, which the game itself no longer draws): meshes in a table, each part lists its own
+      const meshes = Array.from({ length: (rigidsAt - 0x20) / 16 }, (_, k) => r.take(new MdReader(scene, 0x20 + k * 16).wide()));
+      for (let i = 0; i < rigids; i++) {
+        const e = new MdReader(scene, rigidsAt + i * 40), at = e.u32(), n = e.u32();
+        e.skip(24);
+        const node = names[e.u32()];
+        for (let k = 0; k < n && l === 0; k++) parts.push({ node, elems: mdMesh(meshes[(at - 0x20) / 16 + k], 0), buffers });
+      }
+      continue;
+    }
     for (let i = 0; i < rigids; i++) {
       const e = new MdReader(scene, rigidsAt + i * 32), size = e.wide();
       e.skip(16);
@@ -172,7 +183,9 @@ async function mdModel(bytes) {
       if (l === 0) parts.push({ node, elems: mdMesh(mesh, 0), buffers });
     }
   }
-  if (skinCounts.some(n => n > 0)) parts.push(...await mdSkins(r, skinCounts));
+  if (skinCounts.some(n => n > 0)) {
+    try { parts.push(...await mdSkins(r, skinCounts)); } catch (e) { console.warn('skinned parts left out', e); }  // tracks of a layout not read
+  }
   return { parts, offset, scale };
 }
 
@@ -424,12 +437,15 @@ function mdDds(bytes) {
     return block && 128 + size <= bytes.length ? { fourcc, w, h, top: bytes.subarray(128, 128 + size) } : null;
   }
   if (v.getUint32(88, true) !== 32 || 128 + w * h * 4 > bytes.length) return null;
-  const masks = [92, 96, 100, 104].map(o => v.getUint32(o, true)), shift = m => (m ? Math.log2(m & -m) : 0), rgba = new Uint8Array(w * h * 4);
-  for (let i = 0; i < w * h; i++) {
-    const x = v.getUint32(128 + i * 4, true);
-    masks.forEach((m, c) => { rgba[i * 4 + c] = m ? (x & m) >>> 0 >>> shift(m) : 255; });
+  const step = Math.ceil(Math.max(w, h) / 4096), ow = Math.ceil(w / step), oh = Math.ceil(h / step);
+  const masks = [92, 96, 100, 104].map(o => v.getUint32(o, true)), shift = m => (m ? Math.log2(m & -m) : 0), rgba = new Uint8Array(ow * oh * 4);
+  for (let y = 0, i = 0; y < oh; y++) {
+    for (let col = 0; col < ow; col++, i++) {
+      const x = v.getUint32(128 + ((y * step) * w + col * step) * 4, true);
+      masks.forEach((m, c) => { rgba[i * 4 + c] = m ? (x & m) >>> 0 >>> shift(m) : 255; });
+    }
   }
-  return { w, h, rgba };
+  return { w: ow, h: oh, rgba };
 }
 
 // a skin's texture on the graphics card, null if it can't be drawn: the caller keeps the normal paint
@@ -496,14 +512,17 @@ function mdSurface(ctx, surface, max) {
 // what each material takes from its texture slots, in the place of the viewer's plain grey
 function mdSlots(m) {
   const named = (t, test) => (t && test(t) ? t : null);
-  return { color: m.t0 || null, camo: /masked/.test(m.cls) ? named(m.t1, t => t.includes('camo')) : null,
+  // a camouflage: the game's say camo, a mod's may not (the T-14's ussr_modern_green); the slot also holds the game's other maps
+  const camo = t => t.includes('camo') || !/_(n|ao|c|d|m)$|glass|cubemap/.test(t);
+  return { color: m.t0 || null, camo: /masked/.test(m.cls) ? named(m.t1, camo) : null,
     normal: named(m.t2, t => t.endsWith('_n')), ao: named(m.t3, t => t.endsWith('_ao')) };
 }
 
 // the model shows at once, and each texture joins it when it arrives
 // skin: a skin of the vehicle ({name, replace: [{from, to}]}), whose textures take the place of those their names start with
-async function mdLoadTextures(mesh, token, skin) {
-  const jobs = new Map();
+// ctx: the viewer's (MD) or a capture's; the count of the skin's textures drawn
+async function mdLoadTextures(mesh, token, skin, ctx = MD) {
+  const jobs = new Map(), live = () => token === ctx.token, shown = ctx === MD;
   const skinFile = name => skin?.replace.find(r => name.toLowerCase().startsWith(r.from))?.to;
   let drawn = 0;
   for (const g of mesh.groups) {
@@ -516,23 +535,24 @@ async function mdLoadTextures(mesh, token, skin) {
   }
   const queue = [...jobs], total = queue.length;
   let done = 0;
-  const info = () => { $('#mdInfo').textContent = t('model.stats', { n: I18N.num(mesh.triangles) }) + (done < total ? ' · ' + t('model.textures', { n: done, total }) : ''); };
+  const info = () => { if (shown) $('#mdInfo').textContent = t('model.stats', { n: I18N.num(mesh.triangles) }) + (done < total ? ' · ' + t('model.textures', { n: done, total }) : ''); };
   info();
   const worker = async () => {
-    while (queue.length && token === MD.token) {
+    while (queue.length && live()) {
       const [name, users] = queue.shift();
       try {
-        const file = skinFile(name), painted = file ? await mdSkinTexture(MD, skin.name, file).catch(() => null) : null;
+        const file = skinFile(name), painted = file ? await mdSkinTexture(ctx, skin.name, file).catch(() => null) : null;
         if (painted) drawn++;
-        const tex = painted || await mdTexture(MD, name);
-        if (tex && token === MD.token) for (const [g, slot] of users) g.tex[slot] = tex;
+        const tex = painted || await mdTexture(ctx, name);
+        if (tex && live()) for (const [g, slot] of users) g.tex[slot] = tex;
       } catch (e) { console.warn(name, e); }
       done++;
-      if (token === MD.token) info();
+      if (live()) info();
     }
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
-  if (skin && token === MD.token) $('#mdInfo').textContent += ` · ${t(drawn ? 'mo.showing' : 'mo.noPreview', { name: skin.name })}`;
+  if (skin && live() && shown) $('#mdInfo').textContent += ` · ${t(drawn ? 'mo.showing' : 'mo.noPreview', { name: skin.name })}`;
+  return drawn;
 }
 
 function mdClear() {
@@ -549,12 +569,11 @@ function mdClear() {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 }
 
-function mdShow(mesh) {
-  const cv = $('#mdCanvas'), gl = MD.gl ||= cv.getContext('webgl2', { antialias: true, alpha: true });
-  if (!gl) throw new Error('no WebGL2');
-  MD.prog ||= mdProgram(gl, MD_VS, MD_FS);
-  MD.vao = gl.createVertexArray();
-  gl.bindVertexArray(MD.vao);
+// the mesh on ctx's graphics card (the viewer's MD, or a capture's own)
+function mdUpload(ctx, mesh) {
+  const gl = ctx.gl;
+  ctx.vao = gl.createVertexArray();
+  gl.bindVertexArray(ctx.vao);
   const buffer = (target, data, attr, size) => {
     const b = gl.createBuffer();
     gl.bindBuffer(target, b);
@@ -563,7 +582,7 @@ function mdShow(mesh) {
       gl.enableVertexAttribArray(attr);
       gl.vertexAttribPointer(attr, size, gl.FLOAT, false, 0, 0);
     }
-    MD.buffers.push(b);
+    ctx.buffers.push(b);
   };
   buffer(gl.ARRAY_BUFFER, mesh.pos, 0, 3);
   buffer(gl.ARRAY_BUFFER, mesh.nor, 1, 3);
@@ -572,12 +591,20 @@ function mdShow(mesh) {
   const size = [0, 1, 2].map(i => mesh.max[i] - mesh.min[i]);
   mesh.center = [0, 1, 2].map(i => (mesh.max[i] + mesh.min[i]) / 2);
   mesh.radius = Math.hypot(...size) / 2 || 1;
+}
+
+function mdShow(mesh) {
+  const cv = $('#mdCanvas'), gl = MD.gl ||= cv.getContext('webgl2', { antialias: true, alpha: true });
+  if (!gl) throw new Error('no WebGL2');
+  MD.prog ||= mdProgram(gl, MD_VS, MD_FS);
+  mdUpload(MD, mesh);
   Object.assign(MD, { mesh, yaw: 0.7, pitch: 0.3, dist: mesh.radius * 2.2, spin: true, last: performance.now() });
   MD.raf = requestAnimationFrame(mdFrame);
 }
 
-function mdMatrix(mesh, aspect) {
-  const c = mesh.center, cp = Math.cos(MD.pitch), eye = [c[0] + MD.dist * cp * Math.sin(MD.yaw), c[1] + MD.dist * Math.sin(MD.pitch), c[2] + MD.dist * cp * Math.cos(MD.yaw)];
+// view: {yaw, pitch, dist} round the mesh's centre
+function mdMatrix(mesh, aspect, view = MD) {
+  const c = mesh.center, cp = Math.cos(view.pitch), eye = [c[0] + view.dist * cp * Math.sin(view.yaw), c[1] + view.dist * Math.sin(view.pitch), c[2] + view.dist * cp * Math.cos(view.yaw)];
   const norm = a => { const l = Math.hypot(...a); return a.map(x => x / l); };
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -599,19 +626,25 @@ function mdFrame(now) {
   MD.last = now;
   const cv = gl.canvas, dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  mdDraw(MD, mesh, MD, w, h);
+}
+
+// one picture of the mesh into ctx's canvas, w by h, seen from view ({yaw, pitch, dist, hiddenParts})
+function mdDraw(ctx, mesh, view, w, h) {
+  const gl = ctx.gl;
   gl.viewport(0, 0, w, h);
   gl.enable(gl.DEPTH_TEST);
   gl.clearColor(0, 0, 0, 0);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.useProgram(MD.prog);
-  const at = name => gl.getUniformLocation(MD.prog, name);
-  const { eye, vp } = mdMatrix(mesh, w / (h || 1));
+  gl.useProgram(ctx.prog);
+  const at = name => gl.getUniformLocation(ctx.prog, name);
+  const { eye, vp } = mdMatrix(mesh, w / (h || 1), view);
   gl.uniformMatrix4fv(at('uVp'), false, vp);
   gl.uniform3fv(at('uEye'), eye);
   ['uColor', 'uCamo', 'uNormal', 'uAo'].forEach((name, i) => gl.uniform1i(at(name), i));
-  gl.bindVertexArray(MD.vao);
+  gl.bindVertexArray(ctx.vao);
   for (const g of mesh.groups) {
-    if (MD.hiddenParts.has(g.part)) continue;
+    if (view.hiddenParts.has(g.part)) continue;
     const tex = g.tex || {}, m = g.material, glass = /glass/.test(m.cls);
     ['color', 'camo', 'normal', 'ao'].forEach((slot, i) => {
       gl.activeTexture(gl.TEXTURE0 + i);
@@ -670,6 +703,43 @@ async function openModel(kind, id, title, view, skin) {
   } catch (e) {
     console.warn(e);
     if (token === MD.token) $('#mdInfo').textContent = t('model.none');
+  }
+}
+
+// The picture of a vehicle for the lists, for what the encyclopedia has none of (a mod's vehicle, a skin): drawn away from
+// the page from the front left, cut to what was drawn, transparent round it. A PNG, or null when it can't be drawn (a skin
+// none of whose textures can be: the picture would be the vehicle's own paint)
+const MD_SHOT = { yaw: 2.2, pitch: 0.28, size: 1024, width: 640, pad: 6 };
+async function mdCapture(id, skin) {
+  const res = await fetch(`/api/model/vehicle/${encodeURIComponent(id)}`);
+  if (!res.ok) return null;
+  const mesh = await mdParse(new Uint8Array(await res.arrayBuffer()), true);
+  const { size, width, pad } = MD_SHOT, cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const gl = mesh.triangles && cv.getContext('webgl2', { antialias: true, alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
+  if (!gl) return null;
+  const ctx = { gl, prog: mdProgram(gl, MD_VS, MD_FS), buffers: [], textures: [], token: 0 };
+  try {
+    mdUpload(ctx, mesh);
+    if (!(await mdLoadTextures(mesh, 0, skin, ctx)) && skin) return null;
+    mdDraw(ctx, mesh, { ...MD_SHOT, dist: mesh.radius / Math.sin(0.35), hiddenParts: new Set() }, size, size);
+    const px = new Uint8Array(size * size * 4);
+    gl.readPixels(0, 0, size, size, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    let x0 = size, x1 = -1, y0 = size, y1 = -1;  // rows from the bottom
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (!px[(y * size + x) * 4 + 3]) continue;
+        x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+      }
+    }
+    if (x1 < 0) return null;
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, scale = Math.min(1, width / w), out = document.createElement('canvas');
+    out.width = Math.round(w * scale) + 2 * pad;
+    out.height = Math.round(h * scale) + 2 * pad;
+    out.getContext('2d').drawImage(cv, x0, size - 1 - y1, w, h, pad, pad, out.width - 2 * pad, out.height - 2 * pad);
+    return await new Promise(done => out.toBlob(done, 'image/png'));
+  } finally {
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
 }
 

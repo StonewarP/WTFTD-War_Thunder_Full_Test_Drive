@@ -111,6 +111,8 @@ _re = re
 
 def _parse_value(typ: str, raw: str):
     raw = raw.strip()
+    if typ != "t" and len(raw) > 1 and raw[0] in "\"'" and raw[-1] == raw[0]:
+        raw = raw[1:-1]  # r="1000.0": a mod's (the CL-1201's), read by the game as the number
     if typ == "t":
         return raw[1:-1] if raw[:1] in "\"'" else raw
     if typ in ("i", "i64"):
@@ -148,12 +150,30 @@ def _strip(d):
     return d
 
 
+def _comment_end(text: str, i: int) -> int:
+    """Past the /* */ comment at i, those inside it too: the game nests them (the F-22 free flight's displays)."""
+    depth, n = 0, len(text)
+    while i < n:
+        if text.startswith("/*", i):
+            depth, i = depth + 1, i + 2
+        elif text.startswith("*/", i):
+            depth, i = depth - 1, i + 2
+            if not depth:
+                return i
+        else:
+            i += 1
+    return n
+
+
 def loads(text: str) -> dict:
     root: dict = {}
     stack = [root]
     i, n = 0, len(text)
     while i < n:
-        m = _re.compile(r"\s+|//[^\n]*|/\*.*?\*/", _re.S).match(text, i)
+        if text.startswith("/*", i):
+            i = _comment_end(text, i)
+            continue
+        m = _re.compile(r"\s+|//[^\n]*").match(text, i)
         if m and m.end() > i:
             i = m.end()
             continue
@@ -166,6 +186,11 @@ def loads(text: str) -> dict:
             raise ValueError(f"BLK parse error at {i}: {text[i:i+40]!r}")
         key = m.group(1).strip("\"'")
         i = m.end()
+        if key == "include" and text[i:i + 1] and text[i] in "\"'":  # include "b_52h.blk": the game reads that one here
+            j = text.index(text[i], i + 1)
+            _add(stack[-1], "@include", text[i + 1:j])
+            i = j + 1
+            continue
         if text[i:i + 1] == "{":
             blk: dict = {}
             _add(stack[-1], key, blk)

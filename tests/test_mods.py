@@ -1,9 +1,11 @@
 """Skins and sounds: everything here works in a made-up game folder, with archives made on the spot."""
+import base64
 import io
 import json
 import os
 import shutil
 import stat
+import struct
 import subprocess
 import tempfile
 import threading
@@ -14,7 +16,7 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
-from wtftd import mods, server, uninstall
+from wtftd import blk, builder, imports, mission, mods, server, uninstall
 from wtftd.paths import WEB
 
 CONFIG = b'graphicsQuality:t="custom"\r\nlanguage:t="French"\r\n\r\nsound{\r\n  speakerMode:t="auto"\r\n  fmod_sound_enable:b=yes\r\n}\r\n\r\nyunetwork{\r\n  curCircuit:t="production"\r\n}\r\n'
@@ -66,7 +68,7 @@ class Names(unittest.TestCase):
     def test_what_could_go_elsewhere_is_refused(self):
         for name in ("../evil.tga", "a/../../evil.tga", "..\\evil.tga", "/etc/passwd", "\\\\server\\share\\x.tga", "C:\\Windows\\x.tga", "C:evil.tga",
                      "a//b.tga", "./a.tga", "con.tga", "a/NUL.blk", "lpt1.txt", "a.tga ", "a.tga.", "a:stream.tga", "a|b.tga", "bad\x00name.tga",
-                     "x" * 300 + ".tga", "/".join("abcdefgh"), "", None, 5):
+                     "x" * 300 + ".tga", "/".join("abcdefghij"), "", None, 5):
             with self.assertRaises(mods.ModsError, msg=name):
                 mods.safe_path(name)
 
@@ -120,9 +122,16 @@ class Archives(Base):
         with mock.patch.object(mods, "MAX_TOTAL", 150):
             self.refused("size", {"s/a.tga": b"1" * 100, "s/b.tga": b"2" * 100})
 
-    def test_a_compression_ratio_past_the_limit(self):
-        self.refused("ratio", {"s/bomb.tga": b"\0" * (4 << 20)})
-        self.stage({"s/rafale_c_f3.blk": BLK, "s/small.tga": b"\0" * 900_000})  # small files can be empty paint
+    def test_a_compression_ratio_past_the_limit(self):  # of the whole archive
+        with mock.patch.object(mods, "RATIO_FROM", 1 << 20):
+            self.refused("ratio", {"s/bomb.tga": b"\0" * (4 << 20)})
+            self.stage({"s/rafale_c_f3.blk": BLK, "s/small.tga": b"\0" * 900_000})  # small archives can be empty paint
+
+    def test_one_flat_texture_in_a_real_skin(self):  # the F-4 MECHA's normal detail packs 860 times
+        real = os.urandom(3 << 20)
+        with mock.patch.object(mods, "RATIO_FROM", 1 << 20):
+            found = self.stage({"s/rafale_c_f3.blk": BLK, "s/rafale_c_f3.tga": real, "s/flat_n.dds": b"\x80" * (4 << 20)})
+        self.assertEqual(found["skins"][0]["vehicle"], "rafale_c_f3")
 
     def test_a_real_skin_passes_the_ratio(self):
         real = bytes(range(256)) * 20_000 + os.urandom(1 << 20)
@@ -268,9 +277,9 @@ class Guess(unittest.TestCase):
     def test_nothing_to_go_by(self):
         self.assertEqual(mods.guess_vehicle("cool camo", ["a.tga"], [], IDS), {"vehicle": "", "sure": False, "candidates": []})
 
-    def test_two_vehicles_ask(self):
-        g = mods.guess_vehicle("pack", ["f_16a.blk", "rafale_c_f3.blk"], [], IDS)
-        self.assertEqual((g["sure"], sorted(g["candidates"])), (False, ["f_16a", "rafale_c_f3"]))
+    def test_a_skin_for_several_vehicles(self):  # one .blk each, as the game reads it (the F-14 New Jersey's, the F-4 MECHA's)
+        g = mods.guess_vehicle("pack", ["f_16a.blk", "f_16a_block_20.blk", "f_16a_c.tga"], [], IDS)
+        self.assertEqual((g["sure"], g["vehicle"], g["vehicles"]), (True, "f_16a", ["f_16a", "f_16a_block_20"]))
 
 
 class Ownership(Base):
@@ -325,7 +334,7 @@ class Ownership(Base):
         mods.MANIFEST.parent.mkdir()
         for text in ("{ broken", "[1]", '{"skins": 5}', '{"skins": {"a": 5}}'):
             mods.MANIFEST.write_text(text)
-            self.assertEqual(mods.read_manifest(), {"skins": {}, "sounds": {}})
+            self.assertEqual(mods.read_manifest(), {"skins": {}, "sounds": {}, "vehicles": {}})
 
     def test_nothing_is_written_outside_the_two_folders(self):
         before = {p for p in self.game.rglob("*")}
@@ -385,11 +394,15 @@ class Sounds(Base):
         self.assertEqual(e.exception.code, "exists")
         self.assertEqual((self.game / "sound" / "mod" / "a.bank").read_bytes(), b"own")
 
-    def test_not_while_the_game_runs(self):
+    def test_in_with_the_game_running_out_only_closed(self):  # new banks: heard from its next start; open ones: not removed
         self.stage({"a.bank": b"1"}, "sound")
+        mods.install(self.game, "abcdef", "sound", running=True)
+        self.assertTrue((self.game / "sound" / "mod" / "a.bank").is_file())
+        name, = mods.read_manifest()["sounds"]
         with self.assertRaises(mods.ModsError) as e:
-            mods.install(self.game, "abcdef", "sound", running=True)
+            mods.remove(self.game, "sound", name, running=True)
         self.assertEqual(e.exception.code, "running")
+        self.assertTrue((self.game / "sound" / "mod" / "a.bank").is_file())
 
 
 class Config(Base):
@@ -502,7 +515,7 @@ class Remove(Base):
 
     def test_it_is_a_part_of_uninstall(self):
         self.assertIn("mods", uninstall.PARTS)
-        self.assertEqual(uninstall.info(self.game)["mods"], {"skins": 1, "sounds": 1, "config": True})
+        self.assertEqual(uninstall.info(self.game)["mods"], {"skins": 1, "sounds": 1, "vehicles": 0, "config": True})
 
     def test_uninstall_takes_what_wtftd_installed_and_gives_the_file_back(self):
         res = uninstall.run(["mods"], self.game)
@@ -578,6 +591,433 @@ class SkinTextures(unittest.TestCase):
     def test_dds(self):
         self.assertEqual(self.got["dxt"], ["DXT1", 4, 4, 8])
         self.assertEqual(self.got["plain"], [0, 0, 255, 255])
+
+
+FM = b"""Vne:r=1540
+VneMach:r=2.1
+Mass{
+  EmptyMass:r=18000
+  GearDestructionIndSpeed:r=700
+}
+Aerodynamics{
+  WingPlane{
+    Strength{
+      VNE:r=1540
+      MNE:r=2.1
+    }
+  }
+}
+"""
+AIRCRAFT = b'model:t="j50"\nfmFile:t="fm/j50.blk"\nweapon_presets{\n  preset{\n    name:t="j50_default"\n    blk:t="gameData/FlightModels/weaponPresets/j50_default.blk"\n  }\n}\n'
+J50_MISSION = (b'mission_settings{\n  player{\n    army:i=1\n    wing:t="t1_player01"\n  }\n  mission{\n    name:t="j50_test"\n'
+               b'    level:t="levels/avg_training_ground.bin"\n  }\n}\nunits{\n  armada{\n    name:t="t1_player01"\n'
+               b'    tm:m=[[1, 0, 0] [0, 1, 0] [0, 0, 1] [0, 1000, 0]]\n    unit_class:t="j50"\n    props{\n      army:i=1\n    }\n  }\n}\n')
+PACKAGE = {"README.txt": b"Copy content and UserMissions into the game.",
+           "content/pkg_local/gameData/flightModels/j50.blk": AIRCRAFT,
+           "content/pkg_local/gameData/flightModels/fm/j50.blk": FM,
+           "content/pkg_local/gameData/flightModels/weaponPresets/j50_default.blk": b"weapon{}",
+           "content/pkg_local/res/pkg_local_/j50.grp": b"\0model", "content/pkg_local/res/pkg_local_/j50.dxp.bin": b"\0textures",
+           "UserMissions/J50/j50_test.blk": J50_MISSION, "UserMissions/J50/usr_j50.csv": "<ID|readonly|noverify>;English\nj50;J-50\n".encode()}
+
+
+def own_grp(names: list, textures: list) -> bytes:
+    """A mod's pack (GRP2): its names, then one model carrying its texture names."""
+    strings_at = 64 + 4 * len(names)
+    strings, spots = b"", []
+    for n in names:
+        spots.append(strings_at + len(strings))
+        strings += n.encode() + b"\0"
+    res_at = strings_at + len(strings)
+    model_at = res_at + 12
+    tex = b"".join(t.encode() + b"\0" for t in textures)
+    offs, at = [], 16
+    for t in textures:
+        offs.append(at)
+        at += len(t) + 1
+    block = struct.pack("<IIQ", 16 + len(tex), len(textures), 0) + tex + b"".join(struct.pack("<I", o) for o in offs)
+    model = struct.pack("<5I", 4, len(textures), 0, 0, 0) + struct.pack("<I", len(block)) + block
+    head = b"GRP2" + struct.pack("<III", model_at - 16, model_at - 16, 0)
+    head += struct.pack("<IIQ", 64, len(names), 0) + struct.pack("<IIQ", res_at, 1, 0) + struct.pack("<IIQ", res_at, 1, 0)
+    return head + b"".join(struct.pack("<i", s) for s in spots) + strings + struct.pack("<IIHH", mods.DYNMODEL, model_at, 0, 0) + model
+
+
+def own_dxp(names: list) -> bytes:
+    """A texture pack (DxP2): its names' table and names."""
+    strings_at = 16 + 8 * len(names)
+    strings, spots = b"", []
+    for n in names:
+        spots.append(strings_at + len(strings))
+        strings += n.encode() + b"\0"
+    dump = struct.pack("<IIQ", 16, len(names), 0) + b"".join(struct.pack("<Q", s) for s in spots) + strings
+    return b"DxP2" + struct.pack("<III", 2, len(names), len(dump)) + dump
+
+
+class Vehicles(Base):
+    """A custom-vehicle package (the J-50's shape): into content/pkg_local and UserMissions, its vehicle offered in WTFTD."""
+
+    def install(self, files=PACKAGE, running=False):
+        found = self.stage(files, "vehicle", name="J50_v014.zip")
+        mods.install(self.game, "abcdef", "vehicle", ids=IDS, running=running)
+        return found["vehicle"]
+
+    def test_installed_where_its_readme_says_and_offered(self):
+        found = self.install()
+        self.assertEqual((found["name"], found["missions"], found["files"]), ("J50_v014", ["j50_test.blk"], 7))  # the README stays out
+        v, = found["vehicles"]
+        self.assertEqual({k: v[k] for k in ("id", "name", "kind", "block", "preset", "model")},
+                         {"id": "j50", "name": "J-50", "kind": "air", "block": "armada", "preset": "j50_default", "model": "j50"})
+        self.assertEqual((v["lim"]["v"], v["lim"]["m"], v["lim"]["mass"]), (1540, 2.1, 18000))  # its own flight model
+        self.assertTrue((self.game / "content/pkg_local/gamedata/flightModels/j50.blk").is_file())  # gamedata: as WTFTD writes
+        self.assertTrue((self.game / "content/pkg_local/res/pkg_local_/j50.dxp.bin").is_file())
+        self.assertTrue((self.game / "UserMissions/J50/usr_j50.csv").is_file())
+        self.assertFalse((self.game / "README.txt").exists())
+        self.assertEqual(list(mods.mod_vehicles()), ["j50"])
+        self.assertEqual(mods.mod_vehicles()["j50"]["package"], "J50_v014")
+        pkg, = mods.vehicle_packages(self.game)
+        self.assertEqual((pkg["name"], pkg["files"], pkg["missions"]), ("J50_v014", 7, ["j50_test.blk"]))
+
+    def test_removed_whole(self):
+        self.install()
+        mods.remove(self.game, "vehicle", "J50_v014")
+        self.assertEqual((mods.mod_vehicles(), mods.vehicle_packages(self.game)), ({}, []))
+        self.assertFalse((self.game / "content").exists())
+        self.assertFalse((self.game / "UserMissions").exists())
+
+    def test_uninstall_takes_them_too_unless_the_game_runs(self):
+        self.install()
+        self.assertEqual(mods.counts()["vehicles"], 1)
+        self.assertTrue(mods.remove_all(self.game, running=True)["kept"])  # left for a later try, still listed
+        self.assertEqual(list(mods.read_manifest()["vehicles"]), ["J50_v014"])
+        self.assertTrue((self.game / "content/pkg_local/gamedata/flightModels/j50.blk").is_file())
+        mods.remove_all(self.game, running=False)
+        self.assertFalse((self.game / "content").exists())
+        self.assertEqual(mods.read_manifest()["vehicles"], {})
+
+    def test_what_a_package_cant_hold_refuses_it_whole(self):
+        for code, extra in (("place", {"content/pkg_local/gameData/flightModels/evil.bin": b"x"}),  # a .bin out of res/
+                            ("place", {"content/pkg_main/gameData/x.blk": b"x"}),  # not one of the user packages
+                            ("place", {"Saves/x.blk": b"x"}),
+                            ("type", {"content/pkg_local/res/run.exe": b"MZ"})):
+            with self.subTest(extra=list(extra)):
+                with self.assertRaises(mods.ModsError) as e:
+                    self.stage({**PACKAGE, **extra}, "vehicle")
+                self.assertEqual(e.exception.code, code)
+                mods.forget("abcdef")
+        self.assertFalse((self.game / "content").exists())
+
+    def test_one_of_the_games_vehicles_goes_in_as_a_copy(self):  # the FA-22+'s Su-33: the game's stays as it is
+        mine = b'include "f_16a_base.blk"\nmodel:t="j50"\nfmFile:t="fm/j50.blk"\n'
+        self.stage({**PACKAGE, "content/pkg_local/gameData/flightModels/f_16a.blk": mine,
+                    "UserMissions/J50/j50_test.blk": J50_MISSION.replace(b'unit_class:t="j50"', b'unit_class:t="f_16a"')}, "vehicle")
+        mods.install(self.game, "abcdef", "vehicle", ids=IDS)
+        flight = self.game / "content/pkg_local/gamedata/flightModels"
+        self.assertFalse((flight / "f_16a.blk").exists())
+        self.assertEqual((flight / "pack/f_16a.blk").read_text(),
+                         'include "#/develop/gameBase/gamedata/flightModels/f_16a_base.blk"\nmodel:t="j50"\nfmFile:t="fm/j50.blk"\n')
+        self.assertEqual((flight / "pack/fm/j50.blk").read_text(), 'include "#/develop/gameBase/gamedata/flightModels/fm/j50.blk"\n')
+        self.assertIn(b'unit_class:t="pack/f_16a"', (self.game / "UserMissions/J50/j50_test.blk").read_bytes())  # its missions fly the copy
+        m, = mods.read_manifest()["vehicles"].values()
+        v = next(v for v in m["vehicles"] if v.get("copy"))
+        self.assertEqual((v["id"], v["unit"], v["copy"], v["name"], m["copies"]),
+                         ("pack.f_16a", "pack/f_16a", "f_16a", "f_16a", {"vehicles": ["f_16a"]}))  # named as the game's, not its folder
+        mods.remove(self.game, "vehicle", "pack")
+        self.assertFalse((self.game / "content").exists())
+
+    def test_models_and_textures_named_like_the_games_are_renamed(self):  # the F-22 free flight's su_33 and empty_glass
+        files = {"content/pkg_local/gameData/flightModels/ac_su_33.blk": b'model:t="su_33"\n',
+                 "content/pkg_local/res/pkg_local_/su_33.grp": own_grp(["su_33", "su_33_skeleton", "rack"], ["empty_glass*", "su_33_c*"]),
+                 "content/pkg_local/res/pkg_local_/su_33.dxp.bin": own_dxp(["empty_glass*", "su_33_c*"])}
+        there = ({"su_33", "su_33_skeleton"}, {"empty_glass"})
+        with mock.patch.object(mods, "_game_names", lambda game: there):
+            found = self.stage(files, "vehicle")["vehicle"]
+            mods.install(self.game, "abcdef", "vehicle", ids=IDS)
+        self.assertEqual(found["copies"], {"models": ["su_33"], "textures": ["empty_glass"]})
+        self.assertEqual(found["vehicles"][0]["model"], "z0_33")
+        res = self.game / "content/pkg_local/res/pkg_local_"
+        grp = (res / "su_33.grp").read_bytes()
+        self.assertEqual([n for _, n in mods._grp_names(grp)], ["z0_33", "z0_33_skeleton", "rack"])
+        self.assertEqual([n for _, n in mods._grp_textures(grp)], ["z0pty_glass*", "su_33_c*"])
+        self.assertEqual([n for _, n in mods._dxp_names((res / "su_33.dxp.bin").read_bytes())], ["z0pty_glass*", "su_33_c*"])
+        self.assertEqual((self.game / "content/pkg_local/gamedata/flightModels/ac_su_33.blk").read_text(), 'model:t="z0_33"\n')
+
+    def test_a_tank_gets_the_shells_its_mission_gives_it(self):  # the T-14's: empty slots gave it one round, no reload
+        tank = (b'model:t="t_14"\ncommonWeapons{\n  Weapon{\n    blk:t="gameData/Weapons/groundModels_weapons/gun.blk"\n    bullets:i=45\n  }\n'
+                b'  Weapon{\n    bullets:i=300\n  }\n}\n')
+        armata = ('mission_settings{\n  player{\n    army:i=1\n    wing:t="me"\n  }\n  mission{\n    name:t="armata"\n'
+                  '    level:t="levels/avg_training_ground.bin"\n  }\n}\nunits{\n  tankModels{\n    name:t="me"\n'
+                  '    tm:m=[[1, 0, 0] [0, 1, 0] [0, 0, 1] [0, 0, 0]]\n    unit_class:t="t_14"\n    bullets0:t="125mm_3bm42"\n'
+                  '    bullets1:t=""\n    bulletsCount0:i=20\n    bulletsCount1:i=10\n  }\n}\n').encode()
+        files = {"content/pkg_local/gameData/units/tankModels/t_14.blk": tank}
+        v, = self.stage({**files, "UserMissions/Armata/armata.blk": armata}, "vehicle")["vehicle"]["vehicles"]
+        self.assertEqual(v["ammo"], [{"id": "125mm_3bm42", "count": 20}, {"id": "", "count": 10}, {"id": "", "count": 0}, {"id": "", "count": 0}])
+        mods.forget("abcdef")
+        v, = self.stage(files, "vehicle")["vehicle"]["vehicles"]
+        self.assertEqual(v["ammo"], [{"id": "", "count": 45}])  # no mission: its gun full of its own shell
+
+    def test_a_model_the_game_wont_draw_is_told(self):  # the Ratte's, of an old modding kit: invisible in battle
+        from tests.test_models import grp, scene_model
+        self.assertNotIn("invisible", self.stage(PACKAGE, "vehicle")["vehicle"]["vehicles"][0])
+        mods.forget("abcdef")
+        old = grp([(mods.DYNMODEL, "j50", scene_model(0x60)), (mods.DYNMODEL, "j50_dmg", scene_model(0x60))])
+        self.assertTrue(self.install({**PACKAGE, "content/pkg_local/res/pkg_local_/j50.grp": old})["vehicles"][0]["invisible"])
+        self.assertTrue(mods.vehicle_packages(self.game)[0]["vehicles"][0]["invisible"])  # still said in the list
+
+    def test_its_weapons_for_any_pylon(self):  # the J-50's PL-15: in the pylon catalog under its package, and in My weapons
+        pl15 = (b'rocketGun:b=yes\nmesh:t="j50_pl15_flight"\nrocket{\n  bulletName:t="cn_pl15"\n  iconType:t="missile_type_b_air_to_air_midrange"\n'
+                b'  mass:r=210.0\n  machMax:r=4.5\n  guidanceType:t="radar"\n  bulletType:t="aam"\n}\n')
+        weapons = "content/pkg_local/gameData/Weapons/"
+        self.install({**PACKAGE, weapons + "rocketGuns/j50_pl15_internal.blk": pl15,
+                      weapons + "rocketGuns/j50_pl15_light.blk": b'include "j50_pl15_internal.blk"\n"@override:rocket"{\n  mass:r=100.0\n}\n',
+                      weapons + "containers/j50_pl15_bay.blk": b'container:b=yes\nblk:t="gameData/Weapons/rocketGuns/j50_pl15_internal.blk"\n',
+                      weapons + "groundModels_weapons/125mm_2a82_user_cannon.blk": b'bullet{\n  caliber:r=0.125\n}\n',  # a tank's
+                      weapons + "rocketGuns/us_aim9l.blk": pl15,  # named like one of the game's
+                      "UserMissions/J50/usr_j50.csv": "<ID|readonly|noverify>;English\nj50;J-50\nweapons/j50_pl15_internal/short;PL-15\n".encode()})
+        game = {"us_aim9l": {"p": "gameData/Weapons/rocketguns/us_aim9l.blk", "c": "aam_ir", "ic": "missile_type_b_air_to_air_midrange"}}
+        got = mods.package_weapons(self.game, game)
+        self.assertEqual(sorted(got), ["j50_pl15_internal", "j50_pl15_light"])  # not the bay, the tank's gun, the game's
+        w = got["j50_pl15_internal"]
+        self.assertEqual({k: w[k] for k in ("p", "c", "g", "t", "m", "ic", "pkg", "name", "md")},
+                         {"p": "gamedata/Weapons/rocketGuns/j50_pl15_internal.blk", "c": "aam_radar", "g": "radar", "t": "aam", "m": 210.0,
+                          "ic": "missile_type_b_air_to_air_midrange", "pkg": "J50_v014", "name": "PL-15", "md": "j50_pl15_flight"})
+        self.assertEqual((got["j50_pl15_light"]["m"], got["j50_pl15_light"]["name"]), (100.0, "J50 PL15 Light"))  # what it includes counts
+        self.assertEqual(mods.package_weapon(self.game, "content/pkg_local/gamedata/Weapons/rocketGuns/elsewhere.blk"), {})
+        # in WTFTD: the pylon catalog, the page's list, the editor's values
+        data = self.root / "data"
+        data.mkdir()
+        (data / "weapons.json").write_text(json.dumps(game), encoding="utf-8")
+        with mock.patch.object(server, "DATA", data), mock.patch.object(server.STATE, "catalog", None), \
+                mock.patch.object(server.STATE, "game_dir", return_value=self.game):
+            self.assertEqual(sorted(server.STATE.get_catalog()), ["j50_pl15_internal", "j50_pl15_light", "us_aim9l"])
+            base = server.weapon_base("j50_pl15_internal")
+            self.assertEqual((base["kind"], base["mass"], base["mach"], base["guided"]), ("rocket", 210.0, 4.5, True))
+            mods.remove(self.game, "vehicle", "J50_v014")
+            server.STATE.forget_vehicles()
+            self.assertEqual(sorted(server.STATE.get_catalog()), ["us_aim9l"])  # gone with it: WTFTD leaves its pylons empty
+            self.assertIsNone(server.weapon_base("j50_pl15_internal"))
+
+    def test_one_of_its_missions_out_of_the_game(self):  # its vehicle stays; the folder's texts go with its last mission
+        self.install()
+        self.assertFalse(mods.remove_mission(self.game, "elsewhere/x.blk"))
+        self.assertTrue(mods.remove_mission(self.game, "J50/j50_test.blk"))
+        self.assertFalse((self.game / "UserMissions").exists())
+        self.assertTrue((self.game / "content/pkg_local/gamedata/flightModels/j50.blk").is_file())
+        m, = mods.read_manifest()["vehicles"].values()
+        self.assertEqual((m["missions"], [f for f in m["files"] if f.startswith("UserMissions")]), ([], []))
+        mods.remove(self.game, "vehicle", "J50_v014")
+        self.assertFalse((self.game / "content").exists())
+
+    def test_no_vehicle_in_it(self):
+        with self.assertRaises(mods.ModsError) as e:
+            self.stage({"UserMissions/J50/j50_test.blk": b"mission_settings{}"}, "vehicle")
+        self.assertEqual(e.exception.code, "noVehicle")
+
+    def test_in_with_the_game_running_out_only_closed(self):  # new files: read at its next start; in use, removing could stop half way
+        self.install(running=True)
+        self.assertTrue((self.game / "content/pkg_local/gamedata/flightModels/j50.blk").is_file())
+        with self.assertRaises(mods.ModsError) as e:
+            mods.remove(self.game, "vehicle", "J50_v014", running=True)
+        self.assertEqual(e.exception.code, "running")
+        self.assertEqual(list(mods.mod_vehicles()), ["j50"])  # still listed: nothing of it left nobody's
+        mods.remove(self.game, "vehicle", "J50_v014")
+        self.assertFalse((self.game / "content").exists())
+
+    def test_not_over_what_is_there(self):
+        (self.game / "UserMissions/J50").mkdir(parents=True)
+        (self.game / "UserMissions/J50/j50_test.blk").write_bytes(b"the player's own")
+        self.stage(PACKAGE, "vehicle")
+        with self.assertRaises(mods.ModsError) as e:
+            mods.install(self.game, "abcdef", "vehicle", ids=IDS)
+        self.assertEqual(e.exception.code, "exists")
+        self.assertEqual((self.game / "UserMissions/J50/j50_test.blk").read_bytes(), b"the player's own")
+        self.assertFalse((self.game / "content").exists())
+
+
+class SeveralAtOnce(Base):
+    """Several .zip picked or dropped together, of any kind: each one's kind told from its files."""
+
+    def kind(self, files: dict, token: str) -> str:
+        z = archive(self.root / f"{token}.zip", files)
+        with open(z, "rb") as f:
+            mods.receive(token, z.name, f, z.stat().st_size, "auto")
+        return mods.detect(token)
+
+    def test_each_goes_where_it_belongs(self):
+        self.assertEqual(self.kind(PACKAGE, "pack0001"), "vehicle")
+        self.assertEqual(self.kind({"FA-22/pkg_local/gameData/flightModels/a.blk": b"model:t=\"a\"\n"}, "pack0002"), "vehicle")
+        self.assertEqual(self.kind({"engines/f16.bank": b"bank", "readme.txt": b"x"}, "pack0003"), "sound")
+        self.assertEqual(self.kind({"my rafale/rafale_c_f3_c.tga": b"tga", "my rafale/rafale_c_f3.blk": b"x"}, "pack0004"), "skin")
+
+    def test_only_an_archive(self):
+        with self.assertRaises(mods.ModsError) as e:
+            mods.receive("pack0005", "a.tga", io.BytesIO(b"1"), 1, "auto")
+        self.assertEqual(e.exception.code, "type")
+
+
+class PackageShapes(Base):
+    """What the packages players share do (CL-1201, Ratte, T-14, F-22 free flight, FA-22+), each read as the game reads it."""
+
+    def vehicles(self, files: dict, ids=IDS) -> list:
+        with open(archive(self.root / "pack.zip", files), "rb") as f:
+            mods.receive("abcdef", "pack.zip", f, (self.root / "pack.zip").stat().st_size, "vehicle")
+        return mods.inspect("abcdef", "vehicle", ids)["vehicle"]
+
+    def test_one_of_the_games_vehicles_with_changes_of_its_own(self):  # the CL-1201: the B-52H, its model, its flight model
+        dm = self.root / "dm" / "aces.vromfs.bin_u" / "gamedata" / "flightmodels"
+        (dm / "fm").mkdir(parents=True)
+        (dm / "b_52h.blkx").write_text(json.dumps({"model": "b_52h", "fmFile": "fm/b_52h.blk", "gunnerFps": {"pos": [1, 2, 3]},
+                                                   "weapon_presets": {"preset": {"name": "b_52h_default"}}}))
+        (dm / "fm" / "nt_tu_95m.blkx").write_text(json.dumps(blk.loads(FM.decode())))
+        mine = (b'include "b_52h.blk"\n"@override:model":t="cl1201"\n"@override:fmFile":t="fm/cl1201.blk"\n"@delete:gunnerFps"{}\n'
+                b'"@override:weapon_presets"{\n  preset{\n    name:t="cl1201_default"\n  }\n}\n')
+        fm = b'include "nt_tu_95m.blk"\n"@override:Vne":r="1000.0"\n'
+        with mock.patch.object(builder, "DM", self.root / "dm"):
+            v, = self.vehicles({"content/pkg_local/gameData/flightModels/cl1201.blk": mine,
+                                "content/pkg_local/gameData/flightModels/fm/cl1201.blk": fm})["vehicles"]
+        self.assertEqual((v["id"], v["model"], v["preset"]), ("cl1201", "cl1201", "cl1201_default"))
+        self.assertEqual((v["lim"]["v"], v["lim"]["m"]), (1000, 2.1))  # its own Vne, the rest the Tu-95's
+
+    def test_a_vehicle_in_a_folder_of_its_own(self):  # the Ratte: the Tetrarch's name, but not the game's Tetrarch
+        found = self.vehicles({"content/pkg_local/gameData/units/tankmodels/p1000_ratte/uk_a17_mk_1_tetrarch.blk": '\ufeffmodel:t="p1000"\n'.encode(),
+                               "content/pkg_local/gameData/units/tankmodels/p1000_ratte/notes.blk": b"no model here{}"},
+                              ids=(*IDS, "uk_a17_mk_1_tetrarch"))
+        v, = found["vehicles"]
+        self.assertEqual((v["id"], v["unit"], v["name"], v["kind"], v["model"]),
+                         ("p1000_ratte.uk_a17_mk_1_tetrarch", "p1000_ratte/uk_a17_mk_1_tetrarch", "p1000_ratte", "ground", "p1000"))
+
+    def test_a_file_that_names_no_model_is_not_a_vehicle(self):  # the T-14's empty flightModels file of its tank's name
+        found = self.vehicles({"content/pkg_local/gameData/flightModels/ussr_t_14_armata.blk": b"",
+                               "content/pkg_local/gameData/units/tankModels/ussr_t_14_armata.blk": b'model:t="t_14_armata"\n',
+                               "content/pkg_local/gameData/units/tankModels/ussr_t_14_armat.blk": b'model:t="t_14_armata"\n',
+                               "content/pkg_local/lang/usr.csv": b"<ID|readonly|noverify>;English\nussr_t_14_armata;T-14\nussr_t_14_armat;T-14\n"})
+        self.assertEqual([(v["id"], v["kind"], v["name"]) for v in found["vehicles"]],
+                         [("ussr_t_14_armat", "ground", "T-14 (ussr_t_14_armat)"), ("ussr_t_14_armata", "ground", "T-14 (ussr_t_14_armata)")])
+
+    def test_without_its_content_folder_and_with_pictures(self):  # the FA-22+'s pkg_local, the F-22's HUD pictures
+        self.stage({"pkg_local/gameData/flightModels/j50.blk": AIRCRAFT, "pkg_local/hud/hit.png": b"\x89PNG",
+                    "Usermissions/j50_test.blk": J50_MISSION, "Usermissions/template/parts.blk": b'mission_settings{\n  player{\n    wing:t="x"\n  }\n  mission{\n    level:t="levels/avg_training_ground.bin"\n  }\n}\nunits{}\n'},
+                   "vehicle")
+        mods.install(self.game, "abcdef", "vehicle", ids=IDS)
+        self.assertTrue((self.game / "content/pkg_local/gamedata/flightModels/j50.blk").is_file())
+        self.assertTrue((self.game / "content/pkg_local/hud/hit.png").is_file())
+        m, = mods.read_manifest()["vehicles"].values()
+        self.assertEqual(m["missions"], ["UserMissions/j50_test.blk"])  # parts aren't missions
+
+    def test_a_picture_goes_nowhere_else(self):
+        self.refused("place", {"content/pkg_local/res/pkg_local_/x.png": b"\x89PNG", "content/pkg_local/gameData/flightModels/j50.blk": AIRCRAFT}, "vehicle")
+
+
+class ModVehicleInWtftd(unittest.TestCase):
+    def test_listed_like_the_games_with_its_details(self):
+        v = {"id": "j50", "name": "J-50", "kind": "air", "block": "armada", "preset": "j50_default", "lim": {"v": 1540}, "package": "J50_v014"}
+        self.assertEqual({k: server.mod_vehicle(v)[k] for k in ("id", "c", "n", "mod", "name")},
+                         {"id": "j50", "c": "air", "n": "other", "mod": "J50_v014", "name": "J-50"})
+        d = server.mod_details(v)
+        self.assertEqual((d["b"], d["pr"][0]["id"], d["st"]["lim"], d["am"]), ("armada", "j50_default", {"v": 1540}, []))
+
+    def test_a_mission_names_a_vehicle_in_a_folder_by_its_place(self):
+        known = {"p1000_ratte.uk_a17_mk_1_tetrarch": {"id": "p1000_ratte.uk_a17_mk_1_tetrarch", "unit": "p1000_ratte/uk_a17_mk_1_tetrarch"},
+                 "f_16a": {"id": "f_16a"}}
+        self.assertEqual(server.known_vehicle({"vehicle": "p1000_ratte/uk_a17_mk_1_tetrarch", "preset": ""}, known)["vehicle"],
+                         "p1000_ratte.uk_a17_mk_1_tetrarch")
+        self.assertEqual(server.known_vehicle({"vehicle": "f_16a"}, known)["vehicle"], "f_16a")
+        self.assertIsNone(server.known_vehicle({"vehicle": "uk_a17_mk_1_tetrarch"}, known))
+
+    def test_its_model_is_the_one_its_file_names(self):
+        found = {"j50": {"id": "j50", "model": "j50_mk2"}, "old": {"id": "old"}}  # old: installed before WTFTD kept it
+        with mock.patch.object(mods, "mod_vehicles", return_value=found):
+            self.assertEqual((server.mod_model("j50"), server.mod_model("old"), server.mod_model("f_16a")), ("j50_mk2", "old", ""))
+
+
+class MissionsInTheGame(unittest.TestCase):
+    """My missions' Created in the game: WTFTD's own and the vehicle packages', as the game lists them."""
+
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.game = Path(d.name)
+        um = self.game / "UserMissions"
+        (um / "J50").mkdir(parents=True)
+        (um / "wtftd_f_16a.blk").write_text("mission")
+        (um / "usr_wtftd_f_16a.csv").write_text("texts")
+        (um / "usr_wtftd_gone.csv").write_text("texts of a mission deleted before")
+        (um / "J50" / "j50_test.blk").write_bytes(J50_MISSION)
+        (um / "J50" / "usr_j50.csv").write_text("<ID|readonly|noverify>;English\nmissions/j50_test;J-50 test flight\n")
+        manifest = {"skins": {}, "sounds": {}, "vehicles": {"J50_v014": {"files": ["UserMissions/J50/j50_test.blk", "UserMissions/J50/usr_j50.csv"],
+                                                                         "vehicles": [], "missions": ["UserMissions/J50/j50_test.blk"]}}}
+        for target, name, value in ((server.STATE, "game_dir", lambda: self.game), (server.STATE, "get_vehicles", lambda: {"j50": {"id": "j50"}}),
+                                    (mods, "read_manifest", lambda: manifest), (mods, "MANIFEST", self.game / "user" / "m.json"),
+                                    (server, "MISSION_SETUPS", self.game / "setups")):
+            patch = mock.patch.object(target, name, value)
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_the_packages_missions_are_listed_as_the_game_shows_them(self):
+        found = server.list_generated()
+        self.assertEqual([m["file"] for m in found], ["wtftd_f_16a.blk", "J50/j50_test.blk"])
+        self.assertEqual({k: found[1][k] for k in ("package", "title", "vehicle")}, {"package": "J50_v014", "title": "J-50 test flight", "vehicle": "j50"})
+
+    def test_several_at_once(self):  # the list's picked ones: WTFTD's own with their texts, a package's through its manifest
+        (self.game / "setups").mkdir()
+        (self.game / "setups" / "wtftd_f_16a.json").write_text("{}")
+        (self.game / "UserMissions" / "wtftd_f_16a.imports").mkdir()  # what it imports (imports.for_game)
+        (self.game / "UserMissions" / "wtftd_f_16a.imports" / "template_t.blk").write_text("areas{}")
+        with mock.patch.object(mods, "remove_mission") as removed:
+            for f in ("wtftd_f_16a.blk", "J50/j50_test.blk"):
+                server.delete_mission(self.game, f)
+        self.assertEqual(sorted(p.name for p in (self.game / "UserMissions").iterdir()), ["J50", "usr_wtftd_gone.csv"])
+        self.assertFalse((self.game / "setups" / "wtftd_f_16a.json").exists())
+        removed.assert_called_once_with(self.game, "J50/j50_test.blk")
+
+    def test_a_packages_mission_keeps_what_it_imports(self):  # the T-14's template: deleted from the game since, it still loads
+        um = self.game / "UserMissions"
+        (um / "template").mkdir()
+        (um / "template" / "t.blk").write_text("areas{}\n")
+        (um / "J50" / "j50_test.blk").write_bytes(J50_MISSION.replace(b"units{", b'imports{\n  import_record{\n    file:t="UserMissions/template/t.blk"\n  }\n}\nunits{', 1))
+        with mock.patch.object(imports, "IMPORTED", self.game / "imported"), mock.patch.object(mission, "IMPORTED", self.game / "imported"):
+            got, = server.package_missions(self.game, ["UserMissions/J50/j50_test.blk"])
+            self.assertEqual(imports.parts(got["scenario"]["id"]), {"UserMissions/template/t.blk": "areas{}\n"})
+
+    def test_a_deleted_missions_texts_go_with_it(self):
+        server.list_generated()
+        self.assertFalse((self.game / "UserMissions/usr_wtftd_gone.csv").exists())  # left by an older WTFTD
+        self.assertTrue((self.game / "UserMissions/usr_wtftd_f_16a.csv").exists())
+
+
+class Pictures(unittest.TestCase):
+    """What the page draws with its 3D view of a package's vehicle or of a skin, for the lists (model3d.js mdCapture)."""
+    PNG = base64.b64encode(server.PNG + b"pixels").decode()
+
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.dir = Path(d.name)
+        vehicles = {"j50": {"id": "j50", "mod": "J50_v014"}, "f_16a": {"id": "f_16a"}}
+        skins = [{"name": "Desert camo", "files": 2, "bytes": 300}]
+        for target, name, value in ((server, "CAPTURES", self.dir), (server.STATE, "get_vehicles", lambda: vehicles),
+                                    (server.STATE, "game_dir", lambda: self.dir), (mods, "skins", lambda gd, ids=(): skins)):
+            p = mock.patch.object(target, name, value)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_a_package_vehicle_keeps_its_picture(self):
+        url = server.save_capture("unit", "j50", self.PNG)
+        self.assertTrue(url.startswith("/img/capture/unit-j50.png?v="))
+        self.assertEqual((self.dir / "unit-j50.png").read_bytes(), server.PNG + b"pixels")
+        self.assertTrue(server.mod_vehicle({"id": "j50"})["pic"])
+
+    def test_a_skin_keeps_its_picture_until_its_files_change(self):
+        url = server.save_capture("skin", "Desert camo", self.PNG)
+        key = server.skin_key({"name": "Desert camo", "files": 2, "bytes": 300})
+        self.assertTrue(url.startswith(f"/img/capture/{key}.png"))
+        self.assertNotEqual(key, server.skin_key({"name": "Desert camo", "files": 2, "bytes": 301}))
+
+    def test_only_a_png_of_what_wtftd_lists(self):
+        self.assertIsNone(server.save_capture("unit", "f_16a", self.PNG))  # the game's own vehicles: the encyclopedia's pictures
+        self.assertIsNone(server.save_capture("skin", "not installed", self.PNG))
+        self.assertIsNone(server.save_capture("unit", "j50", base64.b64encode(b"<svg onload=x>").decode()))
+        self.assertIsNone(server.save_capture("unit", "j50", "not base64!"))
+        self.assertIsNone(server.save_capture("file", "../settings", self.PNG))
+        self.assertEqual(list(self.dir.iterdir()), [])
 
 
 if __name__ == "__main__":

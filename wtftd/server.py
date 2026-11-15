@@ -1,7 +1,10 @@
 """Local web server: static UI + JSON API + wiki image cache. Binds to 127.0.0.1 only."""
 from __future__ import annotations
 
+import base64
+import binascii
 import copy
+import hashlib
 import json
 import math
 import mimetypes
@@ -22,12 +25,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import DONATE, REPO, __version__, alarms, battle, bench, builder, cdk, challenges, flightlog, game, hangar, hud, maptex, mission, models, mods, patches, replays, sights, \
+from . import DONATE, REPO, __version__, alarms, battle, bench, builder, cdk, challenges, flightlog, game, hangar, hud, imports, maptex, mission, models, mods, patches, replays, sights, \
     terrain, uninstall, vromfs, waveout, x11, xoverlay
 from .paths import CACHE, DATA, FROZEN, HOME, USER, WEB
 
 ROOT = HOME
 IMG_CACHE = CACHE / "img"
+CAPTURES = IMG_CACHE / "capture"  # pictures the page drew with its 3D view of what the encyclopedia has none of: mods
+CAPTURE_KEY = re.compile(r"^(unit|skin)-[A-Za-z0-9_\-.]{1,120}$")
+PNG = b"\x89PNG\r\n\x1a\n"
 MISSION_SETUPS = USER / "missions"
 UA = "WTFTD/1.0 (local War Thunder test drive tool)"
 
@@ -83,19 +89,27 @@ class State:
     def get_details(self) -> dict:
         with self.lock:
             if self.details is None:
-                self.details = read_json(DATA / "details.json", {})
+                self.details = {**{v["id"]: mod_details(v) for v in mods.mod_vehicles().values()}, **read_json(DATA / "details.json", {})}
             return self.details
 
     def get_vehicles(self) -> dict:
         with self.lock:
             if self.vehicles is None:
-                self.vehicles = {v["id"]: v for v in read_json(DATA / "vehicles.json", [])}
+                self.vehicles = {**{v["id"]: mod_vehicle(v) for v in mods.mod_vehicles().values()},
+                                 **{v["id"]: v for v in read_json(DATA / "vehicles.json", [])}}
             return self.vehicles
 
+    def forget_vehicles(self):
+        """A vehicle package installed or removed: the lists are made again (its weapons too)."""
+        with self.lock:
+            self.vehicles = self.details = self.catalog = None
+
     def get_catalog(self) -> dict:
+        """The pylon weapons: the game's, and those the vehicle packages brought (mods.package_weapons)."""
         with self.lock:
             if self.catalog is None:
-                self.catalog = read_json(DATA / "weapons.json", {})
+                ours, gd = read_json(DATA / "weapons.json", {}), self.game_dir()
+                self.catalog = {**(mods.package_weapons(gd, ours) if gd else {}), **ours}
             return self.catalog
 
     def data_source(self) -> str:
@@ -487,11 +501,95 @@ def oodle_dll(gd: Path | None) -> str | None:
     return _oodle_memo[key]
 
 
+def capture_url(key: str) -> str:
+    p = CAPTURES / f"{key}.png"
+    return f"/img/capture/{key}.png?v={int(p.stat().st_mtime)}" if p.is_file() else ""
+
+
+def skin_key(s: dict) -> str:
+    """A skin's picture: drawn again once its files change."""
+    return "skin-" + hashlib.sha1(f"{s['name']}|{s['files']}|{s['bytes']}".encode()).hexdigest()[:16]
+
+
+def save_capture(kind: str, ref: str, data: str) -> str | None:
+    """A picture from the page of a package's vehicle or of a skin installed: its address, None for anything else."""
+    gd = STATE.game_dir()
+    if kind == "unit" and (STATE.get_vehicles().get(ref) or {}).get("mod"):
+        key = f"unit-{ref}"
+    elif kind == "skin" and gd and (s := next((s for s in mods.skins(gd) if s["name"] == ref), None)):
+        key = skin_key(s)
+    else:
+        return None
+    try:
+        png = base64.b64decode(data, validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    if not png.startswith(PNG) or len(png) > 1_400_000 or not CAPTURE_KEY.match(key):
+        return None
+    CAPTURES.mkdir(parents=True, exist_ok=True)
+    tmp = CAPTURES / f"{key}.part"
+    tmp.write_bytes(png)
+    tmp.replace(CAPTURES / f"{key}.png")
+    return capture_url(key)
+
+
+def mod_vehicle(v: dict) -> dict:
+    """A package's vehicle in WTFTD's list (vehicles.json's shape): no nation, rank or BR of the game's; mod: its package."""
+    return {"id": v["id"], "c": v.get("kind", "air"), "n": "other", "r": 0, "br": [], "k": "mod", "ro": [], "s": {},
+            "mod": v.get("package", ""), "name": v.get("name") or v["id"], "pic": bool(capture_url(f"unit-{v['id']}")),
+            **({"unit": v["unit"]} if v.get("unit") else {})}
+
+
+def known_vehicle(cfg: dict, known: dict) -> dict | None:
+    """A game mission's vehicle in WTFTD's list, None if it isn't there: a package's in a folder of its own goes by its
+    id (the Ratte, which missions name p1000_ratte/uk_a17_mk_1_tetrarch)."""
+    vid = next((k for k, v in known.items() if v.get("unit") == cfg["vehicle"]), cfg["vehicle"])
+    return {**cfg, "vehicle": vid} if vid in known else None
+
+
+def mod_model(vid: str) -> str:
+    """A package's vehicle's model, which its file names (packages installed before WTFTD said: its id, as the J-50's)."""
+    v = mods.mod_vehicles().get(vid)
+    return str(v.get("model") or vid) if v else ""
+
+
+def mod_details(v: dict) -> dict:
+    """Its details as the page and the alarms read them: its block, its weapon preset, an aircraft's limits."""
+    return {"b": v.get("block", "armada"), "pr": [{"id": v["preset"], "w": [], "s": {}}] if v.get("preset") else [], "am": [],
+            "st": {"lim": v["lim"]} if v.get("lim") else {}, "mod": v.get("package", "")}
+
+
 def api_vehicle(vid: str):
     d = STATE.get_details().get(vid)
     if d is None:
         return None
     return d
+
+
+def mod_vehicle_list() -> list:
+    return [v for v in STATE.get_vehicles().values() if v.get("mod")]
+
+
+def package_missions(gd: Path, rels: list) -> list:
+    """A vehicle package's test missions, once installed: imported as game missions are (their mission, map and vehicle)."""
+    out, levels, um = [], read_json(DATA / "levels.json", {}), game.user_missions_dir(gd)
+
+    def find(path):  # what a mission imports of UserMissions (the T-14's template): kept with it
+        p = um.joinpath(*re.split(r"[/\\]", path)[1:])
+        return p.read_text(encoding="utf-8-sig", errors="replace") if p.is_file() else None
+
+    for rel in rels:
+        folder = (gd / rel).parent
+        files = {p.name: p.read_text(encoding="utf-8-sig", errors="replace") for p in [gd / rel, *folder.glob("*.csv")] if p.is_file()}
+        try:
+            found = imports.read_files(files, levels, find)
+        except imports.ImportFailed:
+            continue  # the vehicle is there all the same
+        known = STATE.get_vehicles()
+        out += [{"scenario": s, "vehicle": known_vehicle(cfg, known)}
+                for s, cfg in zip(imports.save([f for f in found if f["stem"] == Path(rel).stem]),
+                                  map(imports.vehicle, [f for f in found if f["stem"] == Path(rel).stem]))]
+    return out
 
 
 def game_up() -> bool:
@@ -503,12 +601,53 @@ def vehicle_ids():
     return STATE.get_details().keys()
 
 
+def game_vehicle_ids() -> set:
+    """The game's own: a package bringing one of them would replace it in every user mission."""
+    return {k for k, d in STATE.get_details().items() if not d.get("mod")}
+
+
 def mods_status() -> dict:
     gd = STATE.game_dir()
     if not gd:
-        return {"game": False, "skins": [], "sounds": [], "sound": {}, "running": False}
-    return {"game": True, "skins": mods.skins(gd, vehicle_ids()), "sounds": mods.sounds(gd), "sound": mods.sound_state(gd), "running": game_up(),
+        return {"game": False, "skins": [], "sounds": [], "sound": {}, "running": False, "vehicles": []}
+    return {"game": True, "skins": [{**s, "pic": capture_url(skin_key(s))} for s in mods.skins(gd, vehicle_ids())], "sounds": mods.sounds(gd), "sound": mods.sound_state(gd), "running": game_up(),
+            "vehicles": mods.vehicle_packages(gd),
             "allowed": {k: sorted(v) for k, v in mods.ALLOWED.items()}}
+
+
+def package_missions_in_game(gd: Path) -> list:
+    """The missions the vehicle packages put in the game's UserMissions (their README says so): the game lists them among
+    the player's own, by their title and campaign. Their parts and templates too, which the game lists by their keys."""
+    out, known = [], STATE.get_vehicles()
+    for name, m in mods.read_manifest()["vehicles"].items():
+        for rel in m["files"]:
+            p = gd / rel
+            if not (rel.startswith("UserMissions/") and rel.lower().endswith(".blk") and p.is_file()):
+                continue
+            title, vid = "", None
+            try:
+                texts = {c.name: c.read_text(encoding="utf-8-sig", errors="replace") for c in p.parent.glob("*.csv")}
+                found = [f for f in imports.read_files({p.name: p.read_text(encoding="utf-8-sig", errors="replace"), **texts}) if f["stem"] == p.stem]
+                if found:
+                    title, cfg = found[0]["name"], known_vehicle(imports.vehicle(found[0]), known)
+                    vid = cfg and cfg["vehicle"]
+            except (imports.ImportFailed, OSError, KeyError, TypeError):
+                pass  # a part of a mission, a template: listed by its file
+            out.append({"file": rel[len("UserMissions/"):], "package": name, "title": title, "vehicle": vid,
+                        "mtime": int(p.stat().st_mtime), "size": p.stat().st_size})
+    return out
+
+
+def delete_mission(gd: Path, f: str) -> None:
+    """A mission out of the game: WTFTD's own (its texts and its setup with it), or one a package put there."""
+    if re.fullmatch(r"wtftd_[A-Za-z0-9_\-]+\.blk", f):
+        p = game.user_missions_dir(gd) / f
+        p.unlink(missing_ok=True)
+        p.with_name(f"usr_{p.stem}.csv").unlink(missing_ok=True)  # an imported mission's texts
+        shutil.rmtree(p.with_name(imports.BESIDE.format(p.stem)), ignore_errors=True)  # and what it imports (imports.for_game)
+        (MISSION_SETUPS / (f[:-4] + ".json")).unlink(missing_ok=True)
+    else:
+        mods.remove_mission(gd, f)  # a package's: only one it put there (its manifest says)
 
 
 def list_generated():
@@ -517,6 +656,9 @@ def list_generated():
         return []
     um = game.user_missions_dir(gd)
     out = []
+    for csv in um.glob("usr_wtftd_*.csv") if um.exists() else ():  # the texts of a mission deleted before they went with it
+        if not csv.with_name(csv.stem[4:] + ".blk").exists():
+            csv.unlink(missing_ok=True)
     if um.exists():
         for p in sorted(um.glob("wtftd_*.blk"), key=lambda p: -p.stat().st_mtime):
             # the vehicle comes from the saved setup: the file name may have been changed in Advanced
@@ -524,7 +666,7 @@ def list_generated():
             vid = setup.get("vehicle") if isinstance(setup, dict) else None
             out.append({"file": p.name, "mtime": int(p.stat().st_mtime), "size": p.stat().st_size,
                         "vehicle": vid if isinstance(vid, str) else None})
-    return out
+    return out + package_missions_in_game(gd)
 
 
 REMOTE_VERSION_URL = "https://raw.githubusercontent.com/gszabi99/War-Thunder-Datamine/master/version"
@@ -707,6 +849,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_file(maptex.png_path(gd, name, oodle_dll(gd)), cache=True)
             except (maptex.MapTexError, OSError) as e:
                 return self.send_json({"error": str(e)}, 404)
+        if path.startswith("/img/capture/"):
+            key = path[13:].rsplit(".", 1)[0]
+            p = CAPTURES / f"{key}.png"
+            if CAPTURE_KEY.match(key) and p.is_file():
+                return self.send_file(p)
+            return self.send_error(HTTPStatus.NOT_FOUND)
+        if path.startswith("/img/unit/") and (STATE.get_vehicles().get(path[10:].rsplit(".", 1)[0]) or {}).get("mod"):
+            p = CAPTURES / f"unit-{path[10:].rsplit('.', 1)[0]}.png"
+            return self.send_file(p) if p.is_file() else self.send_error(HTTPStatus.NOT_FOUND)
         if path.startswith("/img/"):
             parts = path.split("/")
             if len(parts) == 4 and parts[2] in IMAGE_SOURCES:
@@ -746,6 +897,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(read_json(USER / "setups.json", []))
         if route == "variants":  # scenario variants saved from the map editor
             return self.send_json(read_json(USER / "variants.json", []))
+        if route == "mod-vehicles":  # the vehicles of the packages installed (Mods -> Vehicles)
+            return self.send_json(mod_vehicle_list())
+        if route == "imported-maps":  # game missions imported (Import): scenarios of their own, see imports
+            return self.send_json(imports.entries())
         if route == "loadouts":  # custom pylon loadouts saved per vehicle
             return self.send_json(read_json(USER / "loadouts.json", []))
         if route == "combos":  # saved missions: a vehicle setup + a map
@@ -816,6 +971,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(read_json(USER / "weapons.json", []))
         if route == "weapon-keys":  # Weapons tab rows -> the pylon weapon they can be modified from
             return self.send_json(weapon_keys())
+        if route == "mod-weapons":  # the pylon weapons the vehicle packages brought, for the page's catalog
+            return self.send_json({k: {x: v for x, v in w.items() if x != "f"} for k, w in STATE.get_catalog().items() if w.get("pkg")})
         if route.startswith("weapon-base/"):  # a pylon weapon's own values, for the weapon editor
             base = weapon_base(route.split("/", 1)[1])
             return self.send_json(base) if base else self.send_json({"error": "Weapon not found in the game data"}, 404)
@@ -840,7 +997,7 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("model/"):  # read from the player's install, for the viewer only (models.py)
             kind, _, ref = route[6:].partition("/")
             gd = STATE.game_dir()
-            name = ref if kind in ("name", "ri") else models.vehicle_model(ref)  # a name is only ever looked up in the game's own list
+            name = ref if kind in ("name", "ri") else models.vehicle_model(ref) or mod_model(ref)  # only ever looked up in the install's list
             return self.send_game_bytes(models.read(gd, name, kind == "ri") if gd and name else None)
         if route.startswith(("model-texture/", "model-texture-low/")):
             gd = STATE.game_dir()
@@ -912,12 +1069,32 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": True})
         if not gd:
             raise mods.ModsError("noGame")
+        kind = mods.detect(body.get("token")) if action == "inspect" and body.get("kind") == "auto" else body.get("kind")
+        vehicle = kind == "vehicle"
         if action == "inspect":
-            return self.send_json(mods.inspect(body.get("token"), body.get("kind"), vehicle_ids()))
+            return self.send_json({**mods.inspect(body.get("token"), kind, game_vehicle_ids() if vehicle else vehicle_ids(), gd), "kind": kind})
         if action == "install":
-            mods.install(gd, body.get("token"), body.get("kind"), body.get("vehicles"), vehicle_ids(), game_up())
+            before = set(mods.read_manifest()["vehicles"])
+            mods.install(gd, body.get("token"), body.get("kind"), body.get("vehicles"), game_vehicle_ids() if vehicle else vehicle_ids(), game_up())
+            if vehicle:
+                STATE.forget_vehicles()
+                models.forget()  # its model and textures for the 3D view and its picture
+                added = [p for n, p in mods.read_manifest()["vehicles"].items() if n not in before]
+                names = set(mods.read_manifest()["vehicles"]) - before
+                return self.send_json({**mods_status(), "modVehicles": mod_vehicle_list(), "copies": next((p["copies"] for p in added if p.get("copies")), {}),
+                                       "installed": [v for p in added for v in p["vehicles"]],  # this package's, for its message
+                                       "weapons": [w["name"] for w in STATE.get_catalog().values() if w.get("pkg") in names],
+                                       "missions": package_missions(gd, [m for p in added for m in p["missions"]])})
         elif action == "remove":
+            gone = (mods.read_manifest()["vehicles"].get(str(body.get("name"))) or {}).get("vehicles") or [] if vehicle else []
             mods.remove(gd, body.get("kind"), body.get("name"), game_up())
+            for v in gone:
+                if isinstance(v, dict) and CAPTURE_KEY.match(f"unit-{v.get('id')}"):
+                    (CAPTURES / f"unit-{v['id']}.png").unlink(missing_ok=True)
+            if vehicle:
+                STATE.forget_vehicles()
+                models.forget()
+                return self.send_json({**mods_status(), "modVehicles": mod_vehicle_list()})
         elif action == "sound":
             mods.set_sound(gd, body.get("on") is True, game_up())
         elif action == "open":
@@ -954,6 +1131,22 @@ class Handler(BaseHTTPRequestHandler):
     def post_api(self, route: str, body: dict):
         if route.startswith("mods/"):
             return self.mods_action(route[5:], body)
+        if route == "map-import":  # a game mission (.zip or .blk) from Import: its mission, its map and its vehicle
+            try:
+                found = imports.read(str(body.get("name", "")), base64.b64decode(str(body.get("data", "")), validate=True),
+                                     read_json(DATA / "levels.json", {}))
+            except (binascii.Error, ValueError):
+                return self.send_json({"error": "file", "code": "file"}, 400)
+            except imports.ImportFailed as e:
+                return self.send_json({"error": e.code, "code": e.code}, 400)
+            known = STATE.get_vehicles()
+            return self.send_json({"missions": [{"scenario": s, "vehicle": known_vehicle(cfg, known)}
+                                                for s, cfg in zip(imports.save(found), map(imports.vehicle, found))]})
+        if route == "capture":  # what the page drew with its 3D view (model3d.js mdCapture): kept for the lists
+            url = save_capture(str(body.get("kind")), str(body.get("id", "")), str(body.get("png", "")))
+            return self.send_json({"pic": url}) if url else self.send_json({"error": "capture"}, 400)
+        if route == "map-import-delete":  # the page left no entry of an imported mission: its copy goes too
+            return self.send_json({"ok": imports.remove(str(body.get("sid", "")))})
         if route == "level-cells":  # the page has read the level's table, the unpacking needs zstd
             gd = STATE.game_dir()
             return self.send_game_bytes(models.level_cells(gd, str(body.get("level")), int(body.get("start") or 0), body.get("cells") or []) if gd else None)
@@ -966,6 +1159,11 @@ class Handler(BaseHTTPRequestHandler):
             setup = dict(body)
             body, files = self.prepare_cdk(body)
             name, text = mission.build(body)
+            um = game.user_missions_dir(gd)
+            try:  # what an imported mission imports of UserMissions goes beside it (deleted from the game since: the T-14's template)
+                text, parts = imports.for_game(str(body.get("scenario", "")), name[:-4], text, um)
+            except imports.MissingPart as e:
+                return self.send_json({"error": f"This mission imports {e}, no longer in UserMissions.", "code": "missingPart", "file": str(e)}, 400)
             if files:
                 cdk.write_files(gd, USER, files, body.get("_pkg", "pkg_local"))
             for pkg, ai_files in (body.get("_aiFiles") or {}).items():  # AI units with loadouts of their own
@@ -984,10 +1182,17 @@ class Handler(BaseHTTPRequestHandler):
                              "fuel": cdk._num(body.get("mods") or {}, "fuel", 0, 1_000_000) if files else None,
                              "unbreakable": bool(files and (body.get("cheats") or {}).get("noOverload"))}
             BENCH.arm(body.get("bench"))
-            um = game.user_missions_dir(gd)
             um.mkdir(exist_ok=True)
             out = um / name
+            beside = um / imports.BESIDE.format(out.stem)
+            shutil.rmtree(beside, ignore_errors=True)  # what it imported when made before
+            for part, part_text in parts.items():
+                beside.mkdir(exist_ok=True)
+                (beside / part).write_text(part_text, encoding="utf-8")
             out.write_text(text, encoding="utf-8")
+            words = imports.texts_for(str(body.get("scenario", "")))  # an imported mission's texts, under its new name
+            if words:
+                (um / f"usr_{out.stem}.csv").write_text(words, encoding="utf-8")
             if body.get("challenge"):
                 with _challenges_lock:
                     data = read_challenges()
@@ -1145,14 +1350,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "setups must be a list"}, 400)
             write_json(USER / "setups.json", body["setups"][:500])
             return self.send_json({"ok": True})
-        if route == "delete-mission":
+        if route == "delete-mission":  # one, or the ones picked in the list
             gd = STATE.game_dir()
-            f = str(body.get("file", ""))
-            if gd and re.fullmatch(r"wtftd_[A-Za-z0-9_\-]+\.blk", f):
-                p = game.user_missions_dir(gd) / f
-                if p.exists():
-                    p.unlink()
-                (MISSION_SETUPS / (f[:-4] + ".json")).unlink(missing_ok=True)
+            for f in map(str, body["files"][:500] if isinstance(body.get("files"), list) else [body.get("file", "")]):
+                if gd:
+                    delete_mission(gd, f)
             return self.send_json(list_generated())
         if route == "uninstall":
             parts = [p for p in (body.get("parts") or []) if p in uninstall.PARTS]
@@ -1310,7 +1512,7 @@ def weapon_keys() -> dict:
         for key, w in catalog.items():
             folder = str(w.get("p", "")).replace("\\", "/").split("/")[-2].lower()
             payload = "rocket" if w.get("air") else cdk.PAYLOADS.get(folder)
-            if w.get("pod") or not payload:
+            if w.get("pod") or not payload or w.get("pkg"):  # a package's: no row of the Weapons tab
                 continue
             d = builder.load(builder.blk_to_path(w["p"]))
             blocks = builder.launched_rockets(d) if w.get("air") else d.get(payload) if isinstance(d, dict) else None
@@ -1335,7 +1537,13 @@ def weapon_base(key: str) -> dict | None:
         return None
     folder = str(w.get("p", "")).replace("\\", "/").split("/")[-2].lower()
     payload = "rocket" if w.get("air") else cdk.PAYLOADS.get(folder)
-    d = builder.load(builder.blk_to_path(w["p"])) if payload else None
+    if not payload:
+        d = None
+    elif w.get("pkg"):  # a vehicle package's: its file in the game folder
+        gd = STATE.game_dir()
+        d = mods.package_weapon(gd, w["f"]) if gd else None
+    else:
+        d = builder.load(builder.blk_to_path(w["p"]))
     if w.get("air"):  # a launcher: the rocket block it will have on a pylon
         d = {"rocket": builder.launched_missile(d) or next(iter(builder.launched_rockets(d)), None)}
     block = d.get(payload) if isinstance(d, dict) else None
@@ -1387,7 +1595,11 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
             if host0:
                 crew_units.setdefault("country_usa" if host0.startswith("us_") else f"country_{veh0['n']}", []).append(host0)
         body["_crewUnits"] = crew_units
-    if not STATE.cdk_enabled() or body.get("cdk") is False:
+    if (veh0 or {}).get("unit"):
+        body["unitClass"] = veh0["unit"]  # a package's vehicle in a folder of its own (the Ratte): missions name it so
+    if (veh0 or {}).get("mod"):  # a package's tank: its maker's shells when none are picked (mods._mission_shells)
+        body["_shells"] = (mods.mod_vehicles().get(veh0["id"]) or {}).get("ammo") or []
+    if not STATE.cdk_enabled() or body.get("cdk") is False or (veh0 or {}).get("mod"):
         return body, {}
     vid = str(body.get("vehicle", ""))
     veh = STATE.get_vehicles().get(vid)

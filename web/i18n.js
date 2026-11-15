@@ -37,8 +37,9 @@ const I18N = (() => {
     return s === key ? fallback : s;
   }
 
+  const own = { units: {}, roles: {}, weapons: {} };  // names the game's files don't have: the vehicles and weapons of packages installed (mods)
   function g(section, key, fallback) {
-    return (game[section] && game[section][key]) || (gameFallback[section] && gameFallback[section][key]) || fallback || key;
+    return (game[section] && game[section][key]) || (gameFallback[section] && gameFallback[section][key]) || (own[section] && own[section][key]) || fallback || key;
   }
 
   function apply(root = document) {
@@ -51,6 +52,9 @@ const I18N = (() => {
 
   return {
     init, t, tOr, apply, num,
+    addUnits: names => Object.assign(own.units, names),
+    addRoles: names => Object.assign(own.roles, names),
+    addWeapons: names => Object.assign(own.weapons, names),
     get code() { return code; },
     unit: id => g('units', id, id),
     unitFull: id => g('unitsFull', id, g('units', id, id)),

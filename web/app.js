@@ -181,14 +181,18 @@ async function boot() {
   const [vehicles, scenarios, trees, bulletIcons] = await Promise.all([getData('vehicles.json'), getData('scenarios.json'), getData('trees.json').catch(() => ({})), getData('bullet_icons.json').catch(() => ({}))]);
   S.bulletIcons = bulletIcons;
   S.trees = trees;
-  S.vehicles = vehicles;
-  S.scenarios = scenarios;
-  S.byId = new Map(vehicles.map(v => [v.id, v]));
+  const mods = await api('mod-vehicles').catch(() => []);  // the vehicles of packages installed (Mods -> Vehicles)
+  I18N.addUnits(Object.fromEntries(mods.map(v => [v.id, v.name])));
+  I18N.addRoles({ mod: t('mo.modRole') });
+  S.vehicles = vehicles.concat(mods);
+  S.scenarios = scenarios.concat(await api('imported-maps').catch(() => []));  // game missions imported (My maps' Import)
+  S.byId = new Map(S.vehicles.map(v => [v.id, v]));
+  moPictures();  // a package's vehicles and the skins without a picture yet
   BR_MAX = Math.max(BR_MAX, ...vehicles.flatMap(v => v.br || []).filter(Number.isFinite));
   if (S.f.brMax >= (S.f.brTop ?? 14.3) - 0.01) S.f.brMax = BR_MAX;  // the whole range, saved under an older top, stays whole
   S.f.brTop = BR_MAX;
   $('#brMin').max = $('#brMax').max = BR_MAX;
-  for (const v of vehicles) v._s = norm(I18N.unit(v.id)) + '|' + norm(I18N.unitFull(v.id)) + '|' + norm(v.id);
+  for (const v of S.vehicles) v._s = norm(I18N.unit(v.id)) + '|' + norm(I18N.unitFull(v.id)) + '|' + norm(v.id);
 
   buildSidebar();
   bindUI();
@@ -677,6 +681,7 @@ function bindUI() {
   });
 
   $('#missionList').addEventListener('click', onMissionListClick);
+  $('#missionList').addEventListener('change', onMissionPick);
   $('#setupList').addEventListener('click', onSetupListClick);
 }
 
@@ -694,7 +699,7 @@ function showView(name) {
   document.body.classList.toggle('view-weapons', name === 'weapons');
   document.body.classList.toggle('view-maps', name === 'maps');
   document.body.classList.toggle('no-sidebar', name !== 'vehicles' && name !== 'setups');  // the filters: vehicles, My vehicles
-  document.body.classList.toggle('pick-on', ['vehicles', 'maps', 'mymaps', 'setups'].includes(name));  // the vehicle + map bar
+  document.body.classList.toggle('pick-on', ['vehicles', 'maps', 'mymaps', 'setups', 'missions'].includes(name));  // the vehicle + map bar
   if (name === 'maps') openMapsView();
   if (name === 'weapons') { if (S.sel) closeDrawer(); openWeaponsView(); }
   if (name === 'missions') refreshMissions();
@@ -1242,7 +1247,7 @@ function bindDrawer() {
       case 'aiCancel': return aiEnd(false);
       case 'fav': return toggleFav(v.id);
       case 'own': return hgToggle(v.id);
-      case 'skin3d': return moPreview(b.dataset.skin);
+      case 'skin3d': return moPreview(b.dataset.skin, b.dataset.vid);
       case 'skinOpen': return moOpen('skin', b.dataset.skin);
       case 'goal': return hgAddGoal(v.id);
       case 'changes': return chShowVehicle(v);
@@ -1406,7 +1411,10 @@ async function generate(btn, extra = {}) {
       actions: [{ label: t('action.launch'), icon: 'play', primary: true, run: launchGame }, { label: t('action.openFolder'), icon: 'folder', run: () => api('open-folder', {}) }],
     });
     refreshMissions();
-  } catch (e) { toastErr(e); }
+  } catch (e) {
+    if (e.data?.code === 'missingPart') toast({ title: t('toast.missingPart', { file: e.data.file }), err: true, ms: 12000 });
+    else toastErr(e);
+  }
   finally { btn.disabled = false; btn.querySelector('span').textContent = t('action.generate'); }
 }
 
@@ -1706,7 +1714,7 @@ async function openUninstall() {
   const i = unInfo;
   const hint = {
     cdk: t('uninstall.cdkHint', { n: i.cdk.files }), missions: t('uninstall.missionsHint', { n: i.missions.files }),
-    mods: t(i.mods.config ? 'uninstall.modsConfigHint' : 'uninstall.modsHint', { skins: i.mods.skins, sounds: i.mods.sounds }),
+    mods: t(i.mods.config ? 'uninstall.modsConfigHint' : 'uninstall.modsHint', { skins: i.mods.skins, sounds: i.mods.sounds, vehicles: i.mods.vehicles || 0 }),
     cache: t('uninstall.cacheHint', { size: fmtBytes(i.cache.bytes) }), data: t('uninstall.dataHint', { size: fmtBytes(i.data.bytes) }),
     user: t('uninstall.userHint', { size: fmtBytes(i.user.bytes) }),
     app: i.app.available ? t('uninstall.appHint', { path: i.app.path }) : t(i.app.translocated ? 'uninstall.appMac' : 'uninstall.appSource'),

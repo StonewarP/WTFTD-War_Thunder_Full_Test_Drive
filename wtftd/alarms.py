@@ -59,6 +59,7 @@ TOP_S = 1.0  # the overlay's windows put back on top of the others this often
 TRY_S = 60  # My overlay's Try, left alone this long, stops: the page that started it may be gone
 RING_S = 0.5  # what rings, not told again for this long (two readings at least), stops: muted, landed, the app gone
 HANGAR_IAS = 1  # km/h: the aircraft on show in the hangar reads 0 or 1
+HANGAR_STILL = 30  # km/h: slower, its engines stopped and without a map, it's on show too (the F-15EX reads 3)
 REPEAT_MS = 300  # an alarm whose beeps don't close in, without a repeat of its own
 FLASH_MS = 500  # an alarm flashing "with its beeps" that doesn't beep (only red, or muted): this cycle
 BEEP_MS = 150
@@ -794,12 +795,15 @@ def read_indicators(raw: bytes | None) -> dict:
 
 def flying(raw: bytes | None, in_mission=lambda: True) -> dict | None:
     """/state while in the air, else None. In the hangar it is valid too, the aircraft on show flickering between 0 and
-    1 km/h, mostly without fuel, but not always (the Swiss F/A-18C has 925 kg there, 2026-11-08): standing still or with
-    empty tanks, only a loaded map tells a real flight; in a battle, stopped on the ground still is one."""
+    1 km/h, mostly without fuel, but not always (the Swiss F/A-18C has 925 kg there, 2026-11-08; the F-15EX 1,791 kg at
+    3 km/h, 2026-11-15): standing still, with empty tanks or its engines stopped, only a loaded map tells a real flight;
+    in a battle, stopped on the ground still is one."""
     state = answer(raw)
     if "Mfuel0, kg" not in state or not isinstance(state.get("IAS, km/h"), (int, float)):
         return None
-    hangar_like = state.get("Mfuel, kg") == 0 or state["IAS, km/h"] <= HANGAR_IAS
+    rpm = [v for k, v in state.items() if k.startswith("RPM ") and isinstance(v, (int, float))]
+    stopped = bool(rpm) and not any(rpm) and state["IAS, km/h"] < HANGAR_STILL
+    hangar_like = state.get("Mfuel, kg") == 0 or state["IAS, km/h"] <= HANGAR_IAS or stopped
     return None if hangar_like and not in_mission() else state
 
 
