@@ -807,6 +807,19 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(n) if n else b"{}"
         return json.loads(raw.decode("utf-8") or "{}")
 
+    def drain(self, limit: int = 2_000_000) -> None:
+        """What a refused request sent, read before the answer: on Windows a socket closed on unread bytes is reset, and
+        the client may lose the answer (ConnectionAbortedError: 2 in 20 with 1 MB). Past the routes' limit, not read."""
+        try:
+            left = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return
+        while 0 < left <= limit:
+            chunk = self.rfile.read(min(left, 1 << 16))
+            if not chunk:
+                break
+            left -= len(chunk)
+
     def local_origin(self) -> bool:
         host = (self.headers.get("Host") or "").split(":")[0]
         origin = self.headers.get("Origin")
@@ -1038,6 +1051,7 @@ class Handler(BaseHTTPRequestHandler):
     # POST -----------------------------------------------------------------
     def do_POST(self):
         if not self.local_origin():
+            self.drain()
             return self.send_json({"error": "forbidden"}, 403)
         route = urlparse(self.path).path[5:] if self.path.startswith("/api/") else ""
         if route == "bye":  # the app page is closing (navigator.sendBeacon)

@@ -257,6 +257,10 @@ class RealRequests(Base):
         self.assertEqual(status, 403)
         self.assertFalse((mods._staging("abcdef") / "a.tga").exists())
 
+    def test_a_refusal_always_reaches_the_client(self):  # Windows reset the socket on unread bytes: 2 in 20 lost their 403
+        for _ in range(30):
+            self.assertEqual(self.post("mods/upload?token=abcdef&path=a.tga&kind=skin", b"1" * 1_000_000, origin="http://evil.example")[0], 403)
+
 
 class Guess(unittest.TestCase):
     def test_a_blk_named_after_the_vehicle(self):
