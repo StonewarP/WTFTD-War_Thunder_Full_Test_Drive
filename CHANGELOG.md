@@ -4,7 +4,7 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Not released yet
+## 0.30.2 - 2026-11-15
 
 - **My overlay: the weapons a line carries.** A line showing the G limit, the G load (its gauge too), the mass or
   thrust/weight has **Weapons, kg**: their mass counts in the aircraft's for that line and its alarms (Try too). The
