@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import zipfile
 from pathlib import Path
 
 SIGHT_FILE = "wtftd.blk"
@@ -128,6 +129,31 @@ def import_sight(user_dir: Path, name: str, text: str) -> str:
     lib.mkdir(parents=True, exist_ok=True)
     (lib / name).write_text(text, encoding="utf-8")
     return f"lib/{name}"
+
+
+def import_pack(user_dir: Path, archive: Path) -> list[str]:
+    """The sights of a pack (a WT Live .zip: .blk files, often a folder per vehicle) into WTFTD's library, read straight
+    from the archive (nothing else of it is written): their ids. One named like a different sight already there gets its
+    folder's name before its own; the same sight again is left as it is."""
+    lib, out = library_dir(user_dir), []
+    try:
+        with zipfile.ZipFile(archive) as z:
+            infos = [i for i in z.infolist() if not i.is_dir() and i.filename.lower().endswith(".blk")][:1000]
+            for i in infos:
+                if i.file_size > MAX_SIZE:
+                    continue
+                parts = [p for p in i.filename.replace("\\", "/").split("/") if p]
+                text = z.read(i).decode("utf-8-sig", errors="replace")
+                name = parts[-1]
+                if (lib / name).is_file() and (lib / name).read_text(encoding="utf-8", errors="replace") != text and len(parts) > 1:
+                    name = f"{parts[-2]}_{name}"[-100:]
+                try:
+                    out.append(import_sight(user_dir, name, text))
+                except SightError:
+                    continue  # not a sight (an empty file, a vehicle's): the others go on
+    except (zipfile.BadZipFile, OSError, NotImplementedError):
+        raise SightError("Not a sight pack") from None
+    return list(dict.fromkeys(out))
 
 
 def install(user_dir: Path, sid: str, vehicles: list[str]) -> list[str]:

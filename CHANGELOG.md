@@ -4,6 +4,22 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.32.0 - 2026-11-16
+
+- **WT Live in WTFTD (Mods → WT Live).** The mods players share on [WT Live](https://live.warthunder.com/), without
+  leaving WTFTD and without an account: vehicles, skins, sounds, missions, sights and hangars as cards (picture,
+  author, date, likes, downloads, size), newest, most downloaded or best rated, searched by tags, more as you go. A
+  click opens a post (its pictures, what its author wrote, as plain text): a click on a picture shows it full size (the
+  arrows or the arrow keys for the others), and **Open on WT Live** shows the post in your browser. **Install** downloads its file from WT
+  Live's own servers and puts it where it belongs, with the same checks as a `.zip` you pick: a vehicle package, a
+  skin or a sound mod as in the other Mods tabs, missions into My missions and My maps (as Import does), sights into
+  the sight library, a hangar into the game. The card then says *Installed*.
+- **Hangars (Mods → Hangars).** A custom hangar (from WT Live, or a `.zip`) installs its files into the game (its
+  terrain under `content/pkg_local`, its hangar file at the top), never over one of the game's. WTFTD doesn't touch
+  `config.blk` for it: the install and the Hangars tab give the `hangarBlk` line to add yourself, with **Copy the
+  line**. **Delete** takes the files back, with the game closed.
+- **Fixed: closing a message threw an error** in the page's console (harmless).
+
 ## 0.31.0 - 2026-11-15
 
 - **The weapons of the vehicle packages you installed go on any aircraft's pylons** (the J-50's PL-15 and PL-10, the

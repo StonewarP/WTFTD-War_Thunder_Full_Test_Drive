@@ -767,6 +767,19 @@ show icons (the HUD reads them from the vehicle's shop data, which a mod's vehic
 
 - [ ] The Armata test drive created again from WTFTD: full stock and shell choice, as test A.
 
+## 2aj. WT Live and hangars (new)
+
+**What was built.** Mods → WT Live reads WT Live's public feed and installs a post in one click (the file from WT Live's
+servers, then the usual Mods, Import or sight library path). Mods → Hangars installs a hangar's files and gives its
+`hangarBlk` line for the player to add to `config.blk`. Checked in a made-up game folder with the Norway hangar, the
+KV-VI missions and Enhanced Tank Sight; the feed and the pictures with the real site.
+
+- [ ] A vehicle package installed from WT Live (the J-50) flies as one installed from its `.zip`.
+- [ ] A skin and a sound mod from WT Live show and play in game.
+- [ ] A hangar from WT Live, its line added to `config.blk` by hand: the game shows it; the Norway one's line
+      without `.blk` (`nhg_mission`, as its post says) works.
+- [ ] Delete of a hangar with the game closed: the files go, the game starts on its own hangar once the line is out.
+
 ## 2aj. The packages' weapons on any pylon (new)
 
 **What was built.** The weapons a package installs in `content/pkg_local/gamedata/Weapons/` (rocketGuns, bombGuns,

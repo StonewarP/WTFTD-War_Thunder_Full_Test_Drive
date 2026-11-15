@@ -17,7 +17,7 @@ async function moAction(path, body) {
 }
 
 function moRefresh() {
-  $('#modsCount').textContent = MO.skins.length + MO.sounds.length + (MO.vehicles || []).length || '';
+  $('#modsCount').textContent = MO.skins.length + MO.sounds.length + (MO.vehicles || []).length + (MO.hangars || []).length || '';
   if (!$('#view-mods').classList.contains('hidden')) moRender();
   if (S.sel && $('#drawer .hero')) renderDrawer();
   moPictures();
@@ -114,7 +114,7 @@ function moVehiclesIn(list) {
 // a vehicle package goes out with the game closed: it may hold its files open (it goes in any time, used from the next start)
 async function moGameClosed(kind) {
   try { await moLoad(); } catch { /* the last state stands */ }
-  if (MO.running) toast({ title: t(kind === 'sound' ? 'mo.soundRemoveRunning' : 'mo.vehicleRemoveRunning'), err: true, ms: 7000 });
+  if (MO.running) toast({ title: t({ sound: 'mo.soundRemoveRunning', hangar: 'mo.hangarRemoveRunning' }[kind] || 'mo.vehicleRemoveRunning'), err: true, ms: 7000 });
   return !MO.running;
 }
 
@@ -145,10 +145,29 @@ function moVehiclesHTML() {
     ${list.length ? `<div class="list mo-list">${list.map(row).join('')}</div>` : `<div class="empty">${icon('air', 'ic-xl')}<p>${esc(t('mo.noVehicle'))}</p><p>${esc(t('mo.noVehicleHint'))}</p></div>`}`;
 }
 
+// a custom hangar (from WT Live, or a .zip): its files in the game, and the line the player puts in config.blk to use it
+// (WTFTD leaves that file alone)
+const moHangarLine = h => `hangarBlk:t="${h.line}"`;
+function moHangarsHTML() {
+  const row = h => `<div class="list-item"><div class="list-thumb">${icon('map')}</div>
+    <div class="list-main"><div class="list-title"><span>${esc(h.name)}</span></div>
+      <div class="list-sub"><code class="mo-line">${esc(moHangarLine(h))}</code> · ${esc(t('mo.files', { n: h.files }))} · ${esc(moSize(h.bytes))}</div></div>
+    <div class="list-actions"><button class="btn btn-sm" data-mocopy="${esc(moHangarLine(h))}">${icon('file', 'ic-sm')}<span>${esc(t('mo.copyLine'))}</span></button>
+      ${moRemoveButton('hangar', h.name)}</div></div>`;
+  const list = MO.hangars || [];
+  return `<div class="mo-warn">${icon('target', 'ic-sm')}<p class="hint">${esc(t('mo.hangarWarning'))}</p></div>
+    <div class="mo-actions"><button class="btn" data-mopick="zip" data-kind="hangar"${MO.busy ? ' disabled' : ''}>${icon('file', 'ic-sm')}<span>${esc(t('mo.fromZip'))}</span></button>
+      <span class="muted">${esc(MO.busy ? moWorking() : t('mo.hangarCount', { n: list.length }))}</span></div>
+    ${list.length ? `<div class="list mo-list">${list.map(row).join('')}</div>` : `<div class="empty">${icon('map', 'ic-xl')}<p>${esc(t('mo.noHangar'))}</p><p>${esc(t('mo.noHangarHint'))}</p></div>`}`;
+}
+
 function moRender() {
   $$('#moTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === MO.tab));
   $('#moTabs').classList.toggle('hidden', !MO.game);
-  $('#moBody').innerHTML = !MO.game ? `<div class="empty">${icon('folder', 'ic-xl')}<p>${esc(t('mb.noGame'))}</p></div>` : MO.tab === 'skins' ? moSkinsHTML() : MO.tab === 'vehicles' ? moVehiclesHTML() : moSoundsHTML();
+  const tabs = { skins: moSkinsHTML, sounds: moSoundsHTML, vehicles: moVehiclesHTML, hangars: moHangarsHTML, live: wlHTML };
+  $('#moBody').innerHTML = !MO.game ? `<div class="empty">${icon('folder', 'ic-xl')}<p>${esc(t('mb.noGame'))}</p></div>` : (tabs[MO.tab] || moSkinsHTML)();
+
+  if (MO.tab === 'live' && MO.game) wlWatch();  // the next posts as the list's end nears
 }
 
 async function moLoad() {
@@ -190,7 +209,7 @@ async function moSend(files, kind) {
     const found = await api('mods/inspect', { token: MO.token, kind });
     const unclear = (found.skins || []).filter(s => !s.sure);
     if (unclear.length) await moAsk(unclear, found.kind || kind);
-    else await moFinish(found.kind || kind, {});
+    else await moFinish(found.kind || kind, {}, found);
   } catch (e) {
     moErr(e);
     api('mods/forget', { token: MO.token }).catch(() => {});
@@ -228,8 +247,9 @@ async function moWeaponsGo(pkg) {
   toast({ title: t('mo.weaponsGo', { names: moFew([...keys].map(k => I18N.weapon(k))) }), sub: n ? t('mo.weaponsUsed', { n }) : '', err: n > 0, ms: n ? 10000 : 6000 });
 }
 
-async function moFinish(kind, vehicles) {
-  const ok = await moAction('install', { token: MO.token, kind, vehicles });
+// found: what inspect said of it (a hangar's line)
+async function moFinish(kind, vehicles, found = {}) {
+  const ok = await moAction('install', { token: MO.token, kind, vehicles, hint: MO.hint || '' });
   if (ok && kind === 'vehicle') {  // its vehicles among WTFTD's, its test missions imported
     moVehiclesIn(ok.modVehicles || []);
     const c = ok.copies || {}, copies = [...(c.vehicles || []).map(id => I18N.unit(id)), ...(c.models || []), ...(c.textures || [])];
@@ -240,8 +260,18 @@ async function moFinish(kind, vehicles) {
       ms: ok.running || copies.length || hidden.length || arms.length ? 14000 : 8000 });
     moWeaponsChanged();
     await addImportedMissions(ok.missions || []);
+  } else if (ok && kind === 'hangar') {
+    const line = moHangarLine(found.hangar || {});
+    toast({ title: t('mo.hangarInstalled', { name: found.hangar?.name || '' }), sub: t('mo.hangarLine', { line }), ms: 30000,
+      actions: [{ label: t('mo.copyLine'), icon: 'file', primary: true, run: () => moCopy(line) }] });
   } else if (ok) toast({ title: t('mo.installed'), sub: kind === 'sound' && ok.running ? t('mo.soundRestart') : '', ms: ok.running ? 9000 : 6000 });
   else api('mods/forget', { token: MO.token }).catch(() => {});
+  return ok;
+}
+
+async function moCopy(text) {
+  try { await navigator.clipboard.writeText(text); toast({ title: t('mo.lineCopied'), sub: text, ms: 5000 }); }
+  catch { toast({ title: text, sub: t('mo.copyByHand'), ms: 15000 }); }
 }
 
 function bindMods() {
@@ -256,8 +286,9 @@ function bindMods() {
     const b = e.target.closest('button');
     if (!b) return;
     const d = b.dataset;
-    if (d.morm && (d.kind === 'vehicle' || d.kind === 'sound') && !(await moGameClosed(d.kind))) return;
-    if (d.mopick === 'zip') return $('#moZip').click();
+    if (d.morm && (d.kind === 'vehicle' || d.kind === 'sound' || d.kind === 'hangar') && !(await moGameClosed(d.kind))) return;
+    if (d.mocopy) return moCopy(d.mocopy);
+    if (d.mopick === 'zip') { MO.pickKind = d.kind === 'hangar' ? 'hangar' : 'auto'; return $('#moZip').click(); }
     if (d.mopick === 'folder') return $('#moFolder').click();
     if (d.moroot) return moOpen(d.moroot);
     if (d.moopen) return moOpen('skin', d.moopen);
@@ -288,7 +319,9 @@ function bindMods() {
   $('#moZip').addEventListener('change', e => {
     const files = [...e.target.files];
     e.target.value = '';
-    if (files.length) moSendMany(files);
+    if (!files.length) return;
+    if (MO.pickKind !== 'hangar') return moSendMany(files);
+    (async () => { for (const file of files) await moSend([{ file, path: file.name }], 'hangar'); })();  // a hangar's files look like a package's
   });
   $('#moFolder').addEventListener('change', e => {
     const files = [...e.target.files].map(file => ({ file, path: file.webkitRelativePath || file.name }));
@@ -305,14 +338,14 @@ function bindMods() {
     const { kind, done } = MO.waiting;
     MO.waiting = null;
     $('#dlgSkin').close();
-    await moFinish(kind, vehicles);
-    done();
+    done(await moFinish(kind, vehicles));
   });
   $('#dlgSkin').addEventListener('close', () => {
     if (!MO.waiting) return;
     const { done } = MO.waiting;
     MO.waiting = null;
     api('mods/forget', { token: MO.token }).catch(() => {});
-    done();
+    done(false);
   });
+  bindLive();
 }

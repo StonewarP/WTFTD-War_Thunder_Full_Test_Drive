@@ -26,9 +26,10 @@ MANIFEST = USER / "mods_manifest.json"
 BACKUP = USER / "config.blk.bak"
 STAGING = CACHE / "mods_staging"  # what's being installed: it goes with the cache
 SKINS, SOUNDS = "UserSkins", ("sound", "mod")
-KINDS = ("skin", "sound", "vehicle")
+KINDS = ("skin", "sound", "vehicle", "hangar")
 ALLOWED = {"skin": {".blk", ".tga", ".dds", ".png", ".jpg", ".jpeg", ".txt"}, "sound": {".bank", ".txt"},
-           "vehicle": {".blk", ".csv", ".txt", ".grp", ".bin", ".png"}}  # where each may go: see _vehicle_files
+           "vehicle": {".blk", ".csv", ".txt", ".grp", ".bin", ".png"},  # where each may go: see _vehicle_files
+           "hangar": {".blk", ".txt", ".bin", ".grp", ".jpg", ".jpeg", ".png", ".tga", ".dds"}}  # see _hangar_files
 PACKAGES = ("pkg_local", "pkg_user")
 VEHICLE_DIRS = {("flightmodels",): "air", ("units", "tankmodels"): "ground", ("units", "ships"): "ship"}
 GAME_DIRS = {("flightmodels",): "flightModels", ("units", "tankmodels"): "units/tankModels", ("units", "ships"): "units/ships"}  # as the game writes them
@@ -48,6 +49,8 @@ RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"
 TEMP = ".wtftd_tmp"
 REPLACE = re.compile(r'replace_tex\s*\{[^}]*?from\s*:\s*t\s*=\s*"([^"]+)"[^}]*?to\s*:\s*t\s*=\s*"([^"]+)"', re.S)
 ENABLE = re.compile(rb"^[ \t]*enable_mod[ \t]*:[ \t]*b[ \t]*=[ \t]*(yes|no|true|false|1|0)[ \t]*(?:\r?\n|$)", re.M | re.I)
+HINT = re.compile(r"[\w\-. ]{1,120}")  # a hangar's name for config.blk, as its post gives it
+HANGAR_LINE = re.compile(r'hangarBlk\s*:\s*t\s*=\s*"([^"\r\n]{1,120})"')  # what a hangar's README says config.blk needs
 SOUND_BLOCK = re.compile(rb"^[ \t]*sound[ \t]*\{[ \t]*\r?\n", re.M)
 
 
@@ -246,7 +249,7 @@ def detect(token: str) -> str:
     return "sound" if any(n.endswith(".bank") for n in names) else "skin"
 
 
-def inspect(token: str, kind: str, ids=(), game: Path | None = None) -> dict:
+def inspect(token: str, kind: str, ids=(), game: Path | None = None, hint: str = "") -> dict:
     """What was staged, a .zip unpacked once it has passed: {skins: [...]} or {sound: {...}}, for the player to confirm."""
     root = _staging(token)
     if kind not in KINDS or not root.is_dir():
@@ -266,6 +269,9 @@ def inspect(token: str, kind: str, ids=(), game: Path | None = None) -> dict:
         return {"vehicle": {"name": name, "vehicles": vehicles, "files": len(found), "copies": _copies(vehicles, plan),
                             "missions": [t[-1] for t in _missions(found)],
                             "bytes": sum(f.stat().st_size for f, _ in found)}}
+    if kind == "hangar":
+        found, line = _hangar_files(root, hint)
+        return {"hangar": {"name": _top_name(root), "files": len(found), "bytes": sum(f.stat().st_size for f, _ in found), "line": line}}
     if kind == "sound":
         rels = _sound_paths(root, files)
         if not any(p.suffix.lower() == ".bank" for p in files):
@@ -292,6 +298,49 @@ def _sound_paths(root: Path, files: list) -> dict:
     while len({r[0] for r in rels.values()}) == 1 and all(len(r) > 1 for r in rels.values()):
         rels = {p: r[1:] for p, r in rels.items()}
     return {p: "/".join(r) for p, r in rels.items()}
+
+
+def _top_name(root: Path) -> str:
+    """A package's name: the archive's (its folder in staging)."""
+    tops = [p.name for p in root.iterdir() if p.is_dir()] if root.is_dir() else []
+    return tops[0] if len(tops) == 1 else "hangar"
+
+
+def _hangar_files(root: Path, hint: str = "") -> tuple[list, str]:
+    """[(file, its place in the game)] of a custom hangar, and the line config.blk needs for it (which the player adds:
+    WTFTD leaves config.blk alone): its terrain and textures under content/pkg_local|pkg_user (levels/, res/) and its
+    hangar file at the game's root, as its README says (block_island_v2: content/pkg_local/levels/..., island_block_v2.blk;
+    Norway: nhg_mission.blk alone, on one of the game's maps). The line from its README, else hint (what its WT Live post
+    says: Norway's "nhg_mission"), else its hangar file's name."""
+    rels = {f: f.relative_to(root).parts for f in _files(root)}
+    while rels and len({r[0].lower() for r in rels.values()}) == 1 and all(len(r) > 1 for r in rels.values()) \
+            and next(iter(rels.values()))[0].lower() != "content":
+        rels = {f: r[1:] for f, r in rels.items()}  # the archive's own folders
+    out, line, blks = [], "", []
+    for f, parts in sorted(rels.items(), key=lambda x: x[1]):
+        low, suffix = [x.lower() for x in parts], f.suffix.lower()
+        if suffix == ".txt":
+            found = HANGAR_LINE.search(f.read_text(encoding="utf-8-sig", errors="replace")[:200_000])
+            line = line or (found.group(1) if found else "")
+        elif len(parts) == 1 and suffix == ".blk":
+            out.append((f, parts))
+            blks.append(parts[0])
+        elif len(parts) > 3 and low[0] == "content" and low[1] in PACKAGES and low[2] in ("levels", "res"):
+            out.append((f, ("content", low[1], low[2], *parts[3:])))
+        else:
+            raise ModsError("hangarPlace", "/".join(parts))
+    if not blks:
+        raise ModsError("noHangar")
+    return out, line or (hint if HINT.fullmatch(hint or "") else "") or blks[0]
+
+
+def hangars(game: Path) -> list:
+    """The hangars WTFTD installed: their line for config.blk and the files still there."""
+    out = []
+    for name, m in sorted(read_manifest()["hangars"].items()):
+        there = [game / rel for rel in m["files"] if (game / rel).is_file()]
+        out.append({"name": name, "line": str(m.get("line") or ""), "files": len(there), "bytes": sum(p.stat().st_size for p in there)})
+    return out
 
 
 def _package_root(root: Path) -> Path:
@@ -645,7 +694,8 @@ def read_manifest() -> dict:
         raw = {}
     raw = raw if isinstance(raw, dict) else {}
     keep = lambda v: {k: x for k, x in v.items() if isinstance(x, dict) and isinstance(x.get("files"), list)} if isinstance(v, dict) else {}  # noqa: E731
-    return {"skins": keep(raw.get("skins")), "sounds": keep(raw.get("sounds")), "vehicles": keep(raw.get("vehicles"))}
+    return {"skins": keep(raw.get("skins")), "sounds": keep(raw.get("sounds")), "vehicles": keep(raw.get("vehicles")),
+            "hangars": keep(raw.get("hangars"))}
 
 
 def _write_manifest(data: dict) -> None:
@@ -672,7 +722,7 @@ def _copy_all(pairs: list) -> None:
         raise
 
 
-def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids=(), running: bool = False) -> dict:
+def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids=(), running: bool = False, hint: str = "") -> dict:
     """Puts what was staged in the game, refusing rather than replacing anything already there, and lists it in the manifest."""
     root = _staging(token)
     if kind not in KINDS or not root.is_dir():
@@ -710,6 +760,17 @@ def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids
         _copy_all(pairs)
         data["vehicles"][name] = {"files": ["/".join(t) for _, t in placed], "vehicles": vehicles,
                                   "missions": ["/".join(t) for t in _missions(found)], "copies": _copies(vehicles, plan)}
+    elif kind == "hangar":  # new files only (never one of the game's: config.blk is there); config.blk is the player's to change
+        found, line = _hangar_files(root, hint)
+        name = _top_name(root)
+        if name in data["hangars"]:
+            raise ModsError("exists", name)
+        pairs = [(f, _inside(game, *t)) for f, t in found]
+        for (_, t), (_, path) in zip(found, pairs):
+            if path.exists():
+                raise ModsError("exists", "/".join(t))
+        _copy_all(pairs)
+        data["hangars"][name] = {"files": ["/".join(t) for _, t in found], "line": line}
     else:  # new banks only, the game running or not: heard from its next start (the switch, config.blk, waits for it closed)
         dest = game.joinpath(*SOUNDS)
         dest.mkdir(parents=True, exist_ok=True)
@@ -764,6 +825,10 @@ def remove(game: Path, kind: str, name: str, running: bool = False) -> None:
         if running:
             raise ModsError("running")  # its banks may be open in the game
         _remove_files(game.joinpath(*SOUNDS), data["sounds"].pop(name)["files"])
+    elif kind == "hangar" and name in data["hangars"]:
+        if running:
+            raise ModsError("running")  # its terrain may be the hangar the game shows
+        _remove_files(game, data["hangars"].pop(name)["files"])
     else:
         raise ModsError("notOurs", str(name))
     _write_manifest(data)
@@ -972,7 +1037,8 @@ def skin_file(game: Path, folder: str, file: str) -> Path | None:
 
 def counts() -> dict:
     data = read_manifest()
-    return {"skins": len(data["skins"]), "sounds": len(data["sounds"]), "vehicles": len(data["vehicles"]), "config": BACKUP.exists()}
+    return {"skins": len(data["skins"]), "sounds": len(data["sounds"]), "vehicles": len(data["vehicles"]),
+            "hangars": len(data["hangars"]), "config": BACKUP.exists()}
 
 
 def remove_all(game: Path, running: bool) -> dict:
@@ -989,7 +1055,7 @@ def remove_all(game: Path, running: bool) -> dict:
     if not running:  # the game reads these as it runs: left for a later try
         for m in data["sounds"].values():
             n += _remove_files(game.joinpath(*SOUNDS), m["files"])
-        for m in data["vehicles"].values():
+        for m in [*data["vehicles"].values(), *data["hangars"].values()]:
             n += _remove_files(game, m["files"])
     kept = False
     if BACKUP.exists():
@@ -998,7 +1064,8 @@ def remove_all(game: Path, running: bool) -> dict:
         except (ModsError, OSError):
             kept = True
     if running or kept:
-        _write_manifest({"skins": {}, "sounds": data["sounds"] if running else {}, "vehicles": data["vehicles"] if running else {}})
+        _write_manifest({"skins": {}, "sounds": data["sounds"] if running else {}, "vehicles": data["vehicles"] if running else {},
+                         "hangars": data["hangars"] if running else {}})
     else:
         MANIFEST.unlink(missing_ok=True)
-    return {"files": n, "kept": kept or (running and bool(data["sounds"] or data["vehicles"]))}
+    return {"files": n, "kept": kept or (running and bool(data["sounds"] or data["vehicles"] or data["hangars"]))}

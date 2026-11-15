@@ -116,7 +116,8 @@ Each one links to its page in the wiki.
   history from your replays).
 - **[My hangar](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/My-hangar)** (owned vehicles,
   lineups, research plan), **[What changed](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/What-changed)**
-  between two game versions, **[Mods](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Mods)** (skins, sounds, vehicles of their own),
+  between two game versions, **[Mods](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Mods)** (skins, sounds, vehicles of their own,
+  hangars, and WT Live's posts installed in one click),
   **[3D views](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/3D-views)** of vehicles, weapons and
   maps.
 - **[Your library and sharing](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Setups-and-sharing)**:
@@ -217,7 +218,8 @@ wtftd/                      Python backend (stdlib only)
   patches.py                What changed: the comparison of two game versions, kept in user/patches.json
   hangar.py                 My hangar: owned vehicles, lineups and research plan, kept in user/hangar.json
   bench.py                  Test bench: finds the valid stretches of a recorded test, results in user/bench.json
-  mods.py                   Mods (skins, sounds, vehicles): untrusted archives, what WTFTD installed, config.blk's one line
+  mods.py                   Mods (skins, sounds, vehicles, hangars): untrusted archives, what WTFTD installed, config.blk's one line
+  wtlive.py                 Mods → WT Live: the public feed of live.warthunder.com, a post's file into Mods' staging
   challenges.py             Challenges: what's where on each map, results in user/challenges.json
   waveout.py / tray.py      sound on the output you pick (winmm, PulseAudio) / the app window: its place, minimized,
                             notification area (Windows)
@@ -227,7 +229,8 @@ web/                        UI (HTML/CSS/JS, no build step), web/locales = trans
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
                             overlay.js / flight.js / battle.js / history.js = In flight, cockpit.html = the cockpit window,
                             hud.js = the HUD's drawing in the page and the cockpit window,
-                            changes.js = What changed, hangar.js = My hangar, mods.js = Mods, bench.js = Test bench,
+                            changes.js = What changed, hangar.js = My hangar, mods.js = Mods, wtlive.js = WT Live,
+                            bench.js = Test bench,
                             challenges.js = Challenges,
                             editor.js = scenario editor, model3d.js / map3d.js / lzdecode.js = the 3D views
 data/                       game database, generated on first launch (not versioned)

@@ -26,7 +26,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import DONATE, REPO, __version__, alarms, battle, bench, builder, cdk, challenges, flightlog, game, hangar, hud, imports, maptex, mission, models, mods, patches, replays, sights, \
-    terrain, uninstall, vromfs, waveout, x11, xoverlay
+    terrain, uninstall, vromfs, waveout, wtlive, x11, xoverlay
 from .paths import CACHE, DATA, FROZEN, HOME, USER, WEB
 
 ROOT = HOME
@@ -480,7 +480,7 @@ _oodle_memo: dict = {}
 
 
 # the page runs nothing but the app's own script files, and loads or sends nothing elsewhere: whatever a shared file holds
-CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; "
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn-live.warthunder.com https://images-live.warthunder.com; media-src 'self' data: blob:; "
        "font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 
@@ -609,9 +609,9 @@ def game_vehicle_ids() -> set:
 def mods_status() -> dict:
     gd = STATE.game_dir()
     if not gd:
-        return {"game": False, "skins": [], "sounds": [], "sound": {}, "running": False, "vehicles": []}
+        return {"game": False, "skins": [], "sounds": [], "sound": {}, "running": False, "vehicles": [], "hangars": []}
     return {"game": True, "skins": [{**s, "pic": capture_url(skin_key(s))} for s in mods.skins(gd, vehicle_ids())], "sounds": mods.sounds(gd), "sound": mods.sound_state(gd), "running": game_up(),
-            "vehicles": mods.vehicle_packages(gd),
+            "vehicles": mods.vehicle_packages(gd), "hangars": mods.hangars(gd),
             "allowed": {k: sorted(v) for k, v in mods.ALLOWED.items()}}
 
 
@@ -1072,10 +1072,12 @@ class Handler(BaseHTTPRequestHandler):
         kind = mods.detect(body.get("token")) if action == "inspect" and body.get("kind") == "auto" else body.get("kind")
         vehicle = kind == "vehicle"
         if action == "inspect":
-            return self.send_json({**mods.inspect(body.get("token"), kind, game_vehicle_ids() if vehicle else vehicle_ids(), gd), "kind": kind})
+            return self.send_json({**mods.inspect(body.get("token"), kind, game_vehicle_ids() if vehicle else vehicle_ids(), gd, str(body.get("hint") or "")),
+                                   "kind": kind})
         if action == "install":
             before = set(mods.read_manifest()["vehicles"])
-            mods.install(gd, body.get("token"), body.get("kind"), body.get("vehicles"), game_vehicle_ids() if vehicle else vehicle_ids(), game_up())
+            mods.install(gd, body.get("token"), body.get("kind"), body.get("vehicles"), game_vehicle_ids() if vehicle else vehicle_ids(), game_up(),
+                         str(body.get("hint") or ""))
             if vehicle:
                 STATE.forget_vehicles()
                 models.forget()  # its model and textures for the 3D view and its picture
@@ -1128,9 +1130,49 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": f"File error: {e}"}, 500)
         return self.send_json({"ok": True})
 
+    def wtlive_action(self, action: str, body: dict):
+        """WT Live in Mods: its feed, and a post's file on the player's click (wtlive.py), then where it belongs."""
+        token = str(body.get("token") or "")
+        try:
+            if action == "feed":
+                page = body.get("page") if isinstance(body.get("page"), int) else 0
+                return self.send_json(wtlive.feed(str(body.get("content")), str(body.get("sort") or "created"), page, str(body.get("q") or "")))
+            if action == "progress":
+                return self.send_json(wtlive.progress(token))
+            if action == "fetch":
+                mods.forget(token)
+                wtlive.fetch(token, str(body.get("link") or ""), str(body.get("name") or ""))
+                return self.send_json({"ok": True})
+        except wtlive.LiveError as e:
+            return self.send_json({"error": e.code, "code": e.code}, 400)
+        staged = sorted(mods._staging(token).glob("*.zip")) if mods.TOKEN.fullmatch(token) else []
+        try:
+            if action == "mission":  # into My missions and My maps, as Import does (a mission plays from WTFTD)
+                try:
+                    found = [f for z in staged for f in imports.read(z.name, z.read_bytes(), read_json(DATA / "levels.json", {}))]
+                except imports.ImportFailed as e:
+                    return self.send_json({"error": e.code, "code": "import", "name": e.code}, 400)
+                known = STATE.get_vehicles()
+                return self.send_json({"missions": [{"scenario": s, "vehicle": known_vehicle(cfg, known)}
+                                                    for s, cfg in zip(imports.save(found), map(imports.vehicle, found))]})
+            if action == "sights":  # into WTFTD's library of sights
+                try:
+                    got = [sid for z in staged for sid in sights.import_pack(USER, z)]
+                except sights.SightError:
+                    got = []
+                if not got:
+                    return self.send_json({"error": "noSight", "code": "noSight"}, 400)
+                return self.send_json({"sights": got, **sights.list_sights(USER)})
+        finally:
+            if action in ("mission", "sights"):
+                mods.forget(token)
+        return self.send_json({"error": "unknown route"}, 404)
+
     def post_api(self, route: str, body: dict):
         if route.startswith("mods/"):
             return self.mods_action(route[5:], body)
+        if route.startswith("wtlive/"):
+            return self.wtlive_action(route[7:], body)
         if route == "map-import":  # a game mission (.zip or .blk) from Import: its mission, its map and its vehicle
             try:
                 found = imports.read(str(body.get("name", "")), base64.b64decode(str(body.get("data", "")), validate=True),
@@ -1223,9 +1265,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == "launch":
             how = game.launch(STATE.game_dir())
             return self.send_json({"ok": True, "via": how})
-        if route == "open-url":  # release page / issue forms / donation page of this project only
+        if route == "open-url":  # release page / issue forms / donation page of this project, a WT Live post (Mods) only
             url = str(body.get("url", ""))
-            if url.startswith(f"https://github.com/{REPO}/") or url == DONATE:
+            if url.startswith(f"https://github.com/{REPO}/") or url == DONATE or wtlive.POST.fullmatch(url):
                 import webbrowser
                 webbrowser.open(url)
                 return self.send_json({"ok": True})

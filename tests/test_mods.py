@@ -334,7 +334,7 @@ class Ownership(Base):
         mods.MANIFEST.parent.mkdir()
         for text in ("{ broken", "[1]", '{"skins": 5}', '{"skins": {"a": 5}}'):
             mods.MANIFEST.write_text(text)
-            self.assertEqual(mods.read_manifest(), {"skins": {}, "sounds": {}, "vehicles": {}})
+            self.assertEqual(mods.read_manifest(), {"skins": {}, "sounds": {}, "vehicles": {}, "hangars": {}})
 
     def test_nothing_is_written_outside_the_two_folders(self):
         before = {p for p in self.game.rglob("*")}
@@ -515,7 +515,7 @@ class Remove(Base):
 
     def test_it_is_a_part_of_uninstall(self):
         self.assertIn("mods", uninstall.PARTS)
-        self.assertEqual(uninstall.info(self.game)["mods"], {"skins": 1, "sounds": 1, "vehicles": 0, "config": True})
+        self.assertEqual(uninstall.info(self.game)["mods"], {"skins": 1, "sounds": 1, "vehicles": 0, "hangars": 0, "config": True})
 
     def test_uninstall_takes_what_wtftd_installed_and_gives_the_file_back(self):
         res = uninstall.run(["mods"], self.game)
@@ -851,6 +851,50 @@ class SeveralAtOnce(Base):
         with self.assertRaises(mods.ModsError) as e:
             mods.receive("pack0005", "a.tga", io.BytesIO(b"1"), 1, "auto")
         self.assertEqual(e.exception.code, "type")
+
+
+class Hangars(Base):
+    """A custom hangar (WT Live's Locations): its files in the game, the line config.blk needs, which the player adds."""
+    ISLAND = {"block_island_v2/content/pkg_local/levels/island.bin": b"level", "block_island_v2/content/pkg_local/levels/island.blk": b"x{}",
+              "block_island_v2/content/pkg_local/res/pkg_local_/island.dxp.bin": b"tex", "block_island_v2/island_block_v2.blk": b"hangar{}",
+              "block_island_v2/READ ME!.txt": b'3.copy and paste this text---> hangarBlk:t="island_block_v2.blk" and save.'}
+
+    def test_its_files_where_its_readme_says_and_config_blk_left_alone(self):
+        found = self.stage(self.ISLAND, "hangar", name="block_island_v2.zip")["hangar"]
+        self.assertEqual((found["name"], found["files"], found["line"]), ("block_island_v2", 4, "island_block_v2.blk"))
+        mods.install(self.game, "abcdef", "hangar")
+        self.assertTrue((self.game / "island_block_v2.blk").is_file())
+        self.assertTrue((self.game / "content/pkg_local/levels/island.bin").is_file())
+        self.assertFalse((self.game / "READ ME!.txt").exists())
+        self.assertEqual((self.game / "config.blk").read_bytes(), CONFIG)
+        h, = mods.hangars(self.game)
+        self.assertEqual((h["name"], h["line"], h["files"]), ("block_island_v2", "island_block_v2.blk", 4))
+        self.assertEqual(mods.counts()["hangars"], 1)
+        with self.assertRaises(mods.ModsError) as e:
+            mods.remove(self.game, "hangar", "block_island_v2", running=True)
+        self.assertEqual(e.exception.code, "running")
+        mods.remove(self.game, "hangar", "block_island_v2")
+        self.assertFalse((self.game / "content").exists())
+        self.assertFalse((self.game / "island_block_v2.blk").exists())
+        self.assertEqual(mods.hangars(self.game), [])
+
+    def test_one_on_a_map_of_the_game_and_its_line_without_readme(self):  # Norway: its hangar file alone
+        self.assertEqual(self.stage({"Norway_Hangar/nhg_mission.blk": b"hangar{}"}, "hangar")["hangar"]["line"], "nhg_mission.blk")
+        self.assertEqual(mods.inspect("abcdef", "hangar", IDS, None, "nhg_mission")["hangar"]["line"], "nhg_mission")  # as its post says
+        self.assertEqual(mods.inspect("abcdef", "hangar", IDS, None, '"evil"\nx')["hangar"]["line"], "nhg_mission.blk")
+
+    def test_what_isnt_a_hangar_or_would_replace_a_file_is_refused(self):
+        for code, files in (("hangarPlace", {**self.ISLAND, "block_island_v2/content/pkg_local/gamedata/units/x.blk": b"x"}),
+                            ("noHangar", {"x/content/pkg_local/levels/a.bin": b"level"})):
+            with self.subTest(code), self.assertRaises(mods.ModsError) as e:
+                self.stage(files, "hangar")
+            self.assertEqual(e.exception.code, code)
+            mods.forget("abcdef")
+        self.stage({"pack/config.blk": b"evil{}"}, "hangar")  # named like the game's own file: never written over it
+        with self.assertRaises(mods.ModsError) as e:
+            mods.install(self.game, "abcdef", "hangar")
+        self.assertEqual(e.exception.code, "exists")
+        self.assertEqual((self.game / "config.blk").read_bytes(), CONFIG)
 
 
 class PackageShapes(Base):

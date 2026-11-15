@@ -100,7 +100,7 @@ document.addEventListener('error', e => {
   else if (img.closest('.nation')) img.replaceWith(Object.assign(document.createElement('span'), { className: 'fallback', textContent: src.slice(10, 13).toUpperCase() }));
   else if (src.startsWith('/img/flag/')) img.style.visibility = 'hidden';
 }, true);
-document.addEventListener('click', e => e.target.closest('[data-close]')?.closest('dialog').close());
+document.addEventListener('click', e => e.target.closest('[data-close]')?.closest('dialog')?.close());  // a message's own close is not a dialog's
 const flagImg = n => `/img/flag/${n}.svg`;
 const brOf = (v, mode = S.f.brMode) => v.br?.[mode] ?? null;
 const fmtBR = b => (b == null ? '—' : b.toFixed(1));
@@ -1714,7 +1714,7 @@ async function openUninstall() {
   const i = unInfo;
   const hint = {
     cdk: t('uninstall.cdkHint', { n: i.cdk.files }), missions: t('uninstall.missionsHint', { n: i.missions.files }),
-    mods: t(i.mods.config ? 'uninstall.modsConfigHint' : 'uninstall.modsHint', { skins: i.mods.skins, sounds: i.mods.sounds, vehicles: i.mods.vehicles || 0 }),
+    mods: t(i.mods.config ? 'uninstall.modsConfigHint' : 'uninstall.modsHint', { skins: i.mods.skins, sounds: i.mods.sounds, vehicles: i.mods.vehicles || 0, hangars: i.mods.hangars || 0 }),
     cache: t('uninstall.cacheHint', { size: fmtBytes(i.cache.bytes) }), data: t('uninstall.dataHint', { size: fmtBytes(i.data.bytes) }),
     user: t('uninstall.userHint', { size: fmtBytes(i.user.bytes) }),
     app: i.app.available ? t('uninstall.appHint', { path: i.app.path }) : t(i.app.translocated ? 'uninstall.appMac' : 'uninstall.appSource'),
