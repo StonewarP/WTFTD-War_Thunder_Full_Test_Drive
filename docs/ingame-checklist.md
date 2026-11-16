@@ -779,6 +779,9 @@ KV-VI missions and Enhanced Tank Sight; the feed and the pictures with the real 
 - [ ] A hangar from WT Live, its line added to `config.blk` by hand: the game shows it; the Norway one's line
       without `.blk` (`nhg_mission`, as its post says) works.
 - [ ] Delete of a hangar with the game closed: the files go, the game starts on its own hangar once the line is out.
+- [ ] The T-65 (made for an older game, "BLK not found" at start) repaired in Mods → Vehicles with
+      `1x_engine_jet_fighter_metaparts`: the game starts, the T-65 flies and takes damage.
+- [ ] A preset given a stand-in (the FA-22+'s, Repair): it loads on the aircraft in a mission.
 
 ## 2aj. The packages' weapons on any pylon (new)
 

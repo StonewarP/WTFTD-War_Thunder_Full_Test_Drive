@@ -132,6 +132,11 @@ class SightPacks(unittest.TestCase):
             got = sights.import_pack(user, z)
             self.assertEqual(got, ["lib/ger_sight.blk", "lib/germ_b_ger_sight.blk"])
             self.assertEqual(sorted(p.name for p in (user / "sights").iterdir()), ["ger_sight.blk", "germ_b_ger_sight.blk"])
+            sights.remove_sight(user, "lib/ger_sight.blk")  # Mods -> Sights: one of the library
+            self.assertEqual([p.name for p in (user / "sights").iterdir()], ["germ_b_ger_sight.blk"])
+            for sid in ("game/all_tanks/x.blk", "lib/../x.blk", "lib/", "x"):  # the game's folder is the player's
+                with self.subTest(sid), self.assertRaises(sights.SightError):
+                    sights.remove_sight(user, sid)
 
 
 if __name__ == "__main__":

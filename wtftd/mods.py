@@ -263,10 +263,13 @@ def inspect(token: str, kind: str, ids=(), game: Path | None = None, hint: str =
     if kind == "vehicle":
         pkg = _package_root(root)
         found = _vehicle_files(pkg)
+        missing = missing_with_options(found)  # the player picks a stand-in for each (a package for an older game)
+        if any(x["fatal"] and not x["options"] for x in missing):  # nothing in the game to stand in: it would stop it
+            raise ModsError("oldGame", next(x["ref"] for x in missing if x["fatal"] and not x["options"]))
         name = pkg.name if pkg != root else "vehicle"
         plan = _plan(found, ids, game, _folder(name))
         vehicles = _vehicles(found, ids, plan)
-        return {"vehicle": {"name": name, "vehicles": vehicles, "files": len(found), "copies": _copies(vehicles, plan),
+        return {"vehicle": {"name": name, "vehicles": vehicles, "files": len(found), "copies": _copies(vehicles, plan), "missing": missing,
                             "missions": [t[-1] for t in _missions(found)],
                             "bytes": sum(f.stat().st_size for f, _ in found)}}
     if kind == "hangar":
@@ -441,6 +444,132 @@ def _vehicles(found: list, ids=(), plan: dict | None = None) -> list:
         if names.count(v["name"]) > 1:
             v["name"] = f'{v["name"]} ({v["id"]})'[:90]
     return out
+
+
+# a game file a package's .blk names (its damage model's parts, its weapons, presets, flight model...): the key, the path
+GAME_REF = re.compile(r'(?im)^\s*([\w.]+)\s*:\s*t\s*=\s*"((?i:gamedata)[/\\][^"]+?\.blk)"')
+FATAL = {"metapartsblk"}  # read for every vehicle as the game starts: one it lacks stops it ("BLK not found", the T-65)
+OPTIONS = 40  # stand-ins offered for one file, the closest first
+
+
+def missing_game_files(found: list) -> list:
+    """[(path, fatal)]: the game's files a package's .blk name that the game no longer has (renamed or gone since the
+    package was made). The damage model's (MetaPartsBlk) stop the game at its start: the T-65's
+    gameData/FlightModels/dm/metaparts/jet_fighter_metaparts.blk, gone by 2.61. The others fail when used (a weapon, a
+    preset: the CL-1201's flare_launcher, the FA-22+'s us_aim9jl_sidewinder). Told only where WTFTD has the game's
+    folder unpacked and that folder is there: a file of another pack isn't taken for a missing one."""
+    from . import builder
+    root = builder.DM / "aces.vromfs.bin_u"
+    if not root.is_dir():
+        return []
+    ours = {"/".join(t[2:]).lower() for _, t in found if t[0] == "content"}  # gamedata/... the package brings itself
+    out = {}
+    for f, t in found:
+        if t[0] != "content" or not t[-1].lower().endswith(".blk"):
+            continue
+        try:
+            text = f.read_text(encoding="utf-8-sig", errors="replace")
+        except OSError:
+            continue
+        for key, ref in GAME_REF.findall(text):
+            parts = ref.replace("\\", "/").lower().split("/")
+            if "/".join(parts) in ours or any(x in ("", ".", "..") for x in parts):
+                continue
+            folder = root.joinpath(*parts[:-1])
+            if folder.is_dir() and not (folder / (parts[-1] + "x")).exists() and not (folder / parts[-1]).exists():
+                out[ref] = out.get(ref, False) or key.lower() in FATAL
+    return sorted(out.items(), key=lambda x: (not x[1], x[0]))
+
+
+def _engines(found: list, ref: str) -> int | None:
+    """How many engines the vehicles naming ref have (their damage model's engineN_dm parts), to rank its stand-ins."""
+    n = set()
+    for f, t in found:
+        if t[-1].lower().endswith(".blk"):
+            try:
+                text = f.read_text(encoding="utf-8-sig", errors="replace")
+            except OSError:
+                continue
+            if ref in text:
+                n |= set(re.findall(r"\bengine(\d+)_dm\b", text))
+    return len(n) or None
+
+
+def _ranked(ref: str, engines: int | None = None) -> list:
+    """[(game path, score)] of the files of ref's folder, the closest first: the most words of the missing name, the
+    same number of engines (the T-65's jet_fighter_metaparts, one engine: 1x_engine_jet_fighter_metaparts first)."""
+    from . import builder
+    parts = ref.replace("\\", "/").split("/")
+    folder = (builder.DM / "aces.vromfs.bin_u").joinpath(*[x.lower() for x in parts[:-1]])
+    names = [q.name[:-5] for q in folder.glob("*.blkx")] if folder.is_dir() else []
+    want = [w for w in re.split(r"[_\-]+", parts[-1].lower().removesuffix(".blk")) if w and w != "metaparts"]
+
+    def score(name):
+        words, count = re.split(r"[_\-]+", name), re.match(r"(\d+)x_engine", name)
+        s = 10 * sum(w in words for w in want)
+        if engines and count:
+            s += 5 if int(count.group(1)) == engines else -3
+        return s
+
+    scored = sorted(((score(n), n) for n in names), key=lambda x: (-x[0], len(x[1]), x[1]))
+    return [(f"{'/'.join(parts[:-1])}/{n}.blk", s) for s, n in scored]
+
+
+def replacement_options(ref: str, engines: int | None = None) -> list:
+    """The game's files that can stand in for one it no longer has, the closest first (as game paths)."""
+    return [path for path, _ in _ranked(ref, engines)]
+
+
+def missing_with_options(found: list) -> list:
+    """[{ref, fatal, options, best}]: what a package names that the game no longer has, and what the player may put
+    instead. best: the closest when it shares a word with the missing name, else "" (leave it: a mod's own preset has no
+    counterpart in the game), which only a file that doesn't stop the game may stay."""
+    out = []
+    for ref, fatal in missing_game_files(found):
+        ranked = _ranked(ref, _engines(found, ref))
+        out.append({"ref": ref, "fatal": fatal, "options": [path for path, _ in ranked[:OPTIONS]],
+                    "best": ranked[0][0] if ranked and (fatal or ranked[0][1] > 0) else ""})
+    return out
+
+
+def _fix_text(text: str, fixes: dict) -> str:
+    """A vehicle file with the stand-ins the player picked for the game files the game no longer has."""
+    for ref, pick in fixes.items():
+        if pick:
+            text = text.replace(f'"{ref}"', f'"{pick}"')
+    return text
+
+
+def _checked_fixes(found: list, fixes) -> dict:
+    """The player's picks, each one of its file's stand-ins; "" leaves a file that doesn't stop the game as it is. A
+    damage model file without one refuses the package: installed as it is, it would stop the game at its start."""
+    fixes = fixes if isinstance(fixes, dict) else {}
+    out = {}
+    for ref, fatal in missing_game_files(found):
+        pick = fixes.get(ref) or ""
+        if pick and pick not in replacement_options(ref) or not pick and fatal:
+            raise ModsError("oldGame", ref)
+        if pick:
+            out[ref] = pick
+    return out
+
+
+def repair(game: Path, name: str, fixes, running: bool = False) -> None:
+    """A package installed before WTFTD checked (the T-65, which stops the game at its start): its vehicle files get the
+    stand-ins the player picked, in place, with the game closed."""
+    if running:
+        raise ModsError("running")
+    m = read_manifest()["vehicles"].get(str(name))
+    if not m:
+        raise ModsError("notOurs", str(name))
+    found, _ = _package_files(game, m)
+    picks = _checked_fixes(found, fixes)
+    for f, t in found:
+        if picks and t[-1].lower().endswith(".blk") and f.is_file():
+            text = f.read_text(encoding="utf-8-sig", errors="replace")
+            new = _fix_text(text, picks)
+            if new != text:
+                f.write_text(new, encoding="utf-8")
 
 
 def _mission_shells(found: list) -> dict:
@@ -722,7 +851,8 @@ def _copy_all(pairs: list) -> None:
         raise
 
 
-def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids=(), running: bool = False, hint: str = "") -> dict:
+def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids=(), running: bool = False, hint: str = "",
+            fixes: dict | None = None) -> dict:
     """Puts what was staged in the game, refusing rather than replacing anything already there, and lists it in the manifest."""
     root = _staging(token)
     if kind not in KINDS or not root.is_dir():
@@ -747,12 +877,16 @@ def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids
     elif kind == "vehicle":  # new files only, the game running or not: it reads them at its next start (the page says so)
         pkg = _package_root(root)
         found = _vehicle_files(pkg)
+        picks = _checked_fixes(found, fixes)  # a damage model file the game no longer has: the player's stand-in
         name = pkg.name if pkg != root else "vehicle"
         if name in data["vehicles"]:
             raise ModsError("exists", name)
         plan = _plan(found, ids, game, _folder(name))  # what's named like something in the game goes in as a copy
         vehicles = _vehicles(found, ids, plan)
         placed = _copy_pairs(found, vehicles, plan)
+        if picks:
+            placed = [(_fix_text((src.decode("utf-8", "replace") if isinstance(src, bytes) else src.read_text(encoding="utf-8-sig", errors="replace")), picks).encode()
+                       if t[-1].lower().endswith(".blk") and t[0] == "content" else src, t) for src, t in placed]
         pairs = [(src, _inside(game, *target)) for src, target in placed]
         for (_, target), (_, path) in zip(placed, pairs):
             if path.exists():
@@ -927,7 +1061,8 @@ def vehicle_packages(game: Path) -> list:
     for name, m in sorted(read_manifest()["vehicles"].items()):
         there = [game / rel for rel in m["files"] if (game / rel).is_file()]
         out.append({"name": name, "vehicles": m.get("vehicles") or [], "missions": [Path(x).name for x in m.get("missions") or []],
-                    "files": len(there), "bytes": sum(p.stat().st_size for p in there)})
+                    "files": len(there), "bytes": sum(p.stat().st_size for p in there),
+                    "stops": missing_with_options(_package_files(game, m)[0])})  # installed before WTFTD checked: Repair
     return out
 
 

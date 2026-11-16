@@ -156,6 +156,14 @@ def import_pack(user_dir: Path, archive: Path) -> list[str]:
     return list(dict.fromkeys(out))
 
 
+def remove_sight(user_dir: Path, sid: str) -> None:
+    """A sight out of WTFTD's library (Mods → Sights). The game's own folder is the player's: never deleted from."""
+    parts = str(sid or "").split("/")
+    if len(parts) != 2 or parts[0] != "lib" or not _NAME.match(parts[1]):
+        raise SightError("Not a sight of WTFTD's library")
+    (library_dir(user_dir) / parts[1]).unlink(missing_ok=True)
+
+
 def install(user_dir: Path, sid: str, vehicles: list[str]) -> list[str]:
     """Copies the sight to UserSights/<vehicle>/wtftd.blk for each vehicle; returns the folders written."""
     src = _resolve(user_dir, sid)

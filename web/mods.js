@@ -17,6 +17,7 @@ async function moAction(path, body) {
 }
 
 function moRefresh() {
+  if (MO.sights) S.sights = { dir: MO.sights.dir, sights: MO.sights.sights };  // the vehicle panel's sight list follows
   $('#modsCount').textContent = MO.skins.length + MO.sounds.length + (MO.vehicles || []).length + (MO.hangars || []).length || '';
   if (!$('#view-mods').classList.contains('hidden')) moRender();
   if (S.sel && $('#drawer .hero')) renderDrawer();
@@ -134,15 +135,62 @@ function moVehiclesHTML() {
   const hidden = p => p.vehicles.filter(v => v.invisible);  // an old modding kit's model: the game draws nothing (mo.invisible)
   const row = p => `<div class="list-item"><div class="list-thumb">${icon('air')}</div>
     <div class="list-main"><div class="list-title"><span title="${esc(p.vehicles.map(v => v.name).join(', '))}">${esc(moShortNames(p.vehicles) || p.name)}</span><span class="chip dim">${esc(p.name)}</span>
-      ${hidden(p).length ? `<span class="chip warn" title="${esc(t('mo.invisible', { names: moShortNames(hidden(p)) }))}">${esc(t('mo.invisibleChip'))}</span>` : ''}</div>
+      ${hidden(p).length ? `<span class="chip warn" title="${esc(t('mo.invisible', { names: moShortNames(hidden(p)) }))}">${esc(t('mo.invisibleChip'))}</span>` : ''}
+      ${(p.stops || []).some(s => s.fatal) ? `<span class="chip warn" title="${esc(t('mo.stops', { name: p.stops.find(s => s.fatal).ref }))}">${esc(t('mo.stopsChip'))}</span>`
+        : p.stops?.length ? `<span class="chip warn" title="${esc(t('mo.missingFiles', { names: p.stops.map(s => s.ref.split('/').pop()).join(', ') }))}">${esc(t('mo.missingChip', { n: p.stops.length }))}</span>` : ''}</div>
       <div class="list-sub">${p.missions.length ? `${esc(t('mo.testMissions', { names: p.missions.join(', ') }))} · ` : ''}${esc(t('mo.files', { n: p.files }))} · ${esc(moSize(p.bytes))}</div></div>
-    <div class="list-actions">${moRemoveButton('vehicle', p.name)}</div></div>`;
+    <div class="list-actions">${p.stops?.length ? `<button class="btn btn-sm btn-primary" data-morepair="${esc(p.name)}">${esc(t('mo.repair'))}</button>` : ''}${moRemoveButton('vehicle', p.name)}</div></div>`;
   const list = MO.vehicles || [];
   return `<div class="mo-warn">${icon('target', 'ic-sm')}<p class="hint">${esc(t('mo.vehicleWarning'))}</p></div>
     ${MO.running ? `<p class="hint mb-note">${esc(t('mo.vehicleRunning'))}</p>` : ''}
     <div class="mo-actions"><button class="btn" data-mopick="zip" data-kind="vehicle"${MO.busy ? ' disabled' : ''}>${icon('file', 'ic-sm')}<span>${esc(t('mo.fromZip'))}</span></button>
       <span class="muted">${esc(MO.busy ? moWorking() : t('mo.vehicleCount', { n: list.length }))}</span></div>
     ${list.length ? `<div class="list mo-list">${list.map(row).join('')}</div>` : `<div class="empty">${icon('air', 'ic-xl')}<p>${esc(t('mo.noVehicle'))}</p><p>${esc(t('mo.noVehicleHint'))}</p></div>`}`;
+}
+
+// the tank sights: WTFTD's library (from WT Live, a .zip or a .blk), deleted here, and those of the game's UserSights
+// folder, the player's (listed, never deleted). A mission puts the one picked in the vehicle panel in the game.
+function moSightsHTML() {
+  const st = MO.sights || { dir: '', sights: [] };
+  const where = s => (!s.folder ? t('mo.sightLibrary') : s.folder === 'all_tanks' ? t('mo.sightAllTanks') : S.byId?.has(s.folder) ? I18N.unit(s.folder) : s.folder);
+  const row = s => `<div class="list-item"><div class="list-thumb">${icon('target')}</div>
+    <div class="list-main"><div class="list-title"><span>${esc(s.name)}</span>${s.folder ? `<span class="chip dim">${esc(t('mo.byHand'))}</span>` : ''}</div>
+      <div class="list-sub">${esc(where(s))}</div></div>
+    <div class="list-actions">${s.folder ? '' : moRemoveButton('sight', s.id)}</div></div>`;
+  return `<div class="mo-warn">${icon('target', 'ic-sm')}<p class="hint">${esc(t('mo.sightWarning'))}</p></div>
+    <div class="mo-actions"><button class="btn" data-mopick="zip" data-kind="sight"${MO.busy ? ' disabled' : ''}>${icon('file', 'ic-sm')}<span>${esc(t('mo.fromZipBlk'))}</span></button>
+      <button class="btn btn-ghost" data-moroot="sight">${esc(t('mo.openFolder'))}</button>
+      <span class="muted">${esc(MO.busy ? moWorking() : t('mo.sightCount', { n: st.sights.length }))}</span></div>
+    ${st.sights.length ? `<div class="list mo-list">${st.sights.map(row).join('')}</div>` : `<div class="empty">${icon('target', 'ic-xl')}<p>${esc(t('mo.noSight'))}</p><p>${esc(t('mo.noSightHint'))}</p></div>`}`;
+}
+
+// sights picked: a .blk straight into the library, a .zip (a pack: a folder per vehicle) through Mods' staging
+async function moSightFiles(files) {
+  if (MO.busy) return toast({ title: moWorking(), ms: 3000 });
+  MO.busy = true;
+  moRender();
+  let n = 0;
+  for (const file of files) {
+    try {
+      if (/\.blk$/i.test(file.name)) {
+        await api('sight-import', { name: file.name, text: await file.text() });
+        n += 1;
+        continue;
+      }
+      const token = (newId() + newId()).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24).padEnd(8, '0');
+      const r = await fetch(`/api/mods/upload?${new URLSearchParams({ token, kind: 'auto', path: file.name })}`, { method: 'POST', body: file });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { data });
+      n += (await api('wtlive/sights', { token })).sights.length;
+    } catch (e) {
+      if (e.data?.code === 'noSight') toast({ title: t('wl.err.noSight'), sub: file.name, err: true, ms: 8000 });
+      else if (e.data?.code) moErr(e);
+      else toastErr(e);
+    }
+  }
+  MO.busy = false;
+  if (n) toast({ title: t('wl.sightsDone', { n }), sub: t('wl.sightsHint'), ms: 8000 });
+  try { await moLoad(); } catch { moRender(); }
 }
 
 // a custom hangar (from WT Live, or a .zip): its files in the game, and the line the player puts in config.blk to use it
@@ -164,7 +212,7 @@ function moHangarsHTML() {
 function moRender() {
   $$('#moTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === MO.tab));
   $('#moTabs').classList.toggle('hidden', !MO.game);
-  const tabs = { skins: moSkinsHTML, sounds: moSoundsHTML, vehicles: moVehiclesHTML, hangars: moHangarsHTML, live: wlHTML };
+  const tabs = { skins: moSkinsHTML, sounds: moSoundsHTML, vehicles: moVehiclesHTML, sights: moSightsHTML, hangars: moHangarsHTML, live: wlHTML };
   $('#moBody').innerHTML = !MO.game ? `<div class="empty">${icon('folder', 'ic-xl')}<p>${esc(t('mb.noGame'))}</p></div>` : (tabs[MO.tab] || moSkinsHTML)();
 
   if (MO.tab === 'live' && MO.game) wlWatch();  // the next posts as the list's end nears
@@ -207,11 +255,12 @@ async function moSend(files, kind) {
       if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { data });
     }
     const found = await api('mods/inspect', { token: MO.token, kind });
+    if (!(await moFixFirst(found))) throw Object.assign(new Error('cancelled'), { cancelled: true });
     const unclear = (found.skins || []).filter(s => !s.sure);
     if (unclear.length) await moAsk(unclear, found.kind || kind);
     else await moFinish(found.kind || kind, {}, found);
   } catch (e) {
-    moErr(e);
+    if (!e.cancelled) moErr(e);
     api('mods/forget', { token: MO.token }).catch(() => {});
   }
   MO.busy = false;
@@ -247,9 +296,33 @@ async function moWeaponsGo(pkg) {
   toast({ title: t('mo.weaponsGo', { names: moFew([...keys].map(k => I18N.weapon(k))) }), sub: n ? t('mo.weaponsUsed', { n }) : '', err: n > 0, ms: n ? 10000 : 6000 });
 }
 
+// a package made for an older game names game files the game no longer has, in any part of its vehicles (the T-65's
+// damage model, the FA-22+'s AIM-9JL and presets): the player picks what stands in for each, the closest first. The
+// damage model's must get one (the game stops at its start without); the others may stay as they are (they fail when
+// used), which is the choice where nothing in the game looks like them. null when they cancel.
+function moAskFix(missing) {
+  const short = path => path.split('/').pop().replace(/\.blk$/i, '');
+  const opt = (value, label, on) => `<option value="${esc(value)}"${on ? ' selected' : ''}>${esc(label)}</option>`;
+  $('#moFix').innerHTML = missing.map(m => `<label class="mo-ask-row"><b>${esc(short(m.ref))}</b>
+    <small class="muted">${esc(t(m.fatal ? 'mo.fixFatal' : 'mo.fixUsed', { name: m.ref }))}</small>
+    <select data-ref="${esc(m.ref)}">${m.fatal ? '' : opt('', t('mo.fixLeave'), !m.best)}${m.options.map(o => opt(o, short(o) + (o === m.best ? ` · ${t('mo.fixBest')}` : ''), o === m.best)).join('')}</select></label>`).join('');
+  $('#dlgFix').showModal();
+  return new Promise(done => { MO.fixing = done; });
+}
+
+// before installing a package: its stand-ins picked (MO.fixes, sent with the install), or false when the player cancels
+async function moFixFirst(found) {
+  MO.fixes = null;
+  const missing = found.vehicle?.missing || [];
+  if (!missing.length) return true;
+  MO.fixes = await moAskFix(missing);
+  return !!MO.fixes;
+}
+
 // found: what inspect said of it (a hangar's line)
 async function moFinish(kind, vehicles, found = {}) {
-  const ok = await moAction('install', { token: MO.token, kind, vehicles, hint: MO.hint || '' });
+  const ok = await moAction('install', { token: MO.token, kind, vehicles, hint: MO.hint || '', fixes: MO.fixes || {} });
+  MO.fixes = null;
   if (ok && kind === 'vehicle') {  // its vehicles among WTFTD's, its test missions imported
     moVehiclesIn(ok.modVehicles || []);
     const c = ok.copies || {}, copies = [...(c.vehicles || []).map(id => I18N.unit(id)), ...(c.models || []), ...(c.textures || [])];
@@ -288,7 +361,18 @@ function bindMods() {
     const d = b.dataset;
     if (d.morm && (d.kind === 'vehicle' || d.kind === 'sound' || d.kind === 'hangar') && !(await moGameClosed(d.kind))) return;
     if (d.mocopy) return moCopy(d.mocopy);
-    if (d.mopick === 'zip') { MO.pickKind = d.kind === 'hangar' ? 'hangar' : 'auto'; return $('#moZip').click(); }
+    if (d.morepair) {  // a package for an older game installed before WTFTD checked: its stand-ins, with the game closed
+      const p = (MO.vehicles || []).find(x => x.name === d.morepair);
+      if (!p?.stops?.length || !(await moGameClosed('vehicle'))) return;
+      const fixes = await moAskFix(p.stops);
+      if (fixes && await moAction('repair', { name: p.name, fixes })) toast({ title: t('mo.repaired', { name: p.name }), sub: t('mo.repairedHint'), ms: 9000 });
+      return;
+    }
+    if (d.mopick === 'zip') {
+      MO.pickKind = d.kind === 'hangar' || d.kind === 'sight' ? d.kind : 'auto';
+      $('#moZip').accept = d.kind === 'sight' ? '.zip,.blk' : '.zip';  // a sight may come alone
+      return $('#moZip').click();
+    }
     if (d.mopick === 'folder') return $('#moFolder').click();
     if (d.moroot) return moOpen(d.moroot);
     if (d.moopen) return moOpen('skin', d.moopen);
@@ -320,6 +404,7 @@ function bindMods() {
     const files = [...e.target.files];
     e.target.value = '';
     if (!files.length) return;
+    if (MO.pickKind === 'sight') return moSightFiles(files);
     if (MO.pickKind !== 'hangar') return moSendMany(files);
     (async () => { for (const file of files) await moSend([{ file, path: file.name }], 'hangar'); })();  // a hangar's files look like a package's
   });
@@ -339,6 +424,18 @@ function bindMods() {
     MO.waiting = null;
     $('#dlgSkin').close();
     done(await moFinish(kind, vehicles));
+  });
+  $('#moFixGo').addEventListener('click', () => {
+    const fixes = Object.fromEntries($$('#moFix select').map(s => [s.dataset.ref, s.value]));
+    const done = MO.fixing;
+    MO.fixing = null;
+    $('#dlgFix').close();
+    done?.(fixes);
+  });
+  $('#dlgFix').addEventListener('close', () => {  // cancelled: nothing installed or changed
+    const done = MO.fixing;
+    MO.fixing = null;
+    done?.(null);
   });
   $('#dlgSkin').addEventListener('close', () => {
     if (!MO.waiting) return;

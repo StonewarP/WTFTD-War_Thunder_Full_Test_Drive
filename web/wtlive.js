@@ -174,18 +174,19 @@ async function wlInstall(id) {
       ok = true;
     } else if (p.kind === 'sight') {
       const r = await api('wtlive/sights', { token });
-      S.sights = { dir: r.dir, sights: r.sights };  // the vehicle panel's list of sights
+      S.sights = MO.sights = { dir: r.dir, sights: r.sights };  // the vehicle panel's list and Mods → Sights
       if (S.sel) renderDrawer();
       toast({ title: t('wl.sightsDone', { n: r.sights.length }), sub: t('wl.sightsHint'), ms: 8000 });
       ok = true;
     } else {
       MO.hint = (p.text.match(/hangarBlk\s*:\s*t\s*=\s*"([^"\r\n]{1,120})"/) || [])[1] || '';  // a hangar's name as its post gives it
       const found = await api('mods/inspect', { token, kind: p.kind, hint: MO.hint });
+      if (!(await moFixFirst(found))) throw Object.assign(new Error('cancelled'), { cancelled: true });
       const unclear = (found.skins || []).filter(s => !s.sure);
       ok = !!(unclear.length ? await moAsk(unclear, p.kind) : await moFinish(p.kind, {}, found));
     }
   } catch (e) {
-    if (e.data?.code === 'import') toast({ title: t('share.gameErr.' + e.data.name), err: true, ms: 9000 });
+    if (e.cancelled) { /* the player cancelled: nothing installed */ } else if (e.data?.code === 'import') toast({ title: t('share.gameErr.' + e.data.name), err: true, ms: 9000 });
     else if (WL_ERRORS.includes(e.data?.code)) toast({ title: t('wl.err.' + e.data.code), err: true, ms: 9000 });
     else moErr(e);
     api('mods/forget', { token }).catch(() => {});

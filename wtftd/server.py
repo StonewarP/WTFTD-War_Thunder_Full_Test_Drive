@@ -611,7 +611,7 @@ def mods_status() -> dict:
     if not gd:
         return {"game": False, "skins": [], "sounds": [], "sound": {}, "running": False, "vehicles": [], "hangars": []}
     return {"game": True, "skins": [{**s, "pic": capture_url(skin_key(s))} for s in mods.skins(gd, vehicle_ids())], "sounds": mods.sounds(gd), "sound": mods.sound_state(gd), "running": game_up(),
-            "vehicles": mods.vehicle_packages(gd), "hangars": mods.hangars(gd),
+            "vehicles": mods.vehicle_packages(gd), "hangars": mods.hangars(gd), "sights": sights.list_sights(USER),
             "allowed": {k: sorted(v) for k, v in mods.ALLOWED.items()}}
 
 
@@ -1091,7 +1091,7 @@ class Handler(BaseHTTPRequestHandler):
         if action == "install":
             before = set(mods.read_manifest()["vehicles"])
             mods.install(gd, body.get("token"), body.get("kind"), body.get("vehicles"), game_vehicle_ids() if vehicle else vehicle_ids(), game_up(),
-                         str(body.get("hint") or ""))
+                         str(body.get("hint") or ""), body.get("fixes"))
             if vehicle:
                 STATE.forget_vehicles()
                 models.forget()  # its model and textures for the 3D view and its picture
@@ -1101,6 +1101,13 @@ class Handler(BaseHTTPRequestHandler):
                                        "installed": [v for p in added for v in p["vehicles"]],  # this package's, for its message
                                        "weapons": [w["name"] for w in STATE.get_catalog().values() if w.get("pkg") in names],
                                        "missions": package_missions(gd, [m for p in added for m in p["missions"]])})
+        elif action == "repair":  # a package for an older game: the stand-ins the player picked (Mods -> Vehicles)
+            mods.repair(gd, str(body.get("name") or ""), body.get("fixes"), game_up())
+        elif action == "remove" and body.get("kind") == "sight":  # one of WTFTD's library (Mods -> Sights)
+            try:
+                sights.remove_sight(USER, str(body.get("name") or ""))
+            except sights.SightError:
+                raise mods.ModsError("notOurs", str(body.get("name") or "")) from None
         elif action == "remove":
             gone = (mods.read_manifest()["vehicles"].get(str(body.get("name"))) or {}).get("vehicles") or [] if vehicle else []
             mods.remove(gd, body.get("kind"), body.get("name"), game_up())
@@ -1113,6 +1120,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({**mods_status(), "modVehicles": mod_vehicle_list()})
         elif action == "sound":
             mods.set_sound(gd, body.get("on") is True, game_up())
+        elif action == "open" and body.get("kind") == "sight":  # the game's UserSights, in the player's Documents
+            us = sights.user_sights_dir()
+            if not us:
+                raise mods.ModsError("noSightDir")
+            us.mkdir(parents=True, exist_ok=True)
+            game.open_folder(us)
         elif action == "open":
             target = gd / mods.SKINS if body.get("kind") == "skin" else gd.joinpath(*mods.SOUNDS)
             name = body.get("name")

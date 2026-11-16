@@ -4,6 +4,20 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.32.1 - 2026-11-16
+
+- **A vehicle package made for an older game gets stand-ins for the files the game no longer has** (the T-65 from WT
+  Live names `gameData/FlightModels/dm/metaparts/jet_fighter_metaparts.blk`, gone by 2.61: War Thunder stopped at its
+  start, FATAL ERROR "BLK not found"). WTFTD looks at every game file a package's vehicles name (damage model,
+  weapons, presets...) and, at install, asks what stands in for each one the game hasn't got, the closest offered
+  first (same folder, most words of the name, same number of engines: `1x_engine_jet_fighter_metaparts` for the
+  T-65). The damage model's must get one, the game stops without it; the others may stay as they are (they fail
+  only when used). A package installed before is marked *Stops the game* or *missing files* in Mods → Vehicles,
+  with **Repair** for the same choice, with the game closed.
+- **Mods → Sights**: the tank sights in one list, WTFTD's library (from WT Live, a pack's `.zip` or a `.blk`, added
+  here too) and those of the game's UserSights folder, which are yours (listed, never deleted). **Delete** takes one
+  out of the library; **Open the folder** opens UserSights. The vehicle panel's sight choice follows.
+
 ## 0.32.0 - 2026-11-16
 
 - **WT Live in WTFTD (Mods → WT Live).** The mods players share on [WT Live](https://live.warthunder.com/), without

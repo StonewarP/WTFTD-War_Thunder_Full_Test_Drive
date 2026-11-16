@@ -1482,7 +1482,7 @@ body.sub-on .subtabs { display: flex; }
 /* my hangar */
 .hg-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; margin-bottom: 12px; }
 .hg-tabs button { height: 34px; font-weight: 600; }
-#moTabs { grid-template-columns: repeat(5, minmax(0, 1fr)); }  /* Mods: WT Live, Skins, Sounds, Vehicles, Hangars on one line */
+#moTabs { grid-template-columns: repeat(6, minmax(0, 1fr)); }  /* Mods: WT Live, Skins, Sounds, Vehicles, Sights, Hangars on one line */
 .hg-bar select { max-width: 320px; }
 .hg-bar select, .hg-bar .seg, #hgBody .ov-profiles select, #hgBody .ov-profiles input, #hgBody .ov-profiles .btn, #hgBody .ov-profiles .icon-btn, #hgBody .search { height: 34px; }
 #hgBody .ov-profiles .icon-btn { width: 34px; }

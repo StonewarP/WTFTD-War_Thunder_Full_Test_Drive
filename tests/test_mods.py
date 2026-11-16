@@ -744,6 +744,39 @@ class Vehicles(Base):
         self.assertEqual([n for _, n in mods._dxp_names((res / "su_33.dxp.bin").read_bytes())], ["z0pty_glass*", "su_33_c*"])
         self.assertEqual((self.game / "content/pkg_local/gamedata/flightModels/ac_su_33.blk").read_text(), 'model:t="z0_33"\n')
 
+    def test_files_the_game_no_longer_has_get_stand_ins(self):  # the T-65: the game stopped at its start ("BLK not found")
+        dm = self.root / "dm" / "aces.vromfs.bin_u" / "gamedata" / "flightmodels"
+        for rel in ("dm/metaparts/fighter_metaparts", "dm/metaparts/1x_engine_jet_fighter_metaparts",
+                    "dm/metaparts/2x_engine_jet_fighter_metaparts", "weaponpresets/other_v2"):
+            (dm / f"{rel}.blkx").parent.mkdir(parents=True, exist_ok=True)
+            (dm / f"{rel}.blkx").write_text("{}")
+        gone, preset = "gameData/FlightModels/dm/metaparts/jet_fighter_metaparts.blk", "gameData/FlightModels/weaponPresets/gone.blk"
+        plane = (f'model:t="j50"\nfmFile:t="fm/j50.blk"\nMetaPartsBlk:t="{gone}"\nDamageParts{{\n  engine1_dm{{\n  }}\n}}\n'
+                 f'weapon_presets{{\n  preset{{\n    name:t="x"\n    blk:t="{preset}"\n  }}\n}}\n').encode()
+        old = {**PACKAGE, "content/pkg_local/gameData/flightModels/j50.blk": plane}
+        with mock.patch.object(builder, "DM", self.root / "dm"):
+            missing = self.stage(old, "vehicle")["vehicle"]["missing"]
+            self.assertEqual([(m["ref"], m["fatal"], m["best"]) for m in missing], [(gone, True, gone.replace("jet_", "1x_engine_jet_")),
+                                                                                    (preset, False, "")])  # nothing like it: leave it
+            self.assertEqual(missing[0]["options"][:2], [gone.replace("jet_", "1x_engine_jet_"), gone.replace("jet_", "2x_engine_jet_")])  # one engine
+            for fixes in ({}, {gone: "gameData/FlightModels/dm/metaparts/../../evil.blk"}):  # its damage model must get a real one
+                with self.subTest(fixes), self.assertRaises(mods.ModsError) as e:
+                    mods.install(self.game, "abcdef", "vehicle", ids=IDS, fixes=fixes)
+                self.assertEqual((e.exception.code, e.exception.name), ("oldGame", gone))
+            self.assertFalse((self.game / "content").exists())
+            mods.install(self.game, "abcdef", "vehicle", ids=IDS, fixes={gone: missing[0]["best"], preset: ""})
+            text = (self.game / "content/pkg_local/gamedata/flightModels/j50.blk").read_text()
+            self.assertIn(f'MetaPartsBlk:t="{missing[0]["best"]}"', text)
+            self.assertIn(f'blk:t="{preset}"', text)  # left as it is: it fails only when used
+            pkg, = mods.vehicle_packages(self.game)
+            self.assertEqual([(s["ref"], s["fatal"]) for s in pkg["stops"]], [(preset, False)])
+            other = "gameData/FlightModels/weaponPresets/other_v2.blk"
+            mods.repair(self.game, pkg["name"], {preset: other})  # Repair, later
+            self.assertIn(f'blk:t="{other}"', (self.game / "content/pkg_local/gamedata/flightModels/j50.blk").read_text())
+            self.assertEqual(mods.vehicle_packages(self.game)[0]["stops"], [])
+            with self.assertRaises(mods.ModsError):
+                mods.repair(self.game, pkg["name"], {}, running=True)
+
     def test_a_tank_gets_the_shells_its_mission_gives_it(self):  # the T-14's: empty slots gave it one round, no reload
         tank = (b'model:t="t_14"\ncommonWeapons{\n  Weapon{\n    blk:t="gameData/Weapons/groundModels_weapons/gun.blk"\n    bullets:i=45\n  }\n'
                 b'  Weapon{\n    bullets:i=300\n  }\n}\n')
