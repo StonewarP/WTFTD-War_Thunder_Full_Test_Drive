@@ -148,6 +148,55 @@ class Update(unittest.TestCase):
                 selfupdate._start(self.root / "WTFTD.app", old, [])
             self.assertEqual(run.call_args.args[0], ["open", "-n", str(self.root / "WTFTD.app"), "--args", "--updated", str(old)])
 
+    def test_the_new_one_unpacks_its_own_files(self):
+        # with PyInstaller's variables, a onefile exe at the same path ran in the old one's unpacked files, which the old one
+        # deleted on closing: 0.33.0 -> 0.33.1 gave a 404 page and a "Failed to remove temporary directory" box
+        app_, old = self.root / "WTFTD.exe", self.root / ".WTFTD.exe.1.old"
+        for platform in ("win32", "linux"):
+            with mock.patch.object(selfupdate.subprocess, "Popen") as popen, mock.patch.object(selfupdate.sys, "platform", platform):
+                selfupdate._start(app_, old, [])
+            self.assertEqual(popen.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1", platform)
+
+
+class StartedInsideTheOldOne(unittest.TestCase):
+    """0.33.0 and 0.33.1 start the new version with PyInstaller's variables: it runs with no bootloader of its own, its
+    parent the old app (the pid in the set-aside name). It starts itself again, on its own, and ends."""
+    APP = Path("C:/x/WTFTD.exe")
+
+    def test_started_by_the_old_app_itself(self):
+        old = f"C:/x/.WTFTD.exe.{os.getppid()}.old"
+        with mock.patch.object(selfupdate, "target", lambda: self.APP), mock.patch.object(selfupdate, "_start") as started:
+            self.assertTrue(selfupdate.start_alone(old, ["p"]))
+        started.assert_called_once_with(self.APP, Path(old), ["p"])
+
+    def test_started_by_its_own_bootloader(self):
+        with mock.patch.object(selfupdate, "target", lambda: self.APP), mock.patch.object(selfupdate, "_start") as started:
+            self.assertFalse(selfupdate.start_alone(f"C:/x/.WTFTD.exe.{os.getppid() + 1}.old"))
+            self.assertFalse(selfupdate.start_alone("C:/x/WTFTD.exe"))
+        started.assert_not_called()
+
+    def test_from_the_source_code_never(self):
+        with mock.patch.object(selfupdate, "target", lambda: None), mock.patch.object(selfupdate, "_start") as started:
+            self.assertFalse(selfupdate.start_alone(f"C:/x/.WTFTD.exe.{os.getppid()}.old"))
+        started.assert_not_called()
+
+    def test_a_start_that_fails_keeps_this_one(self):
+        with mock.patch.object(selfupdate, "target", lambda: self.APP), mock.patch.object(selfupdate, "_start", side_effect=OSError):
+            self.assertFalse(selfupdate.start_alone(f"C:/x/.WTFTD.exe.{os.getppid()}.old"))
+
+    def test_main_ends_once_started_again(self):
+        with mock.patch.object(app.sys, "argv", ["wtftd", "--updated", "old"]), \
+                mock.patch.object(app.selfupdate, "start_alone", return_value=True) as alone, mock.patch.object(app, "prepare") as prepared:
+            app.main()
+        alone.assert_called_once()
+        prepared.assert_not_called()
+
+    def test_steam_starts_the_app_on_its_own_too(self):  # the WTFTD Steam started ends with the game: the app outlives it
+        with mock.patch.object(app.subprocess, "Popen") as popen, mock.patch.object(app, "already_running", return_value=False), \
+                mock.patch.object(app, "wait_game"), mock.patch.object(app, "outside_steam", return_value=[]):
+            app.with_game([])
+        self.assertEqual(popen.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+
 
 class Replaced(unittest.TestCase):
     """The new WTFTD, started by the one it replaced (--updated <old>): that one closes first, then its file goes."""

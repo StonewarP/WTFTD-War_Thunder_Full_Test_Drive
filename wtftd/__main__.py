@@ -230,7 +230,7 @@ def with_game(command: list[str]):
         subprocess.Popen(command, cwd=str(folder) if folder.is_dir() and sys.platform == "win32" else None)
     if not already_running():
         subprocess.Popen([*outside_steam(), *server.app_command(), "--game-started"], cwd=str(ROOT), creationflags=getattr(subprocess, "DETACHED_PROCESS", 0),
-                         start_new_session=sys.platform != "win32")
+                         start_new_session=sys.platform != "win32", env=selfupdate.alone_env())
     wait_game()
 
 
@@ -244,9 +244,12 @@ def main():
     if sys.stdout is None or (FROZEN and sys.platform == "darwin"):  # packaged app without a console: keep a log instead
         CACHE.mkdir(parents=True, exist_ok=True)
         sys.stdout = sys.stderr = open(CACHE / "wtftd.log", "w", encoding="utf-8", buffering=1)
+    updated = sys.argv[sys.argv.index("--updated") + 1] if "--updated" in sys.argv[:-1] else None
+    if updated and selfupdate.start_alone(updated, outside_steam()):
+        return
     prepare()
-    if "--updated" in sys.argv[:-1]:
-        replaced(sys.argv[sys.argv.index("--updated") + 1])
+    if updated:
+        replaced(updated)
     port = 8777
     if "--port" in sys.argv:  # a port of its own: a second WTFTD on purpose (tests, development)
         port = int(sys.argv[sys.argv.index("--port") + 1])

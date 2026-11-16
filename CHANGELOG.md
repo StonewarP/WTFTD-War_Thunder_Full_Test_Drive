@@ -4,6 +4,15 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.33.2 - 2026-11-16
+
+- **Fixed: after Update now, the new version opened on an empty page (404)** and Windows showed "Failed to remove
+  temporary directory". The new exe took over the old one's unpacked files (PyInstaller's variables passed on, same
+  path), and the old one deleted them on closing. The new version now unpacks its own. A new version started by 0.33.0
+  or 0.33.1, which still pass them on, starts itself again on its own. Your settings, missions and game data were never
+  touched: with 0.33.1 installed by Update now, closing WTFTD and opening it again was enough.
+- **Fixed: the WTFTD Steam starts with the game could break the same way when the game closed.**
+
 ## 0.33.1 - 2026-11-16
 
 - **Fixed: What changed showed a list's change as "before → after"** (`Pylon weapons: Spike NLOS → -`), when its row holds

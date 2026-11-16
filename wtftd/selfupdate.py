@@ -76,6 +76,26 @@ def update(url: str, ua: str, prefix: list[str] | tuple = ()) -> None:
         shutil.rmtree(work, ignore_errors=True)
 
 
+def alone_env() -> dict:
+    """The environment of a WTFTD started from this one that outlives it. PyInstaller's variables passed on, a onefile exe at
+    the same path runs in this one's unpacked files, which this one deletes on closing: the page gives 404."""
+    return {**os.environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"}
+
+
+def start_alone(old: str, prefix: list[str] | tuple = ()) -> bool:
+    """In the new WTFTD, first thing: 0.33.0 and 0.33.1 started it without alone_env, so it runs in their unpacked files with
+    no bootloader of its own, its parent the old app (the pid in old's name). True: started again on its own, this one ends."""
+    m = re.fullmatch(r"\..+\.(\d+)\.old", Path(old).name)
+    app = target()
+    if app is None or not m or int(m.group(1)) != os.getppid():
+        return False
+    try:
+        _start(app, Path(old), list(prefix))
+    except (OSError, subprocess.SubprocessError):  # this one runs on, as before
+        return False
+    return True
+
+
 def remove_later(old: str) -> threading.Thread | None:
     """In the new WTFTD: the app it replaced (update's set-aside copy only), retried until that one has closed (Windows
     keeps a running exe's file)."""
@@ -199,9 +219,9 @@ def _start(app: Path, old: Path, prefix: list[str]) -> None:
     elif sys.platform == "win32":
         flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
         try:  # out of this process's job too (a launcher's job would end it with this one)
-            subprocess.Popen([str(app), *args], creationflags=flags | 0x01000000, close_fds=True)  # CREATE_BREAKAWAY_FROM_JOB
+            subprocess.Popen([str(app), *args], creationflags=flags | 0x01000000, close_fds=True, env=alone_env())  # CREATE_BREAKAWAY_FROM_JOB
         except OSError:  # the job forbids it
-            subprocess.Popen([str(app), *args], creationflags=flags, close_fds=True)
+            subprocess.Popen([str(app), *args], creationflags=flags, close_fds=True, env=alone_env())
     else:
-        subprocess.Popen([*prefix, str(app), *args], start_new_session=True, close_fds=True,
+        subprocess.Popen([*prefix, str(app), *args], start_new_session=True, close_fds=True, env=alone_env(),
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
