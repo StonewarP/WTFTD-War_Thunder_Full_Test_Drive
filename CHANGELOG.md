@@ -4,6 +4,14 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.33.3 - 2026-11-16
+
+- **What changed lists every game update now, even one that moved nothing it compares.** The game went from 2.61.0.17 to
+  2.61.0.20 and the page showed nothing at all, as if WTFTD had missed it: that update only changed what the page doesn't
+  compare (a tank's smoke screen and gun depression, three missile warners' settings, names). It's now in **Game version**
+  marked *no change compared*, the page says what wasn't compared, the update banner says it too, and Copy for Reddit /
+  Discord gives that line. In every language.
+
 ## 0.33.2 - 2026-11-16
 
 - **Fixed: after Update now, the new version opened on an empty page (404)** and Windows showed "Failed to remove

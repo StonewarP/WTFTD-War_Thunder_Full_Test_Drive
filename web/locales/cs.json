@@ -1929,6 +1929,8 @@
   "ch.shareCopied": "Zkopírováno",
   "ch.shareCopiedHint": "Vložte to do příspěvku nebo zprávy (Ctrl+V).",
   "ch.none": "Těmto filtrům neodpovídá žádná změna.",
+  "ch.nothing": "Tato aktualizace nezměnila nic z toho, co WTFTD porovnává: BR, výkony, pancéřování, ceny, munice, zbraně a mapy jsou stejné. Mohla změnit to, co WTFTD neporovnává, například názvy, kouřové clony, depresi děla nebo nastavení senzorů.",
+  "ch.nothingShort": "žádná porovnaná změna",
   "ch.empty": "Zatím není co porovnávat.",
   "ch.emptyHint": "Tato stránka se naplní po příští aktualizaci hry: WTFTD pokaždé porovná stará data s novými.",
   "ch.back": "Tohle není aktualizace hry: data se při změně zdroje vrátila z {from} na {to}, protože jeden zdroj byl napřed. Tyto řádky jen vracejí novější verzi zpět.",

@@ -1934,6 +1934,8 @@
   "ch.shareCopied": "Copied",
   "ch.shareCopiedHint": "Paste it in your post or message (Ctrl+V).",
   "ch.none": "No change matches these filters.",
+  "ch.nothing": "This update changed nothing WTFTD compares: battle ratings, performance, armor, costs, ammunition, weapons and maps are the same. It may have changed what WTFTD doesn't compare, such as names, smoke screens, gun depression or sensor settings.",
+  "ch.nothingShort": "no change compared",
   "ch.empty": "Nothing to compare yet.",
   "ch.emptyHint": "This page fills in after the next game update: WTFTD compares the old data with the new each time.",
   "ch.back": "This isn't a game update: the data went back from {from} to {to} when its source changed, one source being ahead of the other. These rows only undo the newer version.",

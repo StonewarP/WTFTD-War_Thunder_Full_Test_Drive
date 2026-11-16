@@ -184,9 +184,10 @@ class Keep(unittest.TestCase):
         self.assertIsNone(patches.record(None, self.data))
         self.assertEqual(patches.index()["patches"], [])
 
-    def test_a_patch_that_moved_nothing_takes_no_place(self):
-        self.assertIsNone(self.build(db(), db("2.59.0.93")))
-        self.assertFalse(patches.FILE.exists())
+    def test_a_patch_that_moved_nothing_is_kept_empty(self):  # the page tells it came (2.61.0.17 -> 2.61.0.20 showed nothing at all)
+        self.assertEqual(self.build(db(), db("2.59.0.93"))["rows"], [])
+        self.assertEqual([(p["id"], p["counts"]) for p in patches.index()["patches"]], [("2.59.0.92-2.59.0.93", {})])
+        self.assertEqual(patches.rows("2.59.0.92-2.59.0.93"), [])
 
     def test_going_down_is_kept_and_marked(self):
         self.build(db("2.60.0.21"), self.moved("2.59.0.92"))
@@ -233,8 +234,8 @@ class Build(unittest.TestCase):
         (self.dm / "version").write_text("2.60.0.21")
         write(self.data, db())
 
-    def run_build(self, fail=None, whole=False):
-        moved = vehicle(s={"spd": 60, "rel": 7.5, "armT": [100, 50, 30], "rp": 1000})
+    def run_build(self, fail=None, whole=False, moved=None):
+        moved = moved or vehicle(s={"spd": 60, "rel": 7.5, "armT": [100, 50, 30], "rp": 1000})
         lang = mock.Mock()
         lang.write.side_effect = lambda: ["en"]
         steps = {"Lang": mock.Mock(return_value=lang), "apply_rarity": mock.Mock(), "build_vehicles": mock.Mock(return_value=([moved], {})),
@@ -271,6 +272,11 @@ class Build(unittest.TestCase):
         self.assertEqual(meta["patch"], "2.59.0.92-2.60.0.21")
         self.assertGreaterEqual(meta["changes"], 1)
         self.assertTrue(self.file.exists())
+
+    def test_a_build_that_moved_nothing_still_names_its_patch(self):  # the update banner tells it, with no changes to open
+        (self.dm / "version").write_text("2.59.0.93")
+        meta = self.run_build(moved=vehicle())
+        self.assertEqual((meta["patch"], meta["changes"]), ("2.59.0.92-2.59.0.93", 0))
 
     def test_the_data_keeps_the_circuit_it_was_built_from(self):
         with mock.patch.object(builder, "fetch_gamefiles"), mock.patch("wtftd.game.circuit", lambda gd: "dev"), \

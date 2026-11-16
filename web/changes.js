@@ -171,7 +171,7 @@ function chShareText(where) {
       ...(rank ? [`${t('filters.rank')} ${ROMAN[rank[2]] || rank[2]} → ${ROMAN[rank[3]] || rank[3]}`] : [])] : rows.map(change);
     return `- **${name(rows[0])}**: ${md(parts.join('; '))}\n`;
   };
-  let out = head, left = 0;
+  let out = head + (CH.rows.length ? '' : `\n${md(t('ch.nothing'))}\n`), left = 0;
   for (const g of CH.groups.filter(x => CH.subjects[x])) {
     const names = g === 'new' || g === 'gone', seen = new Set();  // new and removed vehicles: their names on one line, all they say
     twice = new Set(CH.subjects[g].map(s => s[0].name).filter(n => seen.has(n) || !seen.add(n)));
@@ -226,7 +226,7 @@ function chRender() {
   body.innerHTML = `${notes.map(x => `<p class="hint ch-note">${icon('target', 'ic-sm')}<span>${esc(x)}</span></p>`).join('')}
     ${present.length ? `<div class="ar-cats ch-tabs" role="tablist">${present.map(g => `<button class="chipbtn${g === tab ? ' active' : ''}" role="tab" data-chtab="${g}">
       ${esc(t('ch.group.' + g))}<span class="n">${I18N.num(CH.subjects[g].length)}</span>${g === 'br' ? ud : ''}</button>`).join('')}</div>
-    <div class="ch-rows">${chTable(tab)}</div>` : `<div class="empty"><p>${esc(t('ch.none'))}</p></div>`}`;
+    <div class="ch-rows">${chTable(tab)}</div>` : `<div class="empty"><p>${esc(t(CH.rows.length ? 'ch.none' : 'ch.nothing'))}</p></div>`}`;
 }
 
 // a patch's rows, sorted once: by name, a vehicle's values together
@@ -302,7 +302,7 @@ async function openChangesView() {
     $('#updateBanner.done')?.classList.add('hidden');
     const day = p => new Date(p.at * 1000).toLocaleDateString(I18N.code);
     $('#chPatch').innerHTML = CH.patches.map(p => `<option value="${esc(p.id)}">${esc(p.dev ? t(p.ahead ? 'ch.devOption' : 'ch.dmOption', { dev: p.to, live: p.from, date: day(p) })
-      : `${p.from} → ${p.to} · ${day(p)}${p.back ? ` · ${t('ch.backShort')}` : ''}${p.circuit === 'dev' ? ` · ${t('ch.devClientShort')}` : ''}`)}</option>`).join('');
+      : `${p.from} → ${p.to} · ${day(p)}${p.back ? ` · ${t('ch.backShort')}` : ''}${p.circuit === 'dev' ? ` · ${t('ch.devClientShort')}` : ''}${Object.keys(p.counts).length ? '' : ` · ${t('ch.nothingShort')}`}`)}</option>`).join('');
     if (!CH.patches.length) return chRender();
     if (!AR.data) await openWeaponsView();  // names, carriers and links of the weapons
     if (!CH.patches.some(p => p.id === CH.id)) await chPick((chPatches()[0] || CH.patches[0]).id);  // the game's latest patch first

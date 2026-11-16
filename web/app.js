@@ -1785,7 +1785,7 @@ function renderUpdateBanner(st) {
     el.className = 'update-banner done';
     el.innerHTML = `${icon('check', 'ic-sm')}<b>${esc(t('update.done', { v: st.after }))}</b>
       ${st.newVehicles ? `<span class="muted">${esc(t('update.newVehicles', { n: st.newVehicles }))}</span>` : ''}
-      ${st.changes ? `<button class="btn btn-sm" data-act="changes">${esc(t('update.changes', { n: I18N.num(st.changes) }))}</button>` : ''}
+      ${st.changes ? `<button class="btn btn-sm" data-act="changes">${esc(t('update.changes', { n: I18N.num(st.changes) }))}</button>` : st.patch ? `<span class="muted">${esc(t('ch.nothingShort'))}</span>` : ''}
       ${stale ? `<button class="btn btn-primary btn-sm" data-act="reload">${esc(t('update.reload'))}</button>` : `<button class="icon-btn" data-act="hide" title="${esc(t('action.close'))}">${icon('x', 'ic-sm')}</button>`}`;
     const reload = (view = 'vehicles') => { store.set('startView', view); location.reload(); };
     el.querySelectorAll('[data-act]').forEach(b => { b.onclick = { reload: () => reload(), changes: () => (stale ? reload('changes') : showView('changes')), hide: () => { CH.hidden = st.patch; el.className = 'update-banner hidden'; } }[b.dataset.act]; });

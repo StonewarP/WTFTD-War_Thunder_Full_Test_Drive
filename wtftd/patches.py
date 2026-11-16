@@ -294,13 +294,12 @@ def load() -> list:
 
 
 def record(before: dict | None, folder: Path) -> dict | None:
-    """Last step of a build that went through: keeps its comparison with the database it replaced. A patch that moved nothing WTFTD
-    reads takes no place. Written at once: a build stopped halfway leaves nothing, and a stopped write leaves the file as it was."""
+    """Last step of a build that went through: keeps its comparison with the database it replaced, even one that moved nothing WTFTD
+    compares (the page says the update came). Written at once: a build stopped halfway leaves nothing, and a stopped write leaves
+    the file as it was."""
     if not before:
         return None
     entry = compare(before, read(folder))
-    if not entry["rows"]:
-        return None
     kept = [entry, *(p for p in load() if p.get("id") != entry["id"])][:KEEP]  # the same versions again, after switching source and back
     FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = FILE.with_suffix(".tmp")

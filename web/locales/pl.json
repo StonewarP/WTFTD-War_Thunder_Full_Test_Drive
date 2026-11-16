@@ -1929,6 +1929,8 @@
   "ch.shareCopied": "Skopiowano",
   "ch.shareCopiedHint": "Wklej to w poście lub wiadomości (Ctrl+V).",
   "ch.none": "Żadna zmiana nie pasuje do tych filtrów.",
+  "ch.nothing": "Ta aktualizacja nie zmieniła niczego, co porównuje WTFTD: BR, osiągi, pancerz, koszty, amunicja, uzbrojenie i mapy są takie same. Mogła zmienić to, czego WTFTD nie porównuje, np. nazwy, zasłony dymne, obniżenie działa lub ustawienia sensorów.",
+  "ch.nothingShort": "brak porównanych zmian",
   "ch.empty": "Na razie nie ma czego porównywać.",
   "ch.emptyHint": "Ta strona zapełni się po następnej aktualizacji gry: WTFTD za każdym razem porównuje stare dane z nowymi.",
   "ch.back": "To nie jest aktualizacja gry: dane cofnęły się z {from} do {to} przy zmianie źródła, bo jedno wyprzedzało drugie. Te wiersze tylko cofają nowszą wersję.",

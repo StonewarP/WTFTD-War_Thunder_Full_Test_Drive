@@ -1929,6 +1929,8 @@
   "ch.shareCopied": "Kopiert",
   "ch.shareCopiedHint": "Füge es in deinen Post oder deine Nachricht ein (Strg+V).",
   "ch.none": "Keine Änderung passt zu diesen Filtern.",
+  "ch.nothing": "Dieses Update hat nichts geändert, was WTFTD vergleicht: Kampfwertungen, Leistung, Panzerung, Kosten, Munition, Waffen und Karten sind gleich. Es kann geändert haben, was WTFTD nicht vergleicht, etwa Namen, Nebelwände, Rohrsenkung oder Sensoreinstellungen.",
+  "ch.nothingShort": "keine verglichene Änderung",
   "ch.empty": "Noch nichts zu vergleichen.",
   "ch.emptyHint": "Diese Seite füllt sich nach dem nächsten Spielupdate: WTFTD vergleicht jedes Mal die alten Daten mit den neuen.",
   "ch.back": "Das ist kein Spielupdate: Die Daten sind von {from} auf {to} zurückgegangen, als ihre Quelle gewechselt hat, denn eine Quelle war der anderen voraus. Diese Zeilen machen nur die neuere Version rückgängig.",

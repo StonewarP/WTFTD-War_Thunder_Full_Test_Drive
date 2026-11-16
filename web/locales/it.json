@@ -1929,6 +1929,8 @@
   "ch.shareCopied": "Copiato",
   "ch.shareCopiedHint": "Incollalo nel tuo post o messaggio (Ctrl+V).",
   "ch.none": "Nessuna modifica corrisponde a questi filtri.",
+  "ch.nothing": "Questo aggiornamento non ha cambiato nulla di ciò che WTFTD confronta: BR, prestazioni, corazzatura, costi, munizioni, armi e mappe sono uguali. Può aver cambiato ciò che WTFTD non confronta, come nomi, cortine fumogene, depressione del cannone o impostazioni dei sensori.",
+  "ch.nothingShort": "nessuna modifica confrontata",
   "ch.empty": "Ancora niente da confrontare.",
   "ch.emptyHint": "Questa pagina si riempie dopo il prossimo aggiornamento del gioco: WTFTD confronta ogni volta i vecchi dati con i nuovi.",
   "ch.back": "Questo non è un aggiornamento del gioco: i dati sono tornati da {from} a {to} quando la loro fonte è cambiata, perché una era avanti rispetto all'altra. Queste righe annullano solo la versione più recente.",
