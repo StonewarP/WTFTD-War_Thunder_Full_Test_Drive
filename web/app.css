@@ -1522,6 +1522,8 @@ td.hg-actions { height: 48px; }
 .mo-fix .modal-body { padding-bottom: 16px; }
 .mo-fix-hint { margin: 0 0 14px; line-height: 1.5; }
 .mo-fix-list { display: flex; flex-direction: column; gap: 8px; }
+.mo-fix-wait { display: flex; align-items: center; gap: 10px; padding: 18px 4px; color: var(--muted); }
+#moFixGo .spin { margin-right: 6px; }
 .mo-fix-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
 .mo-fix-file { min-width: 0; }
 .mo-fix-name { display: flex; align-items: center; gap: 8px; min-width: 0; }

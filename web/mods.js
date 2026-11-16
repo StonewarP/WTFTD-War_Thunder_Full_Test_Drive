@@ -139,7 +139,8 @@ function moVehiclesHTML() {
       ${(p.stops || []).some(s => s.fatal) ? `<span class="chip warn" title="${esc(t('mo.stops', { name: p.stops.find(s => s.fatal).ref }))}">${esc(t('mo.stopsChip'))}</span>`
         : p.stops?.length ? `<span class="chip warn" title="${esc(t('mo.missingFiles', { names: p.stops.map(s => s.ref.split('/').pop()).join(', ') }))}">${esc(t('mo.missingChip', { n: p.stops.length }))}</span>` : ''}</div>
       <div class="list-sub">${p.missions.length ? `${esc(t('mo.testMissions', { names: p.missions.join(', ') }))} · ` : ''}${esc(t('mo.files', { n: p.files }))} · ${esc(moSize(p.bytes))}</div></div>
-    <div class="list-actions">${p.stops?.length ? `<button class="btn btn-sm btn-primary" data-morepair="${esc(p.name)}">${esc(t('mo.repair'))}</button>` : ''}${moRemoveButton('vehicle', p.name)}</div></div>`;
+    <div class="list-actions">${p.stops?.length ? `<button class="btn btn-sm btn-primary" data-morepair="${esc(p.name)}">${esc(t('mo.repair'))}</button>`
+      : p.fixed ? `<button class="btn btn-sm" data-morepair="${esc(p.name)}" title="${esc(t('mo.fixEditHint'))}">${esc(t('mo.fixEdit', { n: p.fixed }))}</button>` : ''}${moRemoveButton('vehicle', p.name)}</div></div>`;
   const list = MO.vehicles || [];
   return `<div class="mo-warn">${icon('target', 'ic-sm')}<p class="hint">${esc(t('mo.vehicleWarning'))}</p></div>
     ${MO.running ? `<p class="hint mb-note">${esc(t('mo.vehicleRunning'))}</p>` : ''}
@@ -181,7 +182,7 @@ async function moSightFiles(files) {
       const r = await fetch(`/api/mods/upload?${new URLSearchParams({ token, kind: 'auto', path: file.name })}`, { method: 'POST', body: file });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { data });
-      n += (await api('wtlive/sights', { token })).sights.length;
+      n += (await api('wtlive/sights', { token })).added.length;
     } catch (e) {
       if (e.data?.code === 'noSight') toast({ title: t('wl.err.noSight'), sub: file.name, err: true, ms: 8000 });
       else if (e.data?.code) moErr(e);
@@ -300,16 +301,33 @@ async function moWeaponsGo(pkg) {
 // damage model, the FA-22+'s AIM-9JL and presets): the player picks what stands in for each, the closest first. The
 // damage model's must get one (the game stops at its start without); the others may stay as they are (they fail when
 // used), which is the choice where nothing in the game looks like them. null when they cancel.
-function moAskFix(missing) {
+function moAskFix(items, apply = null) {
   const short = path => path.split('/').pop().replace(/\.blk$/i, '');
   const opt = (value, label, on) => `<option value="${esc(value)}"${on ? ' selected' : ''}>${esc(label)}</option>`;
-  $('#moFix').innerHTML = missing.map(m => `<div class="mo-fix-row">
+  // what shows picked: the choice made before (at install or a Repair, "" when left as it is), else the closest
+  const rows = list => list.map(m => {
+    const pick = m.decided ? m.current : (m.current || m.best);
+    return `<div class="mo-fix-row">
     <div class="mo-fix-file"><div class="mo-fix-name"><b title="${esc(short(m.ref))}">${esc(short(m.ref))}</b>
       <span class="chip ${m.fatal ? 'warn' : 'dim'}">${esc(t(m.fatal ? 'mo.stopsChip' : 'mo.fixUsed'))}</span></div>
       <code class="mo-fix-path" title="${esc(m.ref)}">${esc(m.ref)}</code></div>
-    <select data-ref="${esc(m.ref)}" aria-label="${esc(short(m.ref))}">${m.fatal ? '' : opt('', t('mo.fixLeave'), !m.best)}${m.options.map(o => opt(o, short(o) + (o === m.best ? ` · ${t('mo.fixBest')}` : ''), o === m.best)).join('')}</select></div>`).join('');
+    <select data-ref="${esc(m.ref)}" aria-label="${esc(short(m.ref))}">${m.fatal ? '' : opt('', t('mo.fixLeave'), !pick)}${m.options.map(o => opt(o, short(o) + (o === m.best ? ` · ${t('mo.fixBest')}` : ''), o === pick)).join('')}</select></div>`;
+  }).join('');
+  const body = $('#moFix'), go = $('#moFixGo');
+  MO.fixApply = apply;
+  const answer = new Promise(done => { MO.fixing = done; });
+  if (Array.isArray(items)) body.innerHTML = rows(items);
+  else {  // a Repair: the dialog opens at once, its stand-ins come as they're ranked
+    body.innerHTML = `<div class="mo-fix-wait"><span class="spin"></span><span>${esc(t('mo.fixLoading'))}</span></div>`;
+    go.disabled = true;
+    Promise.resolve(items).then(list => {
+      if (!MO.fixing) return;  // closed meanwhile
+      body.innerHTML = list.length ? rows(list) : `<p class="muted">${esc(t('mo.fixNone'))}</p>`;
+      go.disabled = !list.length;
+    }).catch(e => { $('#dlgFix').close(); moErr(e); });
+  }
   $('#dlgFix').showModal();
-  return new Promise(done => { MO.fixing = done; });
+  return answer;
 }
 
 // before installing a package: its stand-ins picked (MO.fixes, sent with the install), or false when the player cancels
@@ -363,11 +381,13 @@ function bindMods() {
     const d = b.dataset;
     if (d.morm && (d.kind === 'vehicle' || d.kind === 'sound' || d.kind === 'hangar') && !(await moGameClosed(d.kind))) return;
     if (d.mocopy) return moCopy(d.mocopy);
-    if (d.morepair) {  // a package for an older game installed before WTFTD checked: its stand-ins, with the game closed
-      const p = (MO.vehicles || []).find(x => x.name === d.morepair);
-      if (!p?.stops?.length || !(await moGameClosed('vehicle'))) return;
-      const fixes = await moAskFix(p.stops);
-      if (fixes && await moAction('repair', { name: p.name, fixes })) toast({ title: t('mo.repaired', { name: p.name }), sub: t('mo.repairedHint'), ms: 9000 });
+    if (d.morepair) {  // a package's stand-ins, missing or picked before: changed any time (the game closed, the app checks)
+      const name = d.morepair;
+      await moAskFix(api('mods/repairs', { name }).then(r => r.items), async fixes => {
+        const r = await moAction('repair', { name, fixes });
+        if (r) toast({ title: t('mo.repaired', { name }), sub: t('mo.repairedHint'), ms: 9000 });
+        return !!r;
+      });
       return;
     }
     if (d.mopick === 'zip') {
@@ -427,8 +447,17 @@ function bindMods() {
     $('#dlgSkin').close();
     done(await moFinish(kind, vehicles));
   });
-  $('#moFixGo').addEventListener('click', () => {
+  $('#moFixGo').addEventListener('click', async () => {
     const fixes = Object.fromEntries($$('#moFix select').map(s => [s.dataset.ref, s.value]));
+    if (MO.fixApply) {  // a Repair: the dialog stays, its button busy, until it's done (or failed: then it can be tried again)
+      const go = $('#moFixGo');
+      go.disabled = true;
+      go.innerHTML = `<span class="spin"></span><span>${esc(t('mo.fixApplying'))}</span>`;
+      const ok = await MO.fixApply(fixes);
+      go.disabled = false;
+      go.textContent = t('mo.fixGo');
+      if (!ok) return;
+    }
     const done = MO.fixing;
     MO.fixing = null;
     $('#dlgFix').close();
@@ -437,6 +466,7 @@ function bindMods() {
   $('#dlgFix').addEventListener('close', () => {  // cancelled: nothing installed or changed
     const done = MO.fixing;
     MO.fixing = null;
+    MO.fixApply = null;
     done?.(null);
   });
   $('#dlgSkin').addEventListener('close', () => {

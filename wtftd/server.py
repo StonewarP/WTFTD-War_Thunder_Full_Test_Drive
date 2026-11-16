@@ -1101,6 +1101,8 @@ class Handler(BaseHTTPRequestHandler):
                                        "installed": [v for p in added for v in p["vehicles"]],  # this package's, for its message
                                        "weapons": [w["name"] for w in STATE.get_catalog().values() if w.get("pkg") in names],
                                        "missions": package_missions(gd, [m for p in added for m in p["missions"]])})
+        elif action == "repairs":  # what a package's Repair dialog offers, asked when it opens (ranking them takes a moment)
+            return self.send_json({"items": mods.repairs(gd, str(body.get("name") or ""))})
         elif action == "repair":  # a package for an older game: the stand-ins the player picked (Mods -> Vehicles)
             mods.repair(gd, str(body.get("name") or ""), body.get("fixes"), game_up())
         elif action == "remove" and body.get("kind") == "sight":  # one of WTFTD's library (Mods -> Sights)
@@ -1189,7 +1191,7 @@ class Handler(BaseHTTPRequestHandler):
                     got = []
                 if not got:
                     return self.send_json({"error": "noSight", "code": "noSight"}, 400)
-                return self.send_json({"sights": got, **sights.list_sights(USER)})
+                return self.send_json({**sights.list_sights(USER), "added": got})  # added: the new ones (sights: the library)
         finally:
             if action in ("mission", "sights"):
                 mods.forget(token)

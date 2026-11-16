@@ -487,7 +487,7 @@ def _engines(found: list, ref: str) -> int | None:
     for f, t in found:
         if t[-1].lower().endswith(".blk"):
             try:
-                text = f.read_text(encoding="utf-8-sig", errors="replace")
+                text = f.read_text(encoding="utf-8-sig", errors="replace") if isinstance(f, Path) else f
             except OSError:
                 continue
             if ref in text:
@@ -495,13 +495,26 @@ def _engines(found: list, ref: str) -> int | None:
     return len(n) or None
 
 
+_NAMES: dict = {}  # a game folder's file names, kept while it doesn't change: the presets' holds thousands (0.3 s to list)
+
+
+def _names(folder: Path) -> tuple:
+    try:
+        mtime = folder.stat().st_mtime
+    except OSError:
+        return ()
+    got = _NAMES.get(str(folder))
+    if not got or got[0] != mtime:
+        got = _NAMES[str(folder)] = (mtime, tuple(q.name[:-5] for q in folder.glob("*.blkx")))
+    return got[1]
+
+
 def _ranked(ref: str, engines: int | None = None) -> list:
     """[(game path, score)] of the files of ref's folder, the closest first: the most words of the missing name, the
     same number of engines (the T-65's jet_fighter_metaparts, one engine: 1x_engine_jet_fighter_metaparts first)."""
     from . import builder
     parts = ref.replace("\\", "/").split("/")
-    folder = (builder.DM / "aces.vromfs.bin_u").joinpath(*[x.lower() for x in parts[:-1]])
-    names = [q.name[:-5] for q in folder.glob("*.blkx")] if folder.is_dir() else []
+    names = _names((builder.DM / "aces.vromfs.bin_u").joinpath(*[x.lower() for x in parts[:-1]]))
     want = [w for w in re.split(r"[_\-]+", parts[-1].lower().removesuffix(".blk")) if w and w != "metaparts"]
 
     def score(name):
@@ -512,7 +525,7 @@ def _ranked(ref: str, engines: int | None = None) -> list:
         return s
 
     scored = sorted(((score(n), n) for n in names), key=lambda x: (-x[0], len(x[1]), x[1]))
-    return [(f"{'/'.join(parts[:-1])}/{n}.blk", s) for s, n in scored]
+    return [(f"{'/'.join(parts[:-1])}/{n}.blk", sum(w in re.split(r"[_\-]+", n) for w in want) / max(1, len(want))) for s, n in scored]
 
 
 def replacement_options(ref: str, engines: int | None = None) -> list:
@@ -520,56 +533,94 @@ def replacement_options(ref: str, engines: int | None = None) -> list:
     return [path for path, _ in _ranked(ref, engines)]
 
 
+def _item(found: list, ref: str, fatal: bool, current: str = "") -> dict:
+    """One file to stand in for, as the dialog shows it: {ref, fatal, current, best, options}. best: the closest when it
+    shares at least half the words of the missing name, else "" (leave it: a mod's own preset has no counterpart in the
+    game, and old_jet_mothership isn't alpha_jet_a_m116 for a shared "jet"), which only a file that doesn't stop the
+    game may stay."""
+    ranked = _ranked(ref, _engines(found, current or ref))
+    options = [path for path, _ in ranked[:OPTIONS]]
+    if current and current not in options:
+        options.insert(0, current)  # the one picked before, whatever its rank
+    return {"ref": ref, "fatal": fatal, "current": current, "options": options,
+            "best": ranked[0][0] if ranked and (fatal or ranked[0][1] >= 0.5) else ""}
+
+
 def missing_with_options(found: list) -> list:
-    """[{ref, fatal, options, best}]: what a package names that the game no longer has, and what the player may put
-    instead. best: the closest when it shares a word with the missing name, else "" (leave it: a mod's own preset has no
-    counterpart in the game), which only a file that doesn't stop the game may stay."""
-    out = []
-    for ref, fatal in missing_game_files(found):
-        ranked = _ranked(ref, _engines(found, ref))
-        out.append({"ref": ref, "fatal": fatal, "options": [path for path, _ in ranked[:OPTIONS]],
-                    "best": ranked[0][0] if ranked and (fatal or ranked[0][1] > 0) else ""})
-    return out
+    """[{ref, fatal, current, best, options}]: what a package names that the game no longer has, and what may stand in."""
+    return [_item(found, ref, fatal) for ref, fatal in missing_game_files(found)]
 
 
 def _fix_text(text: str, fixes: dict) -> str:
-    """A vehicle file with the stand-ins the player picked for the game files the game no longer has."""
+    """A vehicle file with the stand-ins the player picked for the game files the game no longer has (from its original:
+    each missing name is replaced, never a stand-in, which two files may share)."""
     for ref, pick in fixes.items():
         if pick:
             text = text.replace(f'"{ref}"', f'"{pick}"')
     return text
 
 
-def _checked_fixes(found: list, fixes) -> dict:
-    """The player's picks, each one of its file's stand-ins; "" leaves a file that doesn't stop the game as it is. A
-    damage model file without one refuses the package: installed as it is, it would stop the game at its start."""
+def _checked(items: list, fixes) -> dict:
+    """{ref: pick or ""}: the player's picks, each one of its file's stand-ins; "" leaves a file that doesn't stop the
+    game as it is; a file left out of fixes keeps what it has. A damage model file without one refuses the change:
+    installed as it is, it would stop the game at its start."""
     fixes = fixes if isinstance(fixes, dict) else {}
     out = {}
-    for ref, fatal in missing_game_files(found):
-        pick = fixes.get(ref) or ""
-        if pick and pick not in replacement_options(ref) or not pick and fatal:
-            raise ModsError("oldGame", ref)
-        if pick:
-            out[ref] = pick
+    for it in items:
+        pick = str(fixes[it["ref"]] or "") if it["ref"] in fixes else it["current"]
+        if pick and pick not in replacement_options(it["ref"]) or not pick and it["fatal"]:
+            raise ModsError("oldGame", it["ref"])
+        out[it["ref"]] = pick
     return out
 
 
-def repair(game: Path, name: str, fixes, running: bool = False) -> None:
-    """A package installed before WTFTD checked (the T-65, which stops the game at its start): its vehicle files get the
-    stand-ins the player picked, in place, with the game closed."""
-    if running:
-        raise ModsError("running")
+def _checked_fixes(found: list, fixes) -> dict:
+    """The install's picks (see _checked), the files left as they are included ("")."""
+    return _checked([{"ref": ref, "fatal": fatal, "current": ""} for ref, fatal in missing_game_files(found)], fixes)
+
+
+def repairs(game: Path, name: str) -> list:
+    """A package's files to stand in for, for its dialog: those the game no longer has, and those given a stand-in
+    before (at install or a Repair), which can be changed again any time. [{ref, fatal, current, best, options}]."""
     m = read_manifest()["vehicles"].get(str(name))
     if not m:
         raise ModsError("notOurs", str(name))
     found, _ = _package_files(game, m)
-    picks = _checked_fixes(found, fixes)
-    for f, t in found:
-        if picks and t[-1].lower().endswith(".blk") and f.is_file():
+    record = m.get("fixes") if isinstance(m.get("fixes"), dict) else {}
+    # decided: picked before (a file left as it is stays so when the dialog opens again), else the closest shows picked
+    out = {x["ref"]: {**x, "decided": x["ref"] in record} for x in missing_with_options(found)}
+    for ref, r in record.items():
+        if ref not in out and isinstance(r, dict):
+            out[ref] = {**_item(found, ref, bool(r.get("fatal")), str(r.get("pick") or "")), "decided": True}
+    return sorted(out.values(), key=lambda x: (not x["fatal"], x["ref"]))
+
+
+def repair(game: Path, name: str, fixes, running: bool = False) -> None:
+    """A package's stand-ins changed (Repair, any time, with the game closed): its vehicle files are made again from
+    their originals as installed, which the manifest keeps, with the player's picks."""
+    if running:
+        raise ModsError("running")
+    data = read_manifest()
+    m = data["vehicles"].get(str(name))
+    if not m:
+        raise ModsError("notOurs", str(name))
+    items = repairs(game, name)
+    picks = _checked(items, fixes)
+    found, _ = _package_files(game, m)
+    originals = dict(m.get("originals") or {})
+    for f, t in found:  # a file not yet changed is its own original
+        rel = "/".join(t)
+        if rel not in originals and t[-1].lower().endswith(".blk") and f.is_file():
             text = f.read_text(encoding="utf-8-sig", errors="replace")
-            new = _fix_text(text, picks)
-            if new != text:
-                f.write_text(new, encoding="utf-8")
+            if any(f'"{ref}"' in text for ref in picks):
+                originals[rel] = text
+    for rel, text in originals.items():
+        target = game.joinpath(*rel.split("/"))
+        if target.is_file():
+            target.write_text(_fix_text(text, picks), encoding="utf-8")
+    m["originals"] = originals
+    m["fixes"] = {it["ref"]: {"pick": picks[it["ref"]], "fatal": it["fatal"]} for it in items}
+    _write_manifest(data)
 
 
 def _mission_shells(found: list) -> dict:
@@ -884,9 +935,12 @@ def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids
         plan = _plan(found, ids, game, _folder(name))  # what's named like something in the game goes in as a copy
         vehicles = _vehicles(found, ids, plan)
         placed = _copy_pairs(found, vehicles, plan)
+        originals = {}  # the vehicle files as they came: a Repair later makes them again with other picks
         if picks:
-            placed = [(_fix_text((src.decode("utf-8", "replace") if isinstance(src, bytes) else src.read_text(encoding="utf-8-sig", errors="replace")), picks).encode()
-                       if t[-1].lower().endswith(".blk") and t[0] == "content" else src, t) for src, t in placed]
+            texts = {"/".join(t): (src.decode("utf-8", "replace") if isinstance(src, bytes) else src.read_text(encoding="utf-8-sig", errors="replace"))
+                     for src, t in placed if t[-1].lower().endswith(".blk") and t[0] == "content"}
+            originals = {rel: text for rel, text in texts.items() if any(f'"{ref}"' in text for ref in picks)}
+            placed = [(_fix_text(originals["/".join(t)], picks).encode() if "/".join(t) in originals else src, t) for src, t in placed]
         pairs = [(src, _inside(game, *target)) for src, target in placed]
         for (_, target), (_, path) in zip(placed, pairs):
             if path.exists():
@@ -894,6 +948,9 @@ def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids
         _copy_all(pairs)
         data["vehicles"][name] = {"files": ["/".join(t) for _, t in placed], "vehicles": vehicles,
                                   "missions": ["/".join(t) for t in _missions(found)], "copies": _copies(vehicles, plan)}
+        if picks:
+            fatal = dict(missing_game_files(found))
+            data["vehicles"][name] |= {"originals": originals, "fixes": {ref: {"pick": pick, "fatal": fatal.get(ref, False)} for ref, pick in picks.items()}}
     elif kind == "hangar":  # new files only (never one of the game's: config.blk is there); config.blk is the player's to change
         found, line = _hangar_files(root, hint)
         name = _top_name(root)
@@ -1062,7 +1119,8 @@ def vehicle_packages(game: Path) -> list:
         there = [game / rel for rel in m["files"] if (game / rel).is_file()]
         out.append({"name": name, "vehicles": m.get("vehicles") or [], "missions": [Path(x).name for x in m.get("missions") or []],
                     "files": len(there), "bytes": sum(p.stat().st_size for p in there),
-                    "stops": missing_with_options(_package_files(game, m)[0])})  # installed before WTFTD checked: Repair
+                    "stops": [{"ref": ref, "fatal": fatal} for ref, fatal in missing_game_files(_package_files(game, m)[0])],
+                    "fixed": len(m.get("fixes") or {})})  # what Repair offers (its stand-ins come with mods/repairs, when asked)
     return out
 
 

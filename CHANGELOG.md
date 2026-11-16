@@ -4,6 +4,22 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.32.2 - 2026-11-16
+
+- **Fixed: WT Live kept saying *Installed* after the mod was deleted.** A card now says it while what its install put
+  in place (the package, skins, sound mod, hangar, missions or sights) is still there; deleted from Mods, My maps or
+  the sights, it's offered again.
+- **Fixed: "N sights added" counted the whole sight library**, not the sights the pack added.
+- **A package's stand-ins can be changed any time**, not only while a file is missing: Mods → Vehicles keeps a
+  **Stand-ins (n)** button on a package given some, and the dialog shows what was picked (or left as it is). WTFTD
+  keeps the package's files as they came and makes them again with the new picks, so a wrong choice is never final.
+- **The stand-ins dialog opens at once**, with a spinner while it ranks the game's files, and its button turns busy
+  while the change is applied. The Mods list no longer ranks them on every refresh: with the FA-22+ installed it took
+  about 2 s each time (the game's thousands of presets were listed per missing file), now a few milliseconds.
+- **Fixed: a mod's own preset could get a far-fetched stand-in** for one shared word (`old_jet_mothership` →
+  `alpha_jet_a_m116`): a file that doesn't stop the game now gets one picked only when it shares at least half the
+  words of its name, else it's left as it is (still changeable).
+
 ## 0.32.1 - 2026-11-16
 
 - **A vehicle package made for an older game gets stand-ins for the files the game no longer has** (the T-65 from WT

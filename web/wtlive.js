@@ -9,7 +9,9 @@ const WL = {
   type: WL_TYPES.includes(store.get('wlType', '')) ? store.get('wlType') : 'model',
   sort: WL_SORTS.includes(store.get('wlSort', '')) ? store.get('wlSort') : 'created',
   q: '', page: 0, posts: [], more: false, loading: false, error: '', asked: '', doing: 0,
-  installed: new Set((() => { try { return store.get('wlInstalled', []); } catch { return []; } })()),
+  // post id -> {kind, names}: what an install from here put in place. A card says Installed while one of those is still
+  // there (deleted in Mods, My maps or the sights: it's offered again)
+  installed: new Map(Object.entries((() => { try { return store.get('wlInstalled2', {}); } catch { return {}; } })()).map(([k, v]) => [+k, v])),
 };
 
 const wlKey = () => `${WL.type}|${WL.sort}|${WL.q}`;
@@ -49,7 +51,7 @@ async function wlLoad(next = false) {
 
 function wlButton(p) {
   if (WL.doing === p.id) return `<button class="btn btn-sm btn-primary" disabled>${esc(MO.step || t('mo.working'))}</button>`;
-  const done = WL.installed.has(p.id);
+  const done = wlIsInstalled(p.id);
   return `<button class="btn btn-sm${done ? ' btn-ghost' : ' btn-primary'}" data-wlinstall="${p.id}"${MO.busy ? ' disabled' : ''}>${icon(done ? 'check' : 'play', 'ic-sm')}<span>${esc(t(done ? 'wl.installed' : 'mo.install'))}</span></button>`;
 }
 
@@ -108,7 +110,7 @@ function wlOpen(id) {
   $('#wlText').textContent = p.text;
   $('#wlGo').dataset.wlinstall = p.id;
   $('#wlGo').disabled = MO.busy;
-  $('#wlGo').querySelector('span').textContent = t(WL.installed.has(p.id) ? 'wl.installAgain' : 'mo.install');
+  $('#wlGo').querySelector('span').textContent = t(wlIsInstalled(p.id) ? 'wl.installAgain' : 'mo.install');
   $('#dlgLive').showModal();
 }
 
@@ -139,9 +141,25 @@ function wlButtons() {
   }
 }
 
-function wlMark(id) {
-  WL.installed.add(id);
-  try { store.set('wlInstalled', [...WL.installed].slice(-2000)); } catch { /* kept for this session only */ }
+// what is installed now, by kind: Mods' lists, the imported missions, the sight library
+const WL_LISTS = {
+  vehicle: () => (MO.vehicles || []).map(x => x.name), skin: () => (MO.skins || []).map(x => x.name),
+  sound: () => (MO.sounds || []).map(x => x.name), hangar: () => (MO.hangars || []).map(x => x.name),
+  mission: () => (S.scenarios || []).filter(s => s.imported).map(s => s.id), sight: () => (MO.sights?.sights || []).map(s => s.id),
+};
+const wlNames = kind => new Set(WL_LISTS[kind]?.() || []);
+
+function wlIsInstalled(id) {
+  const rec = WL.installed.get(id);
+  if (!rec) return false;
+  const now = wlNames(rec.kind);
+  return (rec.names || []).some(n => now.has(n));
+}
+
+function wlMark(id, kind, names) {
+  if (!names.length) return;
+  WL.installed.set(id, { kind, names: names.slice(0, 200) });
+  try { store.set('wlInstalled2', Object.fromEntries([...WL.installed].slice(-2000))); } catch { /* kept for this session only */ }
 }
 
 // one click: the post's file into the app, then where it belongs (as an archive picked in Mods, an imported mission,
@@ -162,7 +180,8 @@ async function wlInstall(id) {
       if (b) b.innerHTML = wlButton(p);
     }
   }, 700);
-  let ok = false;
+  let ok = false, names = null;  // names: what came in, when the install says so itself
+  const before = wlNames(p.kind);
   try {
     await api('wtlive/fetch', { token, link: p.file.link, name: p.file.name });
     clearInterval(poll);
@@ -170,13 +189,15 @@ async function wlInstall(id) {
     if (p.kind === 'mission') {
       const r = await api('wtlive/mission', { token });
       await addImportedMissions(r.missions || []);
+      names = (r.missions || []).map(m => m.scenario.id);
       // addImportedMissions says what came in, as Import does
       ok = true;
     } else if (p.kind === 'sight') {
       const r = await api('wtlive/sights', { token });
       S.sights = MO.sights = { dir: r.dir, sights: r.sights };  // the vehicle panel's list and Mods → Sights
       if (S.sel) renderDrawer();
-      toast({ title: t('wl.sightsDone', { n: r.sights.length }), sub: t('wl.sightsHint'), ms: 8000 });
+      toast({ title: t('wl.sightsDone', { n: r.added.length }), sub: t('wl.sightsHint'), ms: 8000 });
+      names = r.added;
       ok = true;
     } else {
       MO.hint = (p.text.match(/hangarBlk\s*:\s*t\s*=\s*"([^"\r\n]{1,120})"/) || [])[1] || '';  // a hangar's name as its post gives it
@@ -192,7 +213,7 @@ async function wlInstall(id) {
     api('mods/forget', { token }).catch(() => {});
   } finally {
     clearInterval(poll);
-    if (ok) wlMark(p.id);
+    if (ok) wlMark(p.id, p.kind, names || [...wlNames(p.kind)].filter(n => !before.has(n)));
     MO.busy = false; MO.step = ''; MO.hint = ''; WL.doing = 0;
     wlButtons();
   }

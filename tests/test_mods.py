@@ -776,6 +776,19 @@ class Vehicles(Base):
             self.assertEqual(mods.vehicle_packages(self.game)[0]["stops"], [])
             with self.assertRaises(mods.ModsError):
                 mods.repair(self.game, pkg["name"], {}, running=True)
+            # changed again later, any time: what was picked shows, and the file is made again from its original
+            items = {i["ref"]: i for i in mods.repairs(self.game, pkg["name"])}
+            self.assertEqual({r: (i["current"], i["decided"]) for r, i in items.items()}, {gone: (missing[0]["best"], True), preset: (other, True)})
+            self.assertEqual(mods.vehicle_packages(self.game)[0]["fixed"], 2)
+            two = gone.replace("jet_", "2x_engine_jet_")
+            mods.repair(self.game, pkg["name"], {gone: two, preset: ""})  # another engine count, the preset back as it was
+            text = (self.game / "content/pkg_local/gamedata/flightModels/j50.blk").read_text()
+            self.assertIn(f'MetaPartsBlk:t="{two}"', text)
+            self.assertIn(f'blk:t="{preset}"', text)
+            self.assertEqual([s["ref"] for s in mods.vehicle_packages(self.game)[0]["stops"]], [preset])
+            self.assertEqual(mods.repairs(self.game, pkg["name"])[1]["decided"], True)  # left as it is: stays so when opened again
+            with self.assertRaises(mods.ModsError):
+                mods.repair(self.game, pkg["name"], {gone: ""})  # its damage model can't be left without one
 
     def test_a_tank_gets_the_shells_its_mission_gives_it(self):  # the T-14's: empty slots gave it one round, no reload
         tank = (b'model:t="t_14"\ncommonWeapons{\n  Weapon{\n    blk:t="gameData/Weapons/groundModels_weapons/gun.blk"\n    bullets:i=45\n  }\n'
