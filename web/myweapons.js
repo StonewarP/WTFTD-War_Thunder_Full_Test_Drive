@@ -123,7 +123,7 @@ function simpleEditorHTML() {
       return `<div class="we-row${changed ? ' changed' : ''}" title="${esc(hint)}">
         <div class="we-lbl"><b>${esc(t('myw.f.' + f.k))}</b><small>${esc(hint)}</small></div>
         <span class="we-orig">${esc(t('myw.original', { value: f.k === 'kt' && !orig ? t('myw.none') : `${I18N.num(orig)} ${f.unit}` }))}</span>
-        <label class="we-in"><input type="number" step="any" min="${f.min}" max="${f.max}" value="${vals[f.k]}" data-wefield="${f.k}"><i>${esc(f.unit)}</i></label>
+        <label class="we-in"><input type="text" inputmode="decimal" value="${I18N.field(vals[f.k])}" data-wefield="${f.k}" spellcheck="false"><i>${esc(f.unit)}</i></label>
         <span class="we-quick">${f.k === 'kt' ? [5, 30, 1600].map(x => `<button type="button" class="chipbtn" data-weset="${f.k}" data-v="${x}">${x}</button>`).join('')
           : [2, 5, 10].map(x => `<button type="button" class="chipbtn" data-wemul="${f.k}" data-v="${x}">×${x}</button>`).join('')}
           <button type="button" class="icon-btn" data-wereset="${f.k}" title="${esc(t('myw.p.reset'))}">${icon('refresh', 'ic-sm')}</button></span></div>`;
@@ -175,7 +175,7 @@ function advRowHTML(x) {
   const help = advHelp(x);
   const attrs = `data-weadv="${esc(x.path)}" data-t="${x.type}"`;
   const input = x.type === 'b' ? `<label class="switch"><input type="checkbox" ${attrs}${v ? ' checked' : ''}><span class="sw"></span></label>`
-    : x.type === 'r' || x.type === 'i' ? `<input type="number" step="${x.type === 'i' ? 1 : 'any'}" value="${v}" ${attrs}>`
+    : x.type === 'r' || x.type === 'i' ? `<input type="text" inputmode="decimal" value="${v}" ${attrs} spellcheck="false">`  // as in the file, like Game:
       : `<input type="text" value="${esc(advFmt(x.type, v))}" ${attrs} spellcheck="false">`;
   return `<div class="we-arow${changed ? ' changed' : ''}" title="${esc(help)}">
     <div class="we-alb"><code>${esc(advName(x.path))}</code><small>${esc(I18N.tOr('mywk.' + advName(x.path), ''))}</small></div>
@@ -189,8 +189,7 @@ function advParse(el) {
   const type = el.dataset.t;
   if (type === 'b') return el.checked;
   if (type === 'r' || type === 'i') {
-    if (el.value === '') return undefined;
-    const x = type === 'i' ? Math.round(+el.value) : +el.value;
+    const x = type === 'i' ? Math.round(I18N.parse(el.value)) : I18N.parse(el.value);
     return Number.isFinite(x) ? x : undefined;
   }
   if (type === 't') return ADV_TEXT.test(el.value) ? el.value : undefined;
@@ -308,7 +307,10 @@ function bindMyWeapons() {
     if (el.dataset.weadv && el.type !== 'checkbox') return advInput(el);
     const k = el.dataset.wefield;
     if (!k) return;
-    ed.vals[k] = el.value === '' ? 0 : +el.value;
+    const x = el.value.trim() === '' ? 0 : I18N.parse(el.value);
+    el.classList.toggle('bad', !Number.isFinite(x));
+    if (!Number.isFinite(x)) return;
+    ed.vals[k] = x;
     const f = WE_FIELDS.find(x => x.k === k);
     el.closest('.we-row').classList.toggle('changed', Math.abs(ed.vals[k] - weRound(weOrig(f, ed.base))) > 1e-9);
   });

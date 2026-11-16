@@ -816,7 +816,7 @@ def lines_for(cfg: dict, all_values: dict, on: list, feeds: dict | None = None) 
     table, to the right edge of its column); parts: [(text, colour, blinks[, colour out of its
     turn]), ...], one per cell in a block as a table (see cells); blinks: False, or its clock (see clock). on: the
     alarms whose lines go red, by (line, alarm) place: a line takes the colour of the last of its own that is on, and
-    flashes the parts they ask. A block's title comes first; a block of the chat or the battle log shows feeds' lines."""
+    flashes the parts they ask. Block by block, its title first; a block of the chat or the battle log shows feeds' lines."""
     blocks = [cfg, *cfg["blocks"]]
     out = []
 
@@ -848,7 +848,7 @@ def lines_for(cfg: dict, all_values: dict, on: list, feeds: dict | None = None) 
             else:
                 parts.append((piece, *tail))
         row(text, color, line["size"] or cfg["size"], block, parts, line["align"])
-    return out
+    return sorted(out, key=lambda r: r[4])  # stable: what reads them in one list (My overlay's zoom) gets each title on its lines
 
 
 def columns_of(rows: list, columns: int) -> list:

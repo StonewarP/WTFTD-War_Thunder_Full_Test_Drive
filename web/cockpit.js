@@ -6,7 +6,7 @@ const t = (k, vars) => I18N.t(k, vars);  // in the app's language (init: the app
 const A0 = -135, A1 = 135;  // the needle's sweep, degrees from straight up
 const pt = (r, a) => [100 + r * Math.sin(a * Math.PI / 180), 100 - r * Math.cos(a * Math.PI / 180)];
 const arc = (r, a, b) => { const [x0, y0] = pt(r, a), [x1, y1] = pt(r, b); return `M${x0},${y0} A${r},${r} 0 ${b - a > 180 ? 1 : 0} 1 ${x1},${y1}`; };
-const num = (v, d = 0) => v == null ? '—' : v.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+const num = (v, d = 0) => v == null ? '—' : v.toLocaleString(I18N.code, { maximumFractionDigits: d, minimumFractionDigits: d });
 
 // scale: [min, max] (a function of the reading when it depends on the aircraft), red: where the red zone starts
 const GAUGES = [
@@ -73,8 +73,8 @@ async function pollHud() {
   const st = await (await fetch(`/api/hud/${innerWidth}x${innerHeight}`)).json();
   $('#off').hidden = st.flying;
   $('#gauges').hidden = $('#strip').hidden = true;
-  $('#hud').hidden = !st.flying;
-  $('#plane').textContent = st.aircraft || '';
+  $('#hud').toggleAttribute('hidden', !st.flying);  // an <svg> has no .hidden
+  $('#plane').textContent = st.aircraft ? I18N.unit(st.aircraft) : '';
   $('#msg').textContent = '';
   $('#hud').setAttribute('viewBox', `0 0 ${innerWidth} ${innerHeight}`);
   hudDraw($('#hud'), st.shapes, st.color, st.alert, Date.now() % 1000 < 500);
@@ -86,12 +86,12 @@ async function poll() {
       await pollHud();
       return setTimeout(poll, 33);
     }
-    $('#hud').hidden = true;
+    $('#hud').toggleAttribute('hidden', true);
     const st = await (await fetch('/api/flight/999999999')).json();  // no trace rows: only the latest reading
     const flying = st.flying && st.now && Object.keys(st.now).length;
     $('#off').hidden = !!flying;
     $('#gauges').hidden = $('#strip').hidden = !flying;
-    $('#plane').textContent = st.aircraft || '';
+    $('#plane').textContent = st.aircraft ? I18N.unit(st.aircraft) : '';
     $('#msg').textContent = '';
     if (flying) show(st.now);
   } catch {

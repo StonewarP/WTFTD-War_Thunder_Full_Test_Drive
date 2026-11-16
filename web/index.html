@@ -734,11 +734,11 @@
   </div>
 </dialog>
 <dialog class="modal" id="dlgSkin">
-  <h3 data-i18n="mo.askTitle"></h3>
-  <p class="muted" data-i18n="mo.askHint"></p>
-  <div id="moAsk"></div>
-  <datalist id="moVehicles"></datalist>
-  <div class="row gap mo-ask-foot"><button class="btn btn-ghost" data-close data-i18n="action.cancel"></button><button class="btn btn-primary" id="moAskGo" data-i18n="mo.install"></button></div>
+  <div class="modal-inner">
+    <div class="modal-head"><h3 data-i18n="mo.askTitle"></h3><button class="icon-btn" data-close><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body"><p class="muted" data-i18n="mo.askHint"></p><div id="moAsk"></div><datalist id="moVehicles"></datalist></div>
+    <div class="modal-foot"><button class="btn btn-ghost" data-close data-i18n="action.cancel"></button><button class="btn btn-primary" id="moAskGo" data-i18n="mo.install"></button></div>
+  </div>
 </dialog>
 <dialog class="modal modal-model" id="dlgModel">
   <div class="modal-inner">

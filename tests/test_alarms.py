@@ -307,7 +307,7 @@ class Settings(unittest.TestCase):
 
     def test_blocks_keep_their_place_and_size(self):
         cfg = alarms.clean({"size": 40, "blocks": [{"x": 5, "y": 6, "scale": 50}], "lines": [{"text": "a"}, {"text": "b", "block": 1}, {"text": "c", "block": 3}]}, WORDS)
-        self.assertEqual([(x[0], x[2], x[4]) for x in alarms.lines_for(cfg, {}, [])], [("a", 40, 0), ("b", 20, 1), ("c", 40, 0)])
+        self.assertEqual([(x[0], x[2], x[4]) for x in alarms.lines_for(cfg, {}, [])], [("a", 40, 0), ("c", 40, 0), ("b", 20, 1)])
 
     def test_a_line_blinks_only_with_its_alarm(self):
         cfg = self.line(blink=True, rules=[alarms.limit_alarm("gear")])  # saved before 0.27: the whole line, now each part
@@ -813,6 +813,10 @@ class Watching(unittest.TestCase):
         cfg = alarms.clean({"blocks": [{"x": 5, "feed": "chat", "rows": 2, "title": "CHAT"}]}, WORDS)
         rows = alarms.lines_for(cfg, {}, [], {"chat": ["a", "b", "c"]})
         self.assertEqual([x[0] for x in rows if x[4] == 1], ["CHAT", "b", "c"])
+
+    def test_each_block_s_title_on_its_own_lines(self):
+        cfg = alarms.clean({"title": "ONE", "lines": [{"text": "a"}, {"text": "b", "block": 1}], "blocks": [{"title": "TWO"}]}, WORDS)
+        self.assertEqual([x[0] for x in alarms.lines_for(cfg, {}, [])], ["ONE", "a", "TWO", "b"])
 
     def test_the_chat_comes_once(self):
         cfg = alarms.clean({"blocks": [{"feed": "chat"}]}, WORDS)

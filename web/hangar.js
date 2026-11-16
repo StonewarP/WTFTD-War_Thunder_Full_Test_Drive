@@ -177,7 +177,7 @@ function hgLineupsHTML() {
       <tbody>${list.map(v => `<tr><td><span class="hg-vehicle">${mbVehicle(v.id, flagHTML(v.n) + unitImgTag(v.id))}${chips(v)}</span></td><td class="num">${esc(fmtBR(at(v)))}</td>
         <td class="num">${esc(fmtStat('rep', rep(v)))}</td><td class="num">${esc(fmtStat('slm', v.s?.slm?.[mode]))}</td><td class="num">${esc(fmtStat('rpm', v.s?.rpm))}</td>
         <td class="hg-actions"><button class="btn btn-sm btn-primary" data-hgtest="${esc(v.id)}">${icon('play', 'ic-sm')}<span>${esc(t('hg.test'))}</span></button>
-          <button class="icon-btn" data-hgrm="${esc(v.id)}" title="${esc(t('compare.remove'))}">${icon('x', 'ic-sm')}</button></td></tr>`).join('')}</tbody></table></div>`
+          <button class="icon-btn" data-hgrm="${esc(v.id)}" title="${esc(t('hg.removeVehicle'))}">${icon('x', 'ic-sm')}</button></td></tr>`).join('')}</tbody></table></div>`
     : `<div class="empty"><p>${esc(t('hg.noVehicle'))}</p></div>`}`;
 }
 

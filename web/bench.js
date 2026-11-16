@@ -190,7 +190,7 @@ function bnFlightHTML(r, title) {
 function bnRenderLive() {
   const st = BN.live || {}, plan = st.plan, live = st.live, now = live?.now;
   $('#bnStop').classList.toggle('hidden', !plan);
-  const show = (key, v) => (v == null ? '' : `<div class="vstat"><span>${esc(t(key))}</span><b>${esc(v)}</b></div>`);
+  const show = (key, v) => (v == null || v === false ? '' : `<div class="vstat"><span>${esc(t(key))}</span><b>${esc(v)}</b></div>`);
   const done = st.last && st.last.vehicle ? bnFlightHTML(st.last, t('bn.lastFlight', { v: I18N.unit(st.last.vehicle) })) : '';
   if (!plan) { $('#bnLiveBody').innerHTML = `<p class="hint bn-idle">${esc(t('bn.idle'))}</p>${done}`; return; }
   const what = t('bn.do.' + plan.test, bnShare(plan));

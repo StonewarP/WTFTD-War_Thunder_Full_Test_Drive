@@ -513,10 +513,11 @@ function treeItemHTML(it, ok) {
   const brs = members.map(m => brOf(S.byId.get(m.id))).filter(b => b != null);
   const lo = Math.min(...brs), hi = Math.max(...brs);
   const brTxt = brs.length ? (lo === hi ? fmtBR(lo) : `${fmtBR(lo)}–${fmtBR(hi)}`) : '';
+  const name = I18N.unit(it.g) === it.g ? members.map(m => I18N.unit(m.id)).join(' / ') : I18N.unit(it.g);  // a folder the game doesn't name: its vehicles
   return `<div class="tgroup${open ? ' open' : ''}${anyOk ? '' : ' dim'}">
     <button class="tcard tfolder" data-group="${esc(it.g)}" title="${esc(t('tree.group', { n: members.length }))}" style="--tint:${NATION_TINT[first.n] || NATION_TINT.other}">
       <span class="tcard-img">${unitImgTag(first.id)}<svg class="ph"><use href="#i-${CAT_ICON[first.c]}"/></svg><span class="tcount">${members.length}</span></span>
-      <span class="tcard-name">${esc(I18N.unit(it.g))}</span>
+      <span class="tcard-name">${esc(name)}</span>
       <span class="tcard-meta"><b>${brTxt}</b><svg class="tchev"><use href="#i-chev"/></svg></span>
     </button>
     ${open ? `<div class="tgroup-items">${members.map(m => treeCardHTML(m, ok)).join('')}</div>` : ''}
@@ -935,7 +936,7 @@ function ammoLabel(o, belt = false, showPen = true) {
 
 // Penetration by distance (mm of flat armor, shell at 0°) of the gun's shells: the table of the shell's file, or computed
 // by the builder (s.pe) from the speed left at each distance.
-const PEN_COLORS = [...AMMO_COLORS, '#ff7a6b', '#7de3d6'];
+const PEN_COLORS = [...AMMO_COLORS, '#ff7a6b', '#7de3d6', '#ff8fc7', '#c6e05a', '#b0b8c4'];  // 9: the most shells a gun has (Fletcher)
 const PEN_DIST = [100, 500, 1000, 2000];
 function curveAt(pc, d) {  // [[x, y], ...] by x, in straight lines; null beyond its end
   if (d <= pc[0][0]) return pc[0][1];
@@ -949,7 +950,7 @@ function curveAt(pc, d) {  // [[x, y], ...] by x, in straight lines; null beyond
 function penChart(g, loaded, belt = false) {
   const shells = g.opts.filter(o => o.s?.pc && (S.showUnofficial || !o.x) && (!belt || loaded.has(o.id)));  // a belt: the one picked
   if (!shells.length) return '';
-  const W = 300, H = 130, L = 32, R = 8, T = 8, B = 18;
+  const W = 300, H = 138, L = 32, R = 8, T = 16, B = 18;
   const dmax = Math.min(4000, Math.max(...shells.map(o => o.s.pc.at(-1)[0])));  // the tables end with far-off 0 mm rows
   const clip = pc => [...pc.filter(([d]) => d <= dmax), ...(pc.at(-1)[0] > dmax && pc.some(([d]) => d < dmax) ? [[dmax, curveAt(pc, dmax)]] : [])];
   const top = Math.ceil(Math.max(...shells.flatMap(o => o.s.pc.map(r => r[1]))) / 50) * 50;  // a missile that speeds up peaks later
@@ -964,7 +965,7 @@ function penChart(g, loaded, belt = false) {
     return `<td>${p == null ? '<span class="muted">—</span>' : p}</td>`;
   }).join('')}</tr>`).join('');
   return `<div class="pen-chart"><div class="pen-title">${esc(t('ammo.penChart'))}</div>
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('ammo.penChart'))}">${grid}${xs}<text x="${W - R}" y="${T + 2}" text-anchor="end">${esc(t('ammo.penAxis'))}</text>${lines}</svg>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('ammo.penChart'))}">${grid}${xs}<text x="${W - R}" y="${T - 6}" text-anchor="end">${esc(t('ammo.penAxis'))}</text>${lines}</svg>
     <table><thead><tr><th></th><th>10 m</th>${PEN_DIST.map(d => `<th>${d} m</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
     <small class="muted">${esc(t('ammo.penNote'))}</small></div>`;
 }
@@ -1072,7 +1073,7 @@ function loadoutBody(v, d) {
   if (d.pr.length <= 1 && !(d.pr[0]?.w.length) && !(cdkOn() && (d.sl?.length || d.lp?.length))) return `<p class="hint">${esc(t('loadout.none'))}</p>`;
   const items = d.pr.map(p => `<button class="opt${c.preset === p.id ? ' active' : ''}" data-preset="${esc(p.id)}">
       <span class="opt-main"><span class="opt-title">${esc(presetLabel(v, p))}</span>
-        <span class="chips">${presetChips(p)}${p.req ? `<span class="chip dim" title="${esc(p.req)}">${esc(t('loadout.requires', { mod: I18N.mod(p.req) || p.req }))}</span>` : ''}</span></span>
+        <span class="chips">${presetChips(p)}${p.req ? `<span class="chip dim" title="${esc(p.req)}">${esc(t('loadout.requires', { mod: [p.req].flat().map(m => I18N.mod(m) || m.replace(/_/g, ' ')).join(', ') }))}</span>` : ''}</span></span>
       <span class="opt-radio"></span></button>`).join('');
   if (d.sl?.length) return loadoutGridHTML(v, d);
   if (d.lp?.length && c.pylons) return loadoutGridHTML(v, d);  // fixed presets, custom: one column per attachment point
@@ -1564,7 +1565,6 @@ function modInput(path, label, stock, unit, step) {
 }
 
 function modsBody(v, d) {
-  if (!cdkOn()) return `<p class="hint">${esc(t('mods.off'))}</p>`;
   const host = hostOf(v.c);
   const customAir = (v.c === 'air' || v.c === 'heli') && (S.status?.cdk?.airMethod || 'custom') === 'custom';
   const note = customAir ? t('mods.noteAir') : t('mods.note', { host: host ? I18N.unit(host) : '—' });

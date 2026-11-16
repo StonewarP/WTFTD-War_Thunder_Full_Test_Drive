@@ -4,6 +4,31 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.33.5 (not released yet)
+
+Fixes found while the wiki was gone through page by page.
+
+- **Cockpit window: the HUD button works.** It showed a black window; the HUD is drawn again. Its header gives the
+  aircraft's name (not `f_15a`) and its numbers follow the app's language, not the browser's.
+- **Names instead of the game's ids**: belts the game doesn't name (`M60 air targets`, not `M60_air_targets`), a loadout's
+  *Normally requires ...* (the modification's own name: *Bomb mortar*, not `ship_bomb_mortar`), and a research tree folder
+  the game doesn't name (Germany's first tanks: their vehicles' names, not their ids).
+- **Penetration chart**: 9 colours, enough for the most shells a gun has (8 on the T-72A, 9 on the Fletchers), and the
+  *mm / m* label no longer sits on the top line.
+- **The compare tray stays above the vehicle + map bar**: with 3 vehicles its Clear and Compare buttons were hidden under it.
+- **Weapon editor: numbers with the app's decimal mark.** The fields followed Windows (`358,34` next to *Game: 3.583 kg*);
+  a comma or a point both work when typing. The Advanced tab shows the file's values as the file has them, like *Game:*.
+- **Scenario editor**: a template unit the mission can carry lists its vehicles at once (it stayed empty until you typed in
+  *Search a vehicle...*), and the player's start hint says what a drag does: the start stays on the ground or in the air,
+  as picked.
+- **My overlay**: the zoom under the preview puts each block's title above its own lines.
+- **Test bench**: a reading the game doesn't send shows nothing, not *false*.
+- **Texts**: comparing a 6th weapon says *Up to 5 weapons*, a lineup's × says *Remove from the lineup*, the Mods dialog
+  *Which vehicle is it for?* has its frame, and the scenario editor's, WT Live's and that dialog's search fields look like
+  the others. English texts lose their long dashes.
+- The game data is rebuilt once at the first start (a few minutes), for the names above.
+- In every language.
+
 ## 0.33.4 - 2026-11-16
 
 - **My overlay: a text block can line its lines up as a table.** Blocks tab, **Align as a table**: each line's name,
