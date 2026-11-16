@@ -498,7 +498,7 @@ within 1 % of the speed, heading equal to the compass), the cockpit window's val
 - [ ] **Tacview**: open the `.txt.acmi` in Tacview itself (never done): track, height, heading, pitch, time. Another map than
   Afghanistan for the scale. A helicopter is exported as a fixed-wing aircraft.
 - [ ] **Cockpit window** from the button, in the exe's app window: does it open as a window of its own? On a second screen,
-  during a flight; gear and flaps turn red past their limit; the text says "Not flying" with no empty dials. English only.
+  during a flight; gear and flaps turn red past their limit; the text says "Not flying" with no empty dials. In the app's language, its numbers too.
 - [ ] **Packaged exe**: `cockpit.html` and `cockpit.js` are in; first launch rebuilds the data (schema 24), once.
 - [ ] **Datamine source**: the same bombing and penetration data as with the installed game (only the installed game was built).
 

@@ -4,7 +4,7 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## 0.33.5 (not released yet)
+## 0.33.5 - 2026-11-17
 
 Fixes found while the wiki was gone through page by page.
 
