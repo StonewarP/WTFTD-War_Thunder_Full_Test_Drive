@@ -165,5 +165,5 @@ jobs:
             *"**VirusTotal**"*) ;;  # already there (the job run again)
             *) gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$body
 
-          **VirusTotal**: each file as some 70 antivirus engines saw it when it was published (the report fills in a few minutes after). The apps aren't code-signed: one or two engines flagging a new unsigned app is common.$links" ;;
+          **VirusTotal**: each file as some 70 antivirus engines saw it when it was published (the report fills in a few minutes after). The apps aren't code-signed: a few engines flagging a new unsigned app (by heuristics or machine learning) is common.$links" ;;
           esac
