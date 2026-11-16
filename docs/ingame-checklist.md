@@ -799,6 +799,38 @@ the mission's files; the J-50 removed, its pylons left out).
 - [ ] The J-50 package removed, the game starts and a custom vehicle that carried the PL-15 before loads again once
       launched from WTFTD (its old files name the gone weapon until then).
 
+## 2ak. My overlay: US units, every engine, more values (new)
+
+**What was built.** `{alt:ft}`, `{ias:kt}`, `{ias:mph}`, `{vy:fpm}`, `{accel:fts2}`, `{fuel:lb}`, `{thrust:lbf}`,
+`{oil:f}`, `{range:nm}`, `{range:mi}`: a value in a US unit, by line (alarms, curves and logs stay metric). An engine's
+value (`{rpm}`, `{throttle}`, `{oil}`, `{manifold}`...) shows every engine, `2700 / 2650`, and an alarm on it goes off
+on the first engine past its threshold. New values: glide range, full roll time, turn rate in rad/s, specific energy,
+excess power (W), drag (kgf), mass without fuel, RPM % of critical (flight model's RPMMaxAllowed, data schema 39), BSFC,
+TSFC, oil and water temperature rates (°C/s over 10 s), radar altitude, aileron/elevator/rudder, manifold pressure,
+mixture, radiator, propeller pitch (deg and %), propeller efficiency, water temperature, wing sweep and its lever %,
+nozzle angle (AV-8B Plus in flight: /indicators nozzle_angle 0 aft, -90 down, shown positive), supercharger stage
+(/state `compressor stage 1`) and cylinder head temperature with its rate (/indicators `head_temperature`, °C, a
+cockpit gauge: F4U-4B yes, Fw 190 A-4 no), oil radiator (/indicators `oil_radiator` 0..1, F4U-4B).
+Names seen in port 8111 on 2026-11-16 in the hangar (Ju 288 C, P-51H-5, F-16C, Su-30SM2, MiG-23ML) and in flight
+(MiG-23ML: wing_sweep_indicator 0 to 1, radio_altitude in metres above the ground).
+
+- [x] 2026-11-16, Ju 288 C in flight (read from port 8111 with the worktree's code): every engine value shows both,
+      `THR 110 / 110 %  RPM 2800 / 2801  WATER 101 / 99 C  RAD 100 / 0 %` with one radiator opened.
+- [ ] The same in the overlay window itself, and one engine cut: its own value drops, an alarm on it goes off.
+- [ ] An alarm `oil > 100` goes off when only one engine overheats.
+- [ ] `{alt:ft}` and `{ias:kt}` match the game's own HUD in imperial units.
+- [ ] `{drag}` and `{excess_power}` settle in level flight at full throttle (drag about the thrust, power about 0).
+- [ ] `{rpm_pct}` near 100 % only past the engine's overspeed; `{oil_rate}` positive while climbing at full power.
+- [ ] `{glide}` in a glide, engine off: about the distance the game's map shows to where you touch down at sea level.
+- [x] 2026-11-16, F-14A IRIAF in flight, auto sweep, read with `at_sweep` from port 8111: sweep 7 % -> 100 % as it
+      sped up, `{vne}` 1,066 -> 1,555 km/h, `{mne}` 1.10 -> 2.25, airframe 46 -> 65 %, no *(swept limit)* note.
+- [ ] Swing wings (`alarms.at_sweep`) in the overlay itself: on a MiG-23ML or an F-14, `{vne}` follows the wings (MiG-23ML: 892 km/h forward,
+      1,470 swept back), the *(swept limit)* note goes, and the airframe alarm comes at 93 % of the limit of the moment.
+- [x] 2026-11-16, Fw 190 A-4 in flight: RPM % of critical (90 % at 2,698 of 3,000), manifold, propeller pitch and
+      lever, efficiency, oil rate, drag against thrust with a negative SEP, all as expected.
+- [x] 2026-11-16, F4U-4B in flight: head 229 °C rising 0.85 °C/s on WEP, supercharger stage 2.
+- [ ] The head temperature on other radials: only where the cockpit has its gauge (the Fw 190 A-4's hasn't).
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

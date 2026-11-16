@@ -27,10 +27,11 @@ const OV_SHOWN_AS = ['value', 'percent', 'gauge', 'valuePct', 'valueGauge'];  //
 const OV_FONTS = ['Consolas', 'Cascadia Mono', 'Courier New', 'Lucida Console', 'Segoe UI', 'Bahnschrift', 'Arial', 'Tahoma', 'Verdana', 'Impact'];
 const OV_VALUES = {
   vehicle: ['vehicle'],
-  speed: ['speed', 'ias', 'tas', 'mach', 'hspeed', 'accel', 'sep', 'vne', 'mne', 'margin', 'airframe_pct', 'swept'],
-  gearflaps: ['gear', 'gear_max', 'gear_pct', 'flaps', 'flaps_max', 'flaps_pct', 'airbrake'],
-  flight: ['alt', 'vy', 'aoa', 'aoa_crit', 'aoa_low', 'aoa_pct', 'aos', 'g', 'g_max', 'g_lim', 'g_neg', 'load_pct', 'turn', 'turn_ref', 'turn_pct', 'turn_rate', 'turn_radius', 'roll', 'pitch', 'bank', 'heading'],
-  engine: ['throttle', 'rpm', 'thrust', 'thrust_total', 'twr', 'mass', 'power', 'oil', 'fuel', 'fuel_max', 'fuel_pct', 'burn', 'fuel_time', 'range', 'wep', 'wep_s'],
+  speed: ['speed', 'ias', 'tas', 'mach', 'hspeed', 'accel', 'sep', 'energy', 'excess_power', 'drag', 'vne', 'mne', 'margin', 'airframe_pct', 'swept'],
+  gearflaps: ['gear', 'gear_max', 'gear_pct', 'flaps', 'flaps_max', 'flaps_pct', 'airbrake', 'sweep', 'sweep_lever'],
+  flight: ['alt', 'radalt', 'vy', 'glide', 'aoa', 'aoa_crit', 'aoa_low', 'aoa_pct', 'aos', 'g', 'g_max', 'g_lim', 'g_neg', 'load_pct', 'turn', 'turn_ref', 'turn_pct', 'turn_rate', 'turn_rad', 'turn_radius', 'roll', 'roll_time', 'pitch', 'bank', 'heading', 'aileron', 'elevator', 'rudder'],
+  engine: ['throttle', 'rpm', 'rpm_pct', 'thrust', 'thrust_total', 'nozzle', 'twr', 'mass', 'mass_dry', 'power', 'manifold', 'mixture', 'prop_pitch', 'prop_pct', 'efficiency', 'oil', 'oil_rate', 'water', 'water_rate', 'head', 'head_rate', 'radiator', 'oil_radiator', 'supercharger',
+           'fuel', 'fuel_max', 'fuel_pct', 'burn', 'bsfc', 'tsfc', 'fuel_time', 'range', 'wep', 'wep_s'],
   stats: ['kd', 'winrate', 'battles', 'kills', 'deaths', 'live_kd', 'live_kills', 'live_deaths'],
 };
 
@@ -284,7 +285,7 @@ function ovShownHTML(l, i) {
   return `<div class="ov-showas"><span>${esc(t('ov.showAs'))}</span>${OV_SHOWN_AS.map(how => `<label><input type="radio" name="ovshown-${i}" data-olshown value="${how}"${how === now ? ' checked' : ''}>${esc(t('ov.shown.' + how))}</label>`).join('')}${gauge}</div>`;
 }
 // a line showing a value bound to the mass: the weapons it counts in it, the game doesn't send their mass
-const OV_MASS = /\{(g_lim|g_neg|load_pct|mass|twr)\b/;
+const OV_MASS = /\{(g_lim|g_neg|load_pct|mass|mass_dry|twr|excess_power|drag)\b/;
 function ovPayloadHTML(l) {
   return `<div class="ov-showas ov-payload${OV_MASS.test(l.text) ? '' : ' hidden'}" title="${esc(t('ov.payloadHint'))}">${ovField(t('ov.payload'),
     `<input type="number" data-ol="payload" min="0" max="50000" step="50" value="${l.payload || 0}">`)}</div>`;
@@ -380,9 +381,10 @@ function ovAddLine(block) {
 
 function ovRenderLines() {
   const opt = ovOpt, blocks = OV.cfg.blocks.length;
+  ovPickClose();  // its line is drawn again
   $('#ovLines').innerHTML = OV.cfg.lines.map((l, i) => `<div class="ov-line${blocks ? ' ov-blocks' : ''}" data-i="${i}">
       <div class="ov-move"><button class="icon-btn" data-ovmove="-1"${i ? '' : ' disabled'} title="${esc(t('ov.up'))}">▲</button><button class="icon-btn" data-ovmove="1"${i < OV.cfg.lines.length - 1 ? '' : ' disabled'} title="${esc(t('ov.down'))}">▼</button></div>
-      <input type="text" class="ov-tpl" data-ol="text" value="${esc(l.text)}" maxlength="120" spellcheck="false">
+      <div class="ov-tpl-box"><input type="text" class="ov-tpl" data-ol="text" value="${esc(l.text)}" maxlength="120" spellcheck="false"><button class="btn btn-sm ov-vals-btn" data-ovvals><b>{ }</b> ${esc(t('ov.pickValue'))}</button></div>
       <label class="ov-mini"><span>${esc(t('ov.when'))}</span><select data-ol="when">${OV_WHEN.map(w => opt(w, t('ov.when.' + w), l.when)).join('')}</select></label>
       ${blocks ? ovField(t('ov.block'), `<select data-ol="block">${Array.from({ length: blocks + 1 }, (_, n) => opt(n, n + 1, l.block || 0)).join('')}</select>`) : ''}
       <label class="ov-mini ov-num"><span>${esc(t('ov.lineSize'))}</span><input type="number" data-ol="size" min="0" max="400" value="${l.size || ''}" placeholder="${esc(OV.cfg.size)}"></label>
@@ -426,6 +428,7 @@ function ovShowClears() {
 
 function ovRender(st) {
   OV.cfg = st.cfg;
+  OV.units = st.units;
   OV.sounds = st.sounds;
   OV.device = st.device;
   $('#ovDevice').innerHTML = ovOpt('', t(S.status.platform === 'win32' ? 'ov.deviceDefault' : 'ov.deviceSystem'), st.device) + st.devices.map(d => ovOpt(d, d, st.device)).join('');
@@ -456,11 +459,68 @@ function leaveOverlayView() {
   }
 }
 
-function ovInsert(name) {
-  const edited = OV.input?.isConnected ? OV.input : null, input = edited || $$('#ovLines .ov-tpl').pop();
-  if (!input) return;
-  input.setRangeText(`{${name}}`, edited ? input.selectionStart : input.value.length, edited ? input.selectionEnd : input.value.length, 'end');
+// the values a line can show, listed under the line being written: opened by typing { (what follows filters the list) or by
+// the line's button (a search field then); a value's US units insert it in that unit, {alt:ft}
+const OV_PICK = { input: null, typed: false, from: 0, to: 0, rows: [], at: 0 };
+const OV_UNIT_TEXT = { f: '°F', fpm: 'ft/min', fts2: 'ft/s²' };
+const ovFold = s => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+// a value matches when each word typed starts one of its name's words, in the page's language or in its {name}
+const ovMatches = (n, words) => {
+  const own = [...ovFold(t('ov.v.' + n)).split(/[^\p{L}\p{N}]+/u), ...n.split('_'), n];
+  return words.every(w => own.some(x => x.startsWith(w)));
+};
+function ovPickRender(query) {
+  const words = ovFold(query).split(/\s+/).filter(Boolean), units = OV.units || {};
+  OV_PICK.rows = [];
+  OV_PICK.at = 0;
+  $('#ovVals .ov-vals-list').innerHTML = Object.entries(OV_VALUES).map(([group, names]) => {
+    const rows = names.filter(n => ovMatches(n, words)).map(n => {
+      const [unit, us] = units[n] || ['', []], i = OV_PICK.rows.push(n) - 1;  // "% of critical": its %
+      return `<div class="ov-val${i ? '' : ' on'}" role="option" data-v="${n}" data-i="${i}"><span>${esc(t('ov.v.' + n))}</span><code>{${n}}</code><small>${esc(unit.split(' ')[0])}</small><span class="ov-val-us">${us.map(u => `<span class="ov-val-u" data-u="${u}" title="{${n}:${u}}">${OV_UNIT_TEXT[u] || u}</span>`).join('')}</span></div>`;
+    }).join('');
+    return rows && `<div class="ov-vals-g">${esc(t('ov.g.' + group))}</div>${rows}`;
+  }).join('');
+  return OV_PICK.rows.length;
+}
+function ovPickOpen(input, typed) {
+  const box = $('#ovVals'), a = input.getBoundingClientRect(), p = box.parentNode.getBoundingClientRect();
+  Object.assign(OV_PICK, { input, typed });
+  Object.assign(box.style, { top: `${a.bottom - p.top + 4}px`, left: `${a.left - p.left}px` });
+  $('.ov-vals-q', box).classList.toggle('hidden', typed);
+  box.classList.remove('hidden');
+}
+function ovPickClose() {
+  $('#ovVals').classList.add('hidden');
+  OV_PICK.input = null;
+}
+function ovPickMove(at) {
+  OV_PICK.at = at;
+  $$('#ovVals .ov-val').forEach(r => r.classList.toggle('on', +r.dataset.i === at));
+  $(`#ovVals .ov-val[data-i="${at}"]`)?.scrollIntoView({ block: 'nearest' });
+}
+// typing in a line: a { not closed yet before the caret opens the list on what follows it
+function ovPickTyped(input) {
+  const before = input.value.slice(0, input.selectionStart), from = before.lastIndexOf('{'), query = before.slice(from + 1);
+  if (from < 0 || /[{}:]/.test(query) || !ovPickRender(query)) return OV_PICK.typed && ovPickClose();
+  Object.assign(OV_PICK, { from, to: input.selectionStart });
+  ovPickOpen(input, true);
+}
+function ovPickButton(input) {
+  const was = OV.input === input;  // where its caret was, else at its end
+  Object.assign(OV_PICK, { from: was ? input.selectionStart : input.value.length, to: was ? input.selectionEnd : input.value.length });
+  ovPickRender('');
+  ovPickOpen(input, false);
+  const q = $('#ovVals .ov-vals-q');
+  q.value = '';
+  q.focus();
+}
+function ovPickInsert(name, unit) {
+  const input = OV_PICK.input;
+  ovPickClose();
+  if (!input?.isConnected || !name) return;
   input.focus();
+  input.setRangeText(`{${name}${unit ? ':' + unit : ''}}`, OV_PICK.from, OV_PICK.to, 'end');
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
@@ -559,14 +619,41 @@ function bindOverlay() {
     toast({ title: t('ov.profileDeleted', { name: ovProfileName(key) }), actions: [{ label: t('ov.undo'), run: async () => { OV.profile = key; ovRender(await api('overlay', { cfg: before, profile: key })); } }] });
   });
   $('#ovFonts').innerHTML = OV_FONTS.map(f => `<option value="${esc(f)}">`).join('');
-  $('#ovValues').innerHTML = Object.entries(OV_VALUES).map(([group, names]) => `<div class="ov-group"><b>${esc(t('ov.g.' + group))}</b>${names.map(n => `<button class="chip ov-chip" data-ovv="${n}" title="{${n}}">${esc(t('ov.v.' + n))}</button>`).join('')}</div>`).join('');
+  const vals = $('#ovVals');
+  $('.ov-vals-q', vals).addEventListener('input', e => ovPickRender(e.target.value));
+  vals.addEventListener('mousedown', e => {
+    if (e.target.closest('.ov-vals-q')) return;
+    e.preventDefault();  // the line keeps its caret
+    const row = e.target.closest('.ov-val');
+    if (row) ovPickInsert(row.dataset.v, e.target.closest('[data-u]')?.dataset.u);
+  });
+  document.addEventListener('mousedown', e => {
+    if (OV_PICK.input && !e.target.closest('#ovVals, [data-ovvals]') && e.target !== OV_PICK.input) ovPickClose();
+  });
   ovDrag();
   ovTab(store.get('overlayTab', 'lines'));
   $('#ovTabs').addEventListener('click', e => { if (e.target.dataset.tab) ovTab(e.target.dataset.tab); });
   const view = $('#view-overlay');
   view.addEventListener('focusin', e => { if (e.target.classList.contains('ov-tpl')) OV.input = e.target; });
+  view.addEventListener('keydown', e => {  // the list of values, from its line or its search field
+    if (!OV_PICK.input || (e.target !== OV_PICK.input && !e.target.classList.contains('ov-vals-q'))) return;
+    const n = OV_PICK.rows.length;
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && n) {
+      e.preventDefault();
+      ovPickMove((OV_PICK.at + (e.key === 'ArrowDown' ? 1 : n - 1)) % n);
+    } else if (e.key === 'Enter' && n) {
+      e.preventDefault();
+      ovPickInsert(OV_PICK.rows[OV_PICK.at]);
+    } else if (e.key === 'Escape' || e.key === 'Tab' || (OV_PICK.typed && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key))) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }  // the list only, not the page around it
+      const back = !OV_PICK.typed && OV_PICK.input;
+      ovPickClose();
+      if (back && e.key === 'Escape') back.focus();
+    }
+  });
   view.addEventListener('input', e => {
     const el = e.target, value = el.type === 'checkbox' ? el.checked : el.type === 'number' ? parseInt(el.value, 10) : el.value;
+    if (el.classList.contains('ov-tpl')) ovPickTyped(el);
     if (el.dataset.ov) {
       if (el.type === 'number' && Number.isNaN(value)) return;
       OV.cfg[el.dataset.ov] = value;
@@ -657,7 +744,7 @@ function bindOverlay() {
     const b = e.target.closest('button');
     if (!b || !OV.cfg) return;  // a click before the settings came
     const row = b.closest('.ov-line'), i = row ? +row.dataset.i : -1, lines = OV.cfg.lines;
-    if (b.dataset.ovv) return ovInsert(b.dataset.ovv);
+    if ('ovvals' in b.dataset) return OV_PICK.input && !OV_PICK.typed ? ovPickClose() : ovPickButton($('.ov-tpl', row));
     if ('ortrybtn' in b.dataset) {
       const j = +b.closest('.ov-rule').dataset.j, again = OV.trying?.i === i && OV.trying?.j === j;
       OV.trying = again ? null : { i, j, value: ovTryStart(lines[i].rules[j]) };

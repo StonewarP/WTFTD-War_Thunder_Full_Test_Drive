@@ -1872,7 +1872,8 @@ def overlay_status(profile: str = "") -> dict:
             "hud": {place: WATCH.sample_hud(cfg, profile, place) for place in hud.PLACES}, "map": WATCH.sample_map(cfg),
             "enabled": STATE.settings().get("alarms") is True, "profile": profile if profile in WATCH.profiles else "",
             "profiles": sorted(WATCH.profiles), "active": WATCH.profile, "aircraft": WATCH.current,
-            "sounds": alarms.sound_list(SOUNDS), "devices": waveout.devices(), "device": alarms.OUTPUT["device"]}
+            "sounds": alarms.sound_list(SOUNDS), "devices": waveout.devices(), "device": alarms.OUTPUT["device"],
+            "units": alarms.unit_choices()}
 
 
 def capture_once():
