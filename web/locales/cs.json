@@ -1964,6 +1964,8 @@
   "ch.vehicleLine": "Změněno ve {v}: hodnot: {n}",
   "ch.new": "Nové",
   "ch.gone": "Odebrané",
+  "ch.went": "odebráno {x}",
+  "ch.came": "přidáno {x}",
   "ch.brab": "BR AB",
   "ch.brrb": "BR RB",
   "ch.brsb": "BR SB",

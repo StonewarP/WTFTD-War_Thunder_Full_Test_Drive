@@ -1964,6 +1964,8 @@
   "ch.vehicleLine": "{v} で変更：{n}項目",
   "ch.new": "新規",
   "ch.gone": "削除",
+  "ch.went": "{x} を削除",
+  "ch.came": "{x} を追加",
   "ch.brab": "BR AB",
   "ch.brrb": "BR RB",
   "ch.brsb": "BR SB",

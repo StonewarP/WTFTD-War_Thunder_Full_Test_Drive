@@ -4,6 +4,13 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.33.1 - 2026-11-16
+
+- **Fixed: What changed showed a list's change as "before → after"** (`Pylon weapons: Spike NLOS → -`), when its row holds
+  what went and what came: the Spike NLOS was removed from those helicopters' pylons, nothing replaced it. A list (pylon
+  weapons, guns, ammunition, sensors, avionics, a weapon's abilities) now says **removed ...** and **added ...**, on the page
+  and in the text Copy for Reddit / Discord gives, in every language.
+
 ## 0.33.0 - 2026-11-16
 
 - **New version in one click** (Windows, macOS, Linux): the *New version* button's **Update now** downloads the

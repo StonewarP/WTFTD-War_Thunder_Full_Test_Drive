@@ -98,9 +98,14 @@ function chSubjects(rows) {
   return out;
 }
 
+// a list of names (pylon weapons, sensors, abilities...): its row holds what went and what came, not a before and an after
+const chList = f => f.digits == null && f.of !== 'x';
+const chCameWent = (r, f) => [r[2]?.length && t('ch.went', { x: chValue(r, f, r[2]) }), r[3]?.length && t('ch.came', { x: chValue(r, f, r[3]) })].filter(Boolean);
+
 // one change of a subject: name, before → after, on a grid shared by the subject's lines
 function chChange(r) {
   const k = r[1], f = CH.fields[k], v = S.byId.get(r[0]);
+  if (chList(f)) return `<span class="ch-k">${esc(t(f.label))}</span><span class="ch-names">${chCameWent(r, f).map(esc).join(' · ')}</span>`;
   if (f.of === '') {
     const br = k !== 'new' ? null : v ? brOf(v) : Array.isArray(r[4]) ? r[4][3]?.[S.f.brMode] : null;
     const after = br != null ? esc(`BR ${fmtBR(br)}`) : `<span class="chip ${k.endsWith('new') ? 'info' : 'dim'}">${esc(t(f.label))}</span>`;
@@ -152,6 +157,7 @@ function chShareText(where) {
   const change = r => {
     const f = CH.fields[r[1]];
     if (f.of === '') return t(f.label);
+    if (chList(f)) return `${t(f.label)}: ${chCameWent(r, f).join(', ')}`;
     return `${f.of === 'x' ? r[4] : t(f.label)} ${chValue(r, f, r[2])} → ${chValue(r, f, r[3])}`;
   };
   let twice = new Set();  // a name two vehicles have (AH-1W, Fujian): the page tells them by their flag, the text by their nation

@@ -1969,6 +1969,8 @@
   "ch.vehicleLine": "Modifié en {v} : {n} valeur(s)",
   "ch.new": "Nouveau",
   "ch.gone": "Retiré",
+  "ch.went": "retrait de {x}",
+  "ch.came": "ajout de {x}",
   "ch.brab": "BR AB",
   "ch.brrb": "BR RB",
   "ch.brsb": "BR SB",

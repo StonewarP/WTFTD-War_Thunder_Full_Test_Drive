@@ -1593,6 +1593,7 @@ td.hg-actions { height: 48px; }
 .ch-table tbody tr:hover td { background: var(--surface-2); }
 .ch-list { display: grid; grid-template-columns: minmax(110px, max-content) max-content max-content 1fr; gap: 3px 10px; align-items: center; }
 .ch-k { color: var(--text-2); font-weight: 600; }
+.ch-names { grid-column: 2 / -1; }  /* a list's row: what went, what came, across the before / after columns */
 .ch-to { color: var(--muted); }
 .ch-br td:not(:first-child) { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ch-rank { display: block; margin-top: 2px; }

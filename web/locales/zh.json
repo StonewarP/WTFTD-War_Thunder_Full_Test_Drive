@@ -1964,6 +1964,8 @@
   "ch.vehicleLine": "在 {v} 中有改动：{n} 项",
   "ch.new": "新增",
   "ch.gone": "移除",
+  "ch.went": "移除 {x}",
+  "ch.came": "新增 {x}",
   "ch.brab": "BR AB",
   "ch.brrb": "BR RB",
   "ch.brsb": "BR SB",
