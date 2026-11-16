@@ -110,6 +110,14 @@ class Limits(unittest.TestCase):
         fm = {"Engine0": {"Type": 0}, "EngineType0": {"Main": {"Type": "Rocket"}}}
         self.assertEqual(builder.engine_count(fm), 1)
 
+    def test_critical_rpm(self):  # F-15A: its engine type's; Bf 109 F-4: on the engine itself; a booster's left out
+        jet = dict(self.fm(), EngineType0={"Main": {"Type": "Jet", "RPMMax": 12960.0, "RPMMaxAllowed": 15500.0}})
+        self.assertEqual(builder.flight_limits(jet, "air")["rpm"], 15500.0)
+        old = {"Vne": 650, "Mass": {}, "Engine0": {"Main": {"Type": "Inline", "RPMMaxAllowed": 3000.0}},
+               "Engine1": {"Type": 1}, "EngineType1": {"Booster": True, "Main": {"RPMMaxAllowed": 90000.0}}}
+        self.assertEqual(builder.flight_limits(old, "air")["rpm"], 3000.0)
+        self.assertNotIn("rpm", builder.flight_limits(self.fm(), "air"))
+
 
 class Migration(unittest.TestCase):
     """An overlay saved before 0.27: the aircraft's alarms in a tab, lines red "with" one."""
@@ -674,6 +682,17 @@ class Watching(unittest.TestCase):
     def test_gear_alarm_beeps_at_its_pitch(self):
         self.fly(**{"gear, %": 100, "IAS, km/h": 600})
         self.beep.assert_called_once_with(1000, alarms.BEEP_MS, 100)
+
+    def test_a_swing_wing_forward_breaks_sooner(self):
+        self.data = details({**PLANES, "mig_23ml": {**J10, "sw": [[0.0, 892.0, 0.85], [1.0, 1470.0, 2.4]], "v": 1470.0, "m": 2.4}})
+        self.indicators = b'{"valid": true, "type": "mig_23ml", "wing_sweep_indicator": 0.0}'
+        self.fly(**{"IAS, km/h": 900})
+        self.assertEqual(self.texts()[0], "IAS    900 / 892 km/h")
+        self.assertIn("airframe", self.watch.on)  # past its break: the held tone
+        self.indicators = b'{"valid": true, "type": "mig_23ml", "wing_sweep_indicator": 1.0}'
+        self.fly(**{"IAS, km/h": 900})
+        self.assertEqual(self.texts()[0], "IAS    900 / 1470 km/h")
+        self.assertEqual(self.watch.on, [])
 
     def test_no_alarm_no_beep(self):
         self.fly()
@@ -1245,6 +1264,30 @@ class Lines(unittest.TestCase):
     def test_no_python_formatting_gets_through(self):
         self.assertEqual(alarms.fill("{ias.__class__} {ias!r}", self.VALUES), "N/A N/A")
 
+    def test_us_units(self):
+        values = {"H, m": 1000, "IAS, km/h": 1852, "TAS, km/h": 1609.344, "Vy, m/s": 5.08, "oil temp 1, C": 100, "oil_rate": 1,
+                  "Mfuel, kg": 453.59237, "thrust 1, kgs": 907.18474, "thrust_total": 453.59237, "range": 185.2, "accel": 3.048, "burn": 45.359237}
+        for text, want in (("{alt:ft}", "3281"), ("{alt:ft:1}", "3280.8"), ("{ias:kt}", "1000"), ("{tas:mph}", "1000"), ("{vy:fpm}", "1000.0"),
+                           ("{oil:f}", "212"), ("{oil_rate:f}", "1.80"), ("{fuel:lb}", "1000"), ("{thrust:lbf}", "2000"), ("{thrust_total:lbf}", "1000"),
+                           ("{range:nm}", "100"), ("{range:mi}", "115"), ("{accel:fts2}", "10.0"), ("{burn:lb}", "100"), ("{thrust 1, kgs:lbf}", "2000")):
+            self.assertEqual(alarms.fill(text, values), want, text)
+        self.assertEqual(alarms.fill("{mach:ft} {nothing:ft}", self.VALUES), "N/A N/A")  # a unit it can't be in
+        self.assertEqual(alarms.fill("{alt:yd}", values), "{alt:yd}")  # not a unit: left as written
+
+    def test_every_engine(self):
+        twin = {"RPM 1": 2700, "RPM 2": 2650, "throttle 1, %": 100, "throttle 2, %": 98, "thrust 1, kgs": 453.59237, "thrust 2, kgs": 0}
+        self.assertEqual(alarms.fill("{rpm} | {throttle} | {thrust:lbf}", twin), "2700 / 2650 | 100 / 98 | 1000 / 0")
+        self.assertEqual(alarms.fill("{rpm}", {"RPM 1": 2700}), "2700")  # one engine
+        self.assertEqual(alarms.fill("{rpm}", {"RPM 2": 2650}), "N/A / 2650")
+        self.assertEqual(alarms.fill("{RPM 1}", twin), "2700")  # a game's field by its own name: that engine only
+
+    def test_a_condition_on_an_engine_is_met_by_any(self):
+        twin = {"oil temp 1, C": 90, "oil temp 2, C": 105, "throttle 1, %": 100, "throttle 2, %": 40}
+        self.assertTrue(alarms.met({"value": "oil", "op": ">", "at": 100}, twin))
+        self.assertTrue(alarms.met({"value": "throttle", "op": "<", "at": 50}, twin))
+        self.assertFalse(alarms.met({"value": "oil", "op": "<", "at": 80}, twin))
+        self.assertEqual(alarms.watched({"value": "oil", "op": ">", "at": 100}, twin, {}), 105)
+
     def test_computed_values(self):
         out = alarms.computed(SU30, {"IAS, km/h": 770, "M": 1.05, "flaps, %": 60, "gear, %": 100, "Mfuel, kg": 4700,
                                      "Mfuel0, kg": 9400}, WORDS)
@@ -1306,6 +1349,48 @@ class Computed(unittest.TestCase):
     def test_excess_power(self):
         out = alarms.computed(None, {"TAS, km/h": 360, "Vy, m/s": 10}, WORDS, {"accel": alarms.G})
         self.assertAlmostEqual(out["sep"], 110)
+
+    def test_excess_power_in_watts_and_drag(self):  # 10 t, 100 m/s, SEP 110 m/s: (thrust - drag) = 11,000 kgf
+        lim = dict(SU30, mass=10000)
+        out = alarms.computed(lim, {"TAS, km/h": 360, "Vy, m/s": 10, "thrust 1, kgs": 12000}, WORDS, {"accel": alarms.G})
+        self.assertAlmostEqual(out["excess_power"], 10000 * alarms.G * 110)
+        self.assertAlmostEqual(out["drag"], 1000)
+        self.assertEqual(out["mass_dry"], 10000)
+        heavy, _ = alarms.loaded(lim, {"TAS, km/h": 360, "Vy, m/s": 10, "thrust 1, kgs": 12000}, 500, WORDS, rates={"accel": alarms.G})
+        self.assertEqual(heavy["mass_dry"], 10500)  # a line's weapons count in it
+        self.assertAlmostEqual(heavy["drag"], 12000 - 10500 * 1.1)
+
+    def test_glide_energy_roll_and_turn_in_radians(self):
+        out = alarms.computed(None, {"TAS, km/h": 360, "Vy, m/s": -10, "H, m": 3000, "Wx, deg/s": -120, "Ny": 2}, WORDS)
+        self.assertAlmostEqual(out["glide"], 29.85, 2)  # 3 km down at 99.5 m/s forward for 10 m/s down
+        self.assertAlmostEqual(out["energy"], 3000 * alarms.G + 5000)
+        self.assertAlmostEqual(out["roll_time"], 3)
+        self.assertAlmostEqual(out["turn_rad"], 0.16986, 5)  # 9.73 deg/s
+        calm = alarms.computed(None, {"TAS, km/h": 360, "Vy, m/s": 2, "Wx, deg/s": 5}, WORDS)
+        self.assertNotIn("glide", calm)  # climbing
+        self.assertNotIn("roll_time", calm)  # not rolling
+
+    def test_fuel_for_power_and_thrust(self):
+        out = alarms.computed(None, {"power 1, hp": 1000, "power 2, hp": 1000}, WORDS, {"burn": 10})
+        self.assertAlmostEqual(out["bsfc"], 0.3)  # 600 kg an hour for 2,000 hp
+        out = alarms.computed(None, {"thrust 1, kgs": 3000, "thrust 2, kgs": 3000, "power 1, hp": 0}, WORDS, {"burn": 100})
+        self.assertAlmostEqual(out["tsfc"], 1.0)
+        self.assertNotIn("bsfc", out)  # a jet's power reads 0
+
+    def test_rpm_of_the_engine_nearest_its_limit(self):
+        out = alarms.computed(dict(SU30, rpm=3000), {"RPM 1": 2700, "RPM 2": 2850, "RPM throttle 1, %": 100}, WORDS)
+        self.assertAlmostEqual(out["rpm_pct"], 95)
+        self.assertNotIn("rpm_pct", alarms.computed(SU30, {"RPM 1": 2700}, WORDS))  # limit unknown
+
+    def test_temperature_rates(self):
+        trend = alarms.Trend()
+        for t in range(0, 21):  # oil: 1 degree every 2 s; water: steady
+            trend.add(t, {"oil temp 1, C": 80 + t // 2, "water temp 1, C": 90, "head_temperature": 133.1 - 0.2 * t})
+        rates = trend.rates()
+        self.assertAlmostEqual(rates["oil_rate"], 0.5, 1)
+        self.assertAlmostEqual(rates["water_rate"], 0)
+        self.assertAlmostEqual(rates["head_rate"], -0.2)  # F4U-4B: a cockpit gauge, /indicators head_temperature, C
+        self.assertEqual(alarms.fill("{head} C {head:f} F {supercharger}", {"head_temperature": 133.1, "compressor stage 1": 2}), "133 C 272 F 2")
 
     def test_trend(self):
         trend = alarms.Trend()
@@ -1489,7 +1574,7 @@ class Configuration(unittest.TestCase):
         self.assertEqual(alarms.clean({"hotkey": [1000]}, WORDS)["hotkey"], [])
 
     def test_every_value_of_the_default_lines_exists(self):
-        names = {n for line in alarms.defaults(WORDS)["lines"] for n, _ in alarms.FIELD.findall(line["text"])}
+        names = {n for line in alarms.defaults(WORDS)["lines"] for n, *_ in alarms.FIELD.findall(line["text"])}
         self.assertLessEqual(names, set(alarms.FIELDS) | set(alarms.COMPUTED) | {"swept"})
 
     def test_every_value_of_the_page_exists(self):
@@ -1497,6 +1582,9 @@ class Configuration(unittest.TestCase):
         names = set(re.findall(r"'(\w+)'", page[page.index("OV_VALUES = {"):page.index("function ovShow")]))
         self.assertTrue(names)
         self.assertLessEqual(names, set(alarms.FIELDS) | set(alarms.COMPUTED) | set(alarms.SAMPLE_STATS) | {"swept", "fuel_time", "wep", "vehicle"})
+        for code in ("en", "fr", "de", "es", "it", "pt", "pl", "cs", "ru", "ja", "zh"):  # each with its name in every language
+            words = json.loads((alarms.WEB / "locales" / f"{code}.json").read_text(encoding="utf-8"))
+            self.assertEqual([n for n in sorted(names) if not words.get(f"ov.v.{n}")], [], code)
 
 
 class Preview(unittest.TestCase):
@@ -2057,6 +2145,28 @@ class Pitch(unittest.TestCase):
 
     def test_no_pitch(self):
         self.assertNotIn("pitch", alarms.numbers(alarms.read_indicators(b'{"valid": false}')))
+
+    def test_swing_wing_limits_follow_the_sweep(self):  # MiG-23ML: Vne 892 forward, 1312 at half sweep, 1470 back
+        lim = {"sw": [[0.0, 892.0, 0.85], [0.5, 1312.0, 2.35], [1.0, 1470.0, 2.4]], "v": 1470.0, "m": 2.4, "gear": 630.0}
+        at = alarms.at_sweep(lim, alarms.read_indicators(b'{"valid": true, "wing_sweep_indicator": 0.412366}'))
+        self.assertAlmostEqual(at["v"], 1238.39, 2)
+        self.assertAlmostEqual(at["m"], 2.0871, 4)
+        self.assertEqual((at["gear"], "sw" in at, lim["v"]), (630.0, False, 1470.0))  # the rest kept, the aircraft's own untouched
+        self.assertEqual(alarms.computed(at, {"IAS, km/h": 900}, WORDS)["swept"], "")  # the real limit: no note
+        self.assertIs(alarms.at_sweep(lim, {}), lim)  # no gauge: the swept-back limits, noted
+        self.assertTrue(alarms.computed(lim, {"IAS, km/h": 900}, WORDS)["swept"])
+
+    def test_wing_sweep_in_percent(self):  # MiG-23ML in flight: its gauges read 0..1
+        got = alarms.read_indicators(b'{"valid": true, "wing_sweep_indicator": 0.412366, "wing_sweep_lever": 0.114344}')
+        self.assertEqual(alarms.fill("{sweep} {sweep_lever}", got), "41 11")
+        self.assertEqual(alarms.fill("{sweep}", alarms.read_indicators(b'{"valid": true}')), "N/A")  # no swing wings
+
+    def test_nozzles_in_degrees_down(self):  # AV-8B Plus in flight: 0 aft, -90 straight down
+        self.assertEqual(alarms.fill("{nozzle}", alarms.read_indicators(b'{"valid": true, "nozzle_angle": -89.55}')), "90")
+        self.assertEqual(alarms.fill("{nozzle}", alarms.read_indicators(b'{"valid": true}')), "N/A")
+
+    def test_oil_radiator_in_percent(self):  # F4U-4B in flight: 0..1, its own control apart from the radiator
+        self.assertEqual(alarms.fill("{oil_radiator}", alarms.read_indicators(b'{"valid": true, "oil_radiator": 0.596}')), "60")
 
 
 class Labels(unittest.TestCase):

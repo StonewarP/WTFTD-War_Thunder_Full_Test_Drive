@@ -89,14 +89,22 @@ FIELDS = {"ias": ("IAS, km/h", 0), "tas": ("TAS, km/h", 0), "mach": ("M", 2), "a
           "bank": ("aviahorizon_roll", 1), "fuel": ("Mfuel, kg", 0), "fuel_max": ("Mfuel0, kg", 0),
           "throttle": ("throttle 1, %", 0), "rpm": ("RPM 1", 0), "thrust": ("thrust 1, kgs", 0),
           "power": ("power 1, hp", 0), "oil": ("oil temp 1, C", 0), "gear": ("gear, %", 0), "flaps": ("flaps, %", 0),
-          "airbrake": ("airbrake, %", 0), "speed": ("speed", 0)}
+          "airbrake": ("airbrake, %", 0), "speed": ("speed", 0),
+          "aileron": ("aileron, %", 0), "elevator": ("elevator, %", 0), "rudder": ("rudder, %", 0), "radalt": ("radio_altitude", 0),
+          "manifold": ("manifold pressure 1, atm", 2), "water": ("water temp 1, C", 0), "radiator": ("radiator 1, %", 0),
+          "prop_pitch": ("pitch 1, deg", 1), "prop_pct": ("RPM throttle 1, %", 0), "efficiency": ("efficiency 1, %", 0),
+          "mixture": ("mixture 1, %", 0), "sweep": ("wing sweep, %", 0), "sweep_lever": ("wing sweep lever, %", 0),
+          "nozzle": ("nozzle, deg", 0), "head": ("head_temperature", 0), "supercharger": ("compressor stage 1", 0),
+          "oil_radiator": ("oil radiator, %", 0)}
 COMPUTED = {"vne": 0, "mne": 2, "gear_max": 0, "flaps_max": 0, "margin": 0, "airframe_pct": 0, "gear_pct": 0,
             "flaps_pct": 0, "fuel_pct": 0, "hspeed": 0, "turn": 1, "turn_rate": 1, "turn_radius": 0, "accel": 1, "sep": 1,
             "burn": 0, "range": 0, "mass": 0, "thrust_total": 0, "twr": 2, "g_lim": 1, "g_neg": 1, "load_pct": 0,
-            "aoa_crit": 1, "aoa_low": 1, "aoa_pct": 0, "wep_s": 0, "turn_ref": 1, "turn_pct": 0}  # see computed(): name -> decimals
+            "aoa_crit": 1, "aoa_low": 1, "aoa_pct": 0, "wep_s": 0, "turn_ref": 1, "turn_pct": 0,
+            "glide": 1, "roll_time": 1, "turn_rad": 3, "energy": 0, "excess_power": 0, "drag": 0, "mass_dry": 0,
+            "rpm_pct": 0, "bsfc": 3, "tsfc": 2, "oil_rate": 2, "water_rate": 2, "head_rate": 2}  # see computed(): name -> decimals
 SERIES = [*FIELDS, *COMPUTED]  # the numbers curves and logs follow
 # their columns in a log, when the game's field name isn't one
-COLUMNS = {"speed": "Speed, km/h", "heading": "Heading, deg", "g_max": "Max G", "pitch": "Pitch, deg", "bank": "Bank, deg", "vne": "Max speed, km/h",
+COLUMNS = {"speed": "Speed, km/h", "heading": "Heading, deg", "radalt": "Radar altitude, m", "head": "Head temperature, C", "g_max": "Max G", "pitch": "Pitch, deg", "bank": "Bank, deg", "vne": "Max speed, km/h",
            "mne": "Max Mach", "gear_max": "Gear max speed, km/h", "flaps_max": "Flaps max speed, km/h",
            "margin": "Speed left, km/h", "airframe_pct": "Airframe limit, %", "gear_pct": "Gear limit, %",
            "flaps_pct": "Flaps limit, %", "fuel_pct": "Fuel, %", "hspeed": "Horizontal speed, km/h", "turn": "Turn, s",
@@ -104,10 +112,24 @@ COLUMNS = {"speed": "Speed, km/h", "heading": "Heading, deg", "g_max": "Max G", 
            "burn": "Fuel consumption, kg/min", "range": "Range, km", "mass": "Mass without weapons, kg",
            "thrust_total": "Thrust, kgf", "twr": "Thrust/weight", "g_lim": "G limit", "g_neg": "Negative G limit", "load_pct": "G load, % of limit",
            "aoa_crit": "Critical AoA, deg", "aoa_low": "Critical negative AoA, deg", "aoa_pct": "AoA limit, %", "wep_s": "WEP left, s",
-           "turn_ref": "Reference turn, s", "turn_pct": "Turn, % of reference"}
+           "turn_ref": "Reference turn, s", "turn_pct": "Turn, % of reference", "glide": "Glide range, km",
+           "roll_time": "Full roll, s", "turn_rad": "Turn rate, rad/s", "energy": "Specific energy, J/kg",
+           "excess_power": "Excess power, W", "drag": "Drag, kgf", "mass_dry": "Mass without fuel, kg",
+           "rpm_pct": "RPM, % of critical", "bsfc": "BSFC, kg/hp/h", "tsfc": "TSFC, kg/kgf/h",
+           "oil_rate": "Oil temperature rate, C/s", "water_rate": "Water temperature rate, C/s",
+           "head_rate": "Head temperature rate, C/s"}
 POSITION = ["East, m", "North, m", "Map heading, deg"]  # only in the logs, for the Tacview export
-# {mach:3}: its decimals; {turn_pct:bar}: a gauge of a %, {turn_pct:bar20/5}: of 20 blocks of 5 % each
-FIELD = re.compile(r"\{([^{}:]+)(?::(\d|bar(?:\d{1,2})?(?:/\d{1,3}(?:\.\d)?)?))?\}")
+# {alt:ft}: a value in a US unit, from the SI unit of its column: {unit: {SI unit: factor}} (°F adds 32 to a temperature)
+LB, FT, MILE, NMI = 0.45359237, 0.3048, 1.609344, 1.852
+UNITS = {"ft": {"m": 1 / FT}, "kt": {"km/h": 1 / NMI}, "mph": {"km/h": 1 / MILE}, "fpm": {"m/s": 60 / FT},
+         "fts2": {"m/s2": 1 / FT}, "lb": {"kg": 1 / LB, "kg/min": 1 / LB, "kg/hp/h": 1 / LB}, "lbf": {"kgf": 1 / LB, "kgs": 1 / LB},
+         "nm": {"km": 1 / NMI}, "mi": {"km": 1 / MILE}, "f": {"C": 1.8, "C/s": 1.8}}
+# {mach:3}: its decimals; {turn_pct:bar}: a gauge of a %, {turn_pct:bar20/5}: of 20 blocks of 5 % each; {alt:ft:1}: both
+FIELD = re.compile(r"\{([^{}:]+)(?::(" + "|".join(UNITS) + r"))?(?::(\d|bar(?:\d{1,2})?(?:/\d{1,3}(?:\.\d)?)?))?\}")
+ENGINE = re.compile(r"(.+ )1(, .+)?")  # a field of engine 1 ("RPM 1", "oil temp 1, C"): its short name shows every engine
+ROLLING = 10  # deg/s: slower, the aircraft isn't rolling, it has no time for a full roll
+RATE_S = 10  # temperature rates: the slope over this long (the game gives whole degrees)
+TEMPS = {"oil_rate": "oil temp 1, C", "water_rate": "water temp 1, C", "head_rate": "head_temperature"}  # head: a cockpit gauge (F4U-4B)
 BAR = 10  # a gauge's blocks: 10 % each, unless it says
 GAUGE = re.compile(r"bar(\d*)(?:/([\d.]+))?")
 NO_VALUE = "N/A"  # what the game doesn't send, what the aircraft doesn't have
@@ -131,12 +153,13 @@ FONT = re.compile(r"[\w .+-]{1,64}")
 
 # fills the preview when the game isn't flying: every line shows, with an alarm on
 SAMPLE_LIM = {"v": 1540, "m": 2.1, "gear": 700, "flaps": [[0.2, 1018], [1, 600]], "fuel": [9400], "eng": 2, "mass": 17520,
-              "load": [-550000, 1450000], "aoa": [[-20, 28], [-22, 29]], "turn": [18.8, 18.3]}
+              "load": [-550000, 1450000], "aoa": [[-20, 28], [-22, 29]], "turn": [18.8, 18.3], "rpm": 14300}
 SAMPLE_STATE = {"IAS, km/h": 640, "TAS, km/h": 790, "M": 0.75, "H, m": 3200, "Vy, m/s": 12.5, "AoA, deg": 4.2,
                 "AoS, deg": 0.1, "Ny": 3.1, "Wx, deg/s": 20, "Mfuel, kg": 6200, "Mfuel0, kg": 9400, "throttle 1, %": 100,
                 "RPM 1": 13300, "thrust 1, kgs": 12500, "power 1, hp": 0, "oil temp 1, C": 79, "gear, %": 100,
                 "flaps, %": 33, "airbrake, %": 20}
 SAMPLE_VEHICLE = "su_30mkk"
+SAMPLE_RATES = {"burn": 95, "accel": 1.2, "oil_rate": 0.3, "water_rate": 0.2, "head_rate": 0.5}
 SAMPLE_ATTITUDE = {"compass": 322, "nose_up": 6.0, "aviahorizon_roll": -12.0}
 SAMPLE_STATS = {"battles": 78, "kills": 159, "deaths": 91, "kd": 1.75, "winrate": 89, "live_kills": 2, "live_deaths": 1, "live_kd": 2}
 
@@ -454,13 +477,25 @@ def clean(cfg, words: dict) -> dict:
 
 
 def flaps_limit(points: list, position: float) -> float:
-    """Speed limit at a flap position (0..1): linear between the flight model's points, flat outside them."""
+    """A limit at a position (0..1) of the flaps, or of a swing wing: linear between the flight model's points, flat
+    outside them."""
     if position <= points[0][0]:
         return points[0][1]
     for (x0, y0), (x1, y1) in zip(points, points[1:]):
         if position <= x1:
             return y0 + (y1 - y0) * (position - x0) / (x1 - x0)
     return points[-1][1]
+
+
+def at_sweep(lim: dict | None, indicators: dict) -> dict | None:
+    """A variable-sweep aircraft's limits with its airframe's at the wing's sweep, when the game sends it: the gauge reads
+    0..1 as the flight model's sweeps do (MiG-23ML, 2026-11-16: 0.395 at Mach 0.68, its auto schedule says 0.397). Without
+    it, the swept-back limits stay, with their {swept} note."""
+    at = indicators.get("wing sweep, %")
+    if not lim or not lim.get("sw") or not isinstance(at, (int, float)):
+        return lim
+    out = {k: v for k, v in lim.items() if k != "sw"}
+    return {**out, "v": flaps_limit([[s, v] for s, v, _ in lim["sw"]], at / 100), "m": flaps_limit([[s, m] for s, _, m in lim["sw"]], at / 100)}
 
 
 def load_limits(lim: dict, state: dict) -> tuple | None:
@@ -507,18 +542,18 @@ def percents(lim: dict, state: dict, always: bool = False) -> dict:
 
 
 class Trend:
-    """What only shows over time: fuel burn and acceleration."""
+    """What only shows over time: fuel burn, acceleration and how fast the engine's temperatures move."""
 
     def __init__(self):
         self.points = deque()
 
     def add(self, now: float, state: dict):
-        self.points.append((now, state.get("Mfuel, kg") or 0, (state.get("TAS, km/h") or 0) / 3.6))
+        self.points.append((now, state.get("Mfuel, kg") or 0, (state.get("TAS, km/h") or 0) / 3.6, {k: state.get(v) for k, v in TEMPS.items()}))
         while now - self.points[0][0] > BURN_S:
             self.points.popleft()
 
     def rates(self) -> dict:
-        """burn: kg/min, accel: m/s2 along the flight path."""
+        """burn: kg/min, accel: m/s2 along the flight path, TEMPS: C/s."""
         first, last, out = self.points[0], self.points[-1], {}
         if last[0] - first[0] >= BURN_MIN_S:
             start = next((p for p in reversed(self.points) if last[0] - p[0] >= BURN_MIN_S and p[1] - last[1] >= BURN_KG), first)
@@ -527,6 +562,10 @@ class Trend:
         recent = next(p for p in self.points if last[0] - p[0] <= ACCEL_S)
         if last[0] > recent[0]:
             out["accel"] = (last[2] - recent[2]) / (last[0] - recent[0])
+        for name in TEMPS:
+            temps = [(p[0], p[3][name]) for p in self.points if last[0] - p[0] <= RATE_S and isinstance(p[3][name], (int, float))]
+            if len(temps) > 1 and temps[-1][0] - temps[0][0] >= BURN_MIN_S:
+                out[name] = linear_regression(*zip(*temps)).slope
         return out
 
 
@@ -536,27 +575,46 @@ def computed(lim: dict | None, state: dict, words: dict, rates: dict | None = No
     fuel; a line's weapons carried (its payload) give its own, see loaded."""
     out = {"swept": words["swept"] if lim and "sw" in lim else "", **(rates or {})}
     tas, climb, load, fuel = (state.get("TAS, km/h") or 0) / 3.6, state.get("Vy, m/s") or 0, state.get("Ny") or 0, state.get("Mfuel, kg") or 0
-    thrust = [v for k, v in state.items() if k.startswith("thrust ") and isinstance(v, (int, float))]
+    alt, roll = state.get("H, m") or 0, abs(state.get("Wx, deg/s") or 0)
+    each = lambda pattern: [v for k, v in state.items() if re.fullmatch(pattern, k) and isinstance(v, (int, float))]
+    thrust, power, rpm = each(r"thrust \d+, kgs"), each(r"power \d+, hp"), each(r"RPM \d+")
     if state.get("Mfuel0, kg"):
         out["fuel_pct"] = fuel / state["Mfuel0, kg"] * 100
     if thrust:
         out["thrust_total"] = sum(thrust)
     if tas:
         out["hspeed"] = math.sqrt(max(tas * tas - climb * climb, 0)) * 3.6
+        out["energy"] = G * alt + tas * tas / 2
+        if climb < 0:  # down to sea level at this slope
+            out["glide"] = alt * out["hspeed"] / 3.6 / -climb / 1000
+    if roll >= ROLLING:
+        out["roll_time"] = 360 / roll
     if tas and abs(load) > TURN_G:
         pull = G * math.sqrt(load * load - 1)
-        out.update(turn_rate=math.degrees(pull / tas), turn=2 * math.pi * tas / pull, turn_radius=tas * tas / pull)
+        out.update(turn_rate=math.degrees(pull / tas), turn_rad=pull / tas, turn=2 * math.pi * tas / pull, turn_radius=tas * tas / pull)
     if "accel" in out:
         out["sep"] = climb + tas * out["accel"] / G
+    if out.get("burn"):  # fuel each engine burns for its power or thrust, an hour long
+        if sum(power) > 0:
+            out["bsfc"] = out["burn"] * 60 / sum(power)
+        if sum(thrust) > 0:
+            out["tsfc"] = out["burn"] * 60 / sum(thrust)
     if out.get("burn") and fuel:
         left = fuel / out["burn"] * 60
         out.update(fuel_time=f"{int(left) // 60}:{int(left) % 60:02d}", range=tas * left / 1000)
     if not lim:
         return out
+    if lim.get("rpm") and rpm:  # the engine nearest its limit
+        out["rpm_pct"] = max(rpm) / lim["rpm"] * 100
     if lim.get("mass"):
         out["mass"] = lim["mass"] + fuel
+        out["mass_dry"] = lim["mass"]
         if thrust:
             out["twr"] = sum(thrust) / out["mass"]
+        if "sep" in out:  # (thrust - drag) x speed = weight x SEP
+            out["excess_power"] = out["mass"] * G * out["sep"]
+            if thrust and tas:
+                out["drag"] = sum(thrust) - out["mass"] * out["sep"] / tas
     ias, mach = state.get("IAS, km/h") or 0, state.get("M") or 0
     out.update({f"{name}_pct": value for name, value in percents(lim, state, always).items()})
     out.update(vne=lim["v"], mne=lim["m"] or None, gear_max=lim.get("gear") or None,
@@ -575,9 +633,25 @@ def computed(lim: dict | None, state: dict, words: dict, rates: dict | None = No
     return out
 
 
+def _each_engine(name: str, values: dict) -> list:
+    """What a value's name reads: one field, or on an engine's ({rpm}: "RPM 1") the same field of every engine there is."""
+    source = FIELDS.get(name, (name,))[0]
+    m = ENGINE.fullmatch(source) if name in FIELDS else None
+    if not m:
+        return [values.get(source)]
+    keys = [f"{m[1]}{n}{m[2] or ''}" for n in range(1, 33)]
+    return [values.get(keys[0]), *(values[k] for k in keys[1:] if k in values)]
+
+
+def _reading(name: str, values: dict, op: str = ">"):
+    """The number a condition on a value looks at: on an engine's, the engine that meets it first (the highest for >)."""
+    got = [v for v in _each_engine(name, values) if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    return (max if op == ">" else min)(got) if got else None
+
+
 def _meets(test: dict, values: dict) -> bool:
-    v = values.get(FIELDS.get(test["value"], (test["value"],))[0])
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and OPS[test["op"]](v, test["at"])
+    v = _reading(test["value"], values, test["op"])
+    return v is not None and OPS[test["op"]](v, test["at"])
 
 
 def met(test: dict, values: dict) -> bool:
@@ -587,7 +661,7 @@ def met(test: dict, values: dict) -> bool:
 
 def watched(rule: dict, values: dict, pct: dict):
     """The number an alarm follows: its limit's %, else its first condition's value."""
-    v = pct.get(rule["limit"]) if rule.get("limit") else values.get(FIELDS.get(rule["value"], (rule["value"],))[0])
+    v = pct.get(rule["limit"]) if rule.get("limit") else _reading(rule["value"], values, rule["op"])
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
@@ -601,13 +675,13 @@ def alarm_on(rule: dict, values: dict, pct: dict, red: bool = False) -> bool:
 
 
 PAYLOADS = "payloads"  # in a reading's values: {a line's weapons carried (kg): (its values, its %)}, see loaded
-MASS_BOUND = ("mass", "twr", "g_lim", "g_neg", "load_pct")  # what the weapons carried change
+MASS_BOUND = ("mass", "mass_dry", "twr", "excess_power", "drag", "g_lim", "g_neg", "load_pct")  # what the weapons carried change
 
 
-def loaded(lim: dict, state: dict, payload: float, words: dict, pct: bool = True) -> tuple:
+def loaded(lim: dict, state: dict, payload: float, words: dict, pct: bool = True, rates: dict | None = None) -> tuple:
     """A line's weapons carried (kg, the game doesn't send their mass): the values bound to the mass at that mass, and its
     G load's % for the line's alarms (pct: False for a wreck or an unbreakable aircraft, as the flight's)."""
-    heavy = computed({**lim, "mass": lim["mass"] + payload}, state, words)
+    heavy = computed({**lim, "mass": lim["mass"] + payload}, state, words, rates)
     return {k: heavy[k] for k in MASS_BOUND if k in heavy}, {"load": heavy["load_pct"]} if pct and "load_pct" in heavy else {}
 
 
@@ -660,13 +734,21 @@ def sound_ms(alarm: dict, folder: Path | None) -> float:
 
 
 def _value(m: re.Match, values: dict) -> str:
-    name, places = m[1].strip(), m[2]
+    """A {value} of a line as it shows: on an engine's, every engine's ("100 / 98")."""
+    name, unit, places = m[1].strip(), m[2], m[3]
     source, default = FIELDS.get(name, (name, COMPUTED.get(name)))
-    v = values.get(source)
+    si = (COLUMNS.get(name) or source).rpartition(", ")[2]
+    factor = UNITS[unit].get(si) if unit else 1
+    return " / ".join(_shown(v, places, default, factor, unit == "f" and si == "C") for v in _each_engine(name, values))
+
+
+def _shown(v, places: str | None, default: int | None, factor: float | None = 1, fahrenheit: bool = False) -> str:
+    """One number as a line shows it. factor: to its unit (None: a unit it can't be in), fahrenheit: a temperature."""
     if isinstance(v, str):
         return v
-    if v is None or isinstance(v, bool):
+    if v is None or isinstance(v, bool) or factor is None:
         return NO_VALUE
+    v = v * factor + (32 if fahrenheit else 0)
     if places and places.startswith("bar"):  # a % as a gauge: its blocks, each worth its step (full from 100 % unless set)
         size, step = GAUGE.fullmatch(places).groups()
         size = min(max(int(size or BAR), 1), 40)
@@ -790,6 +872,12 @@ def read_indicators(raw: bytes | None) -> dict:
     data = answer(raw)
     if isinstance(data.get("aviahorizon_pitch"), (int, float)):
         data["nose_up"] = -data["aviahorizon_pitch"]
+    if isinstance(data.get("nozzle_angle"), (int, float)):  # AV-8B Plus, 2026-11-16: 0 aft, -90 down
+        data["nozzle, deg"] = -data["nozzle_angle"]
+    for gauge, field in (("wing_sweep_indicator", "wing sweep, %"), ("wing_sweep_lever", "wing sweep lever, %"),
+                         ("oil_radiator", "oil radiator, %")):  # 0..1 (MiG-23ML, F4U-4B, 2026-11-16)
+        if isinstance(data.get(gauge), (int, float)):
+            data[field] = data[gauge] * 100
     return data
 
 
@@ -1280,7 +1368,7 @@ class Watch:
         if cfg["lines"][i]["payload"] and lim.get("mass"):  # the line tried carries its weapons
             lim = {**lim, "mass": lim["mass"] + cfg["lines"][i]["payload"]}
         state, limit, value = tried_state(rule, t["value"], cfg["lines"][i]["text"], base, lim)
-        rates = self.trend.rates() if real and self.trend.points else {"burn": 95, "accel": 1.2}
+        rates = self.trend.rates() if real and self.trend.points else SAMPLE_RATES
         values = {**known, **state, **computed(lim, state, self.words, rates, cfg["pctAlways"])}
         pct = percents(lim, state)
         if limit:
@@ -1325,7 +1413,7 @@ class Watch:
 
     def sample(self, cfg: dict) -> list:
         values = {**SAMPLE_STATE, **SAMPLE_STATS, "vehicle": self.vehicle(SAMPLE_VEHICLE), "wep": "4:32", "wep_s": 272,
-                  **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, {"burn": 95, "accel": 1.2}, cfg["pctAlways"])}
+                  **computed(SAMPLE_LIM, SAMPLE_STATE, self.words, SAMPLE_RATES, cfg["pctAlways"])}
         return lines_for(cfg, values, own_alerts(cfg, values, percents(SAMPLE_LIM, SAMPLE_STATE), red=True), SAMPLE_FEEDS)
 
     def sample_hud(self, cfg: dict, key: str = "", place: str = "cockpit", screen_size: tuple | None = None) -> list:
@@ -1560,10 +1648,11 @@ class Watch:
         indicators = read_indicators(raw)  # every reading: it may only start answering mid-flight
         reported = reported_type(indicators)
         self.aircraft(state, reported)
-        cfg, lim = self.preview or self.cfg, self._lim
-        self.trend.add(time.monotonic(), state)
+        cfg, lim = self.preview or self.cfg, at_sweep(self._lim, indicators)
+        self.trend.add(time.monotonic(), {**indicators, **state})
         self.wep.add(time.monotonic(), state, lim)
-        values = {**indicators, **state, **computed(lim, state, self.words, self.trend.rates(), cfg["pctAlways"]), **self.wep.left(lim), "rec": 1 if self.log else 0,
+        rates = self.trend.rates()
+        values = {**indicators, **state, **computed(lim, state, self.words, rates, cfg["pctAlways"]), **self.wep.left(lim), "rec": 1 if self.log else 0,
                   "vehicle": self.vehicle(self.current or reported), **self.own_numbers()}
         self.last = numbers(values)
         self.record(values)
@@ -1577,7 +1666,7 @@ class Watch:
             return min(cfg["pollMs"] / 1000, HUD_POLL_S) if fast else cfg["pollMs"] / 1000
         pct = {k: v for k, v in percents(lim, state).items() if k not in self.broken} if lim and not self._unbreakable and not wreck else {}
         if lim and lim.get("mass"):  # each line's weapons carried
-            values[PAYLOADS] = {p: loaded(lim, state, p, self.words, "load" in pct) for p in {x["payload"] for x in cfg["lines"]} if p}
+            values[PAYLOADS] = {p: loaded(lim, state, p, self.words, "load" in pct, rates) for p in {x["payload"] for x in cfg["lines"]} if p}
         self.broken |= {k for k in ("gear", "flaps") if pct.get(k, 0) >= 100}  # past its breaking speed: torn off
         on = self.held(cfg, [] if wreck else own_alerts(cfg, values, pct), "beep")
         red = self.held(cfg, [] if wreck else own_alerts(cfg, values, pct, red=True), "red")  # their lines red

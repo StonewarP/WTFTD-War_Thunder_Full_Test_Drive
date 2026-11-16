@@ -37,7 +37,7 @@ from pathlib import Path
 from . import patches, vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 38  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 39  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1105,7 +1105,7 @@ def flight_limits(fm: dict, cat: str) -> dict:
     """Breaking limits of an aircraft for the in-flight alarms (speeds: km/h, indicated). v, m: airframe speed and
     Mach; sw: variable sweep [[sweep, v, m], ...], v and m being then the swept-back limits; gear: 0 = none;
     flaps: [[position 0..1, speed], ...]; fuel: MaxFuelMass0 and the tanks' sum, /state's Mfuel0 is one or the other;
-    mass: empty, kg; jet: true on jets, for the overlays by kind of engine."""
+    mass: empty, kg; jet: true on jets, for the overlays by kind of engine; rpm: the RPM that damages the engines."""
     aero, mass = fm.get("Aerodynamics") or {}, fm.get("Mass") or {}
     strength = (aero.get("WingPlane") or {}).get("Strength") or {}
     sweeps = [aero[k] for k in aero if re.fullmatch(r"WingPlaneSweep\d+", k)]
@@ -1148,6 +1148,9 @@ def flight_limits(fm: dict, cat: str) -> dict:
              for e, k in zip(engines, kinds) if k.get("Booster")]
     if any(f > 0 and r > 0 for f, r in boost):
         out["boost"] = [x for x in boost if x[0] > 0 and x[1] > 0]  # take-off rockets: their fuel, kg, and burn, kg/s
+    allowed = [(k.get("Main") or e.get("Main") or {}).get("RPMMaxAllowed") for e, k in zip(engines, kinds) if not k.get("Booster")]
+    if any(isinstance(x, (int, float)) and x > 0 for x in allowed):
+        out["rpm"] = max(x for x in allowed if isinstance(x, (int, float)))  # the engines' critical RPM (older models: on the engine)
     alt = (fm.get("Passport") or {}).get("Alt") or {}
     turn = [x[1] if isinstance(x, list) and len(x) == 2 and isinstance(x[1], (int, float)) and x[1] > 0 else None
             for x in (alt.get("minTurnTimeNom"), alt.get("minTurnTimeWep"))]
