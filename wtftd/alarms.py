@@ -392,6 +392,7 @@ def _line(line: dict) -> dict:
             "color": _color(line.get("color"), ""),
             "valueColor": _color(line.get("valueColor"), ""), "unitColor": _color(line.get("unitColor"), ""),
             "size": _num(line.get("size"), 0, 0, 400), "hideNA": _flag(line.get("hideNA"), False),
+            "align": "right" if line.get("align") == "right" else "left",
             "block": _num(line.get("block"), 0, 0, MAX_BLOCKS), "if": _test(line.get("if")),
             "payload": _num(line.get("payload"), 0, 0, 50000),
             "rules": [x for x in map(_rule, rules) if x][:MAX_RULES]}
@@ -403,7 +404,8 @@ def _look(block: dict) -> dict:
             "frameColor": _color(block.get("frameColor"), "#FFFFFF"), "background": _color(block.get("background"), ""),
             "bgOpacity": block.get("bgOpacity") if block.get("bgOpacity") in STIPPLE else 50,
             "title": str(block.get("title", ""))[:MAX_TEXT], "feed": block.get("feed") if block.get("feed") in FEEDS else "",
-            "rows": _num(block.get("rows"), FEED_ROWS, 1, 20)}
+            "rows": _num(block.get("rows"), FEED_ROWS, 1, 20), "table": _flag(block.get("table"), False),
+            "nameAlign": "right" if block.get("nameAlign") == "right" else "left", "valueAlign": "left" if block.get("valueAlign") == "left" else "right"}
 
 
 def _block(block: dict) -> dict:
@@ -687,6 +689,20 @@ def pieces(text: str, values: dict) -> list:
     return [*out, (text[at:], "unit" if out else "name")] if at < len(text) else out
 
 
+def cells(parts: list) -> list:
+    """A line's pieces as a table's cells: its name (empty: none, the line stays out of the table, from the left), then
+    each value with the text after it (maybe empty), so that the n-th cell of every line is the same kind."""
+    out = [] if parts and parts[0][1] == "name" else [("", "name")]
+    for piece in parts:
+        if piece[1] == "value" and out[-1][1] == "value":
+            out.append(("", "unit"))
+        out.append(piece)
+    name = out[0][0].strip()
+    if len(out) > 1:  # spaces that lined the names up in a plain line: one is the gap, the table does the rest
+        out[0] = (f"{name} " if name else "", "name")
+    return out
+
+
 def fill(text: str, values: dict) -> str:
     """A line's text with its {values}: what isn't there says N/A."""
     return "".join(x for x, _ in pieces(text, values)).rstrip()
@@ -709,15 +725,16 @@ def shown(line: dict, values: dict, on: list, i: int = -1) -> bool:
 
 
 def lines_for(cfg: dict, all_values: dict, on: list, feeds: dict | None = None) -> list:
-    """[(text, colour, size, blinks, block, parts), ...] of the overlay; parts: [(text, colour, blinks[, colour out of its
-    turn]), ...], blinks: False, or its clock (see clock). on: the
+    """[(text, colour, size, blinks, block, parts, side), ...] of the overlay; side: "left" or "right" (a line out of a
+    table, to the right edge of its column); parts: [(text, colour, blinks[, colour out of its
+    turn]), ...], one per cell in a block as a table (see cells); blinks: False, or its clock (see clock). on: the
     alarms whose lines go red, by (line, alarm) place: a line takes the colour of the last of its own that is on, and
     flashes the parts they ask. A block's title comes first; a block of the chat or the battle log shows feeds' lines."""
     blocks = [cfg, *cfg["blocks"]]
     out = []
 
-    def row(text, color, size, block, parts):
-        out.append((text, color, round(size * blocks[block]["scale"] / 100), any(x[2] for x in parts), block, parts))
+    def row(text, color, size, block, parts, side="left"):
+        out.append((text, color, round(size * blocks[block]["scale"] / 100), any(x[2] for x in parts), block, parts, side))
 
     for block, b in enumerate(blocks):
         if b.get("title"):
@@ -736,14 +753,14 @@ def lines_for(cfg: dict, all_values: dict, on: list, feeds: dict | None = None) 
         flash = {part: clock(rule) for rule in mine for part in rule.get("blink", ())}  # the last alarm's, by part
         own = line["color"] or cfg["color"]  # a flashing part out of its turn: the line's colours, still readable
         off = {"name": own, "value": line.get("valueColor") or cfg["valueColor"] or own, "unit": line.get("unitColor") or cfg["unitColor"] or own}
-        parts = []
-        for piece, kind in pieces(line["text"], values):
+        parts, table = [], blocks[block].get("table")
+        for piece, kind in cells(pieces(line["text"], values)) if table else pieces(line["text"], values):
             tail = (tints[kind], flash[kind], off[kind]) if kind in flash else (tints[kind], False)
-            if parts and parts[-1][1:] == tail:
+            if parts and parts[-1][1:] == tail and not table:  # a table keeps its cells apart
                 parts[-1] = (parts[-1][0] + piece, *tail)
             else:
                 parts.append((piece, *tail))
-        row(text, color, line["size"] or cfg["size"], block, parts)
+        row(text, color, line["size"] or cfg["size"], block, parts, line["align"])
     return out
 
 

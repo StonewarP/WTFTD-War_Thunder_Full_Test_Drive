@@ -98,7 +98,8 @@ class Layout:
 
     def text_layout(self, cfg: dict, lines: list) -> tuple:
         """Where each part of each line goes, as the Tk overlay laid them out: each block's lines in its columns, a column
-        as wide as its widest line. Returns ([(x, y, text, colour, size, blinks, colour out of its turn)...], [(block, box)...])
+        as wide as its widest line; a block as a table lines its names and values up, a line out of it may go to the
+        column's right edge. Returns ([(x, y, text, colour, size, blinks, colour out of its turn)...], [(block, box)...])
         in screen pixels."""
         from .alarms import columns_of  # here: alarms imports this module
         parts, boxes = [], []
@@ -106,13 +107,26 @@ class Layout:
             rows = [x for x in lines if x[4] == index]
             left, low, high, top = spot["x"], None, None, spot["y"]
             for column in columns_of(rows, spot["columns"]):
-                y, wide = spot["y"], 0.0
-                for _, color, size, blinks, _, row in column:
-                    font, _, _, height = self._text_font(cfg, size)
-                    x = left
-                    for text, tint, *flash in row or [(" ", color)]:  # each part flashes on its own, or with its line
+                y, wide, widths, measured = spot["y"], 0.0, [], []
+                for _, color, size, _, _, row, *_ in column:  # each part's width first: a table's cells, the column's right edge
+                    font = self._text_font(cfg, size)[0]
+                    sizes = [self._width(p[0], font) for p in row or [(" ", color)]]
+                    tabled = bool(spot.get("table") and len(row) > 1 and row[0][0])  # a name and values (else: as it is)
+                    for j, w in enumerate(sizes if tabled else ()):  # each cell as wide as its widest
+                        if j == len(widths):
+                            widths.append(0.0)
+                        widths[j] = max(widths[j], w)
+                    measured.append((sizes, tabled))
+                edge = max([sum(widths)] + [sum(sizes) for sizes, tabled in measured if not tabled])
+                for (_, color, size, blinks, _, row, *side), (sizes, tabled) in zip(column, measured):
+                    height = self._text_font(cfg, size)[3]
+                    x = cell = left + edge - sum(sizes) if side == ["right"] and not tabled else left  # a line to the right edge
+                    for j, (text, tint, *flash) in enumerate(row or [(" ", color)]):  # each part flashes on its own, or with its line
+                        if tabled:  # name, value, text after it, value...: the names and the values as asked
+                            align = spot["nameAlign"] if j == 0 else spot["valueAlign"] if j % 2 else "left"
+                            x, cell = cell + (widths[j] - sizes[j] if align == "right" else 0), cell + widths[j]
                         parts.append((x, y, text, tint, size, flash[0] if flash else blinks, flash[1] if len(flash) > 1 else None))
-                        x += self._width(text, font)
+                        x += sizes[j]
                     y += height + cfg["spacing"]
                     wide = max(wide, x - left)
                     low = left if low is None else low

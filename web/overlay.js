@@ -100,6 +100,15 @@ function ovBlockEl(i) {
   return el;
 }
 
+// a block as a table, as the overlay draws it: the n-th part of each line with values (name, value, text after it,
+// value...) as wide as the widest, the names and the values on the side asked; a line without a name or a value stays as it is
+function ovTable(divs, spot) {
+  const rows = divs.map(d => [...d.querySelectorAll('span')]).filter(s => s.length > 1 && s[0].textContent), widths = [];
+  rows.forEach(s => { s[0].parentNode.style.textAlign = 'left'; s.forEach(el => { el.style.display = 'inline-block'; }); });  // in the table: its own side ignored
+  rows.forEach(s => s.forEach((el, j) => { widths[j] = Math.max(widths[j] || 0, el.offsetWidth); }));  // the block's scale while its grip moves: not counted
+  rows.forEach(s => s.forEach((el, j) => Object.assign(el.style, { width: `${widths[j]}px`, textAlign: j === 0 ? spot.nameAlign : j % 2 ? spot.valueAlign : 'left' })));
+}
+
 function ovDraw() {
   const box = $('#ovScreen'), c = OV.cfg;
   box.style.aspectRatio = `${OV.screen[0]} / ${OV.screen[1]}`;
@@ -110,7 +119,7 @@ function ovDraw() {
   const k = box.clientWidth / OV.screen[0];
   const look = { fontFamily: `"${c.font}", monospace`, fontWeight: c.bold ? 700 : 400, fontStyle: c.italic ? 'italic' : 'normal' };
   const stroke = scale => (c.outline ? `${2 * c.outline * scale}px ${c.outlineColor}` : '');
-  const html = (rows, scale) => rows.map(([s, color, size, blinks, , parts]) => `<div style="color:${esc(color)};font-size:${size * scale}px;margin-bottom:${c.spacing * scale}px">${(parts || []).map(([p, tint, flash, off]) => `<span class="${flash ? 'ov-blink' : ''}" style="color:${esc(tint)};--ov-flash:${flash === true ? 400 : flash}ms;--ov-off:${esc(off || 'transparent')}">${esc(p)}</span>`).join('') || '&nbsp;'}</div>`).join('');
+  const html = (rows, scale) => rows.map(([s, color, size, blinks, , parts, side]) => `<div style="color:${esc(color)};font-size:${size * scale}px;margin-bottom:${c.spacing * scale}px;text-align:${side === 'right' ? 'right' : 'left'}">${(parts || []).map(([p, tint, flash, off]) => `<span class="${flash ? 'ov-blink' : ''}" style="color:${esc(tint)};--ov-flash:${flash === true ? 400 : flash}ms;--ov-off:${esc(off || 'transparent')}">${esc(p)}</span>`).join('') || '&nbsp;'}</div>`).join('');
   [c, ...c.blocks].forEach((spot, i) => {
     const text = ovBlockEl(i), rows = OV.lines.filter(l => (l[4] || 0) === i), boxed = spot.frame || spot.background, pad = boxed ? (10 + spot.frame) * k : 0;
     Object.assign(text.style, look, { left: `${spot.x * k}px`, top: `${spot.y * k}px`, opacity: c.opacity / 100, webkitTextStroke: stroke(k),
@@ -120,6 +129,8 @@ function ovDraw() {
                                       border: spot.frame ? `${Math.max(1, spot.frame * k)}px solid ${spot.frameColor}` : '',
                                       background: spot.background ? `color-mix(in srgb, ${spot.background} ${spot.bgOpacity}%, transparent)` : '' });
     text.innerHTML = html(rows, k) + '<i class="ov-grip" aria-hidden="true"></i>';
+    const divs = [...text.querySelectorAll(':scope > div')], tall = Math.max(1, Math.ceil(rows.length / spot.columns));
+    for (let n = 0; spot.table && n < divs.length; n += tall) ovTable(divs.slice(n, n + tall), spot);  // each of its columns apart
     const grown = spot.scale / (OV.drawnScale?.[i] || spot.scale);  // at once while the grip moves, drawn again when saved
     Object.assign(text.style, { transformOrigin: '0 0', transform: grown === 1 ? '' : `scale(${grown})` });
   });
@@ -128,6 +139,8 @@ function ovDraw() {
   const zoom = $('#ovZoom'), scale = 22 / Math.max(c.size, 1);
   Object.assign(zoom.style, look, { webkitTextStroke: stroke(scale) });
   zoom.innerHTML = html(OV.lines, scale);
+  const lines = [...zoom.children];
+  [c, ...c.blocks].forEach((spot, i) => spot.table && ovTable(lines.filter((_, n) => (OV.lines[n][4] || 0) === i), spot));
 }
 
 const ovOpt = (v, label, on) => `<option value="${esc(v)}"${v === on ? ' selected' : ''}>${esc(label)}</option>`;
@@ -312,7 +325,8 @@ function ovMoreHTML(l, i) {
   const on = (key, label) => `<label class="switch"><input type="checkbox" data-ol="${key}"${l[key] ? ' checked' : ''}><span class="sw"></span><span>${esc(t(label))}</span></label>`;
   return `<details class="ov-more"${l.open ? ' open' : ''}><summary>${esc(t('ov.more'))}</summary><div class="ov-opts">
       <div class="ov-switches">${on('hideNA', 'ov.hideNA')}</div>
-      <div class="ov-line-look">${ovLineColor(l, 'valueColor', 'ov.valueColor')}${ovLineColor(l, 'unitColor', 'ov.unitColor')}</div>
+      <div class="ov-line-look">${ovLineColor(l, 'valueColor', 'ov.valueColor')}${ovLineColor(l, 'unitColor', 'ov.unitColor')}
+        <label class="ov-mini"><span>${esc(t('ov.lineAlign'))}</span><select data-ol="align">${['left', 'right'].map(a => ovOpt(a, t('ov.align.' + a), l.align || 'left')).join('')}</select></label></div>
       ${ovTestHTML('if', t('ov.showIf'), l.if)}</div></details>`;
 }
 
@@ -327,6 +341,8 @@ function ovRenderBlocks() {
       <div class="field-row"><div class="field"><label>${esc(t('ov.feed'))}</label><select data-ob="feed">${['', 'chat', 'log'].map(f => ovOpt(f, t('ov.feed.' + (f || 'lines')), b.feed || '')).join('')}</select></div>
         ${num('rows', t('ov.feedRows'), ` min="1" max="20"${b.feed ? '' : ' disabled'}`)}</div>
       <div class="field-row">${num('scale', t('ov.blockSize'), ' min="10" max="400"')}${num('columns', t('ov.columns'), ' min="1" max="4"')}</div>
+      <label class="switch"><input type="checkbox" data-ob="table"${b.table ? ' checked' : ''}><span class="sw"></span><span>${esc(t('ov.table'))}</span></label>
+      <div class="field-row">${['nameAlign', 'valueAlign'].map(key => `<div class="field"><label>${esc(t('ov.' + key))}</label><select data-ob="${key}"${b.table ? '' : ' disabled'}>${['left', 'right'].map(a => ovOpt(a, t('ov.align.' + a), b[key])).join('')}</select></div>`).join('')}</div>
       <div class="field-row">${num('frame', t('ov.frame'), ' min="0" max="8"')}<div class="field"><label>${esc(t('ov.frameColor'))}</label><input type="color" data-ob="frameColor" value="${esc(b.frameColor)}"${b.frame ? '' : ' disabled'}></div></div>
       <label class="switch"><input type="checkbox" data-ob="hasBg"${b.background ? ' checked' : ''}><span class="sw"></span><span>${esc(t('ov.background'))}</span></label>
       <div class="field-row"><div class="field"><label>${esc(t('ov.bgColor'))}</label><input type="color" data-ob="background" value="${esc(b.background || b.lastBg || '#000000')}"${b.background ? '' : ' disabled'}></div>
@@ -618,7 +634,10 @@ function bindOverlay() {
       if (key === 'hasBg') {
         spot.background = el.checked ? spot.lastBg || '#000000' : '';
         ovRenderBlocks();
-      } else if (key === 'title' || key === 'feed') {
+      } else if (key === 'table') {
+        spot.table = el.checked;
+        ovRenderBlocks();
+      } else if (key === 'title' || key === 'feed' || key === 'nameAlign' || key === 'valueAlign') {
         spot[key] = el.value;
         if (key === 'feed') ovRenderBlocks();
       } else if (el.type === 'color') {

@@ -45,6 +45,29 @@ class Text(unittest.TestCase):
         self.assertGreater(parts[2][0], parts[0][0])
         self.assertEqual(len(boxes), 1)
 
+    def test_a_table_lines_its_names_and_values_up(self):
+        rows = [line("", parts=[("IAS ", "#E6E6E6"), ("512", "#E6E6E6"), (" / ", "#E6E6E6"), ("900", "#E6E6E6"), (" km/h", "#E6E6E6")]),
+                line("", parts=[("MACH ", "#E6E6E6"), ("0.82", "#E6E6E6"), (" / ", "#E6E6E6"), ("1.10", "#E6E6E6")]),
+                line("A long title, out of the table"), line("", parts=[("", "#E6E6E6"), ("Su-27SM", "#E6E6E6")])]
+        width = lambda text: self.painter._width(text, self.painter._text_font(self.cfg, 40)[0])
+        for names, values in (("left", "right"), ("right", "left")):
+            parts, _ = self.painter.text_layout({**self.cfg, "table": True, "nameAlign": names, "valueAlign": values}, rows)
+            at = {p[2]: p[0] for p in parts}
+            ends = lambda *texts: {round(at[x] + width(x), 3) for x in texts}
+            self.assertEqual(len({at["IAS "], at["MACH "]} if names == "left" else ends("IAS ", "MACH ")), 1, names)
+            self.assertEqual(len(ends("512", "0.82") if values == "right" else {at["512"], at["0.82"]}), 1, values)
+            self.assertEqual(len(ends("900", "1.10") if values == "right" else {at["900"], at["1.10"]}), 1, values)
+            self.assertEqual(at["A long title, out of the table"], 100)  # a line without values: as it is, not in a cell
+            self.assertEqual(at["Su-27SM"], 100)  # nor one without a name ({vehicle}): from the left
+            self.assertLess(at["512"], 100 + width("A long title, out of the table"))
+        parts, _ = self.painter.text_layout(self.cfg, rows)  # off: each line's parts follow each other
+        self.assertAlmostEqual(parts[1][0], 100 + width("IAS "))
+        for table in (True, False):  # a line out of the table, to the right: it ends where the widest line ends
+            right = [*rows[:2], (*line("", parts=[("", "#E6E6E6"), ("Su-27SM", "#E6E6E6")]), "right")]
+            parts, (( _, box),) = self.painter.text_layout({**self.cfg, "table": table}, right)
+            self.assertAlmostEqual(parts[-1][0] + width("Su-27SM"), box[2], places=3)
+            self.assertGreater(parts[-1][0], 100)
+
     def test_a_dark_halo_round_light_text(self):
         px, box = self.painter.text_pixels(self.cfg, [line("I")])
         alphas = [self.alpha(px, box, x, y) for y in range(box[1], box[1] + box[3]) for x in range(box[0], box[0] + box[2])]

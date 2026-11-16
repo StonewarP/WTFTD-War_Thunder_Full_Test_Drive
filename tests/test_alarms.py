@@ -271,7 +271,7 @@ class Settings(unittest.TestCase):
         self.assertEqual((cfg["muteKey"], cfg["holdKey"]), ([], []))
         self.assertEqual([b["scale"] for b in cfg["blocks"]], [400] * alarms.MAX_BLOCKS)
         self.assertEqual(cfg["blocks"][0], {"x": 0, "y": 0, "scale": 400, "columns": 1, "frame": 0, "frameColor": "#FFFFFF", "background": "", "bgOpacity": 50,
-                                            "title": "", "feed": "", "rows": alarms.FEED_ROWS})
+                                            "title": "", "feed": "", "rows": alarms.FEED_ROWS, "table": False, "nameAlign": "left", "valueAlign": "right"})
 
     def test_a_bad_condition_is_no_condition(self):
         for test in ("x", {"op": ">", "at": 1}, {"value": "g", "op": "=", "at": 1}, {"value": "g", "op": ">", "at": "1"},
@@ -338,6 +338,16 @@ class Settings(unittest.TestCase):
     def test_a_line_keeps_its_own_colours(self):
         cfg = alarms.clean({"valueColor": "#222222", "lines": [{"text": "{ias}", "valueColor": "#00FF00"}]}, WORDS)
         self.assertEqual(alarms.lines_for(cfg, {"IAS, km/h": 700}, [])[0][5], [("700", "#00FF00", False)])
+
+    def test_a_table_s_lines_cut_in_cells_of_the_same_kind(self):
+        cfg = alarms.clean({"table": True, "nameAlign": "middle", "lines": [{"text": "IAS    {ias} km/h"}, {"text": " {ias}{mach}"}, {"text": " REC "}]}, WORDS)
+        self.assertEqual((cfg["nameAlign"], cfg["valueAlign"]), ("left", "right"))
+        values = {"IAS, km/h": 700, "M": 0.8}
+        texts = [[p[0] for p in row[5]] for row in alarms.lines_for(cfg, values, [])]
+        self.assertEqual(texts, [["IAS ", "700", " km/h"], ["", "700", "", "0.80"], [" REC "]])  # name, value, after it, value...
+        self.assertEqual(alarms.lines_for({**cfg, "table": False}, values, [])[1][5], [(" 7000.80", cfg["color"], False)])
+        right = alarms.clean({"lines": [{"text": "{vehicle}", "align": "right"}, {"text": "x", "align": "middle"}]}, WORDS)
+        self.assertEqual([row[6] for row in alarms.lines_for(right, values, [])], ["right", "left"])  # its side, to the column's edge
 
     def test_columns_read_top_to_bottom(self):
         self.assertEqual(alarms.columns_of([1, 2, 3, 4, 5], 2), [[1, 2, 3], [4, 5]])
@@ -1270,7 +1280,7 @@ class Lines(unittest.TestCase):
     def test_a_line_keeps_its_own_size_and_colour(self):
         cfg = alarms.clean(None, WORDS)
         cfg["lines"] = [alarms._line({"text": "x", "color": "#123456", "size": 90})]
-        self.assertEqual(alarms.lines_for(cfg, {}, []), [("x", "#123456", 90, False, 0, [("x", "#123456", False)])])
+        self.assertEqual(alarms.lines_for(cfg, {}, []), [("x", "#123456", 90, False, 0, [("x", "#123456", False)], "left")])
 
 
 class Computed(unittest.TestCase):
@@ -1478,7 +1488,7 @@ class Configuration(unittest.TestCase):
         cfg = alarms.clean({"lines": [{"text": "x" * 500, "when": "?", "alarm": "?", "color": "?", "size": -3}, "no"] * 40}, WORDS)
         self.assertEqual(len(cfg["lines"]), alarms.MAX_LINES)
         self.assertEqual(cfg["lines"][0], {"text": "x" * alarms.MAX_TEXT, "when": "always", "color": "", "size": 0, "valueColor": "",
-                                           "unitColor": "", "hideNA": False, "block": 0, "if": None, "payload": 0, "rules": []})
+                                           "unitColor": "", "hideNA": False, "align": "left", "block": 0, "if": None, "payload": 0, "rules": []})
 
     def test_no_lines_at_all_is_a_choice(self):
         self.assertEqual(alarms.clean({"lines": []}, WORDS)["lines"], [])
@@ -1508,7 +1518,7 @@ class Preview(unittest.TestCase):
         lines = self.watch.sample(self.watch.cfg)
         self.assertEqual(len(lines), 4)  # G and AoA show only during their alarm
         alert = self.watch.cfg["alert"]
-        self.assertEqual(lines[2], ("GEAR   640 / 700 km/h", alert, self.watch.cfg["size"], False, 0, [("GEAR   640 / 700 km/h", alert, False)]))
+        self.assertEqual(lines[2], ("GEAR   640 / 700 km/h", alert, self.watch.cfg["size"], False, 0, [("GEAR   640 / 700 km/h", alert, False)], "left"))
 
     def test_shown_without_the_game_then_taken_off(self):
         self.watch.set_preview(self.watch.cfg)
