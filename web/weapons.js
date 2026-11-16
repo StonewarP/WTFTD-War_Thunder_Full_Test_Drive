@@ -272,7 +272,7 @@ function renderWeaponTray() {
 
 function toggleWeaponCompare(id) {
   if (AR.cmp.includes(id)) AR.cmp = AR.cmp.filter(x => x !== id);
-  else if (AR.cmp.length >= 5) { toast({ title: t('compare.max', { n: 5 }), err: true, ms: 3500 }); return false; }
+  else if (AR.cmp.length >= 5) { toast({ title: t('compare.maxWeapons', { n: 5 }), err: true, ms: 3500 }); return false; }
   else AR.cmp = [...AR.cmp, id];
   store.set('wcmp', AR.cmp);
   renderWeaponTray();

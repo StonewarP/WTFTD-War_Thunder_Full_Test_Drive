@@ -39,7 +39,7 @@ const I18N = (() => {
 
   const own = { units: {}, roles: {}, weapons: {} };  // names the game's files don't have: the vehicles and weapons of packages installed (mods)
   function g(section, key, fallback) {
-    return (game[section] && game[section][key]) || (gameFallback[section] && gameFallback[section][key]) || (own[section] && own[section][key]) || fallback || key;
+    return (game[section] && game[section][key]) || (gameFallback[section] && gameFallback[section][key]) || (own[section] && own[section][key]) || (fallback ?? key);  // mod(): '' when the game has no name
   }
 
   function apply(root = document) {
@@ -49,9 +49,13 @@ const I18N = (() => {
   }
 
   const num = n => new Intl.NumberFormat(code).format(n);
+  // a number in a text field, with the app's decimal mark (an <input type=number> takes the browser's), and back: NaN if not one
+  const dec = () => (1.5).toLocaleString(code)[1];
+  const field = n => String(n).replace('.', dec());
+  const parse = s => ((s = String(s).trim().replace(dec(), '.').replace(',', '.')) === '' ? NaN : +s);
 
   return {
-    init, t, tOr, apply, num,
+    init, t, tOr, apply, num, field, parse,
     addUnits: names => Object.assign(own.units, names),
     addRoles: names => Object.assign(own.roles, names),
     addWeapons: names => Object.assign(own.weapons, names),

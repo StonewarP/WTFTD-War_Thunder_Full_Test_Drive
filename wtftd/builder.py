@@ -37,7 +37,7 @@ from pathlib import Path
 from . import patches, vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 39  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 40  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1471,6 +1471,8 @@ def build_vehicles(lang: Lang, progress=None):
                         entry["s"] = smap
                 if p.get("reqModification"):
                     entry["req"] = p["reqModification"]
+                    for mod in aslist(entry["req"]):  # "Normally requires ...": the modification's name
+                        lang.put("mods", mod, f"modification/{mod}/short", f"modification/{mod}", f"{mod}/name/short")
                 presets.append(entry)
 
             details[vid] = {
@@ -2239,7 +2241,7 @@ def build_trees(lang: Lang, known: set, progress=None):
                     else:  # folder of several vehicles
                         members = [unit(kk, vv) for kk, vv in v.items() if isinstance(vv, dict) and "rank" in vv and kk in known]
                         if members:
-                            lang.put("units", k, f"shop/group/{k}", fallback=" / ".join(m["id"] for m in members))
+                            lang.put("units", k, f"shop/group/{k}")  # without one, the app names it by its vehicles
                             col.append({"g": k, "r": min(m["r"] for m in members), "u": members})
                 if col:
                     columns.append(col)

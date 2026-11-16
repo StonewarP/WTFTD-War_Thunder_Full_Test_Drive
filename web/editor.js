@@ -1450,6 +1450,7 @@ function edRenderPanel() {
       ${moveSeg}
       <div class="row gap ed-actions">${copyBtns}
       <button class="btn btn-ghost btn-sm btn-danger" data-edact="remove">${icon('trash', 'ic-sm')}${esc(t('editor.remove'))}</button></div>`}`;
+    edRenderResults();
     edRenderList();
     return;
   }
