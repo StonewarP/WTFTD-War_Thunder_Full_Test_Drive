@@ -725,11 +725,12 @@
   <button class="icon-btn wl-zoom-btn wl-zoom-close" data-close data-i18n-title="action.close"><svg class="ic"><use href="#i-x"/></svg></button>
   <span class="wl-zoom-n" id="wlZoomN"></span>
 </dialog>
-<dialog class="modal" id="dlgFix">
-  <h3 data-i18n="mo.fixTitle"></h3>
-  <p class="muted" data-i18n="mo.fixHint"></p>
-  <div id="moFix"></div>
-  <div class="row gap mo-ask-foot"><button class="btn btn-ghost" data-close data-i18n="action.cancel"></button><button class="btn btn-primary" id="moFixGo" data-i18n="mo.fixGo"></button></div>
+<dialog class="modal mo-fix" id="dlgFix">
+  <div class="modal-inner">
+    <div class="modal-head"><h3 data-i18n="mo.fixTitle"></h3><button class="icon-btn" data-close><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body"><p class="muted mo-fix-hint" data-i18n="mo.fixHint"></p><div class="mo-fix-list" id="moFix"></div></div>
+    <div class="modal-foot"><button class="btn btn-ghost" data-close data-i18n="action.cancel"></button><button class="btn btn-primary" id="moFixGo" data-i18n="mo.fixGo"></button></div>
+  </div>
 </dialog>
 <dialog class="modal" id="dlgSkin">
   <h3 data-i18n="mo.askTitle"></h3>

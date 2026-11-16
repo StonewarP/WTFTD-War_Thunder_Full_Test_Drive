@@ -1517,6 +1517,19 @@ td.hg-actions { height: 48px; }
 .mo-switch { margin-bottom: 12px; }
 .mo-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .mo-line { font: 500 12px var(--mono); color: var(--text-2); overflow-wrap: anywhere; }
+/* the stand-ins for the files the game no longer has: one card per file, its name, tag and path, its choice beside it */
+.mo-fix { width: min(780px, 94vw); }
+.mo-fix .modal-body { padding-bottom: 16px; }
+.mo-fix-hint { margin: 0 0 14px; line-height: 1.5; }
+.mo-fix-list { display: flex; flex-direction: column; gap: 8px; }
+.mo-fix-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.mo-fix-file { min-width: 0; }
+.mo-fix-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mo-fix-name b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.mo-fix-name .chip { flex: none; }
+.mo-fix-path { display: block; margin-top: 4px; font: 500 11px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mo-fix-row select { width: 100%; height: 34px; min-width: 0; }
+@media (max-width: 640px) { .mo-fix-row { grid-template-columns: 1fr; } }
 /* Mods -> WT Live: the feed's posts as cards, the same size each (picture, title, who and when, likes and downloads, Install) */
 .wl-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .wl-bar select, .wl-bar input[type=search] { height: 34px; }

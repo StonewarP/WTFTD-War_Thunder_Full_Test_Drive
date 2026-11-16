@@ -303,9 +303,11 @@ async function moWeaponsGo(pkg) {
 function moAskFix(missing) {
   const short = path => path.split('/').pop().replace(/\.blk$/i, '');
   const opt = (value, label, on) => `<option value="${esc(value)}"${on ? ' selected' : ''}>${esc(label)}</option>`;
-  $('#moFix').innerHTML = missing.map(m => `<label class="mo-ask-row"><b>${esc(short(m.ref))}</b>
-    <small class="muted">${esc(t(m.fatal ? 'mo.fixFatal' : 'mo.fixUsed', { name: m.ref }))}</small>
-    <select data-ref="${esc(m.ref)}">${m.fatal ? '' : opt('', t('mo.fixLeave'), !m.best)}${m.options.map(o => opt(o, short(o) + (o === m.best ? ` · ${t('mo.fixBest')}` : ''), o === m.best)).join('')}</select></label>`).join('');
+  $('#moFix').innerHTML = missing.map(m => `<div class="mo-fix-row">
+    <div class="mo-fix-file"><div class="mo-fix-name"><b title="${esc(short(m.ref))}">${esc(short(m.ref))}</b>
+      <span class="chip ${m.fatal ? 'warn' : 'dim'}">${esc(t(m.fatal ? 'mo.stopsChip' : 'mo.fixUsed'))}</span></div>
+      <code class="mo-fix-path" title="${esc(m.ref)}">${esc(m.ref)}</code></div>
+    <select data-ref="${esc(m.ref)}" aria-label="${esc(short(m.ref))}">${m.fatal ? '' : opt('', t('mo.fixLeave'), !m.best)}${m.options.map(o => opt(o, short(o) + (o === m.best ? ` · ${t('mo.fixBest')}` : ''), o === m.best)).join('')}</select></div>`).join('');
   $('#dlgFix').showModal();
   return new Promise(done => { MO.fixing = done; });
 }
