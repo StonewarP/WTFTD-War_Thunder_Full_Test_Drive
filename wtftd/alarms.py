@@ -189,6 +189,11 @@ def units() -> dict:
     return {name: column(name).rpartition(", ")[2] if ", " in column(name) else "" for name in SERIES}
 
 
+def unit_choices() -> dict:
+    """My overlay's list of values: each one's unit and the US units a line can show it in, {name: [unit, ["kt", ...]]}."""
+    return {name: [unit, [code for code, si in UNITS.items() if unit in si]] for name, unit in units().items()}
+
+
 def screen() -> tuple:
     """Screen size in real pixels, whatever this process' DPI awareness (Linux: X11's main screen; without one, or on
     macOS, a 4K screen, only for sizes)."""

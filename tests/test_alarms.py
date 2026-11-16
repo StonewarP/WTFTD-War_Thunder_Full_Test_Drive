@@ -1007,7 +1007,8 @@ class Watching(unittest.TestCase):
             for key in ("ov.redFrom", "ov.beepFrom", "ov.dynamic", "ov.gap", "ov.redFromValue", "ov.fullAt", "ov.addAlarm", "ov.removeAlarm", "ov.withBeep",
                         "ov.noFull", "ov.alarm.load", "ov.alarm.aoa", "ov.when.own", "ov.alarmValue", "ov.alarmColor", "ov.flash", "ov.after",
                         "ov.feed.chat", "ov.feed.log", "ov.sheetKey", "ov.profileKey", "ov.v.g_lim", "ov.v.wep", "ov.try", "ov.tryStop", "ov.tryHint", "ov.showAs", "ov.shown.value",
-                        "ov.shown.percent", "ov.shown.gauge", "ov.shown.valuePct", "ov.shown.valueGauge", "ov.fullAtPct", "ov.barSize", "ov.barStep"):
+                        "ov.shown.percent", "ov.shown.gauge", "ov.shown.valuePct", "ov.shown.valueGauge", "ov.fullAtPct", "ov.barSize", "ov.barStep",
+                        "ov.pickValue", "ov.pickSearch", "ov.pickHint"):
                 self.assertTrue(words.get(key), (code, key))
         page = (alarms.WEB / "index.html").read_text(encoding="utf-8")
         self.assertNotIn('id="ovAlarms"', page)  # the alarms live on the lines
@@ -1015,6 +1016,10 @@ class Watching(unittest.TestCase):
         for bit in ("data-ortoggle", "ov.sec.trigger", "ov.sec.sound", "ov.sec.look", "ovRuleSummary", "'valueGauge'", 'data-olbar="size"', 'data-olbar="step"'):  # folded alarms, gauges by buttons
             self.assertIn(bit, script)
         self.assertIn('data-ovkey="sheetKey"', page)
+        self.assertIn('id="ovVals"', page)  # a value is picked from a list under its line, no wall of buttons
+        self.assertNotIn('id="ovValues"', page)
+        for bit in ("data-ovvals", "ovPickTyped(el)", "OV.units = st.units"):
+            self.assertIn(bit, script)
 
     def test_a_lines_own_alarm_red_first_and_continuous_at_its_value(self):
         self.own_alert(red=25, full=5)
@@ -1273,6 +1278,14 @@ class Lines(unittest.TestCase):
             self.assertEqual(alarms.fill(text, values), want, text)
         self.assertEqual(alarms.fill("{mach:ft} {nothing:ft}", self.VALUES), "N/A N/A")  # a unit it can't be in
         self.assertEqual(alarms.fill("{alt:yd}", values), "{alt:yd}")  # not a unit: left as written
+
+    def test_the_page_knows_each_values_units(self):
+        units = alarms.unit_choices()
+        self.assertEqual(units["ias"], ["km/h", ["kt", "mph"]])
+        self.assertEqual(units["alt"], ["m", ["ft"]])
+        self.assertEqual(units["oil_rate"], ["C/s", ["f"]])
+        self.assertEqual(units["mach"], ["", []])
+        self.assertEqual(units["thrust"], ["kgs", ["lbf"]])
 
     def test_every_engine(self):
         twin = {"RPM 1": 2700, "RPM 2": 2650, "throttle 1, %": 100, "throttle 2, %": 98, "thrust 1, kgs": 453.59237, "thrust 2, kgs": 0}
