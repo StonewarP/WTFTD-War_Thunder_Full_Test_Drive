@@ -831,6 +831,18 @@ Names seen in port 8111 on 2026-11-16 in the hangar (Ju 288 C, P-51H-5, F-16C, S
 - [x] 2026-11-16, F4U-4B in flight: head 229 °C rising 0.85 °C/s on WEP, supercharger stage 2.
 - [ ] The head temperature on other radials: only where the cockpit has its gauge (the Fw 190 A-4's hasn't).
 
+## 2al. My overlay: a block as a table (new)
+
+**What was built.** Blocks tab, **Align as a table**: each line's name, values and the text after them in columns,
+names and values left or right; titles, the chat, the battle log and lines without a name or a value stay out of it. A
+line's **Alignment** puts it on the right edge of its block's column. Checked in the page's preview and in the Windows
+(GDI+) and Linux (cairo) drawings of a sample, not over the game.
+
+- [ ] A block as a table over the game, values changing: the columns don't jump as a value grows (a column is as wide
+      as its widest cell of the moment).
+- [ ] Two columns (Columns 2) as a table: each column lined up on its own.
+- [ ] A `{vehicle}` line set to the right ends where the table ends.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own

@@ -67,7 +67,7 @@ Details: [Install and first launch](https://github.com/StonewarP/WTFTD-War_Thund
    and the map in the scenario editor (targets, allies, your start), flat or **in 3D**.
 4. **Create mission** (the difficulty yours to pick, each of its settings changeable), start War Thunder (button in the app), open *Single missions → User missions*.
 
-While you fly (Windows), the **In flight** menu puts your own overlay over the game (your lines, a **fighter HUD**, a
+While you fly (Windows and Linux), the **In flight** menu puts your own overlay over the game (your lines, a **fighter HUD**, a
 **minimap**), beeps before your aircraft breaks, and records the flight. Step by step:
 [Your first mission](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Your-first-mission).
 
@@ -106,8 +106,9 @@ Each one links to its page in the wiki.
   rocket and torpedo with its stats, "best for" rankings, comparison, carriers, and how many it takes to destroy a base.
 - **[Challenges](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Challenges)**: scored missions with
   a goal, a timer and your best times.
-- **In flight** (Windows):
-  **[My overlay and alarms](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/My-overlay-and-alarms)**,
+- **In flight** (Windows and Linux):
+  **[My overlay and alarms](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/My-overlay-and-alarms)**
+  (your values in metric or US units, every engine, lined up as a table),
   **[Fighter HUD](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Fighter-HUD)**,
   **[Minimap](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Minimap)**,
   **[Flight data](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Flight-data)** (curves, logs,
@@ -176,8 +177,8 @@ To build `WTFTD-<version>-windows.exe`, `WTFTD.app` or the Linux `WTFTD` yoursel
 WTFTD is in beta. The main limits:
 
 - Several features haven't been checked in game yet: routes, waves and assets in the scenario editor, most
-  modifications, ground missiles on pylons other than the Aster-30, Challenges, the Test bench, the fighter HUD and the
-  minimap. The [in-game checklist](docs/ingame-checklist.md) lists what's still open.
+  modifications, ground missiles on pylons other than the Aster-30, Challenges, the Test bench, the fighter HUD, the
+  minimap and the overlay's tables. The [in-game checklist](docs/ingame-checklist.md) lists what's still open.
 - My overlay, the alarms, the fighter HUD, the minimap, the cockpit window, Flight data, the Test bench, launching War
   Thunder with WTFTD, Steam's launch line and the app window's options work on Windows and Linux, but for the
   notification area (Windows only). All were mostly flown on jets in test flights, on Windows.
@@ -216,6 +217,7 @@ wtftd/                      Python backend (stdlib only)
   cairopaint.py             the overlay's loop there / its HUD, text, minimap and glow painted by cairo
   xwindow.py                Linux: the app window through X11 (its place, minimized, closed with the game)
   battle.py                 the game's chat and battle log
+  imports.py                My maps' Import: a game mission players share, read and checked, kept as a scenario
   replays.py                My battles: the player's own results, from the game's replay files
   patches.py                What changed: the comparison of two game versions, kept in user/patches.json
   hangar.py                 My hangar: owned vehicles, lineups and research plan, kept in user/hangar.json
@@ -228,9 +230,13 @@ wtftd/                      Python backend (stdlib only)
   uninstall.py              Settings → Uninstall
   selfupdate.py             New version in one click: the release's file, checked, in place of the app
   blk.py, game.py, paths.py BLK writer, install detection, file locations
-web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
+web/                        UI (HTML/CSS/JS, no build step), index.html + app.js = the page, boot.js = theme before
+                            first paint, i18n.js + web/locales = translations, stats.js = stats & search,
+                            compare.js = vehicle comparison, maps.js = Maps and the vehicle + map bar,
+                            library.js / share.js = My vehicles, maps, missions / share codes and .wtftd files,
+                            appinfo.js = new version and Feedback,
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,
-                            overlay.js / flight.js / battle.js / history.js = In flight, cockpit.html = the cockpit window,
+                            overlay.js / flight.js / battle.js / history.js = In flight, cockpit.html + cockpit.js = the cockpit window,
                             hud.js = the HUD's drawing in the page and the cockpit window,
                             changes.js = What changed, hangar.js = My hangar, mods.js = Mods, wtlive.js = WT Live,
                             bench.js = Test bench,

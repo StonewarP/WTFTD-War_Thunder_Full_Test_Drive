@@ -4,6 +4,30 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.33.4 - 2026-11-16
+
+- **My overlay: a text block can line its lines up as a table.** Blocks tab, **Align as a table**: each line's name,
+  values and the text after them (` / `, a unit) sit in columns, names and values each lined up on the left or the
+  right as you choose. Titles, the chat, the battle log and lines without a name or a value stay out of it. Off by
+  default, on Windows and Linux.
+- **A line can end on the right edge of its block**: **Alignment** in the line's options, for a `{vehicle}` line next to
+  a table, or any line.
+- **My overlay: US units, line by line.** `{alt:ft}`, `{ias:kt}` or `{ias:mph}`, `{vy:fpm}`, `{fuel:lb}`, `{thrust:lbf}`,
+  `{oil:f}`, `{range:nm}`, with decimals too (`{alt:ft:1}`). Alarms, Flight data and logs stay metric.
+- **Every engine**: on a twin or more, `{rpm}`, `{throttle}`, `{oil}`, `{manifold}` and the other engine values show each
+  engine (`2700 / 2650`), and an alarm on one goes off with the first engine past it.
+- **More values**: glide range, full roll time, specific energy, excess power, drag, mass without fuel, RPM % of
+  critical, BSFC and TSFC, oil, water and head temperature rates, radar altitude, control surfaces, manifold pressure,
+  mixture, radiator, oil radiator, propeller pitch and efficiency, supercharger stage, wing sweep, nozzle angle. Names
+  checked on the game's port 8111.
+- **Values picked from a list**: the value buttons under the lines are gone. Typing `{` in a line, or its **{ } Value**
+  button, opens a list of every value under that line, narrowed as you type, in your language or by `{name}`, with its
+  US units; ↑ ↓ and Enter add it where the cursor was.
+- **Swing wings: the airframe limit follows the wings.** The game sends their sweep: on an F-14A the limit goes from
+  1,066 km/h wings forward to 1,555 swept back, and the airframe alarm with it.
+- The game data is rebuilt once at the first start (a few minutes), for the engines' critical RPM.
+- In every language.
+
 ## 0.33.3 - 2026-11-16
 
 - **What changed lists every game update now, even one that moved nothing it compares.** The game went from 2.61.0.17 to
