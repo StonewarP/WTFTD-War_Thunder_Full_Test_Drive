@@ -94,6 +94,7 @@ jobs:
 
   build-linux:
     needs: build-macos  # one job at a time edits the release notes
+    if: ${{ !cancelled() }}  # after macOS's job even when it failed: GitHub had no macOS machine for 0.33.0's
     runs-on: ubuntu-22.04  # the oldest glibc on offer: the app it builds runs on every distribution at least as recent
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -136,6 +137,7 @@ jobs:
 
   virustotal:
     needs: build-linux  # one job at a time edits the release notes
+    if: ${{ !cancelled() }}  # the apps that were built, whatever became of the others
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
