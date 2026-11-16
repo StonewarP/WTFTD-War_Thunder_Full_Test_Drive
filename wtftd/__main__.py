@@ -19,9 +19,9 @@ from pathlib import Path
 
 from .alarms import game_running, reader
 from .paths import CACHE, FROZEN, USER, WEB, prepare
-from . import server
+from . import selfupdate, server
 from .game import launch
-from .server import ROOT, STATE, WATCH, free_port, page_closed, read_json, serve, wait_page_gone, write_json
+from .server import ROOT, STATE, WATCH, free_port, outside_steam, page_closed, read_json, serve, wait_page_gone, write_json
 
 GAME_CHECK_S = 5
 GAME_APPEAR_S = 900  # started from Steam: the game's launcher may update it this long before its window comes
@@ -30,6 +30,7 @@ PLACE_S = 2  # how often the window's place is looked at, kept when it changes
 PLACE = USER / "window.json"  # a file of its own: the settings are written by the page too
 RUNNING = USER / "running.json"  # the port of the WTFTD running from this folder: started again, it shows that one
 CLOSING_S = 15  # a WTFTD closing (its window gone) is given this long to free its port
+UPDATED_S = 60  # the WTFTD an update replaced closes its window, then quits: this long at most
 # a window hidden, minimized or on another screen keeps its pings, curves and battle log going
 STAY_AWAKE = ("--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows")
 # macOS: Chromium browsers that support app windows (--app), executable inside the bundle
@@ -190,6 +191,16 @@ def already_running(path: Path = RUNNING, wait: float = CLOSING_S) -> bool:
     return False
 
 
+def replaced(old: str, path: Path = RUNNING, wait: float = UPDATED_S):
+    """Started by the WTFTD it replaced (selfupdate, --updated <old>): that one closes first (its window, then its port),
+    then its file goes."""
+    port = read_json(path, {}).get("port")
+    end = time.monotonic() + wait
+    while type(port) is int and free_port(port) != port and time.monotonic() < end:
+        time.sleep(0.25)
+    selfupdate.remove_later(old)
+
+
 def launch_on_start():
     """Settings' option: War Thunder starts with WTFTD when it isn't running yet, nor on its way (started by Steam: the WTFTD
     with_game starts says --game-started). Windows and Linux, where the game can be seen."""
@@ -223,15 +234,6 @@ def with_game(command: list[str]):
     wait_game()
 
 
-def outside_steam() -> list[str]:
-    """Linux: what starts WTFTD apart from the game. Steam counts a game played while any process it started lives (its
-    reaper adopts them all), so WTFTD runs as a user service; without systemd, it stays Steam's child."""
-    if sys.platform == "win32" or not shutil.which("systemd-run"):
-        return []
-    keep = [f"--setenv={k}" for k in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "PULSE_SERVER") if k in os.environ]
-    return ["systemd-run", "--user", "--quiet", "--collect", f"--working-directory={ROOT}", *keep, "--"]
-
-
 def main():
     if "--with-game" in sys.argv:  # Steam's launch options
         return with_game(sys.argv[sys.argv.index("--with-game") + 1:])
@@ -243,6 +245,8 @@ def main():
         CACHE.mkdir(parents=True, exist_ok=True)
         sys.stdout = sys.stderr = open(CACHE / "wtftd.log", "w", encoding="utf-8", buffering=1)
     prepare()
+    if "--updated" in sys.argv[:-1]:
+        replaced(sys.argv[sys.argv.index("--updated") + 1])
     port = 8777
     if "--port" in sys.argv:  # a port of its own: a second WTFTD on purpose (tests, development)
         port = int(sys.argv[sys.argv.index("--port") + 1])

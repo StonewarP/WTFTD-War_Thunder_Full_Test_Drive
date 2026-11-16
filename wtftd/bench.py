@@ -433,6 +433,7 @@ class Bench:
         self.away = None  # since when the flight is over
         self.last = None  # what the last flight gave, with its refusals: only this says why a flight gave nothing
         self.lock = threading.Lock()  # the page and the bench's thread: one flight, one result
+        self.read: dict = {}  # how far the recording was read (flightlog.read_on)
 
     def arm(self, raw):
         """Each generated mission comes through here: a test's plan, or nothing."""
@@ -444,8 +445,8 @@ class Bench:
 
     def rows(self) -> list:
         names = {**{alarms.column(n): n for n in alarms.SERIES}, **dict(zip(alarms.POSITION, ("east", "north", "hdg")))}
-        log = flightlog.read_log(self.folder, self.log, names) if self.log else None
-        return [r for r in log["rows"] if r.get("t", 0) >= self.since] if log else []
+        rows = flightlog.read_on(self.folder, self.log, names, self.read) if self.log else []  # what's new only, each second
+        return [r for r in rows if r.get("t", 0) >= self.since]
 
     def step(self):
         """A look a second."""
@@ -464,6 +465,7 @@ class Bench:
                 log = w.log
                 if log:
                     self.log, self.since, self.last = log.name, time.monotonic() - log.start, None
+                    self.read = {}  # a new recording: read from its start
 
     def finish(self):
         rows = self.rows()

@@ -9,6 +9,7 @@ import copy
 import json
 import math
 import re
+import zlib
 from pathlib import Path
 
 from . import blk
@@ -1165,7 +1166,10 @@ def apply_challenge(m: dict, wing: str, ch: dict):
 
 
 def safe_name(s: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_\-]+", "_", s).strip("_")[:80] or "mission"
+    name = re.sub(r"[^A-Za-z0-9_\-]+", "_", s).strip("_")[:80] or "mission"
+    if not s.isascii():  # "Тигр" and "虎式" both gave mission.blk: the one made second replaced the first
+        name = f"{name[:71]}_{zlib.crc32(s.encode()):08x}"
+    return name
 
 
 def _count(v) -> int:
@@ -1362,7 +1366,7 @@ def build(cfg: dict) -> tuple[str, str]:
     mtype = cfg.get("missionType") or "singleMission"
     if mtype in MISSION_TYPES:
         mission["type"] = mtype
-    title = (cfg.get("title") or f"Test Drive: {vid}")[:120]
+    title = _clean_text(cfg.get("title"), f"Test Drive: {vid}")[:120]  # one line, as the other texts: a share code may hold any
     mission["locName"] = title
     # shown under the mission in the game's list (else it shows the missing key "missions//objective")
     desc = " ".join(str(cfg.get("description") or "").split())[:1000]

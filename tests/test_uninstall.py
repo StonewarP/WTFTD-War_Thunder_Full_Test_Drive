@@ -80,8 +80,8 @@ class AfterExitScript(unittest.TestCase):
         self.assertNotIn("timeout ", text)  # fails at once there
         self.assertIn(r'"%SystemRoot%\System32\PING.EXE" -n 7', text)  # one pause: WTFTD and its window close
         self.assertNotIn("for /l", text)  # one removal, no retries
-        self.assertEqual(text.count("WTFTD.exe"), 3)  # if exist, rmdir, del: once
-        self.assertIn("WTFTD.exe", text)
+        self.assertEqual(text.count("%WTFTD_DEL0%"), 3)  # if exist, rmdir, del: once
+        self.assertEqual(kw["env"]["WTFTD_DEL0"], str(Path(tmp) / "WTFTD.exe"))  # by name: the script holds no path
 
 
 @unittest.skipIf(__import__("sys").platform == "win32", "macOS / Linux script")

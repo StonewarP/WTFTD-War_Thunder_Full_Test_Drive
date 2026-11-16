@@ -206,7 +206,9 @@ function bnRenderLive() {
 
 async function bnPoll() {
   clearTimeout(BN.timer);
+  if (BN.busy) return;  // one asking at a time: its answer sets the next
   if ($('#view-bench').classList.contains('hidden')) return;
+  BN.busy = true;
   try {
     BN.live = await api('bench-live');
     const id = BN.live.last?.id;
@@ -217,7 +219,7 @@ async function bnPoll() {
       bnRenderResults();
     }
     bnRenderLive();
-  } catch { /* the app is closing */ }
+  } catch { /* the app is closing */ } finally { BN.busy = false; }
   BN.timer = setTimeout(bnPoll, 1000);
 }
 

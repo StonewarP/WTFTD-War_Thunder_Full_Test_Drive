@@ -20,10 +20,10 @@
   .gauge text { fill: var(--muted); font-size: 9px; text-anchor: middle; }
   .gauge .needle { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
   .gauge .val { fill: var(--text); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .gauge .name { font-size: 11px; }
+  .gauge .name { font-size: 11px; text-transform: uppercase; }
   #strip { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; }
   .cell { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; min-width: 96px; }
-  .cell small { display: block; color: var(--muted); font-size: 11px; }
+  .cell small { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; }
   .cell b { font-size: 18px; font-variant-numeric: tabular-nums; }
   .cell.on b { color: var(--accent); }
   .cell.alert b { color: var(--red); }
@@ -36,11 +36,12 @@
 </style>
 </head>
 <body>
-<header><b id="plane"></b><span><span id="msg"></span> <button id="mode" title="Instruments or HUD">HUD</button></span></header>
+<header><b id="plane"></b><span><span id="msg"></span> <button id="mode" data-i18n-title="ck.mode">HUD</button></span></header>
 <svg id="hud" hidden aria-hidden="true"></svg>
-<div id="off">Not flying. The instruments start with the next flight.</div>
+<div id="off" data-i18n="ck.off"></div>
 <div id="gauges" hidden></div>
 <div id="strip" hidden></div>
+<script src="i18n.js"></script>
 <script src="hud.js"></script>
 <script src="cockpit.js"></script>
 </body>

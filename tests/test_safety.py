@@ -1,10 +1,16 @@
 """Safety rules: custom vehicle files stay in their folders, mission names stay plain, the local server
 only answers its own page."""
+import re
+import subprocess
+import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from wtftd import cdk, mission, server
+from wtftd import cdk, mission, server, uninstall
 
 
 class CustomVehicleFiles(unittest.TestCase):
@@ -31,6 +37,19 @@ class CustomVehicleFiles(unittest.TestCase):
         self.assertGreaterEqual(cdk.cleanup(self.game, self.user), 1)
         self.assertFalse(target.exists())
 
+    def test_a_file_of_another_tool_comes_back_at_cleanup(self):  # kept aside when written over, then deleted with ours: lost
+        rel = "gameData/units/tankModels/userVehicles/us_m2a4.blk"
+        target = self.game / "content" / "pkg_local" / rel
+        target.parent.mkdir(parents=True)
+        target.write_text("their vehicle\n")
+        for _ in range(2):  # the second time over our own file: theirs stays the one kept
+            cdk.write_files(self.game, self.user, {rel: f"{cdk.MARKER}\n"})
+        self.assertEqual(target.read_text(), f"{cdk.MARKER}\n")
+        cdk.cleanup(self.game, self.user)
+        self.assertEqual(target.read_text(), "their vehicle\n")
+        cdk.cleanup(self.game, self.user)  # once only: nothing else to put back
+        self.assertEqual(target.read_text(), "their vehicle\n")
+
     def test_lower_case_on_every_system(self):  # the Linux client tells cases apart
         files = cdk.build_files("x", "air", {"st": {"fm": "fm/x.blk"}}, {}, "", None, "custom")[0]
         self.assertEqual(sorted(files), ["gamedata/flightModels/fm/wtftd_x.blk", "gamedata/flightModels/wtftd_x.blk"])
@@ -49,6 +68,78 @@ class MissionNames(unittest.TestCase):
         self.assertEqual(mission.safe_name("../../x"), "x")
         self.assertEqual(mission.safe_name("///"), "mission")
         self.assertLessEqual(len(mission.safe_name("a" * 300)), 80)
+
+    def test_names_in_other_alphabets_stay_apart(self):  # "Тигр" and "虎式" both gave mission.blk: the second replaced the first
+        names = {mission.safe_name(s) for s in ("Тигр тест", "Пантера", "虎式", "Mission été", "Mission ete", "é" * 300)}
+        self.assertEqual(len(names), 6)
+        self.assertTrue(all(re.fullmatch(r"[A-Za-z0-9_\-]{1,80}", n) for n in names), names)
+        self.assertEqual(mission.safe_name("Пантера"), mission.safe_name("Пантера"))  # made again: the same file
+
+
+class SavedFiles(unittest.TestCase):
+    def test_saves_from_two_threads_at_once(self):  # one settings.tmp for both: refused replaces, a short body over a long one
+        with tempfile.TemporaryDirectory() as d:
+            path, errors, datas = Path(d) / "settings.json", [], ({"k": "x"}, {"k": "x" * 5000})
+
+            def save(data):
+                for _ in range(200):
+                    try:
+                        server.write_json(path, data)
+                    except OSError as e:
+                        errors.append(e)
+            threads = [threading.Thread(target=save, args=(x,)) for x in datas]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            self.assertEqual(errors, [])
+            self.assertIn(server.read_json(path, None), datas)
+
+    def test_a_file_held_a_moment_is_saved_after_all(self):  # Windows refuses the replace while a reader or an antivirus holds it
+        real, calls = Path.replace, []
+
+        def held(self, target):
+            calls.append(target)
+            if len(calls) == 1:
+                raise PermissionError(13, "held")
+            return real(self, target)
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(Path, "replace", held), mock.patch.object(server.time, "sleep"):
+            server.write_json(Path(d) / "x.json", {"a": 1})
+            self.assertEqual(server.read_json(Path(d) / "x.json", None), {"a": 1})
+        self.assertEqual(len(calls), 2)
+
+    def test_two_setting_changes_at_once_keep_both(self):  # each read the file, then saved its copy: one change was lost
+        handler, real = mock.Mock(), server.STATE.settings
+
+        def slow():
+            s = real()
+            time.sleep(0.05)
+            return s
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(server, "USER", Path(d)), mock.patch.object(server.STATE, "settings", slow), \
+                mock.patch.object(server, "api_status", dict), mock.patch.object(server, "apply_alarm_settings"):
+            threads = [threading.Thread(target=server.Handler.post_api, args=(handler, "settings", b)) for b in ({"theme": "dark"}, {"lang": "fr"})]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            self.assertEqual(server.read_json(Path(d) / "settings.json", {}), {"theme": "dark", "lang": "fr"})
+
+
+class AppUninstall(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "win32", "the .cmd script is Windows' way")
+    def test_paths_with_any_letters_are_removed(self):  # cmd reads a .cmd in the console's code page: C:\Users\Jérôme was missed
+        with tempfile.TemporaryDirectory() as d:
+            folder, exe = Path(d) / "Jérôme" / "WTFTD", Path(d) / "Тест 100%" / "WTFTD.exe"
+            folder.mkdir(parents=True)
+            (folder / "settings.json").write_text("{}")
+            exe.parent.mkdir()
+            exe.write_bytes(b"MZ")
+            with mock.patch.object(uninstall, "AFTER_EXIT_DELAY", 0), mock.patch.object(uninstall.tempfile, "gettempdir", lambda: d), \
+                    mock.patch.object(uninstall.subprocess, "Popen") as popen:
+                uninstall._after_exit([folder, exe], pid=1)
+            subprocess.run(popen.call_args.args[0], env=popen.call_args.kwargs.get("env"), timeout=30, stdout=subprocess.DEVNULL)
+            self.assertFalse(folder.exists())
+            self.assertFalse(exe.exists())
 
 
 class FakeHandler:

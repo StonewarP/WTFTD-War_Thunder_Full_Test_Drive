@@ -139,8 +139,10 @@ def _after_exit(paths: list[Path], pid: int | None = None) -> None:
     if sys.platform == "win32":
         # the pause is ping, by its full path: timeout fails without a console, and tasklist hangs there
         lines = ["@echo off", rf'"%SystemRoot%\System32\PING.EXE" -n {AFTER_EXIT_DELAY + 1} 127.0.0.1 >nul']
-        for p in paths:
-            lines.append(f'if exist "{p}\\*" (rmdir /s /q "{p}" 2>nul) else (del /f /q "{p}" 2>nul)')
+        # the paths by name: cmd reads the script in the console's code page (C:\Users\Jérôme missed), and expands a % in it
+        env = {**os.environ, **{f"WTFTD_DEL{i}": str(p) for i, p in enumerate(paths)}}
+        for i in range(len(paths)):
+            lines.append(f'if exist "%WTFTD_DEL{i}%\\*" (rmdir /s /q "%WTFTD_DEL{i}%" 2>nul) else (del /f /q "%WTFTD_DEL{i}%" 2>nul)')
         lines.append('(goto) 2>nul & del "%~f0"')
         script = Path(tempfile.gettempdir()) / f"wtftd_uninstall_{pid}.cmd"
         script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
@@ -152,9 +154,9 @@ def _after_exit(paths: list[Path], pid: int | None = None) -> None:
         hidden.wShowWindow = 0  # SW_HIDE
         args = ["cmd", "/c", str(script)]
         try:  # out of this process's job too (a launcher's job would end the script with WTFTD)
-            subprocess.Popen(args, creationflags=flags | 0x01000000, startupinfo=hidden, close_fds=True)  # CREATE_BREAKAWAY_FROM_JOB
+            subprocess.Popen(args, creationflags=flags | 0x01000000, startupinfo=hidden, close_fds=True, env=env)  # CREATE_BREAKAWAY_FROM_JOB
         except OSError:  # the job forbids it
-            subprocess.Popen(args, creationflags=flags, startupinfo=hidden, close_fds=True)
+            subprocess.Popen(args, creationflags=flags, startupinfo=hidden, close_fds=True, env=env)
     else:
         quoted = " ".join("'" + str(p).replace("'", "'\\''") + "'" for p in paths)
         sh = f"while kill -0 {pid} 2>/dev/null; do sleep 1; done; sleep 1; rm -rf {quoted}"

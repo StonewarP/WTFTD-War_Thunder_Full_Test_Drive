@@ -906,8 +906,8 @@ def scaled(path: str, modified: float, volume: int) -> bytes:
     """A sound file at this volume. Only 16-bit PCM can be scaled here: the others play as they are."""
     with wave.open(path, "rb") as w:
         params, frames = w.getparams(), w.readframes(w.getnframes())
-    if params.sampwidth == 2 and volume < 100:
-        frames = array("h", (x * volume // 100 for x in array("h", frames))).tobytes()
+    if params.sampwidth == 2 and volume < 100:  # a file cut short may end on half a sample: dropped (array refused it)
+        frames = array("h", (x * volume // 100 for x in array("h", frames[:len(frames) // 2 * 2]))).tobytes()
     return _wav(params, frames)
 
 

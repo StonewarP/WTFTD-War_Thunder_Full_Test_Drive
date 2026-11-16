@@ -52,8 +52,10 @@ without one, WTFTD opens in your default browser.
   **System Settings → Privacy & Security → Open Anyway**. All are built by GitHub Actions from the released source
   code, and each release lists their **SHA-256**: check your download with `Get-FileHash WTFTD-<version>-windows.exe` in
   PowerShell, `shasum -a 256 WTFTD-<version>-macos.zip` in Terminal or `sha256sum WTFTD-<version>-linux.tar.gz` on Linux.
-- When a new version is released, a *New version* button shows at the top: download it and replace the old one; your
-  settings and missions are kept.
+- When a new version is released, a *New version* button shows at the top: **Update now** downloads it from this
+  repository's releases, checks its SHA-256, puts it in place of the old one (same name, same folder) and restarts;
+  your settings and missions are kept. Run from a copy macOS keeps in Downloads (move it to Applications first), or
+  from a folder WTFTD can't write in, the button opens the release page instead.
 
 Details: [Install and first launch](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Install-and-first-launch).
 
@@ -116,7 +118,7 @@ Each one links to its page in the wiki.
   history from your replays).
 - **[My hangar](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/My-hangar)** (owned vehicles,
   lineups, research plan), **[What changed](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/What-changed)**
-  between two game versions, **[Mods](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Mods)** (skins, sounds, vehicles of their own,
+  between two game versions (copied for Reddit or Discord in one click), **[Mods](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Mods)** (skins, sounds, vehicles of their own,
   hangars, and WT Live's posts installed in one click),
   **[3D views](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/3D-views)** of vehicles, weapons and
   maps.
@@ -153,7 +155,7 @@ your own risk. More: [Custom vehicles](https://github.com/StonewarP/WTFTD-War_Th
   ([forum, 2024](https://forum.warthunder.com/t/tools-using-data-provided-on-port-8111/106664/197)): WTFTD never shows
   them. The Test bench sends no input of any kind, and My battles keeps only your own line of a replay.
 - **Your data**: no account, no telemetry. WTFTD downloads the datamine (unless you read your installed game), wiki
-  images and this repository's release list, and sends nothing. The **Feedback** button only opens GitHub's form in
+  images, this repository's release list and, when you click *Update now*, its new version, and sends nothing. The **Feedback** button only opens GitHub's form in
   your browser: you read it and send it yourself.
 
 More: [Safety and fair play](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Safety-and-fair-play),
@@ -224,6 +226,7 @@ wtftd/                      Python backend (stdlib only)
   waveout.py / tray.py      sound on the output you pick (winmm, PulseAudio) / the app window: its place, minimized,
                             notification area (Windows)
   uninstall.py              Settings → Uninstall
+  selfupdate.py             New version in one click: the release's file, checked, in place of the app
   blk.py, game.py, paths.py BLK writer, install detection, file locations
 web/                        UI (HTML/CSS/JS, no build step), web/locales = translations, stats.js = stats & search,
                             weapons.js / myweapons.js = Weapons and My weapons, loadout.js = pylon editor,

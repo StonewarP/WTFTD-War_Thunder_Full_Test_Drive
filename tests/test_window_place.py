@@ -2,6 +2,7 @@
 import http.server
 import json
 import sys
+import socket
 import tempfile
 import threading
 import time
@@ -130,7 +131,10 @@ class Started(unittest.TestCase):
 
     def test_nothing_running(self):
         self.assertFalse(app.already_running(self.running))
-        self.assertFalse(self.started(port=app.free_port(49200))[0])  # the file stayed after a crash: nobody answers
+        with socket.socket() as s:  # a port nobody has, from the system (49200 lies in Hyper-V's reserved ports once WSL ran)
+            s.bind(("127.0.0.1", 0))
+            free = s.getsockname()[1]
+        self.assertFalse(self.started(port=free)[0])  # the file stayed after a crash: nobody answers
 
     def test_the_running_one_comes_to_the_front(self):
         before = dict(app.server.PAGE)

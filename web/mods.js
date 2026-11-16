@@ -316,6 +316,7 @@ function moAskFix(items, apply = null) {
   const body = $('#moFix'), go = $('#moFixGo');
   MO.fixApply = apply;
   const answer = new Promise(done => { MO.fixing = done; });
+  go.disabled = false;  // a Repair closed while it ranked left it off: the next install's dialog could only be cancelled
   if (Array.isArray(items)) body.innerHTML = rows(items);
   else {  // a Repair: the dialog opens at once, its stand-ins come as they're ranked
     body.innerHTML = `<div class="mo-fix-wait"><span class="spin"></span><span>${esc(t('mo.fixLoading'))}</span></div>`;

@@ -4,6 +4,59 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.33.0 - 2026-11-16
+
+- **New version in one click** (Windows, macOS, Linux): the *New version* button's **Update now** downloads the
+  release's file for your system from this repository's GitHub releases only, checks it against the SHA-256 the release
+  lists, puts it in place of the app (same name, same folder: shortcuts, the taskbar pin and Steam's launch line keep
+  working) and restarts; the old copy goes once it has closed. Your settings and missions stay. A copy macOS runs from
+  Downloads, a folder WTFTD can't write in or the source code keep the release page. The first update to it is still
+  a download by hand: the versions before don't have it.
+- **Fixed: a vehicle package could create a file anywhere in the game folder.** A vehicle's `fmFile` with `..` passed
+  the name check (`../../../../../win64/version.dll` made a text file there, which WTFTD couldn't remove after). Its
+  flight model is now a `.blk` under the vehicle's folder, or nothing.
+- **Fixed: two settings saved at once could reset them all.** Both wrote the same temporary file: a short one over a long
+  one left `settings.json` unreadable, and the next save kept only its own keys. One writer at a time now, a change of
+  settings reads and saves in one go, and a save Windows refuses for a moment (a reader, an antivirus) is tried again.
+- **Fixed: closing WTFTD during a game data update left the database half new.** Scenarios were gone ("Unknown
+  scenario") and that patch never reached *What changed*. The database is now built beside the one in use and takes its
+  place only once complete.
+- **Fixed: Settings → Uninstall → the app removed nothing under a Windows user name with accents** (`C:\Users\Jérôme`,
+  Cyrillic or Chinese names): the script read the paths in the console's code page. It gets them by name now.
+- **Fixed: Remove custom vehicle files deleted another tool's file for good.** A `userVehicles` file WTFTD wrote over was
+  kept aside but never put back; it now comes back in its place.
+- **Fixed: a shared mission code could replace a mission of the same file name** in UserMissions without asking: the
+  sharer's file name is no longer kept on import.
+- **Fixed: missions named in other alphabets all became `mission.blk`**, each replacing the last ("Тигр", "虎式"): a name
+  that isn't plain ASCII gets a short code of its own.
+- **What changed, shared in one click**: **Copy for Reddit** and **Copy for Discord** put what's on show (its filters
+  too) on the clipboard as Markdown lists, ready to paste: battle ratings mode by mode, every value before → after, new and
+  removed vehicles on one line, a vehicle's nation when two share a name. Discord's gets the first lines that fit its
+  2000 characters and says how many are left out.
+- **Every text in every language**: the 179 texts the 9 other languages showed in English (the weapon editor's help, the
+  flight report, the base calculator, the penetration chart) are translated, and the cockpit window follows the app's
+  language.
+- **Releases link their VirusTotal reports** once the repository has a `VT_API_KEY` secret: the last job of the build has
+  VirusTotal scan the three apps and adds the links to the release notes.
+- **Fixed: a sound file cut short stopped the alarms' beeps** until WTFTD was restarted (and a held break tone never
+  ended), with a volume under 100 %. Its last half sample is dropped, and it plays.
+- **Fixed: one vehicle file of a shape not seen before stopped the whole game data update.** That vehicle is left out
+  (the update's log names it), the others are built.
+- **Fixed: a mission title with line breaks (from a share code) went into the mission as it was**: it's one line now,
+  like the other texts.
+- **Fixed: custom sights weren't found when Windows' Documents folder was moved** (OneDrive's `Dokumente`, another
+  drive): WTFTD asks Windows where it is.
+- **Fixed: the stand-ins dialog could open with its button greyed out** after a Repair closed while it ranked: an
+  install could only be cancelled until the page was reloaded.
+- **Fixed: opening Battle while it was asking the game started a second loop**: lines came twice and the asks piled up
+  (Flight data and Test bench had the same flaw).
+- **Fixed: removing a mod could delete files another mod put in its place by hand since.** WTFTD notes each file's size
+  and time at install and leaves one that changed.
+- **Faster**: Flight data with a recording open no longer asks for the whole live trace each second; the Test bench reads
+  only the new lines of a recording (95 ms each second for a 3-hour one before); a game data update reads the maps' table
+  once, and never runs twice at the same time (a double click started two).
+- **WT Live's downloads follow no redirect from its file server either**, as from its download link.
+
 ## 0.32.2 - 2026-11-16
 
 - **Fixed: WT Live kept saying *Installed* after the mod was deleted.** A card now says it while what its install put

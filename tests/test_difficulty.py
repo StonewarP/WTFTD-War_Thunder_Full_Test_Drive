@@ -75,6 +75,13 @@ class Mission(unittest.TestCase):
         self.assertEqual({k: m["netDifficultyBlk"][k] for k in ("baseDifficulty", "hudAimPrediction", "limitViews", "setDifficulty")},
                          {"baseDifficulty": 1, "hudAimPrediction": True, "limitViews": 2, "setDifficulty": 3})
 
+    def test_a_title_from_a_share_code_stays_one_line(self):  # a line break inside locName:t="..." broke the file
+        bare = builder._hangar_mission("air_archipelago", "armada", [0.0, 1500.0, 0.0], "WTFTD", speed=450.0)
+        with mock.patch.object(mission, "load_scenario", return_value=bare):
+            _, text = mission.build({"scenario": "free_air_archipelago_air", "vehicle": "bf-109f-4", "block": "armada",
+                                     "title": "My\nbest   \"test\"\r\n"})
+        self.assertIn("locName:t=\"My best 'test'\"", text)
+
     def test_old_data_names_it_only(self):
         m = self.build(None)
         self.assertEqual(m["difficulty"], "realistic")

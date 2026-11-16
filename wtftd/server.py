@@ -26,7 +26,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import DONATE, REPO, __version__, alarms, battle, bench, builder, cdk, challenges, flightlog, game, hangar, hud, imports, maptex, mission, models, mods, patches, replays, sights, \
-    terrain, uninstall, vromfs, waveout, wtlive, x11, xoverlay
+    selfupdate, terrain, uninstall, vromfs, waveout, wtlive, x11, xoverlay
 from .paths import CACHE, DATA, FROZEN, HOME, USER, WEB
 
 ROOT = HOME
@@ -141,12 +141,22 @@ def read_json(path: Path, default):
         return default
 
 
+SAVING = threading.RLock()  # one writer at a time (they share "<name>.tmp"); held too around a read-change-save of settings
+
+
 def write_json(path: Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-    tmp.replace(path)
+    with SAVING:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+        for attempt in range(5):  # Windows refuses the replace while a reader or an antivirus holds the file a moment
+            try:
+                return tmp.replace(path)
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.2)
 
 
 BATTLES = CACHE / "battles.json"  # derived from the game's replays: goes with the cache
@@ -361,9 +371,10 @@ def switch_data():
         parked.rename(DATA)
         raise
     parked.rename(builder.DEV / "data")
-    s = STATE.settings()
-    s["dataSource"] = source
-    STATE.save_settings(s)
+    with SAVING:
+        s = STATE.settings()
+        s["dataSource"] = source
+        STATE.save_settings(s)
     builder.DM = builder.GAMEFILES if source == "game" else builder.DATAMINE
     STATE.reload()
 
@@ -375,6 +386,16 @@ def app_command() -> list[str]:
         return [sys.executable]
     quiet = Path(sys.executable).with_name("pythonw.exe")
     return [str(quiet if quiet.exists() else sys.executable), str(Path(__file__).resolve().parent.parent / "wtftd_app.py")]
+
+
+def outside_steam() -> list[str]:
+    """Linux: what starts WTFTD apart from the process starting it (the game, or the WTFTD an update replaces). Steam counts a
+    game played while any process it started lives (its reaper adopts them all), so WTFTD runs as a user service; without
+    systemd, it stays Steam's child."""
+    if sys.platform == "win32" or not shutil.which("systemd-run"):
+        return []
+    keep = [f"--setenv={k}" for k in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "PULSE_SERVER") if k in os.environ]
+    return ["systemd-run", "--user", "--quiet", "--collect", f"--working-directory={ROOT}", *keep, "--"]
 
 
 def window_control():
@@ -446,9 +467,6 @@ def api_status():
 # --------------------------------------------------------------------------- new app version (GitHub releases)
 _release = {"checked": 0.0, "latest": None}
 RELEASE_CHECK_EVERY = 6 * 3600
-APP_ASSET = {"win32": ".exe", "darwin": "-macos.zip", "linux": "-linux.tar.gz"}  # release download of this platform
-
-
 def _version_tuple(tag: str) -> tuple:
     m = re.match(r"v?(\d+)\.(\d+)(?:\.(\d+))?", tag or "")
     return tuple(int(x or 0) for x in m.groups()) if m else (0, 0, 0)
@@ -465,7 +483,7 @@ def app_version() -> dict:
                 releases = [x for x in json.load(r) if isinstance(x, dict) and not x.get("draft")]
             top = max(releases, key=lambda x: _version_tuple(x.get("tag_name", "")), default=None)
             if top:
-                ext = APP_ASSET.get(sys.platform, ".exe")
+                ext = selfupdate.ASSET.get(sys.platform, ".exe")
                 exe = next((a.get("browser_download_url") for a in top.get("assets", []) if str(a.get("name", "")).lower().endswith(ext)), None)
                 _release["latest"] = {"tag": top.get("tag_name"), "name": top.get("name"), "url": top.get("html_url"), "exe": exe,
                                       "notes": (top.get("body") or "")[:2000]}
@@ -473,7 +491,8 @@ def app_version() -> dict:
             pass  # offline / private repository: no alert
     latest = _release["latest"]
     newer = bool(latest and _version_tuple(latest["tag"]) > _version_tuple(__version__))
-    return {"version": __version__, "repo": f"https://github.com/{REPO}", "latest": latest, "newer": newer}
+    return {"version": __version__, "repo": f"https://github.com/{REPO}", "latest": latest, "newer": newer,
+            "canUpdate": selfupdate.target() is not None}  # in one click (selfupdate); else the release page
 
 
 _oodle_memo: dict = {}
@@ -736,9 +755,23 @@ def check_for_update(start: bool = True) -> dict:
     st["available"] = (bool(remote and remote != local) or (bool(meta) and meta.get("schema", 1) < builder.SCHEMA)
                        or (bool(meta) and meta.get("source", "datamine") != STATE.data_source()))
     # a first install (no data yet) downloads only once the user agreed on the welcome screen (route "update")
-    if start and st["available"] and meta and not st["running"]:
-        threading.Thread(target=run_update, daemon=True).start()
+    if start and st["available"] and meta:
+        start_update()
     return st
+
+
+_update_lock = threading.Lock()
+
+
+def start_update() -> bool:
+    """run_update in the background, unless one runs: two at once (a double click, the start-up check) built in the same
+    folders. Marked running before its thread starts, so the next ask sees it."""
+    with _update_lock:
+        if STATE.update["running"]:
+            return False
+        STATE.update["running"] = True
+    threading.Thread(target=run_update, daemon=True).start()
+    return True
 
 
 def auto_check():
@@ -1294,6 +1327,22 @@ class Handler(BaseHTTPRequestHandler):
         if route == "launch":
             how = game.launch(STATE.game_dir())
             return self.send_json({"ok": True, "via": how})
+        if route == "app-update":  # New version in one click: the release's file in this app's place, the new one started
+            info = app_version()
+            latest = info["latest"] or {}
+            if not (info["newer"] and info["canUpdate"] and latest.get("exe")):
+                return self.send_json({"error": "file", "code": "file"}, 400)
+            try:
+                selfupdate.update(latest["exe"], UA, outside_steam())
+            except selfupdate.UpdateError as e:
+                return self.send_json({"error": e.code, "code": e.code}, 400)
+
+            def leave():  # the new one waits for this port; the window's profile must be free for it
+                uninstall.close_app_window()
+                SAVING.acquire()  # no file of the player's left half-written
+                os._exit(0)
+            threading.Timer(1.5, leave).start()
+            return self.send_json({"ok": True, "version": latest.get("tag")})
         if route == "open-url":  # release page / issue forms / donation page of this project, a WT Live post (Mods) only
             url = str(body.get("url", ""))
             if url.startswith(f"https://github.com/{REPO}/") or url == DONATE or wtlive.POST.fullmatch(url):
@@ -1309,49 +1358,52 @@ class Handler(BaseHTTPRequestHandler):
                 game.open_folder(um)
             return self.send_json({"ok": bool(gd)})
         if route == "settings":
-            s = STATE.settings()
-            for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll", "dataSource",
-                      "audioDevice", "battleLog", "startMinimized", "trayMinimize", "closeWithGame", "launchGame"):
-                if k in body:
-                    s[k] = body[k]
-            if on_network(s.get("gameDir")) or on_network(s.get("oodleDll")):  # what the app runs and loads stays on this PC
-                return self.send_json({"error": "Pick something on this PC, not on a network path."}, 400)
-            if s.get("gameDir") and not game.resolve_game_dir(Path(s["gameDir"]).expanduser()):
-                return self.send_json({"error": "This folder does not look like a War Thunder install."}, 400)
-            if s.get("oodleDll") and maptex.oodle_version(Path(s["oodleDll"]).name) is None:
-                return self.send_json({"error": "Pick an Oodle runtime file: oo2core_<version>_win64.dll (Windows), liboo2core*.dylib (macOS) or liboo2corelinux64.so.<version> (Linux)."}, 400)
-            if s.get("dataSource", "datamine") not in ("datamine", "game"):
-                return self.send_json({"error": "Unknown game data source."}, 400)
-            if body.get("dataSource") == "game" and not vromfs.available():
-                return self.send_json({"error": vromfs.NO_ZSTD}, 400)
-            STATE.save_settings(s)
+            with SAVING:  # read, change, save: no other change lands in between (it would be lost)
+                s = STATE.settings()
+                for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll", "dataSource",
+                          "audioDevice", "battleLog", "startMinimized", "trayMinimize", "closeWithGame", "launchGame"):
+                    if k in body:
+                        s[k] = body[k]
+                if on_network(s.get("gameDir")) or on_network(s.get("oodleDll")):  # what the app runs and loads stays on this PC
+                    return self.send_json({"error": "Pick something on this PC, not on a network path."}, 400)
+                if s.get("gameDir") and not game.resolve_game_dir(Path(s["gameDir"]).expanduser()):
+                    return self.send_json({"error": "This folder does not look like a War Thunder install."}, 400)
+                if s.get("oodleDll") and maptex.oodle_version(Path(s["oodleDll"]).name) is None:
+                    return self.send_json({"error": "Pick an Oodle runtime file: oo2core_<version>_win64.dll (Windows), liboo2core*.dylib (macOS) or liboo2corelinux64.so.<version> (Linux)."}, 400)
+                if s.get("dataSource", "datamine") not in ("datamine", "game"):
+                    return self.send_json({"error": "Unknown game data source."}, 400)
+                if body.get("dataSource") == "game" and not vromfs.available():
+                    return self.send_json({"error": vromfs.NO_ZSTD}, 400)
+                STATE.save_settings(s)
             apply_alarm_settings()
             return self.send_json(api_status())
         if route == "overlay":  # My overlay: every change is saved, the window follows at once; reset: the defaults
             key = str(body.get("profile") or "")
             if key and not alarms.PROFILE.fullmatch(key):
                 return self.send_json({"error": "Invalid profile"}, 400)
-            s = STATE.settings()
-            cfg = None if body.get("reset") else alarms.clean(body.get("cfg"), WATCH.words)
-            if key:
-                profiles = s["overlayProfiles"] = s.get("overlayProfiles") if isinstance(s.get("overlayProfiles"), dict) else {}
-                profiles[key] = cfg or alarms.defaults(WATCH.words)
-            elif cfg:
-                s["overlay"] = cfg
-            else:
-                s.pop("overlay", None)
-            if "enabled" in body:
-                s["alarms"] = body["enabled"] is True
-            STATE.save_settings(s)
+            with SAVING:
+                s = STATE.settings()
+                cfg = None if body.get("reset") else alarms.clean(body.get("cfg"), WATCH.words)
+                if key:
+                    profiles = s["overlayProfiles"] = s.get("overlayProfiles") if isinstance(s.get("overlayProfiles"), dict) else {}
+                    profiles[key] = cfg or alarms.defaults(WATCH.words)
+                elif cfg:
+                    s["overlay"] = cfg
+                else:
+                    s.pop("overlay", None)
+                if "enabled" in body:
+                    s["alarms"] = body["enabled"] is True
+                STATE.save_settings(s)
             apply_alarm_settings()
             if WATCH.preview:
                 WATCH.set_preview(WATCH.profiles.get(key, WATCH.base), key)
             return self.send_json(overlay_status(key))
         if route == "overlay-profile-delete":
-            s = STATE.settings()
-            if isinstance(s.get("overlayProfiles"), dict):
-                s["overlayProfiles"].pop(str(body.get("profile")), None)
-            STATE.save_settings(s)
+            with SAVING:
+                s = STATE.settings()
+                if isinstance(s.get("overlayProfiles"), dict):
+                    s["overlayProfiles"].pop(str(body.get("profile")), None)
+                STATE.save_settings(s)
             apply_alarm_settings()
             return self.send_json(overlay_status())
         if route == "bench-stop":  # the test ends here: what was flown is analysed
@@ -1467,8 +1519,7 @@ class Handler(BaseHTTPRequestHandler):
         if route == "update-check":
             return self.send_json(check_for_update(start=bool(body.get("start", True))))
         if route == "update":
-            if not STATE.update["running"]:
-                threading.Thread(target=run_update, daemon=True).start()
+            start_update()
             return self.send_json(STATE.update)
         return self.send_json({"error": "unknown route"}, 404)
 

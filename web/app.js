@@ -134,6 +134,7 @@ function toast({ title, sub = '', err = false, actions = [], ms = 6000 }) {
   });
   $('#toasts').appendChild(el);
   if (ms) setTimeout(close, ms);
+  return close;
 }
 const toastErr = e => toast({ title: t('toast.error', { msg: e.message || e }), err: true });
 

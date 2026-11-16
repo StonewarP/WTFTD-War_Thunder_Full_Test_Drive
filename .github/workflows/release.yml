@@ -3,7 +3,8 @@ name: Build the apps
 # Publishing a release builds WTFTD-<version>-windows.exe (Windows), WTFTD-<version>-macos.zip (WTFTD.app, Apple
 # silicon) and WTFTD-<version>-linux.tar.gz (Linux, x86-64) from the tagged code on GitHub's servers and attaches them to
 # the release with their SHA-256, so anyone can check that the download comes from this source code. Each name says its
-# system; the app's update check finds its own download by that ending (APP_ASSET in wtftd/server.py).
+# system; the app's update check and its one-click update find their own download by that ending (ASSET in
+# wtftd/selfupdate.py). With the secret VT_API_KEY set, the last job has VirusTotal scan the three and links their reports.
 on:
   release:
     types: [published]
@@ -131,4 +132,38 @@ jobs:
 
           **SHA-256** of $tgz (built by GitHub Actions from this tag): \`$hash\`
           Check it in a terminal: \`sha256sum $tgz\`" ;;
+          esac
+
+  virustotal:
+    needs: build-linux  # one job at a time edits the release notes
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      VT_API_KEY: ${{ secrets.VT_API_KEY }}  # a VirusTotal account's API key (free), in the repository's secrets
+    steps:
+      - name: No API key, no scan
+        if: env.VT_API_KEY == ''
+        run: |
+          echo "::notice::VT_API_KEY isn't set: the release gets no VirusTotal links"
+      - name: Scan the apps on VirusTotal and link their reports
+        if: env.VT_API_KEY != ''
+        run: |
+          mkdir apps && cd apps
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'WTFTD-*-windows.exe' --pattern 'WTFTD-*-macos.zip' --pattern 'WTFTD-*-linux.tar.gz'
+          links=""
+          for f in WTFTD-*; do
+            # an upload address of its own: the plain upload takes files up to 32 MB only
+            url=$(curl -sSf -H "x-apikey: $VT_API_KEY" https://www.virustotal.com/api/v3/files/upload_url | python3 -c "import json, sys; print(json.load(sys.stdin)['data'])")
+            curl -sSf -H "x-apikey: $VT_API_KEY" -F "file=@$f" "$url" > /dev/null
+            links="$links
+          - [$f](https://www.virustotal.com/gui/file/$(sha256sum "$f" | cut -d' ' -f1))"
+            sleep 31  # the free API: 4 requests a minute
+          done
+          body=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body)
+          case "$body" in
+            *"**VirusTotal**"*) ;;  # already there (the job run again)
+            *) gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$body
+
+          **VirusTotal**: each file as some 70 antivirus engines saw it when it was published (the report fills in a few minutes after). The apps aren't code-signed: one or two engines flagging a new unsigned app is common.$links" ;;
           esac

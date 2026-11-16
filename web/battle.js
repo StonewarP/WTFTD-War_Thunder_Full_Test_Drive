@@ -23,7 +23,9 @@ function btRender() {
 
 async function btPoll() {
   clearTimeout(BT.timer);
+  if (BT.busy) return;  // one asking at a time: its answer sets the next (a second loop asked the same ids, lines came twice)
   if ($('#view-battle').classList.contains('hidden') && !$('#btSave').checked) return;  // saving goes on behind other tabs
+  BT.busy = true;
   try {
     const st = await api(`battle/${BT.lastChat}/${BT.lastEvent}/${BT.lastDamage}`);
     if (!st.up) BT.gone = true;
@@ -40,7 +42,7 @@ async function btPoll() {
       BT.log = BT.log.concat(st.events, st.damage).sort((a, b) => a.time - b.time).slice(-BT_MAX);
       btRender();
     }
-  } catch { /* the app is closing */ }
+  } catch { /* the app is closing */ } finally { BT.busy = false; }
   BT.timer = setTimeout(btPoll, 1500);
 }
 

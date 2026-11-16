@@ -151,20 +151,20 @@ function flState() {
 // live: asks every second, and only what's new
 async function flPoll() {
   clearTimeout(FL.timer);
+  if (FL.busy) return;  // one asking at a time: its answer sets the next
   if ($('#view-flight').classList.contains('hidden')) return;
+  FL.busy = true;
   try {
     const st = await api('flight/' + FL.seq);
     FL.units = st.units;
     FL.flying = st.flying;
     FL.recording = st.log;
     if (st.aircraft !== FL.aircraft) flSheet(st.aircraft);
-    if (st.rows.length && !FL.log) {
-      FL.rows = FL.rows.concat(st.rows).slice(-3600);
-      FL.seq = st.rows.at(-1).n;
-    }
+    if (st.rows.length) FL.seq = st.rows.at(-1).n;  // a log on show: only what's new is asked all the same (else the whole trace each second)
+    if (st.rows.length && !FL.log) FL.rows = FL.rows.concat(st.rows).slice(-3600);
     flState();
     if (!FL.log) flDraw();
-  } catch { /* the app is closing */ }
+  } catch { /* the app is closing */ } finally { FL.busy = false; }
   FL.timer = setTimeout(flPoll, 1000);
 }
 

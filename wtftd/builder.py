@@ -1412,138 +1412,142 @@ def build_vehicles(lang: Lang, progress=None):
         json.dump(catalog, fw, separators=(",", ":"))
     log(f"Processing {len(entries)} vehicles...", progress)
     for i, (vid, cat, v, hidden) in enumerate(entries):
-        if i % 500 == 0 and i:
-            log(f"  {i}/{len(entries)}", progress)
-        if i % 40 == 0:
-            report(progress, 0.56 + 0.30 * i / max(1, len(entries)))
-        udata = load(unit_file(vid, cat))
-        if udata is None:
-            continue
-        if hidden and cat == "air":
-            t = str(udata.get("type", "")).lower()
-            if "helicopter" in t:
-                cat = "heli"
-            if not udata.get("fmFile") and "helicopter" not in t:
+        try:  # one file of a shape not seen yet: that vehicle is left out, the update goes on
+            if i % 500 == 0 and i:
+                log(f"  {i}/{len(entries)}", progress)
+            if i % 40 == 0:
+                report(progress, 0.56 + 0.30 * i / max(1, len(entries)))
+            udata = load(unit_file(vid, cat))
+            if udata is None:
                 continue
-        if hidden and cat == "ship":
-            ec = str(udata.get("expClass", "") or udata.get("type", "")).lower()
-            if "boat" in ec or "fast" in ec:
-                cat = "boat"
-
-        lang.put("units", vid, f"{vid}_shop", f"{vid}_0", fallback=humanize(vid))
-        if f"{vid}_0" in lang.all:
-            lang.put("unitsFull", vid, f"{vid}_0")
-
-        country = (v.get("country") or "").replace("country_", "") or guess_nation(vid)
-        rec = {
-            "id": vid,
-            "c": cat,
-            "n": country or "other",
-            "r": num(v.get("rank")),
-            "br": [br_from(v.get("economicRankArcade")), br_from(v.get("economicRankHistorical")), br_from(v.get("economicRankSimulation"))],
-            "k": (v.get("unitClass") or "").replace("exp_", ""),
-        }
-        if v.get("costGold"):
-            rec["p"] = 1
-        if v.get("reqAir"):
-            rec["rq"] = v["reqAir"]  # the vehicle to research first
-        if hidden:
-            rec["h"] = 1
-        if not v.get("value") and not v.get("costGold") and not hidden:
-            rec["g"] = 1  # gift / event / squadron etc.
-
-        mods = set(aslist(v.get("modifications")) if isinstance(v.get("modifications"), list) else (v.get("modifications") or {}).keys())
-
-        presets = []
-        for p in aslist((udata.get("weapon_presets") or {}).get("preset")):
-            if not isinstance(p, dict) or not p.get("name"):
-                continue
-            entry = {"id": p["name"], "w": preset_composition(p, udata if cat in ("air", "heli") else None, wc)}
-            if cat in ("air", "heli"):
-                pdata = load(blk_to_path(first_str(p.get("blk")))) or {}
-                smap = {str(w["slot"]): w["preset"] for w in aslist(pdata.get("Weapon"))
-                        if isinstance(w, dict) and "slot" in w and "preset" in w}
-                if smap:
-                    entry["s"] = smap
-            if p.get("reqModification"):
-                entry["req"] = p["reqModification"]
-            presets.append(entry)
-
-        details[vid] = {
-            "b": UNIT_BLOCK[cat],
-            "pr": presets,
-            "am": vehicle_ammo(udata, cat, mods, wc),
-            "st": base_stats(vid, udata, cat),
-        }
-        systems = systems_with_stock(cat, udata, mods)
-        if systems:
-            details[vid]["sy"] = systems
-        if cat in ("air", "heli"):
-            sl = weapon_slots(udata, wc)
-            if sl:
-                details[vid]["sl"] = sl
-            # fixed presets only: their attachment points, for a custom loadout written as plain weapons
-            lp, lmap = legacy_pylons(udata, wc)
-            if lp:
-                details[vid]["lp"] = lp
-                for entry in presets:
-                    if lmap.get(entry["id"]):
-                        entry["ls"] = lmap[entry["id"]]
-            em = pylon_emitters(udata)
-            if em:
-                details[vid]["em"] = em
-            if not sl and not lp:  # no pylon at all: its first gun's muzzle takes what's mounted
-                gun = next((first_str(w.get("emitter")) for w in aslist((udata.get("commonWeapons") or {}).get("Weapon"))
-                            if isinstance(w, dict) and first_str(w.get("emitter")) and first_str(w.get("trigger")) in ("machine gun", "cannon")), "")
-                if gun:
-                    lp = details[vid]["lp"] = [{"i": 1, "e": gun, "o": []}]
-            own = [first_str(s.get("blk")).replace("\\", "/").rsplit("/", 1)[-1].removesuffix(".blk").lower()
-                   for s in aslist((udata.get("sensors") or {}).get("sensor")) if isinstance(s, dict)]
-            if own:
-                details[vid]["se"] = own
-            flags = [k for k in AVIONICS if udata.get(k) is True]
-            if flags:
-                details[vid]["av"] = flags
-            if ((details[vid].get("st") or {}).get("lim") or {}).get("jet"):
-                rec["j"] = 1
-            keys = {k for s in sl for o in s["o"] for k, _ in o["w"]} | {k for p in presets for k, _ in p["w"]}
-            for s in sl + lp:
-                for o in s["o"]:
-                    o["c"] = next(((catalog.get(k) or {}).get("c") for k, _ in o["w"] if catalog.get(k)), "")
-            caps = aircraft_caps(udata, catalog, keys)
-            if caps:
-                details[vid]["cap"] = caps
-        roles = vehicle_roles(unittags.get(vid) or {}, rec["k"], lang, vid)
-        if roles:
-            rec["ro"] = roles
-        stats = vehicle_stats(cat, udata, v, unittags.get(vid) or {}, details[vid]["st"], details[vid]["am"])
-        economy, stock_economy = vehicle_economy(cat, v, warpoints, ranks)
-        stats.update(economy)
-        if stats:
-            rec["s"] = stats
-            su = {**stock_stats(cat, stats, stock_factors(udata, mods)), **stock_economy}
-            if su:
-                rec["su"] = su  # stock values (rec["s"] = fully upgraded)
-        # what it carries, for "search by weapon": guns, presets / pylon weapons, ammunition
-        guns, carried, ammo_names = [], [], []
-        for g in details[vid]["am"]:
-            if g.get("w"):
-                guns.append(g["w"])
-                if g["w"] not in arsenal:
-                    arsenal[g["w"]] = {"c": "gun", "cal": _caliber_mm(g.get("p", ""))}
-            for o in g.get("opts", []):
-                if o.get("x"):
+            if hidden and cat == "air":
+                t = str(udata.get("type", "")).lower()
+                if "helicopter" in t:
+                    cat = "heli"
+                if not udata.get("fmFile") and "helicopter" not in t:
                     continue
-                for b in o.get("b", []):
-                    ammo_names.append(b)
-                    if b not in arsenal and o.get("t"):
-                        arsenal[b] = {"c": "ammo", "t": o["t"][0]}
-        carried += [k for p in presets for k, _ in p["w"]]
-        carried += [k for sl_ in details[vid].get("sl", []) for o in sl_["o"] for k, _ in o["w"]]
-        for key, lst in (("wg", guns), ("wp", carried), ("wa", ammo_names)):
-            if lst:
-                rec[key] = list(dict.fromkeys(lst))
-        vehicles.append(rec)
+            if hidden and cat == "ship":
+                ec = str(udata.get("expClass", "") or udata.get("type", "")).lower()
+                if "boat" in ec or "fast" in ec:
+                    cat = "boat"
+
+            lang.put("units", vid, f"{vid}_shop", f"{vid}_0", fallback=humanize(vid))
+            if f"{vid}_0" in lang.all:
+                lang.put("unitsFull", vid, f"{vid}_0")
+
+            country = (v.get("country") or "").replace("country_", "") or guess_nation(vid)
+            rec = {
+                "id": vid,
+                "c": cat,
+                "n": country or "other",
+                "r": num(v.get("rank")),
+                "br": [br_from(v.get("economicRankArcade")), br_from(v.get("economicRankHistorical")), br_from(v.get("economicRankSimulation"))],
+                "k": (v.get("unitClass") or "").replace("exp_", ""),
+            }
+            if v.get("costGold"):
+                rec["p"] = 1
+            if v.get("reqAir"):
+                rec["rq"] = v["reqAir"]  # the vehicle to research first
+            if hidden:
+                rec["h"] = 1
+            if not v.get("value") and not v.get("costGold") and not hidden:
+                rec["g"] = 1  # gift / event / squadron etc.
+
+            mods = set(aslist(v.get("modifications")) if isinstance(v.get("modifications"), list) else (v.get("modifications") or {}).keys())
+
+            presets = []
+            for p in aslist((udata.get("weapon_presets") or {}).get("preset")):
+                if not isinstance(p, dict) or not p.get("name"):
+                    continue
+                entry = {"id": p["name"], "w": preset_composition(p, udata if cat in ("air", "heli") else None, wc)}
+                if cat in ("air", "heli"):
+                    pdata = load(blk_to_path(first_str(p.get("blk")))) or {}
+                    smap = {str(w["slot"]): w["preset"] for w in aslist(pdata.get("Weapon"))
+                            if isinstance(w, dict) and "slot" in w and "preset" in w}
+                    if smap:
+                        entry["s"] = smap
+                if p.get("reqModification"):
+                    entry["req"] = p["reqModification"]
+                presets.append(entry)
+
+            details[vid] = {
+                "b": UNIT_BLOCK[cat],
+                "pr": presets,
+                "am": vehicle_ammo(udata, cat, mods, wc),
+                "st": base_stats(vid, udata, cat),
+            }
+            systems = systems_with_stock(cat, udata, mods)
+            if systems:
+                details[vid]["sy"] = systems
+            if cat in ("air", "heli"):
+                sl = weapon_slots(udata, wc)
+                if sl:
+                    details[vid]["sl"] = sl
+                # fixed presets only: their attachment points, for a custom loadout written as plain weapons
+                lp, lmap = legacy_pylons(udata, wc)
+                if lp:
+                    details[vid]["lp"] = lp
+                    for entry in presets:
+                        if lmap.get(entry["id"]):
+                            entry["ls"] = lmap[entry["id"]]
+                em = pylon_emitters(udata)
+                if em:
+                    details[vid]["em"] = em
+                if not sl and not lp:  # no pylon at all: its first gun's muzzle takes what's mounted
+                    gun = next((first_str(w.get("emitter")) for w in aslist((udata.get("commonWeapons") or {}).get("Weapon"))
+                                if isinstance(w, dict) and first_str(w.get("emitter")) and first_str(w.get("trigger")) in ("machine gun", "cannon")), "")
+                    if gun:
+                        lp = details[vid]["lp"] = [{"i": 1, "e": gun, "o": []}]
+                own = [first_str(s.get("blk")).replace("\\", "/").rsplit("/", 1)[-1].removesuffix(".blk").lower()
+                       for s in aslist((udata.get("sensors") or {}).get("sensor")) if isinstance(s, dict)]
+                if own:
+                    details[vid]["se"] = own
+                flags = [k for k in AVIONICS if udata.get(k) is True]
+                if flags:
+                    details[vid]["av"] = flags
+                if ((details[vid].get("st") or {}).get("lim") or {}).get("jet"):
+                    rec["j"] = 1
+                keys = {k for s in sl for o in s["o"] for k, _ in o["w"]} | {k for p in presets for k, _ in p["w"]}
+                for s in sl + lp:
+                    for o in s["o"]:
+                        o["c"] = next(((catalog.get(k) or {}).get("c") for k, _ in o["w"] if catalog.get(k)), "")
+                caps = aircraft_caps(udata, catalog, keys)
+                if caps:
+                    details[vid]["cap"] = caps
+            roles = vehicle_roles(unittags.get(vid) or {}, rec["k"], lang, vid)
+            if roles:
+                rec["ro"] = roles
+            stats = vehicle_stats(cat, udata, v, unittags.get(vid) or {}, details[vid]["st"], details[vid]["am"])
+            economy, stock_economy = vehicle_economy(cat, v, warpoints, ranks)
+            stats.update(economy)
+            if stats:
+                rec["s"] = stats
+                su = {**stock_stats(cat, stats, stock_factors(udata, mods)), **stock_economy}
+                if su:
+                    rec["su"] = su  # stock values (rec["s"] = fully upgraded)
+            # what it carries, for "search by weapon": guns, presets / pylon weapons, ammunition
+            guns, carried, ammo_names = [], [], []
+            for g in details[vid]["am"]:
+                if g.get("w"):
+                    guns.append(g["w"])
+                    if g["w"] not in arsenal:
+                        arsenal[g["w"]] = {"c": "gun", "cal": _caliber_mm(g.get("p", ""))}
+                for o in g.get("opts", []):
+                    if o.get("x"):
+                        continue
+                    for b in o.get("b", []):
+                        ammo_names.append(b)
+                        if b not in arsenal and o.get("t"):
+                            arsenal[b] = {"c": "ammo", "t": o["t"][0]}
+            carried += [k for p in presets for k, _ in p["w"]]
+            carried += [k for sl_ in details[vid].get("sl", []) for o in sl_["o"] for k, _ in o["w"]]
+            for key, lst in (("wg", guns), ("wp", carried), ("wa", ammo_names)):
+                if lst:
+                    rec[key] = list(dict.fromkeys(lst))
+            vehicles.append(rec)
+        except (AttributeError, TypeError, KeyError, ValueError, IndexError) as e:
+            details.pop(vid, None)
+            log(f"  {vid} left out: {type(e).__name__}: {e}", progress)
     for key, entry in catalog.items():
         votes = ICON_VOTES.get(key)
         entry["ic"] = max(votes, key=votes.get) if votes else CATEGORY_ICONS.get(entry["c"], "bombs_middle")
@@ -2812,7 +2816,7 @@ def build_levels(progress=None) -> dict:
     return out
 
 
-def build_scenarios(lang: Lang, progress=None):
+def build_scenarios(lang: Lang, progress=None, levels: dict | None = None):
     log("Collecting official test drive / test flight missions...", progress)
     report(progress, 0.87)
     root = DM / "mis.vromfs.bin_u" / "gamedata" / "missions"
@@ -2894,7 +2898,7 @@ def build_scenarios(lang: Lang, progress=None):
     scenarios += build_hangar_scenarios(out_dir)
     log(f"  {len(scenarios)} scenarios", progress)
     scenarios += build_battle_scenarios(out_dir, lang, progress)  # maps with a battle layout get no bare start too
-    scenarios += build_free_scenarios(out_dir, lang, {s["map"] for s in scenarios}, build_levels(), progress)
+    scenarios += build_free_scenarios(out_dir, lang, {s["map"] for s in scenarios}, build_levels() if levels is None else levels, progress)
     return scenarios
 
 
@@ -3015,33 +3019,66 @@ def apply_rarity(vehicles: list, trees: dict):
 def build(pull: bool = True, progress=None, source: str = "datamine", game_dir: Path | None = None):
     """source: "datamine", or "game" to read the install in game_dir. After a failure, the app keeps reading the
     files of the data it has."""
-    global DM
+    global DM, DATA
+    from . import armament
     before, DM = DM, GAMEFILES if source == "game" else DATAMINE
+    live, tmp = DATA, DATA.with_name("data.tmp")
     from .game import circuit
     try:
         if pull:
             fetch_gamefiles(game_dir, progress) if source == "game" else fetch_datamine(progress)
-        meta = _build(progress, source, circuit=circuit(game_dir) if source == "game" else None)
+        shutil.rmtree(tmp, ignore_errors=True)
+        DATA = armament.DATA = tmp  # built beside: a build stopped halfway (the app closed, a full disk) leaves the data in use whole
+        meta = _build(progress, source, circuit=circuit(game_dir) if source == "game" else None, previous=live)
+        if (tmp / "meta.json").exists():  # written last: the build went through
+            _take_place(tmp, live)
     except BaseException:
         DM = before
+        shutil.rmtree(tmp, ignore_errors=True)
         raise
+    finally:
+        DATA = armament.DATA = live
     if source == "datamine" and (load(DEV / "data" / "meta.json") or {}).get("source") != "game":
         shutil.rmtree(GAMEFILES, ignore_errors=True)  # made again from the game in a minute or two; kept for the game's other database
     return meta
 
 
-def _build(progress, source: str, history: bool = True, circuit: str | None = None):
+def _take_place(new: Path, live: Path) -> None:
+    """A finished database in place of the one in use, the old one aside meanwhile: put back if the new one can't go in."""
+    old = live.with_name("data.old")
+    shutil.rmtree(old, ignore_errors=True)
+    for attempt in range(5):  # a file of it held open a moment (an antivirus, a page loading): again
+        try:
+            if live.exists():
+                live.rename(old)
+            break
+        except OSError:
+            if attempt == 4:
+                raise
+            time.sleep(0.2)
+    try:
+        new.rename(live)
+    except OSError:
+        if old.exists():
+            old.rename(live)
+        raise
+    shutil.rmtree(old, ignore_errors=True)
+
+
+def _build(progress, source: str, history: bool = True, circuit: str | None = None, previous: Path | None = None):
+    """previous: the database in use, when this one is built beside it (DATA): what the patch is compared with."""
     t0 = time.time()
     if not DM.exists():
         raise RuntimeError("Datamine not found. Run without --no-pull first.")
     DATA.mkdir(exist_ok=True)
     version = (DM / "version").read_text().strip() if (DM / "version").exists() else "?"
-    before = patches.snapshot(DATA, version) if history else None  # now: the first files are replaced long before "Writing database"
+    before = patches.snapshot(previous or DATA, version) if history else None
     log("Loading game localization...", progress)
     report(progress, 0.46)
     lang = Lang()
     vehicles, details = build_vehicles(lang, progress)
-    scenarios = build_scenarios(lang, progress)
+    levels = build_levels(progress)  # once: the scenarios need it too
+    scenarios = build_scenarios(lang, progress, levels)
     trees = build_trees(lang, {v["id"] for v in vehicles}, progress)
     apply_rarity(vehicles, trees)
     from .armament import build_armament
@@ -3053,7 +3090,7 @@ def _build(progress, source: str, history: bool = True, circuit: str | None = No
     with open(DATA / "details.json", "w", encoding="utf-8") as f:
         json.dump(details, f, separators=(",", ":"))
     with open(DATA / "levels.json", "w", encoding="utf-8") as f:
-        json.dump(build_levels(progress), f, separators=(",", ":"))
+        json.dump(levels, f, separators=(",", ":"))
     with open(DATA / "trees.json", "w", encoding="utf-8") as f:
         json.dump(trees, f, separators=(",", ":"))
     with open(DATA / "scenarios.json", "w", encoding="utf-8") as f:

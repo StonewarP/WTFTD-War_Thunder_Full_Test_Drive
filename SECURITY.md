@@ -51,6 +51,10 @@ Only the latest release is supported: fixes ship in a new version.
   [War Thunder datamine](https://github.com/gszabi99/War-Thunder-Datamine)
   (with your Git, or the official portable MinGit from git-for-windows); vehicle images from the
   [War Thunder wiki](https://wiki.warthunder.com/), and the release list of this repository (new version alert).
+  **Update now** (New version): the release's file for your system, from this repository's GitHub releases only (its
+  download link and GitHub's own file servers, `*.githubusercontent.com`; any other redirect stops it), checked against
+  the SHA-256 the release lists before it replaces the app. The check catches a damaged download, not a release
+  published by someone who took over the GitHub account: the same trust as downloading it yourself.
   In Mods → WT Live, when you open it: the public list of [WT Live](https://live.warthunder.com/) posts (asked with
   the filters you pick, no account) and their pictures; a post's file only when you click Install, from WT Live's own
   servers only (`live.warthunder.com`, `cdn-live.warthunder.com`), then checked like a `.zip` you pick yourself.

@@ -251,6 +251,19 @@ class InMissionKeys(unittest.TestCase):
         self.assertEqual(m["triggers"]["wtftd_key_help"]["actions"]["playHint"]["name"], "a 'quoted' help")
 
 
+class DocumentsFolder(unittest.TestCase):
+    def test_the_real_documents_folder_comes_first(self):  # OneDrive\Dokumente, Documents moved to D:\ were missed
+        with tempfile.TemporaryDirectory() as tmp:
+            saves = Path(tmp) / "Dokumente" / "My Games" / "WarThunder" / "Saves"
+            saves.mkdir(parents=True)
+            with mock.patch.object(sights, "_documents", lambda: Path(tmp) / "Dokumente"):
+                self.assertEqual(sights._saves_roots()[0], saves)
+
+    @unittest.skipUnless(__import__("sys").platform == "win32", "Windows' own Documents setting")
+    def test_windows_says_where_documents_are(self):
+        self.assertTrue(sights._documents().is_dir())
+
+
 class CustomSights(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())

@@ -926,6 +926,10 @@ def read_manifest(user_dir: Path) -> list[str]:
     return out
 
 
+def _backups(user_dir: Path) -> Path:
+    return user_dir / "backup" / "cdk"
+
+
 def _safe_target(content: Path, rel: str) -> Path:
     target = (content / rel).resolve()
     if not any((content / pkg).resolve() in target.parents for pkg in PACKAGES):
@@ -958,8 +962,8 @@ def write_files(game_dir: Path, user_dir: Path, files: dict[str, str], pkg: str 
                 head = target.read_text(encoding="utf-8", errors="ignore")[:200]
             except OSError:
                 head = ""
-            if MARKER not in head:  # not ours (e.g. Ask3lad's file): keep a copy
-                backup = user_dir / "backup" / f"{time.strftime('%Y%m%d-%H%M%S')}_{target.name}"
+            if MARKER not in head:  # not ours (e.g. Ask3lad's file): kept at its own path, cleanup puts it back
+                backup = _backups(user_dir) / entry
                 backup.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(target, backup)
         target.write_text(text, encoding="utf-8")
@@ -985,6 +989,14 @@ def cleanup(game_dir: Path, user_dir: Path) -> int:
                 removed += 1
             except OSError:
                 pass
+    saved = _backups(user_dir)
+    for f in [p for p in saved.rglob("*") if p.is_file()] if saved.is_dir() else []:
+        try:  # another tool's file WTFTD wrote over: back in its place
+            target = _safe_target(content, f.relative_to(saved).as_posix())
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(f, target)  # a copy when the game is on another drive
+        except (OSError, CdkError):
+            pass
     for pkg in PACKAGES:
         root = content / pkg
         if not root.exists():

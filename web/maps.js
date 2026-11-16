@@ -257,8 +257,7 @@ function onMissionInput(e) {
   const key = e.target.dataset.mo;
   if (!key) return;
   if (S.mission.key !== missionKey()) Object.assign(S.mission, { title: '', fileName: '', description: '', key: missionKey() });
-  S.mission[key] = e.target.value.trim();
-  if (key === 'fileName') S.mission.fileName = S.mission.fileName.replace(/[^A-Za-z0-9_\-]+/g, '_');
+  S.mission[key] = e.target.value.trim();  // a file name as typed: the server makes it plain (mission.safe_name), "Тигр" apart from "虎式"
   saveMission();
 }
 

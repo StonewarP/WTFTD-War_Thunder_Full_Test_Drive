@@ -618,6 +618,8 @@ def repair(game: Path, name: str, fixes, running: bool = False) -> None:
         target = game.joinpath(*rel.split("/"))
         if target.is_file():
             target.write_text(_fix_text(text, picks), encoding="utf-8")
+            if isinstance(m.get("stamps"), dict):  # made again by WTFTD: still its own
+                m["stamps"][rel] = _stamp(target)
     m["originals"] = originals
     m["fixes"] = {it["ref"]: {"pick": picks[it["ref"]], "fatal": it["fatal"]} for it in items}
     _write_manifest(data)
@@ -843,7 +845,10 @@ def _copy_pairs(found: list, vehicles: list, plan: dict) -> list:
             at = (*t[:-1], folder, t[-1])
             out.append((text.encode(), at))
             fm = re.search(r'(?m)^\s*fmFile:t="([^"#]+)"', text)
-            fm_at = (*t[:-1], folder, *fm.group(1).split("/")) if fm else None
+            try:  # a .blk below the vehicle's folder only: ".." passed the name check and reached anywhere in the game
+                fm_at = (*t[:-1], folder, *safe_path(fm.group(1))) if fm and fm.group(1).lower().endswith(".blk") else None
+            except ModsError:
+                fm_at = None
             if fm_at and "/".join(fm_at).lower() not in places and all(re.fullmatch(r"[A-Za-z0-9_\-. ]+", x) for x in fm.group(1).split("/")):
                 # its flight model may be looked up next to it (cdk.py writes both for its own): one that includes it
                 out.append((f'include "{INCLUDE_ROOT}{here}{fm.group(1)}"\n'.encode(), fm_at))
@@ -924,7 +929,8 @@ def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids
             inner = _files(d)
             wanted = (vehicles or {}).get(name)
             guess = guess_vehicle(name, [p.name for p in inner], _replacements(d, inner), ids)
-            data["skins"][name] = {"vehicle": wanted if wanted in set(ids) else guess["vehicle"], "files": [p.relative_to(d).as_posix() for p in inner]}
+            files = [p.relative_to(d).as_posix() for p in inner]
+            data["skins"][name] = {"vehicle": wanted if wanted in set(ids) else guess["vehicle"], "files": files, "stamps": _stamps(dest / name, files)}
     elif kind == "vehicle":  # new files only, the game running or not: it reads them at its next start (the page says so)
         pkg = _package_root(root)
         found = _vehicle_files(pkg)
@@ -946,7 +952,7 @@ def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids
             if path.exists():
                 raise ModsError("exists", "/".join(target))
         _copy_all(pairs)
-        data["vehicles"][name] = {"files": ["/".join(t) for _, t in placed], "vehicles": vehicles,
+        data["vehicles"][name] = {"files": ["/".join(t) for _, t in placed], "stamps": _stamps(game, ["/".join(t) for _, t in placed]), "vehicles": vehicles,
                                   "missions": ["/".join(t) for t in _missions(found)], "copies": _copies(vehicles, plan)}
         if picks:
             fatal = dict(missing_game_files(found))
@@ -961,7 +967,7 @@ def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids
             if path.exists():
                 raise ModsError("exists", "/".join(t))
         _copy_all(pairs)
-        data["hangars"][name] = {"files": ["/".join(t) for _, t in found], "line": line}
+        data["hangars"][name] = {"files": ["/".join(t) for _, t in found], "stamps": _stamps(game, ["/".join(t) for _, t in found]), "line": line}
     else:  # new banks only, the game running or not: heard from its next start (the switch, config.blk, waits for it closed)
         dest = game.joinpath(*SOUNDS)
         dest.mkdir(parents=True, exist_ok=True)
@@ -974,18 +980,35 @@ def install(game: Path, token: str, kind: str, vehicles: dict | None = None, ids
         name = inspect(token, "sound")["sound"]["name"]
         while name in data["sounds"]:
             name += "+"
-        data["sounds"][name] = {"files": sorted(paths.values())}
+        data["sounds"][name] = {"files": sorted(paths.values()), "stamps": _stamps(dest, paths.values())}
     _write_manifest(data)
     forget(token)
     return data
 
 
-def _remove_files(root: Path, files: list) -> int:
-    """Only the listed files, then the folders that leaves empty."""
+def _stamp(p: Path) -> list | None:
+    try:
+        st = p.stat()
+        return [st.st_size, st.st_mtime_ns]
+    except OSError:
+        return None
+
+
+def _stamps(root: Path, rels) -> dict:
+    """Each file as WTFTD put it in place (size, time): one changed since is someone else's, never removed as WTFTD's."""
+    return {rel: _stamp(_inside(root, *safe_path(rel))) for rel in rels}
+
+
+def _remove_files(root: Path, files: list, stamps: dict | None = None) -> int:
+    """Only the listed files, then the folders that leaves empty; not one changed since WTFTD put it there (stamps: the
+    manifest's, none before 0.33: listed is enough)."""
     n = 0
+    stamps = stamps if isinstance(stamps, dict) else {}
     for rel in files:
         try:
             target = _inside(root, *safe_path(rel))
+            if stamps.get(rel) and _stamp(target) != stamps[rel]:  # another mod copied over it by hand: theirs now
+                continue
             target.unlink()
             n += 1
         except (ModsError, OSError):
@@ -1003,7 +1026,8 @@ def _remove_files(root: Path, files: list) -> int:
 def remove(game: Path, kind: str, name: str, running: bool = False) -> None:
     data = read_manifest()
     if kind == "skin" and name in data["skins"]:
-        _remove_files(game / SKINS / safe_path(name)[0], data["skins"].pop(name)["files"])
+        m = data["skins"].pop(name)
+        _remove_files(game / SKINS / safe_path(name)[0], m["files"], m.get("stamps"))
         try:
             (game / SKINS / name).rmdir()
         except OSError:
@@ -1011,15 +1035,18 @@ def remove(game: Path, kind: str, name: str, running: bool = False) -> None:
     elif kind == "vehicle" and name in data["vehicles"]:
         if running:
             raise ModsError("running")  # the game may hold its files open: half removed, the rest would be nobody's
-        _remove_files(game, data["vehicles"].pop(name)["files"])
+        m = data["vehicles"].pop(name)
+        _remove_files(game, m["files"], m.get("stamps"))
     elif kind == "sound" and name in data["sounds"]:
         if running:
             raise ModsError("running")  # its banks may be open in the game
-        _remove_files(game.joinpath(*SOUNDS), data["sounds"].pop(name)["files"])
+        m = data["sounds"].pop(name)
+        _remove_files(game.joinpath(*SOUNDS), m["files"], m.get("stamps"))
     elif kind == "hangar" and name in data["hangars"]:
         if running:
             raise ModsError("running")  # its terrain may be the hangar the game shows
-        _remove_files(game, data["hangars"].pop(name)["files"])
+        m = data["hangars"].pop(name)
+        _remove_files(game, m["files"], m.get("stamps"))
     else:
         raise ModsError("notOurs", str(name))
     _write_manifest(data)
@@ -1134,7 +1161,7 @@ def remove_mission(game: Path, rel: str) -> bool:
         folder = full.rsplit("/", 1)[0] + "/"
         beside = [f for f in m["files"] if f.startswith(folder) and "/" not in f[len(folder):] and f != full]
         gone = [full, *([f for f in beside if f.lower().endswith(".csv")] if not any(f.lower().endswith(".blk") for f in beside) else [])]
-        _remove_files(game, gone)
+        _remove_files(game, gone, m.get("stamps"))
         m["files"] = [f for f in m["files"] if f not in gone]
         m["missions"] = [f for f in m.get("missions") or [] if f != full]
         _write_manifest(data)
@@ -1240,16 +1267,16 @@ def remove_all(game: Path, running: bool) -> dict:
     data = read_manifest()
     n = 0
     for name, m in data["skins"].items():
-        n += _remove_files(game / SKINS / safe_path(name)[0], m["files"])
+        n += _remove_files(game / SKINS / safe_path(name)[0], m["files"], m.get("stamps"))
         try:
             (game / SKINS / name).rmdir()
         except OSError:
             pass
     if not running:  # the game reads these as it runs: left for a later try
         for m in data["sounds"].values():
-            n += _remove_files(game.joinpath(*SOUNDS), m["files"])
+            n += _remove_files(game.joinpath(*SOUNDS), m["files"], m.get("stamps"))
         for m in [*data["vehicles"].values(), *data["hangars"].values()]:
-            n += _remove_files(game, m["files"])
+            n += _remove_files(game, m["files"], m.get("stamps"))
     kept = False
     if BACKUP.exists():
         try:

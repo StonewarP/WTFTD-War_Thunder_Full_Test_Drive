@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from wtftd import armament, builder, patches, server, uninstall
+from wtftd import armament, builder, patches, paths, server, uninstall
 
 
 _NO_DEV = []
@@ -233,7 +233,7 @@ class Build(unittest.TestCase):
         (self.dm / "version").write_text("2.60.0.21")
         write(self.data, db())
 
-    def run_build(self, fail=None):
+    def run_build(self, fail=None, whole=False):
         moved = vehicle(s={"spd": 60, "rel": 7.5, "armT": [100, 50, 30], "rp": 1000})
         lang = mock.Mock()
         lang.write.side_effect = lambda: ["en"]
@@ -245,7 +245,25 @@ class Build(unittest.TestCase):
         if fail:
             steps[fail] = mock.Mock(side_effect=RuntimeError("stopped"))
         with mock.patch.multiple(builder, **steps), mock.patch.object(patches, "FILE", self.file), mock.patch.object(armament, "build_armament"):
+            if whole:  # the way the app builds: the game's files, then the database beside the one in use
+                with mock.patch.object(builder, "fetch_gamefiles"), mock.patch.object(builder, "GAMEFILES", self.dm), \
+                        mock.patch.object(armament, "DATA", self.data), mock.patch("wtftd.game.circuit", lambda gd: None):
+                    return builder.build(source="game", game_dir=Path("."))
             return builder._build(None, "game")
+
+    def test_a_build_that_went_through_takes_the_place_of_the_data(self):
+        meta = self.run_build(whole=True)
+        self.assertEqual(meta["patch"], "2.59.0.92-2.60.0.21")  # compared with the data it replaced, not with its own
+        self.assertEqual(json.loads((self.data / "meta.json").read_text())["version"], "2.60.0.21")
+        self.assertEqual([p.name for p in self.data.parent.iterdir() if p.name.startswith("data")], ["data"])
+        self.assertEqual((builder.DATA, armament.DATA), (paths.DATA, paths.DATA))
+
+    def test_a_build_stopped_halfway_leaves_the_data_as_it_was(self):  # the app closed during an update: scenarios gone, meta old
+        before = {p.name: p.read_text() for p in self.data.glob("*.json")}
+        with self.assertRaises(RuntimeError):
+            self.run_build(fail="build_bases", whole=True)  # vehicles.json, scenarios.json... written by then
+        self.assertEqual({p.name: p.read_text() for p in self.data.glob("*.json")}, before)
+        self.assertEqual([p.name for p in self.data.parent.iterdir() if p.name.startswith("data")], ["data"])
 
     def test_a_finished_build_says_how_many_changes(self):
         meta = self.run_build()
@@ -258,7 +276,7 @@ class Build(unittest.TestCase):
         with mock.patch.object(builder, "fetch_gamefiles"), mock.patch("wtftd.game.circuit", lambda gd: "dev"), \
                 mock.patch.object(builder, "_build", return_value={}) as made, mock.patch.object(builder, "DM", builder.DM):
             builder.build(source="game", game_dir=Path("."))
-        self.assertEqual(made.call_args.kwargs, {"circuit": "dev"})
+        self.assertEqual(made.call_args.kwargs, {"circuit": "dev", "previous": builder.DATA})
         lang = mock.Mock()
         lang.write.side_effect = lambda: ["en"]
         with mock.patch.multiple(builder, Lang=mock.Mock(return_value=lang), apply_rarity=mock.Mock(), build_vehicles=mock.Mock(return_value=([vehicle()], {})),

@@ -310,6 +310,7 @@ async function importShared(text) {
     } else {
       const cb = data.v === 2 ? { ...data, id: newId(), created: Date.now(), variantId: '' } : comboFromSetup(data.cfg, name);
       delete cb.app; delete cb.v; delete cb.kind;
+      if (cb.mission) cb.mission.fileName = '';  // the sharer's file name: it would replace a mission of that name here, unasked
       name = cb.name ||= I18N.unit(vehicle);
       S.combos.unshift(cb);
       await persistCombos();

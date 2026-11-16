@@ -377,6 +377,17 @@ class Settings(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     alarms.save_sound(folder, "x.wav", bad)
 
+    def test_a_cut_sound_still_plays_at_any_volume(self):  # one byte short: array("h") refused it, the bell's thread ended
+        out = io.BytesIO()
+        with wave.open(out, "wb") as w:
+            w.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
+            w.writeframes(array("h", [1000, -1000, 2000, -2000]).tobytes())
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(alarms, "beep") as beep, mock.patch.object(alarms, "_sound_out") as played:
+            (Path(tmp) / "cut.wav").write_bytes(out.getvalue()[:-1])
+            alarms.play({"hz": 900, "ms": 80, "sound": "cut.wav"}, 50, Path(tmp))
+            beep.assert_not_called()
+            self.assertEqual(list(array("h", wave.open(io.BytesIO(played.call_args.args[0]), "rb").readframes(4))), [500, -500, 1000])
+
     def test_a_missing_sound_falls_back_on_its_beep(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(alarms, "beep") as beep:
             alarms.play({"hz": 900, "ms": 80, "sound": "gone.wav"}, 70, Path(tmp))

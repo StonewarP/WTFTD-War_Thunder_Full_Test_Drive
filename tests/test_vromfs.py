@@ -8,6 +8,8 @@ import runpy
 import struct
 import sys
 import tempfile
+import threading
+import time
 import unittest
 import warnings
 from pathlib import Path
@@ -215,6 +217,38 @@ class Containers(unittest.TestCase):
             self.assertEqual((builder.GAMEFILES / "version").read_text(), "old")
             self.assertFalse(builder.GAMEFILES.with_name("gamefiles.tmp").exists())
         self.assertEqual(builder.GAMEFILES, keep)
+
+
+class OneOddVehicle(unittest.TestCase):
+    def test_the_others_are_built(self):  # a block written twice became a list: AttributeError, and no update for anyone
+        with tempfile.TemporaryDirectory() as tmp:
+            dm, data = Path(tmp) / "dm", Path(tmp) / "data"
+            tanks = dm / "aces.vromfs.bin_u" / "gamedata" / "units" / "tankmodels"
+            for folder in (dm / "char.vromfs.bin_u" / "config", tanks, dm / "aces.vromfs.bin_u" / "gamedata" / "flightmodels", data):
+                folder.mkdir(parents=True)
+            wp = {vid: {"unitMoveType": "tank", "unitClass": "exp_tank", "rank": 1} for vid in ("good_tank", "odd_tank")}
+            (dm / "char.vromfs.bin_u" / "config" / "wpcost.blkx").write_text(json.dumps(wp))
+            (tanks / "good_tank.blkx").write_text("{}")
+            (tanks / "odd_tank.blkx").write_text(json.dumps({"weapon_presets": [{"preset": {"name": "a"}}, {"preset": {"name": "b"}}]}))
+            logged = []
+            with mock.patch.object(builder, "DM", dm), mock.patch.object(builder, "DATA", data):
+                vehicles, details = builder.build_vehicles(builder.Lang(), logged.append)
+        self.assertEqual([v["id"] for v in vehicles], ["good_tank"])
+        self.assertNotIn("odd_tank", details)
+        self.assertTrue(any("odd_tank" in line for line in logged), logged)
+
+
+class OneBuildAtATime(unittest.TestCase):
+    def test_two_asks_at_once_start_one_build(self):  # a double click, the start-up check: two builds in the same folders
+        started = []
+        with mock.patch.dict(server.STATE.update, {"running": False}), mock.patch.object(server, "run_update", lambda: (started.append(1), time.sleep(0.3))):
+            asks = [threading.Thread(target=server.Handler.post_api, args=(mock.Mock(), "update", {})) for _ in range(2)]
+            for t in asks:
+                t.start()
+            for t in asks:
+                t.join()
+            time.sleep(0.1)
+        self.assertEqual(started, [1])
 
 
 class Source(unittest.TestCase):

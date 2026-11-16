@@ -88,18 +88,21 @@ class Fetch(unittest.TestCase):
         patch.start()
         self.addCleanup(patch.stop)
 
-    def redirect(self, to):
+    def redirect(self, to, then=None):
+        """The download link's one redirect, then what the CDN answers (asked through the same opener: no redirect followed)."""
         headers = Message()
         headers["Location"] = to
         opener = mock.Mock()
-        opener.open.side_effect = urllib.error.HTTPError(DL, 302, "Found", headers, io.BytesIO())
+        found = urllib.error.HTTPError(DL, 302, "Found", headers, io.BytesIO())
+        opener.open.side_effect = [found, then] if then else found
         return mock.patch.object(wtlive.urllib.request, "build_opener", return_value=opener)
 
     def test_a_posts_file_into_the_staging_folder(self):
         body = b"PK" + b"x" * 5000
-        with self.redirect(CDN), mock.patch.object(wtlive.urllib.request, "urlopen", return_value=Response(body, {"Content-Length": str(len(body))})) as get:
+        with self.redirect(CDN, Response(body, {"Content-Length": str(len(body))})) as built, mock.patch.object(wtlive.urllib.request, "urlopen") as get:
             wtlive.fetch("abcdef", DL, "ratte_Beckett.zip")
-        self.assertEqual(get.call_args[0][0].full_url, CDN)
+        get.assert_not_called()  # urlopen followed any redirect from the CDN, http:// too
+        self.assertEqual(built.return_value.open.call_args[0][0].full_url, CDN)
         self.assertEqual((mods.STAGING / "abcdef" / "ratte_Beckett.zip").read_bytes(), body)
         self.assertEqual(wtlive.progress("abcdef"), {"done": 0, "size": 0})  # done with
 
@@ -113,7 +116,7 @@ class Fetch(unittest.TestCase):
             wtlive.fetch("abcdef", DL, "../x.zip")
 
     def test_mods_limits_still_hold(self):
-        with self.redirect(CDN), mock.patch.object(wtlive.urllib.request, "urlopen", return_value=Response(b"PK", {"Content-Length": str(mods.MAX_FILE + 1)})):
+        with self.redirect(CDN, Response(b"PK", {"Content-Length": str(mods.MAX_FILE + 1)})):
             with self.assertRaises(mods.ModsError) as e:
                 wtlive.fetch("abcdef", DL, "big.zip")
         self.assertEqual(e.exception.code, "size")

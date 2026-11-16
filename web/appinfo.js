@@ -15,10 +15,31 @@ async function checkAppVersion() {
   if (!APP.info.newer || !l) return;
   if (store.get('seenRelease', '') === l.tag) return;  // tell once per version, the pill stays
   store.set('seenRelease', l.tag);
+  const auto = APP.info.canUpdate;
   toast({
-    title: t('app.newVersion', { v: l.tag }), sub: t('app.newVersionHint', { v: APP.info.version }), ms: 15000,
-    actions: [{ label: t('app.download'), icon: 'ext', primary: true, run: () => openUrl(l.url) }],
+    title: t('app.newVersion', { v: l.tag }), sub: t(auto ? 'app.newVersionHintAuto' : 'app.newVersionHint', { v: APP.info.version }), ms: 15000,
+    actions: auto ? [{ label: t('app.updateNow'), icon: 'refresh', primary: true, run: updateApp }, { label: t('app.whatsNew'), icon: 'ext', run: () => openUrl(l.url) }]
+      : [{ label: t('app.download'), icon: 'ext', primary: true, run: () => openUrl(l.url) }],
   });
+}
+
+// New version in one click (selfupdate.py): WTFTD downloads it, checks it, puts it in its own place and restarts. Its window
+// closes and the new one's opens; on a refusal, the release page as before
+async function updateApp() {
+  const l = APP.info?.latest;
+  if (!l || APP.updating) return;
+  APP.updating = true;
+  const working = toast({ title: t('app.updating', { v: l.tag }), sub: t('app.updatingHint'), ms: 0 });
+  try {
+    await api('app-update', {});
+    working();
+    toast({ title: t('app.updateRestart', { v: l.tag }), ms: 0 });
+  } catch (e) {
+    working();
+    APP.updating = false;
+    toast({ title: t('app.updateFailed'), sub: t('app.updateWhy.' + (e.data?.code || 'offline')), err: true, ms: 20000,
+            actions: [{ label: t('app.download'), icon: 'ext', primary: true, run: () => openUrl(l.url) }] });
+  }
 }
 
 function renderAppVersion() {
@@ -28,7 +49,7 @@ function renderAppVersion() {
   if (i?.newer && i.latest) {
     $('#status').insertAdjacentHTML('afterbegin', `<button class="pill new" id="pillNewVersion" title="${esc(i.latest.name || i.latest.tag)}">
       ${icon('refresh', 'ic-sm')}${esc(t('app.newVersionShort', { v: i.latest.tag }))}</button>`);
-    $('#pillNewVersion').addEventListener('click', () => openUrl(i.latest.url));
+    $('#pillNewVersion').addEventListener('click', () => (i.canUpdate ? updateApp() : openUrl(i.latest.url)));
   }
 }
 

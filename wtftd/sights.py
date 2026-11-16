@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import zipfile
 from pathlib import Path
 
@@ -28,9 +29,22 @@ class SightError(Exception):
     pass
 
 
+def _documents() -> Path | None:
+    """Windows' own Documents folder, wherever it was moved (OneDrive\\Dokumente, D:\\...): the game's Saves are there."""
+    if sys.platform != "win32":
+        return None
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders") as k:
+            return Path(os.path.expandvars(winreg.QueryValueEx(k, "Personal")[0]))
+    except OSError:
+        return None
+
+
 def _saves_roots() -> list[Path]:
     home = Path.home()
     docs = [Path(os.environ[k]) / "Documents" for k in ("USERPROFILE", "OneDrive") if os.environ.get(k)]
+    docs = [d for d in (_documents(),) if d] + docs
     out = []
     for d in docs + [home / "Documents", home]:
         p = d / "My Games" / "WarThunder" / "Saves"

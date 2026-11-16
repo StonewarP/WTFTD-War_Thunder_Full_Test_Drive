@@ -308,6 +308,23 @@ def plan(**change):
             "speed": 600, "from": 0, "to": 0, **change}
 
 
+class ReadOn(unittest.TestCase):
+    def test_a_recording_is_read_on_from_where_it_stopped(self):  # read whole each second: 95 ms for a 3 h recording
+        with tempfile.TemporaryDirectory() as tmp:
+            log, names, state = Path(tmp) / "x-2026_11_01_12_00_00.csv", {"IAS, km/h": "ias"}, {}
+            log.write_bytes("﻿\"Time, s\",\"IAS, km/h\"\r\n0.0,300\r\n1.0,310\r\n".encode())  # as Log writes it
+            self.assertEqual(flightlog.read_on(Path(tmp), log.name, names, state), [{"t": 0.0, "ias": 300.0}, {"t": 1.0, "ias": 310.0}])
+            with open(log, "ab") as f:
+                f.write(b"2.0,320\r\n3.0,3")  # a line still being written
+            self.assertEqual([r["t"] for r in flightlog.read_on(Path(tmp), log.name, names, state)], [0.0, 1.0, 2.0])
+            with open(log, "ab") as f:
+                f.write(b"30\r\n")
+            with mock.patch("builtins.open", wraps=open) as opened:
+                rows = flightlog.read_on(Path(tmp), log.name, names, state)
+            self.assertEqual(rows, flightlog.read_log(Path(tmp), log.name, names)["rows"])
+            self.assertEqual(opened.call_count, 1)
+
+
 class Files(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()

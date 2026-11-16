@@ -2,6 +2,7 @@
    reports about your own aircraft (the same readings as Flight data, four times a second); nothing else. */
 'use strict';
 const $ = s => document.querySelector(s);
+const t = (k, vars) => I18N.t(k, vars);  // in the app's language (init: the app's settings), names as My overlay gives them
 const A0 = -135, A1 = 135;  // the needle's sweep, degrees from straight up
 const pt = (r, a) => [100 + r * Math.sin(a * Math.PI / 180), 100 - r * Math.cos(a * Math.PI / 180)];
 const arc = (r, a, b) => { const [x0, y0] = pt(r, a), [x1, y1] = pt(r, b); return `M${x0},${y0} A${r},${r} 0 ${b - a > 180 ? 1 : 0} 1 ${x1},${y1}`; };
@@ -9,21 +10,21 @@ const num = (v, d = 0) => v == null ? '—' : v.toLocaleString(undefined, { maxi
 
 // scale: [min, max] (a function of the reading when it depends on the aircraft), red: where the red zone starts
 const GAUGES = [
-  { key: 'ias', name: 'IAS km/h', scale: v => [0, Math.ceil((v.vne || 1500) / 100) * 100], red: v => v.vne && v.vne * .93 },
-  { key: 'alt', name: 'ALT m', scale: v => [0, Math.max(5000, Math.ceil((v.alt || 0) / 5000) * 5000)] },
-  { key: 'vy', name: 'CLIMB m/s', scale: () => [-100, 100], digits: 0 },
-  { key: 'g', name: 'G', scale: () => [-4, 12], digits: 1, red: () => 9 },
+  { key: 'ias', unit: 'km/h', scale: v => [0, Math.ceil((v.vne || 1500) / 100) * 100], red: v => v.vne && v.vne * .93 },
+  { key: 'alt', unit: 'm', scale: v => [0, Math.max(5000, Math.ceil((v.alt || 0) / 5000) * 5000)] },
+  { key: 'vy', unit: 'm/s', scale: () => [-100, 100], digits: 0 },
+  { key: 'g', unit: '', scale: () => [-4, 12], digits: 1, red: () => 9 },
 ];
-const STRIP = [['mach', 'MACH', 2], ['aoa', 'AOA °', 1], ['heading', 'HDG °', 0], ['throttle', 'THROTTLE %', 0], ['fuel_pct', 'FUEL %', 0],
-  ['range', 'RANGE km', 0], ['turn_rate', 'TURN °/s', 1], ['sep', 'SEP m/s', 0]];
-const SWITCHES = [['gear', 'GEAR'], ['flaps', 'FLAPS'], ['airbrake', 'BRAKE']];
+const STRIP = [['mach', '', 2], ['aoa', '°', 1], ['heading', '°', 0], ['throttle', '%', 0], ['fuel_pct', '', 0],
+  ['range', 'km', 0], ['turn_rate', '°/s', 1], ['sep', 'm/s', 0]];
+const SWITCHES = ['gear', 'flaps', 'airbrake'];  // their names say %
+const label = (key, unit) => `${t('ov.v.' + key)}${unit ? ` ${unit}` : ''}`;
 
 function build() {
   $('#gauges').innerHTML = GAUGES.map(g => `<div class="gauge" id="g-${g.key}"><svg viewBox="0 0 200 200"><g class="face"></g>
     <line class="needle" x1="100" y1="100" x2="100" y2="28"/><circle cx="100" cy="100" r="5" fill="#f3b33d"/>
-    <text class="val" x="100" y="150"></text><text class="name" x="100" y="170">${g.name}</text></svg></div>`).join('');
-  $('#strip').innerHTML = STRIP.map(([k, label]) => `<div class="cell" id="c-${k}"><small>${label}</small><b>—</b></div>`).join('')
-    + SWITCHES.map(([k, label]) => `<div class="cell" id="c-${k}"><small>${label}</small><b>—</b></div>`).join('');
+    <text class="val" x="100" y="150"></text><text class="name" x="100" y="170">${label(g.key, g.unit)}</text></svg></div>`).join('');
+  $('#strip').innerHTML = [...STRIP, ...SWITCHES.map(k => [k, ''])].map(([k, unit]) => `<div class="cell" id="c-${k}"><small>${label(k, unit)}</small><b>—</b></div>`).join('');
 }
 
 const faces = {};  // the dial drawn for each gauge, redrawn only when its scale or red zone moves
@@ -48,9 +49,9 @@ function show(now) {
     $(`#g-${g.key} .val`).textContent = num(v, g.digits ?? 0);
   }
   for (const [k, , d] of STRIP) $(`#c-${k} b`).textContent = num(now[k], d);
-  for (const [k] of SWITCHES) {
+  for (const k of SWITCHES) {
     const v = now[k], cell = $(`#c-${k}`);
-    $(`#c-${k} b`).textContent = v == null ? '—' : v > 1 ? `${Math.round(v)} %` : 'UP';
+    $(`#c-${k} b`).textContent = v == null ? '—' : v > 1 ? `${Math.round(v)} %` : t('ck.up');
     cell.classList.toggle('on', v > 1);
     cell.classList.toggle('alert', now[k + '_pct'] >= 100);  // gear_pct, flaps_pct: past their limit speed
   }
@@ -94,10 +95,17 @@ async function poll() {
     $('#msg').textContent = '';
     if (flying) show(st.now);
   } catch {
-    $('#msg').textContent = 'WTFTD is not running.';
+    $('#msg').textContent = t('ck.gone');
   }
   setTimeout(poll, 250);
 }
 
-build();
-poll();
+(async () => {  // the app's language first: the instruments' names come from it
+  try {
+    const st = await (await fetch('/api/status')).json();
+    await I18N.init(st.settings?.lang, st.data?.langs || ['en']);
+  } catch { await I18N.init('en'); }  // WTFTD not there: English, and poll says so
+  I18N.apply();
+  build();
+  poll();
+})();

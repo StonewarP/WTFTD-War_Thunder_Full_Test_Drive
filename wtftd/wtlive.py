@@ -121,7 +121,7 @@ def fetch(token: str, link: str, name: str) -> None:
     if not CDN.fullmatch(target):
         raise LiveError("file")
     try:
-        with urllib.request.urlopen(urllib.request.Request(target, headers=HEADERS), timeout=TIMEOUT) as r:
+        with opener.open(urllib.request.Request(target, headers=HEADERS), timeout=TIMEOUT) as r:  # nowhere else from the CDN either
             size = int(r.headers.get("Content-Length") or -1)
             mods.receive(token, name, _Counted(r, token, size), size, "auto")
     except (urllib.error.URLError, OSError, ValueError):

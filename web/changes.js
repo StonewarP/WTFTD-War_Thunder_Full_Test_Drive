@@ -140,6 +140,65 @@ function chTable(g) {
     ${left > 0 ? `<button class="btn btn-sm ch-more" data-chmore="${g}">${esc(t('ch.more', { n: I18N.num(Math.min(left, CH_PAGE)) }))}</button>` : ''}`;
 }
 
+// the changes on show (its filters too) as Markdown for a Reddit post or a Discord message: lists, Discord has no tables.
+// A Discord message holds 2000 characters: the first lines, and how many are left out
+const CH_SHARE = { reddit: 38000, discord: 1900 };
+function chShareText(where) {
+  const p = CH.patches.find(x => x.id === CH.id), md = s => String(s).replace(/([\\`*_~|[\]])/g, '\\$1');
+  const filters = [CH.q && `"${CH.q}"`, CH.nat && nationName(CH.nat), CH.cat && t('cat.' + CH.cat), CH.mode && t('filters.mode.' + CH.mode),
+    CH.mine && t('ch.mine')].filter(Boolean);
+  const head = `**${md(t(p.dev ? 'ch.shareDev' : 'ch.shareTitle', { from: p.from, to: p.to }))}**${filters.length ? ` (${md(filters.join(', '))})` : ''}\n`;
+  const foot = `\n*${md(t('ch.shareFoot'))}* <${APP.info?.repo || 'https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive'}>`;
+  const change = r => {
+    const f = CH.fields[r[1]];
+    if (f.of === '') return t(f.label);
+    return `${f.of === 'x' ? r[4] : t(f.label)} ${chValue(r, f, r[2])} → ${chValue(r, f, r[3])}`;
+  };
+  let twice = new Set();  // a name two vehicles have (AH-1W, Fujian): the page tells them by their flag, the text by their nation
+  const name = r => {
+    const v = S.byId.get(r[0]) || (r[1] === 'gone' && { n: r[4]?.[0] });
+    return md(twice.has(r.name) && v?.n ? `${r.name} (${nationName(v.n)})` : r.name);
+  };
+  const line = rows => {
+    const br = rows.filter(r => CH_BR.includes(r[1])), rank = rows.find(r => r[1] === 'rank');
+    const parts = br.length ? [...br.map(r => `${t('filters.mode.' + r[1].slice(2))} ${fmtBR(r[2])} → ${fmtBR(r[3])}`),
+      ...(rank ? [`${t('filters.rank')} ${ROMAN[rank[2]] || rank[2]} → ${ROMAN[rank[3]] || rank[3]}`] : [])] : rows.map(change);
+    return `- **${name(rows[0])}**: ${md(parts.join('; '))}\n`;
+  };
+  let out = head, left = 0;
+  for (const g of CH.groups.filter(x => CH.subjects[x])) {
+    const names = g === 'new' || g === 'gone', seen = new Set();  // new and removed vehicles: their names on one line, all they say
+    twice = new Set(CH.subjects[g].map(s => s[0].name).filter(n => seen.has(n) || !seen.add(n)));
+    let block = `\n**${md(t('ch.group.' + g))}** (${I18N.num(CH.subjects[g].length)})\n`, lines = 0;
+    const listed = new Set();  // two variants of one name and nation: once in a line of names
+    for (const s of CH.subjects[g]) {
+      if (names && listed.has(name(s[0]))) continue;
+      listed.add(name(s[0]));
+      const l = names ? `${lines ? ', ' : ''}${name(s[0])}` : line(s);
+      if (out.length + block.length + l.length + foot.length + 40 > CH_SHARE[where]) left++;
+      else block += l, lines++;
+    }
+    if (lines) out += block + (names ? '\n' : '');  // a group none of whose lines fit: not even its title
+  }
+  return (out + (left ? `\n${md(t('ch.shareMore', { n: I18N.num(left) }))}\n` : '') + foot).replace(/[—–]/g, '-');
+}
+
+async function chShare(where) {
+  if (!CH.rows) return;
+  const text = chShareText(where);
+  try {
+    try { await navigator.clipboard.writeText(text); } catch (e) {  // a window refusing the clipboard API: the older way, as Share does
+      const box = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.append(box);
+      box.select();
+      const copied = document.execCommand('copy');
+      box.remove();
+      if (!copied) throw e;
+    }
+    toast({ title: t('ch.shareCopied'), sub: t('ch.shareCopiedHint') });
+  } catch (e) { toastErr(e); }
+}
+
 function chRender() {
   const body = $('#chBody');
   $('#chBar').classList.toggle('hidden', !CH.patches.length);
@@ -307,6 +366,7 @@ function bindChanges() {
   $('#chNation').addEventListener('change', e => { CH.nat = e.target.value; chFilters(); });
   $('#chCat').addEventListener('change', e => { CH.cat = e.target.value; chFilters(); });
   $('#chMine').addEventListener('change', e => { CH.mine = e.target.checked; chFilters(); });
+  $('#chShare').addEventListener('click', e => { const b = e.target.closest('[data-share]'); if (b) chShare(b.dataset.share); });
   $('#chMode').addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;

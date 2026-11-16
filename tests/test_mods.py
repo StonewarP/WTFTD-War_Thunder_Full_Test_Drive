@@ -390,6 +390,17 @@ class Sounds(Base):
         mods.remove(self.game, "sound", ours)
         self.assertEqual([p.name for p in (self.game / "sound" / "mod").iterdir()], ["hand.bank"])
 
+    def test_a_file_copied_over_by_hand_since_is_kept(self):  # mod A from WTFTD, deleted by hand, mod B copied: B's banks stayed theirs
+        self.install({"a.bank": b"1", "b.bank": b"2"})
+        bank = self.game / "sound" / "mod" / "a.bank"
+        bank.write_bytes(b"another mod's bank")
+        os.utime(bank, ns=(bank.stat().st_atime_ns, bank.stat().st_mtime_ns + 10 ** 9))  # as a copy keeps its own time
+        name, = mods.read_manifest()["sounds"]
+        mods.remove(self.game, "sound", name)
+        self.assertEqual([p.name for p in (self.game / "sound" / "mod").iterdir()], ["a.bank"])
+        mods.remove_all(self.game, running=False)
+        self.assertTrue(bank.is_file())
+
     def test_a_file_already_there_is_never_replaced(self):
         (self.game / "sound" / "mod").mkdir()
         (self.game / "sound" / "mod" / "a.bank").write_bytes(b"own")
@@ -726,6 +737,18 @@ class Vehicles(Base):
                          ("pack.f_16a", "pack/f_16a", "f_16a", "f_16a", {"vehicles": ["f_16a"]}))  # named as the game's, not its folder
         mods.remove(self.game, "vehicle", "pack")
         self.assertFalse((self.game / "content").exists())
+
+    def test_a_flight_model_path_never_leaves_the_package(self):  # ".." passed the name check: a file anywhere in the game
+        for fm in ("../../../../../win64/version.dll", "fm/../../../x.blk", "fm/j50.dll"):
+            with self.subTest(fm=fm):
+                mine = f'include "f_16a_base.blk"\nmodel:t="j50"\nfmFile:t="{fm}"\n'.encode()
+                self.stage({**PACKAGE, "content/pkg_local/gameData/flightModels/f_16a.blk": mine}, "vehicle")
+                mods.install(self.game, "abcdef", "vehicle", ids=IDS)
+                leaked = [p for p in ("win64/version.dll", "content/pkg_local/gamedata/x.blk",
+                                      "content/pkg_local/gamedata/flightModels/pack/fm/j50.dll") if (self.game / p).exists()]
+                mods.remove(self.game, "vehicle", "pack")
+                self.assertEqual(leaked, [])
+                self.assertFalse((self.game / "content").exists())
 
     def test_models_and_textures_named_like_the_games_are_renamed(self):  # the F-22 free flight's su_33 and empty_glass
         files = {"content/pkg_local/gameData/flightModels/ac_su_33.blk": b'model:t="su_33"\n',

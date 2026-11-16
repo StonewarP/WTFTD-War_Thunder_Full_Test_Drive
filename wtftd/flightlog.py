@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import math
 import re
 import statistics
@@ -48,6 +49,35 @@ def read_log(folder: Path, name: str, names: dict) -> dict | None:
             return {"rows": [{k: float(v) for k, v in zip(keys, row) if k and v} for row in reader]}
     except (OSError, ValueError):
         return None
+
+
+def read_on(folder: Path, name: str, names: dict, state: dict) -> list:
+    """read_log's rows of a recording still being written, read on from where the last call stopped (state: the caller's,
+    {} at first): read whole each second, a recording begun hours earlier took 95 ms. A line not yet ended waits."""
+    if state.get("name") != name:
+        state.clear()
+        state.update(name=name, pos=0, keys=None, rows=[])
+    try:
+        with open(folder / name, "rb") as f:
+            if f.seek(0, 2) < state["pos"]:  # a recording of the same name started over (two flights in one second)
+                state.update(pos=0, keys=None, rows=[])
+            f.seek(state["pos"])
+            data = f.read()
+    except OSError:
+        return state["rows"]
+    data = data[:data.rfind(b"\n") + 1]
+    if not data:
+        return state["rows"]
+    reader = csv.reader(io.StringIO(data.decode("utf-8-sig" if not state["pos"] else "utf-8", errors="replace"), newline=""))
+    if state["keys"] is None:
+        state["keys"] = ["t" if c == TIME else names.get(c) for c in next(reader, [])]
+    for row in reader:
+        try:
+            state["rows"].append({k: float(v) for k, v in zip(state["keys"], row) if k and v})
+        except ValueError:  # not a number: that line only
+            continue
+    state["pos"] += len(data)
+    return state["rows"]
 
 
 LEVEL_VY, STEADY, TURNING_G, RUN_S = 2.0, 0.5, 1.5, 3  # a sustained turn: m/s of climb, m/s2 of acceleration, load factor, seconds
