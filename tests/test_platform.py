@@ -1,5 +1,4 @@
-"""Windows / macOS / Linux differences: where the game files are, which Oodle runtime file names count, the alarms, the
-game read in flight."""
+"""Windows / macOS / Linux differences: where the game files are, the alarms, the game read in flight."""
 import base64
 import ctypes
 import importlib
@@ -20,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
 
-from wtftd import __main__ as app, alarms, bench, cairopaint, flightlog, game, maptex, minimap, paths, server, waveout, x11, xoverlay, xwindow
+from wtftd import __main__ as app, alarms, bench, cairopaint, flightlog, game, minimap, paths, server, waveout, x11, xoverlay, xwindow
 
 
 class GameFolder(unittest.TestCase):
@@ -780,26 +779,6 @@ class Feedback(unittest.TestCase):
                for f in ("bug_report.yml", "feature_request.yml")}
         self.assertLessEqual({"version", "game", "what", "vehicle", "share"}, ids["bug_report.yml"])
         self.assertIn("idea", ids["feature_request.yml"])
-
-
-class OodleNames(unittest.TestCase):
-    def test_windows(self):
-        with mock.patch.object(sys, "platform", "win32"):
-            self.assertEqual(maptex.oodle_version("oo2core_9_win64.dll"), 9)
-            self.assertIsNone(maptex.oodle_version("liboo2coremac64.2.9.dylib"))
-
-    def test_mac(self):
-        with mock.patch.object(sys, "platform", "darwin"):
-            self.assertEqual(maptex.oodle_version("liboo2coremac64.2.9.dylib"), 9)
-            self.assertEqual(maptex.oodle_version("liboo2coremac64.2.9.10.dylib"), 9)
-            self.assertIsNone(maptex.oodle_version("oo2core_9_win64.dll"))
-            self.assertIsNone(maptex.oodle_version("libfoo.dylib"))
-
-    def test_linux(self):
-        with mock.patch.object(sys, "platform", "linux"):
-            self.assertEqual(maptex.oodle_version("liboo2corelinux64.so.9"), 9)
-            self.assertIsNone(maptex.oodle_version("oo2core_9_win64.dll"))
-            self.assertIsNone(maptex.oodle_version("liboo2coremac64.2.9.dylib"))
 
 
 if __name__ == "__main__":

@@ -452,7 +452,6 @@ def api_status():
         "gameSourceIssue": "python" if not vromfs.available() else None if gd else "game",
         "datamineCopy": builder.DATAMINE.is_dir(),
         "home": str(HOME),  # where WTFTD keeps its files (the welcome screen says so before the first download)
-        "oodle": oodle_dll(gd),
         "settings": STATE.settings(),
         "alarms": alarms.available(),
         "flight": alarms.reader(),  # Flight data and the Test bench
@@ -495,9 +494,6 @@ def app_version() -> dict:
             "canUpdate": selfupdate.target() is not None}  # in one click (selfupdate); else the release page
 
 
-_oodle_memo: dict = {}
-
-
 # the page runs nothing but the app's own script files, and loads or sends nothing elsewhere: whatever a shared file holds
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn-live.warthunder.com https://images-live.warthunder.com; media-src 'self' data: blob:; "
        "font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
@@ -506,18 +502,6 @@ CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
 def on_network(path) -> bool:
     """A Windows network path (\\\\host\\share, //host/share): opening one reaches another machine."""
     return str(path or "")[:2] in ("\\\\", "//", "\\/", "/\\")
-
-
-def oodle_dll(gd: Path | None) -> str | None:
-    """Oodle runtime used to read the game's map textures: the one set in Settings, else auto-detected (once)."""
-    custom = STATE.settings().get("oodleDll")
-    if custom:
-        custom = str(Path(custom).expanduser())
-        return custom if not on_network(custom) and Path(custom).is_file() else None
-    key = str(gd)
-    if key not in _oodle_memo:
-        _oodle_memo[key] = maptex.find_oodle(gd)
-    return _oodle_memo[key]
 
 
 def capture_url(key: str) -> str:
@@ -885,14 +869,14 @@ class Handler(BaseHTTPRequestHandler):
             name = path.rsplit("/", 1)[-1].removesuffix(".png")
             try:
                 gd = STATE.game_dir()
-                return self.send_file(maptex.thumb_path(gd, name, oodle_dll(gd)), cache=True)
+                return self.send_file(maptex.thumb_path(gd, name), cache=True)
             except (maptex.MapTexError, OSError) as e:
                 return self.send_json({"error": str(e)}, 404)
         if path.startswith("/img/maptex/"):
             name = path.rsplit("/", 1)[-1].removesuffix(".png")
             try:
                 gd = STATE.game_dir()
-                return self.send_file(maptex.png_path(gd, name, oodle_dll(gd)), cache=True)
+                return self.send_file(maptex.png_path(gd, name), cache=True)
             except (maptex.MapTexError, OSError) as e:
                 return self.send_json({"error": str(e)}, 404)
         if path.startswith("/img/capture/"):
@@ -1028,7 +1012,7 @@ class Handler(BaseHTTPRequestHandler):
             level = route.split("/", 1)[1]
             gd = STATE.game_dir()
             try:
-                meta = terrain.terrain(gd, level, oodle_dll(gd))
+                meta = terrain.terrain(gd, level)
             except (terrain.TerrainError, OSError, struct.error) as e:
                 return self.send_json({"available": False, "reason": str(e)})
             if not meta:
@@ -1360,16 +1344,14 @@ class Handler(BaseHTTPRequestHandler):
         if route == "settings":
             with SAVING:  # read, change, save: no other change lands in between (it would be lost)
                 s = STATE.settings()
-                for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "oodleDll", "dataSource",
+                for k in ("gameDir", "lang", "missionType", "theme", "cdk", "hosts", "airMethod", "autoUpdate", "dataSource",
                           "audioDevice", "battleLog", "startMinimized", "trayMinimize", "closeWithGame", "launchGame"):
                     if k in body:
                         s[k] = body[k]
-                if on_network(s.get("gameDir")) or on_network(s.get("oodleDll")):  # what the app runs and loads stays on this PC
+                if on_network(s.get("gameDir")):  # what the app runs and loads stays on this PC
                     return self.send_json({"error": "Pick something on this PC, not on a network path."}, 400)
                 if s.get("gameDir") and not game.resolve_game_dir(Path(s["gameDir"]).expanduser()):
                     return self.send_json({"error": "This folder does not look like a War Thunder install."}, 400)
-                if s.get("oodleDll") and maptex.oodle_version(Path(s["oodleDll"]).name) is None:
-                    return self.send_json({"error": "Pick an Oodle runtime file: oo2core_<version>_win64.dll (Windows), liboo2core*.dylib (macOS) or liboo2corelinux64.so.<version> (Linux)."}, 400)
                 if s.get("dataSource", "datamine") not in ("datamine", "game"):
                     return self.send_json({"error": "Unknown game data source."}, 400)
                 if body.get("dataSource") == "game" and not vromfs.available():
@@ -1943,16 +1925,11 @@ def level_map(level: str) -> dict | None:
         return None
     info = read_json(DATA / "levels.json", {}).get(level) or {}
     gd = STATE.game_dir()
-    layers, oodle, no_oodle = [], None, False
+    layers = []
     for tex, a, b in (("am", "a0", "a1"), ("tm", "t0", "t1")):
         name = info.get(tex)
         if not name or a not in info or not maptex.available(gd, name):
             continue
-        if not (maptex.CACHE / f"{name}.png").exists():
-            oodle = oodle or oodle_dll(gd)
-            if not oodle:
-                no_oodle = True
-                continue
         layers.append({"url": f"/img/maptex/{name}.png", "thumb": f"/img/mapthumb/{name}.png",
                        "min": info[a], "max": info[b], "zUp": True})
     if layers:
@@ -1961,7 +1938,7 @@ def level_map(level: str) -> dict | None:
     if cap:
         return {"source": "capture", "layers": [{"url": f"/img/levelmap/{level}?v={cap.get('captured', 0)}",
                                                  "min": cap["min"], "max": cap["max"], "zUp": cap.get("zUp", True)}]}
-    return {"source": None, "layers": [], "noOodle": no_oodle}
+    return {"source": None, "layers": []}
 
 
 def free_port(preferred: int) -> int:

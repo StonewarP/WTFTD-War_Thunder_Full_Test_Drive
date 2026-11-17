@@ -11,7 +11,6 @@ row along world z) with its metadata in <level>.json; the editor interpolates in
 from __future__ import annotations
 
 import array
-import ctypes
 import json
 import re
 import struct
@@ -20,7 +19,7 @@ import threading
 from itertools import accumulate
 from pathlib import Path
 
-from . import maptex
+from . import lzdecode
 from .paths import CACHE as APP_CACHE
 
 CACHE = APP_CACHE / "maps" / "terrain"
@@ -55,15 +54,14 @@ def _chunks(path: Path) -> dict:
     return out
 
 
-def _unpack(src: bytes, raw_len: int, dll: str) -> bytes:
-    dst = ctypes.create_string_buffer(raw_len)
-    n = maptex._decompressor(dll)(src, len(src), dst, raw_len, 1, 0, 0, None, 0, None, None, None, 0, 3)
-    if n != raw_len:
-        raise TerrainError("Oodle could not decode the heightmap")
-    return dst.raw
+def _unpack(src: bytes, raw_len: int) -> bytes:
+    try:
+        return lzdecode.decode(src, raw_len)
+    except lzdecode.LzError as e:
+        raise TerrainError(f"Could not decode the heightmap: {e}")
 
 
-def _decode(data: bytes, dll: str) -> tuple[dict, array.array]:
+def _decode(data: bytes) -> tuple[dict, array.array]:
     cell, hmin, hscale, ox, oz = struct.unpack_from("<5f", data, 0)
     width_version, height_mirrored = struct.unpack_from("<iI", data, 20)
     version, w, h = width_version >> 24, width_version & 0xFFFFFF, height_mirrored & 0x7FFFFFFF
@@ -89,15 +87,15 @@ def _decode(data: bytes, dll: str) -> tuple[dict, array.array]:
 
     if not per_chunk:  # one block: block infos + variance + height range blocks
         src, p = block(p)
-        raw = _unpack(src, nblocks * 4 + nblocks * bsize + hrb_bytes, dll)
+        raw = _unpack(src, nblocks * 4 + nblocks * bsize + hrb_bytes)
         infos, variance = raw[:nblocks * 4], raw[nblocks * 4:nblocks * 4 + nblocks * bsize]
     else:  # block infos first, then the variance by groups of blocks
         src, p = block(p)
-        infos = _unpack(src, nblocks * 4 + hrb_bytes, dll)[:nblocks * 4]
+        infos = _unpack(src, nblocks * 4 + hrb_bytes)[:nblocks * 4]
         parts = []
         for b0 in range(0, nblocks, per_chunk):
             src, p = block(p)
-            parts.append(_unpack(src, (min(nblocks, b0 + per_chunk) - b0) * bsize, dll))
+            parts.append(_unpack(src, (min(nblocks, b0 + per_chunk) - b0) * bsize))
         variance = b"".join(parts)
 
     # full-resolution grid, then keep every <step>th sample
@@ -129,7 +127,7 @@ def _decode(data: bytes, dll: str) -> tuple[dict, array.array]:
     return meta, out
 
 
-def terrain(game_dir: Path | None, level: str, dll: str | None) -> dict | None:
+def terrain(game_dir: Path | None, level: str) -> dict | None:
     """Metadata of the cached ground grid of <level> (decoding it on first use), or None if the
     level has no heightmap."""
     if not re.fullmatch(r"[a-z0-9_]+", level or ""):
@@ -149,13 +147,11 @@ def terrain(game_dir: Path | None, level: str, dll: str | None) -> dict | None:
         if b"\0HM2" not in chunks:
             meta_path.write_text(json.dumps({"w": 0}), encoding="utf-8")  # remember: no heightmap
             return None
-        if not dll:
-            raise TerrainError("No Oodle runtime (oo2core_*_win64.dll / liboo2core*.dylib) found on this PC")
         ofs, size = chunks[b"\0HM2"]
         with open(path, "rb") as f:
             f.seek(ofs)
             data = f.read(size)
-        meta, grid = _decode(data, dll)
+        meta, grid = _decode(data)
         if sys.byteorder != "little":
             grid.byteswap()
         (CACHE / f"{level}.bin").write_bytes(grid.tobytes())

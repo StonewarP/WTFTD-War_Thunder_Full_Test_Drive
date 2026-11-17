@@ -7,7 +7,7 @@ Every challenge ends in a win or a failure, and the score is the time: that's al
     the counters of a replay's player line are all 0 in user missions (28 of 28 files, game 2.59): no score from there.
 So a mission is known by its objective, a text with the vehicle in it, and a replay by its file name.
 
-Sites are checked on the game's heightmaps, which not every PC can read (they need an Oodle library): the heights are written here,
+Sites are checked on the game's heightmaps (when not every PC could read them, before lzdecode): the heights are written here,
 every 200 m along the line of fire."""
 from __future__ import annotations
 

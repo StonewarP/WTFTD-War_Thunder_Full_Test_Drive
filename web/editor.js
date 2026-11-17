@@ -271,7 +271,7 @@ async function openEditor() {
   edLoadTerrain(ED.data.level);
   let map = null;
   try { map = await api('level-map/' + encodeURIComponent(ED.data.level || '')); } catch { /* unknown level */ }
-  edMapHint(map?.layers?.length ? '' : map?.noOodle ? 'editor.noOodle' : 'editor.noMap');
+  edMapHint(map?.layers?.length ? '' : 'editor.noMap');
   for (const l of map?.layers || []) {
     const layer = { ...l, img: null };
     ED.layers.push(layer);

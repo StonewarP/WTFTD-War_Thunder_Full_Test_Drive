@@ -1828,12 +1828,9 @@ async function openSettings(part) {
   const mac = st.platform === 'darwin', linux = st.platform === 'linux';
   $('#setGameDir').placeholder = mac ? '~/Library/Application Support/Steam/steamapps/common/War Thunder'
     : linux ? '~/.local/share/Steam/steamapps/common/War Thunder' : 'D:\\SteamLibrary\\steamapps\\common\\War Thunder';
-  $('#setOodle').placeholder = mac ? '…/liboo2coremac64.2.9.dylib' : linux ? '…/liboo2corelinux64.so.9' : '…\\oo2core_9_win64.dll';
   $('#setGameDirHint').textContent = st.gameDir ? t('settings.detected', { path: st.gameDir }) : t('settings.gameDirHint');
   $('#rowSteam').classList.toggle('hidden', !st.steamLaunch);  // Steam on Windows and Linux: the line to paste in its launch options
   $('#setSteam').value = st.steamLaunch || '';
-  $('#setOodle').value = st.settings?.oodleDll || '';
-  $('#setOodleFound').textContent = st.oodle ? t('settings.oodleFound', { path: st.oodle }) : t('settings.oodleNone');
   $('#setCdk').checked = st.cdk?.enabled !== false;
   const hosts = st.settings?.hosts || {};
   $('#setHosts').innerHTML = ['ground', 'air', 'heli', 'boat', 'ship'].map(cat => {
@@ -1880,7 +1877,7 @@ async function saveSettings() {
     const hosts = {};
     $$('#setHosts select').forEach(s => { if (s.value) hosts[s.dataset.host] = s.value; });
     const keep = new Set(($('#setSource').dataset.keep || '').split(',').filter(Boolean));
-    S.status = await api('settings', { gameDir: $('#setGameDir').value.trim(), lang, cdk: $('#setCdk').checked, hosts, airMethod: $('#setAirMethod').value, autoUpdate: $('#setAutoUpdate').checked, startMinimized: $('#setStartMinimized').checked, trayMinimize: $('#setTray').checked, closeWithGame: $('#setCloseWithGame').checked, launchGame: $('#setLaunchGame').checked, theme: $('#setTheme').value, oodleDll: $('#setOodle').value.trim() });
+    S.status = await api('settings', { gameDir: $('#setGameDir').value.trim(), lang, cdk: $('#setCdk').checked, hosts, airMethod: $('#setAirMethod').value, autoUpdate: $('#setAutoUpdate').checked, startMinimized: $('#setStartMinimized').checked, trayMinimize: $('#setTray').checked, closeWithGame: $('#setCloseWithGame').checked, launchGame: $('#setLaunchGame').checked, theme: $('#setTheme').value });
     // the sources kept: one ticked is built apart (What changed shows it), one unticked goes, the one in use once the app has
     // switched to the other. Which one is in use is the Data button's, at the top
     if (S.status.dataReady && keep.size) {
