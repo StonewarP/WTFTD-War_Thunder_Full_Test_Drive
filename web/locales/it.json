@@ -2035,6 +2035,7 @@
   "ch.group.map": "Mappe e scenari",
   "ch.group.files": "Tutti i file del gioco",
   "ch.filesHint": "Ogni valore cambiato nei file del gioco letti da WTFTD, con i nomi dei file stessi. Un file nuovo o rimosso è una riga. Una correzione nel codice del gioco o sui server di Gaijin non cambia alcun file, quindi non compare qui.",
+  "ch.loading": "Caricamento delle modifiche…",
   "update.changes": "Vedi cosa è cambiato ({n})",
   "stat.rep": "Costo della riparazione",
   "stat.slm": "Premio (Leoni Argentati)",

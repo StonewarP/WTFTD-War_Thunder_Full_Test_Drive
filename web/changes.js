@@ -214,6 +214,9 @@ async function chShare(where) {
   } catch (e) { toastErr(e); }
 }
 
+// while a patch loads (a major update's every file change takes a few seconds): not empty, not stuck
+const chWait = () => `<div class="empty ch-wait"><span class="spin"></span><p>${esc(t('ch.loading'))}</p></div>`;
+
 function chRender() {
   const body = $('#chBody');
   $('#chBar').classList.toggle('hidden', !CH.patches.length);
@@ -221,7 +224,7 @@ function chRender() {
     body.innerHTML = `<div class="empty">${icon('refresh', 'ic-xl')}<p>${esc(t('ch.empty'))}</p><p>${esc(t('ch.emptyHint'))}</p></div>`;
     return;
   }
-  if (!CH.rows) { body.innerHTML = `<div class="empty"><p>${esc(t('arm.loading'))}</p></div>`; return; }
+  if (!CH.rows) { body.innerHTML = chWait(); return; }
   const p = CH.patches.find(x => x.id === CH.id);
   const by = {};
   for (const r of chShown()) (by[CH.fields[r[1]].group] ||= []).push(r);
@@ -306,6 +309,7 @@ function chShowVehicle(v) {
 
 async function openChangesView() {
   try {
+    if (!CH.rows) $('#chBody').innerHTML = chWait();  // the list of patches and the weapons' names come first
     await CH.loading;
     chDev();
     CH.seen = chPatches()[0]?.id || CH.seen;

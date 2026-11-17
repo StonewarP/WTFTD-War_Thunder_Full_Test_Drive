@@ -2040,6 +2040,7 @@
   "ch.group.map": "Maps and scenarios",
   "ch.group.files": "All game files",
   "ch.filesHint": "Every value that moved in the game files WTFTD reads, under the files' own names. A new or removed file is one line. A fix in the game's code or on Gaijin's servers changes no file, so it isn't here.",
+  "ch.loading": "Loading the changes…",
   "update.changes": "See what changed ({n})",
   "stat.rep": "Repair cost",
   "stat.slm": "Reward (Silver Lions)",

@@ -1621,6 +1621,7 @@ td.hg-actions { height: 48px; }
 .ch-table .mb-link .flag { width: 22px; height: 14px; }
 .ch-table .tagx { margin-left: 8px; }
 .ch-sub { display: flex; flex-direction: column; gap: 1px; }
+.ch-wait .spin { display: block; width: 34px; height: 34px; border-width: 3px; margin: 0 auto 12px; }
 .ch-who { display: inline-flex; align-items: center; gap: 8px; }
 .ch-who .flag { width: 22px; height: 14px; }
 .ch-sub .mb-link { display: inline; }
