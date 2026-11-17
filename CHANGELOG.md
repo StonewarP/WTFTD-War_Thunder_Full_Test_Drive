@@ -4,6 +4,16 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.33.6 - 2026-11-17
+
+- **Maps without an Oodle runtime** ([issue #20](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/20)):
+  WTFTD now reads the game's packed maps and heightmaps itself, so the Maps tab's pictures and the scenario editor's map
+  background and relief show on every PC, Linux and macOS included. Until now it needed an Oodle runtime
+  (`oo2core_9_win64.dll`) found in another game or set in Settings. War Thunder's own copy is an ARM build that won't
+  load on most PCs, and the search picked it first.
+- The **Oodle runtime** field is gone from Settings.
+- Each map is decoded once, then kept: the biggest takes up to about 10 s the first time.
+
 ## 0.33.5 - 2026-11-17
 
 Fixes found while the wiki was gone through page by page.

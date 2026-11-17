@@ -843,6 +843,16 @@ line's **Alignment** puts it on the right edge of its block's column. Checked in
 - [ ] Two columns (Columns 2) as a table: each column lined up on its own.
 - [ ] A `{vehicle}` line set to the right ends where the table ends.
 
+## 2am. Maps without an Oodle runtime (new, 0.33.6)
+
+**What was built.** `wtftd/lzdecode.py` decodes the game's map textures and heightmaps; no Oodle DLL is searched for and
+the Settings field is gone. Checked against the Oodle DLL on all 234 map textures and 152 heightmap blocks of 2.61.0.23,
+and Normandy end to end from the server; not in the running app.
+
+- [ ] Maps tab: the pictures show, on a fresh `.cache` (each one decoded once).
+- [ ] Scenario editor: a level's map background and its relief in 3D (Berlin, Normandy).
+- [ ] Linux (the Ubuntu VM): the same, with no Oodle runtime on the machine.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own
