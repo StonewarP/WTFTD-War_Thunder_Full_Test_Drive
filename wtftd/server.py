@@ -966,7 +966,8 @@ class Handler(BaseHTTPRequestHandler):
         if route == "dev":
             return self.send_json(dev_status())
         if route.startswith("changes/"):
-            rows = patches.rows(route.split("/", 1)[1])
+            pid = route.split("/", 1)[1]
+            rows = patches.file_rows(pid[:-len("/files")]) if pid.endswith("/files") else patches.rows(pid)
             return self.send_json(rows) if rows is not None else self.send_json({"error": "not found"}, 404)
         if route.startswith("hud/"):  # the cockpit window's HUD, filling a window of that size: hud/<width>x<height>
             return self.send_json(hud_status(route.split("/", 1)[1]))

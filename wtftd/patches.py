@@ -6,6 +6,9 @@ A comparison takes two game versions: a rebuild at the same version gives none, 
 that goes down isn't a patch (the datamine ran ahead of the installed game, then the source changed): it's kept, and marked."""
 from __future__ import annotations
 
+import csv
+import difflib
+import io
 import json
 import re
 from pathlib import Path
@@ -13,13 +16,14 @@ from pathlib import Path
 from .paths import CACHE, DATA, USER
 
 FILE = USER / "patches.json"
+PENDING = CACHE / "files_diff.json"  # the game files' comparison, made before the old ones go, until the build records it
 DEV_DATA = CACHE / "dev" / "data"  # builder.DEV's (builder imports this module): the datamine's newest version, built apart
 KEEP = 30  # patches, newest first
 WEAPON_FLAGS = ("ccm", "act", "ins", "dl", "loft", "ff", "wire", "iw")
 NAMED = {"weapon": "weapons", "bullet": "bullets", "sensor": "sensors"}  # a list's unit -> its section of data/lang
 
 # the page's groups, in its order
-GROUPS = ("new", "gone", "br", "perf", "cost", "ammo", "arms", "weapon", "map")
+GROUPS = ("new", "gone", "br", "perf", "cost", "ammo", "arms", "weapon", "map", "files")
 
 # What's compared. A new value takes one line here and nothing else, the page reads this table from the API.
 #   key     of the rows
@@ -110,6 +114,10 @@ FIELDS = (
     ("m.new", "map", "", (), "ch.new", "", 0, 0),
     ("m.gone", "map", "", (), "ch.gone", "", 0, 0),
     ("m.n", "map", "m", ("n",), "ch.scenarios", "", 0, 0),
+    # every file the app reads, compared as files (files()): kept apart, rows [file, key, old, new, path]
+    ("f.new", "files", "", (), "ch.new", "", 0, 0),
+    ("f.gone", "files", "", (), "ch.gone", "", 0, 0),
+    ("f.x", "files", "x", (), "ch.raw", "", 0, None),
 )
 GROUP_OF = {f[0]: f[1] for f in FIELDS}
 # the values of a weapon's file that a column above already shows, under its own name
@@ -243,6 +251,78 @@ def _value_rows(old, new) -> list:
     return rows
 
 
+def _flat(o, path: str = "", out: dict | None = None) -> dict:
+    """Every value of a game file by its path, as weapon_values.json has them but nothing left out. A list of blocks that each
+    have their own id or name is indexed by it: one inserted doesn't move all those after it."""
+    out = {} if out is None else out
+    if isinstance(o, dict):
+        for k, v in o.items():
+            _flat(v, f"{path}.{k}" if path else k, out)
+    elif isinstance(o, list) and any(isinstance(x, (dict, list)) for x in o):
+        keys = [x.get("id", x.get("name")) if isinstance(x, dict) else None for x in o]
+        named = all(isinstance(k, str) for k in keys) and len(set(keys)) == len(keys)
+        for i, x in enumerate(o):
+            _flat(x, f"{path}[{keys[i] if named else i}]", out)
+    else:
+        out[path] = o
+    return out
+
+
+def _lang(raw: bytes) -> dict:
+    """A language table of the game: {id: {language: text}}."""
+    rows = list(csv.reader(io.StringIO(raw.decode("utf-8-sig", "replace")), delimiter=";"))
+    head = [h.strip("<>").split("|")[0] for h in rows[0][1:]] if rows else []
+    return {r[0]: dict(zip(head, r[1:])) for r in rows[1:] if r}
+
+
+def _file_rows(name: str, a: bytes | None, b: bytes | None) -> list:
+    """One file's changes: a file that came or went is one row; a language table's, its texts by id (the English one, or the
+    translations that moved alone); a .blkx one's, its values by path; any other, its lines."""
+    if a is None or b is None:
+        return [[name, "f.new" if a is None else "f.gone", None, None]]
+    if name.endswith(".csv"):
+        old, new, rows = _lang(a), _lang(b), []
+        for k in sorted(old.keys() | new.keys()):
+            x, y = old.get(k), new.get(k)
+            if x is None or y is None or x.get("English") != y.get("English"):
+                rows.append([name, "f.x", (x or {}).get("English"), (y or {}).get("English"), k])
+            elif x != y:
+                rows += [[name, "f.x", x.get(lg), y.get(lg), f"{k} [{lg}]"] for lg in sorted(x.keys() | y.keys()) if x.get(lg) != y.get(lg)]
+        return rows
+    try:
+        old, new = _flat(json.loads(a)), _flat(json.loads(b))
+    except ValueError:
+        x, y = a.decode("utf-8", "replace").splitlines(), b.decode("utf-8", "replace").splitlines()
+        return [[name, "f.x", "\n".join(x[i:j]) or None, "\n".join(y[m:n]) or None, f"line {i + 1}"]
+                for tag, i, j, m, n in difflib.SequenceMatcher(None, x, y, autojunk=False).get_opcodes() if tag != "equal"]
+    return [[name, "f.x", old.get(p), new.get(p), p] for p in sorted(old.keys() | new.keys()) if not _close(old.get(p), new.get(p))]
+
+
+def files(old: Path, new: Path, names=None) -> list:
+    """What moved between two unpacks of the game files (the datamine's layout): rows [file, key, old, new, path]. names: the files
+    to look at (relative, with /), else every one of both but the version."""
+    if names is None:
+        names = {p.relative_to(r).as_posix() for r in (old, new) for p in r.rglob("*") if p.is_file()} - {"version"}
+    rows = []
+    for name in sorted(names):
+        a, b = ((r / name).read_bytes() if (r / name).is_file() else None for r in (old, new))
+        if a != b:
+            rows += _file_rows(name, a, b)
+    return rows
+
+
+def pend(frm: str, to: str, rows: list) -> None:
+    """The game files' comparison, for the build of version `to` to keep with its patch (record())."""
+    PENDING.parent.mkdir(parents=True, exist_ok=True)
+    tmp = PENDING.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"from": frm, "to": to, "rows": rows}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    tmp.replace(PENDING)
+
+
+def _files_dir() -> Path:
+    return FILE.with_name("patches")  # each patch's file rows, <id>.json: too many to load with the list of patches
+
+
 def _maps(db: dict) -> dict:
     out: dict = {}
     for s in db["scenarios"]:
@@ -302,10 +382,25 @@ def record(before: dict | None, folder: Path) -> dict | None:
     entry = compare(before, read(folder))
     kept = [entry, *(p for p in load() if p.get("id") != entry["id"])][:KEEP]  # the same versions again, after switching source and back
     FILE.parent.mkdir(parents=True, exist_ok=True)
+    where, pending = _files_dir(), _load(PENDING)
+    own = where / f"{entry['id']}.json"
+    if isinstance(pending, dict) and (pending.get("from"), pending.get("to")) == (entry["from"], entry["to"]):
+        where.mkdir(exist_ok=True)
+        tmp = own.with_suffix(".tmp")
+        tmp.write_text(json.dumps(pending["rows"], ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        tmp.replace(own)
+        entry["files"] = len(pending["rows"])
+        PENDING.unlink(missing_ok=True)
+    else:
+        own.unlink(missing_ok=True)  # an earlier recording of the same versions
     tmp = FILE.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(kept, f, ensure_ascii=False, separators=(",", ":"))
     tmp.replace(FILE)
+    ids = {p.get("id") for p in kept}
+    for f in where.glob("*.json"):  # the patches no longer kept
+        if f.stem not in ids:
+            f.unlink(missing_ok=True)
     return entry
 
 
@@ -345,7 +440,8 @@ def index() -> dict:
     keys = ("group", "of", "label", "unit", "better", "digits")
     d = dev()
     return {"groups": GROUPS, "fields": {f[0]: dict(zip(keys, (*f[1:3], *f[4:]))) for f in FIELDS},
-            "patches": [{**{k: v for k, v in p.items() if k != "rows"}, "counts": _counts(p["rows"])} for p in [*([d] if d else []), *load()]]}
+            "patches": [{**{k: v for k, v in p.items() if k != "rows"}, "counts": {**_counts(p["rows"]), **({"files": p["files"]} if p.get("files") else {})}}
+                        for p in [*([d] if d else []), *load()]]}
 
 
 def rows(pid: str) -> list | None:
@@ -353,3 +449,9 @@ def rows(pid: str) -> list | None:
         d = dev()
         return d["rows"] if d else None
     return next((p["rows"] for p in load() if p.get("id") == pid), None)
+
+
+def file_rows(pid: str) -> list | None:
+    """A patch's every file change (files()), when its build could compare them. Only a kept patch's id names a file."""
+    p = next((p for p in load() if p.get("id") == pid), None)
+    return (_load(_files_dir() / f"{pid}.json") or []) if p and p.get("files") else None

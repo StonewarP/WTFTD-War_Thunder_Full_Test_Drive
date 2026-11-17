@@ -15,12 +15,15 @@ _NO_DEV = []
 def setUpModule():
     """Not the dev server's data this PC may have built (.cache/dev): each test that wants one makes its own."""
     tmp = tempfile.TemporaryDirectory()
-    _NO_DEV[:] = [tmp, mock.patch.object(patches, "DEV_DATA", Path(tmp.name) / "no-dev")]
-    _NO_DEV[1].start()
+    _NO_DEV[:] = [tmp, mock.patch.object(patches, "DEV_DATA", Path(tmp.name) / "no-dev"),
+                  mock.patch.object(patches, "PENDING", Path(tmp.name) / "files_diff.json")]  # nor its game files' comparison
+    for p in _NO_DEV[1:]:
+        p.start()
 
 
 def tearDownModule():
-    _NO_DEV[1].stop()
+    for p in _NO_DEV[1:]:
+        p.stop()
     _NO_DEV[0].cleanup()
 
 
@@ -534,6 +537,115 @@ class Uninstall(unittest.TestCase):
                 self.assertTrue(kept.exists())
                 uninstall.run(["user"], None)
             self.assertFalse(kept.exists())
+
+
+class GameFiles(unittest.TestCase):
+    """Every change of the game files: two unpacks side by side, kept with the patch its build records."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.old, self.new = self.root / "old", self.root / "new"
+        p = mock.patch.object(patches, "FILE", self.root / "user" / "patches.json")
+        p.start()
+        self.addCleanup(p.stop)
+
+    def put(self, side: Path, name: str, content) -> None:
+        (side / name).parent.mkdir(parents=True, exist_ok=True)
+        (side / name).write_text(content if isinstance(content, str) else json.dumps(content), encoding="utf-8")
+
+    def test_every_kind_of_file(self):
+        fm = "aces.vromfs.bin_u/gamedata/flightmodels/fm/su_15tm.blkx"
+        self.put(self.old, fm, {"Mass": {"MaxFuelMass0": 5620.0, "EmptyMass": 10760.0}, "unlockable": [{"id": "b", "num": 1}]})
+        self.put(self.new, fm, {"Mass": {"MaxFuelMass0": 7570.0, "EmptyMass": 10760.0}, "flapsLimByIas": [500.0, 900.0],
+                                "unlockable": [{"id": "a", "num": 5}, {"id": "b", "num": 1}]})  # inserted first: b isn't moved
+        head = '"<ID|readonly|noverify>";"<English>";"<French>"\n'
+        self.put(self.old, "lang.vromfs.bin_u/lang/units.csv", head + '"su_15tm";"Su-15TM";"Su-15TM"\n"gone";"Old";"Vieux"\n"same";"A";"Bon"\n')
+        self.put(self.new, "lang.vromfs.bin_u/lang/units.csv", head + '"su_15tm";"Su-15 TM";"Su-15 TM"\n"same";"A";"Bien"\n')
+        self.put(self.old, "aces.vromfs.bin_u/config/settings.win64.patch", "a\nb\nc")
+        self.put(self.new, "aces.vromfs.bin_u/config/settings.win64.patch", "a\nB\nc")
+        self.put(self.old, "same.blkx", {"x": 1})
+        self.put(self.new, "same.blkx", {"x": 1})
+        self.put(self.old, "gone.blkx", {})
+        self.put(self.new, "added.blkx", {"x": 1})
+        for side, v in ((self.old, "2.61.0.20"), (self.new, "2.61.0.24")):
+            self.put(side, "version", v)
+        self.assertEqual(patches.files(self.old, self.new), [
+            ["aces.vromfs.bin_u/config/settings.win64.patch", "f.x", "b", "B", "line 2"],
+            ["aces.vromfs.bin_u/gamedata/flightmodels/fm/su_15tm.blkx", "f.x", 5620.0, 7570.0, "Mass.MaxFuelMass0"],
+            ["aces.vromfs.bin_u/gamedata/flightmodels/fm/su_15tm.blkx", "f.x", None, [500.0, 900.0], "flapsLimByIas"],
+            ["aces.vromfs.bin_u/gamedata/flightmodels/fm/su_15tm.blkx", "f.x", None, "a", "unlockable[a].id"],
+            ["aces.vromfs.bin_u/gamedata/flightmodels/fm/su_15tm.blkx", "f.x", None, 5, "unlockable[a].num"],
+            ["added.blkx", "f.new", None, None], ["gone.blkx", "f.gone", None, None],
+            ["lang.vromfs.bin_u/lang/units.csv", "f.x", "Old", None, "gone"],
+            ["lang.vromfs.bin_u/lang/units.csv", "f.x", "Bon", "Bien", "same [French]"],  # the English text kept, a translation fixed
+            ["lang.vromfs.bin_u/lang/units.csv", "f.x", "Su-15TM", "Su-15 TM", "su_15tm"],
+        ])
+
+    def test_kept_with_the_patch_of_the_same_versions(self):
+        self.put(self.old, "a.blkx", {"x": 1})
+        self.put(self.new, "a.blkx", {"x": 2})
+        for side, v in ((self.old, "2.59.0.92"), (self.new, "2.60.0.21")):
+            self.put(side, "version", v)
+        builder.compare_files(self.old, self.new)
+        self.assertTrue(patches.PENDING.exists())
+        data = self.root / "data"
+        write(data, db())
+        before = patches.snapshot(data, "2.60.0.21")
+        write(data, db("2.60.0.21"))
+        entry = patches.record(before, data)
+        self.assertEqual(entry["files"], 1)
+        self.assertFalse(patches.PENDING.exists())
+        self.assertEqual(patches.index()["patches"][0]["counts"], {"files": 1})
+        self.assertEqual(patches.rows(entry["id"]), [])  # the list of patches stays light
+        self.assertEqual(patches.file_rows(entry["id"]), [["a.blkx", "f.x", 1, 2, "x"]])
+        self.assertIsNone(patches.file_rows("../patches"))
+
+    def test_not_with_other_versions_and_gone_with_its_patch(self):
+        patches.pend("2.58.0.1", "2.58.0.2", [["a.blkx", "f.x", 1, 2, "x"]])
+        data = self.root / "data"
+        write(data, db())
+        before = patches.snapshot(data, "2.60.0.21")
+        write(data, db("2.60.0.21"))
+        self.assertNotIn("files", patches.record(before, data))
+        self.assertTrue(patches.PENDING.exists())  # for the build it belongs to
+        keep = patches.FILE.with_name("patches")
+        keep.mkdir()
+        (keep / "1.0-1.1.json").write_text("[]", encoding="utf-8")
+        write(data, db())
+        patches.record(patches.snapshot(data, "2.60.0.22"), data)
+        self.assertFalse((keep / "1.0-1.1.json").exists())  # no patch of that id kept
+
+    def test_the_same_version_again_keeps_the_comparison_made(self):  # an update whose build failed, done again
+        patches.pend("2.59.0.92", "2.60.0.21", [])
+        for side in (self.old, self.new):
+            self.put(side, "version", "2.60.0.21")
+        builder.compare_files(self.old, self.new)
+        self.assertEqual(json.loads(patches.PENDING.read_text(encoding="utf-8"))["from"], "2.59.0.92")
+
+    def test_the_datamine_keeps_what_its_reset_replaces(self):
+        dm = self.root / "dm"
+        name = builder.SPARSE[0] + "/a.blkx"
+        self.put(dm, name, {"x": 1})
+        self.put(dm, builder.SPARSE[1] + "/same.blkx", {"x": 1})
+        self.put(dm, "version", "2.61.0.20")
+        g = lambda *a: builder.git(*a, cwd=dm)
+        g("init", "-q", "-b", "master")
+        g("add", "-A")
+        g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "old")
+        self.put(dm, name, {"x": 2})
+        self.put(dm, "version", "2.61.0.24")
+        g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "new")
+        g("update-ref", "refs/remotes/origin/master", "HEAD")
+        g("reset", "-q", "--hard", "HEAD~1")
+        with mock.patch.object(builder, "CACHE", self.root / "cache"):
+            old, names = builder._keep_changed(dm)
+        self.assertEqual(names, [name])
+        g("reset", "-q", "--hard", "origin/master")
+        builder.compare_files(old, dm, names)
+        pending = json.loads(patches.PENDING.read_text(encoding="utf-8"))
+        self.assertEqual((pending["from"], pending["to"], pending["rows"]), ("2.61.0.20", "2.61.0.24", [[name, "f.x", 1, 2, "x"]]))
 
 
 if __name__ == "__main__":

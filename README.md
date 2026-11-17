@@ -119,7 +119,7 @@ Each one links to its page in the wiki.
   history from your replays).
 - **[My hangar](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/My-hangar)** (owned vehicles,
   lineups, research plan), **[What changed](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/What-changed)**
-  between two game versions (copied for Reddit or Discord in one click), **[Mods](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Mods)** (skins, sounds, vehicles of their own,
+  between two game versions, down to every value of the game files (copied for Reddit or Discord in one click), **[Mods](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Mods)** (skins, sounds, vehicles of their own,
   hangars, and WT Live's posts installed in one click),
   **[3D views](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/3D-views)** of vehicles, weapons and
   maps.

@@ -324,8 +324,8 @@ def _mac_git() -> str:
 def git(*args, cwd=None):
     # no console window flashing from the packaged (windowed) app
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    subprocess.run([find_git(), "-c", "core.longpaths=true", *args], cwd=cwd, check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, creationflags=flags)
+    return subprocess.run([find_git(), "-c", "core.longpaths=true", *args], cwd=cwd, check=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=flags).stdout
 
 
 def fetch_datamine(progress=None):
@@ -349,8 +349,37 @@ def fetch_datamine(progress=None):
         report(progress, 0.05)
         git("sparse-checkout", "set", *SPARSE, cwd=DM)
         git("fetch", "--depth", "1", "origin", "master", cwd=DM)
+        old, names = _keep_changed(DM)
         git("reset", "--hard", "origin/master", cwd=DM)
+        try:
+            compare_files(old, DM, names, progress)
+        finally:
+            shutil.rmtree(old, ignore_errors=True)
     report(progress, 0.45)
+
+
+def _keep_changed(dm: Path) -> tuple[Path, list]:
+    """Before the datamine's reset replaces them: the files origin/master changes, copied aside with the version."""
+    names = [n for n in git("diff", "--name-only", "--no-renames", "-z", "HEAD", "origin/master", "--", *SPARSE, cwd=dm).decode("utf-8").split("\0") if n]
+    old = CACHE / "datamine.old"
+    shutil.rmtree(old, ignore_errors=True)
+    for n in [*names, "version"]:
+        if (dm / n).is_file():
+            (old / n).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(dm / n, old / n)
+    return old, names
+
+
+def compare_files(old: Path, new: Path, names=None, progress=None) -> None:
+    """Before the old game files go: every change between them and the new ones, that the build records with its patch."""
+    frm, to = ((r / "version").read_text().strip() if (r / "version").is_file() else "" for r in (old, new))
+    if not frm or not to or frm == to:  # the same version again (a build that failed): the comparison made then still stands
+        return
+    log("Comparing the game files with the previous version...", progress)
+    try:
+        patches.pend(frm, to, patches.files(old, new, names))
+    except Exception as e:  # the update goes on, without its list of every change
+        log(f"Game files not compared: {e}", progress)
 
 
 def fetch_gamefiles(game_dir: Path | None, progress=None):
@@ -365,6 +394,7 @@ def fetch_gamefiles(game_dir: Path | None, progress=None):
     shutil.rmtree(tmp, ignore_errors=True)
     try:
         vromfs.unpack(game_dir, tmp, SPARSE, lambda frac: report(progress, 0.03 + 0.42 * frac))
+        compare_files(GAMEFILES, tmp, progress=progress)
         shutil.rmtree(GAMEFILES, ignore_errors=True)
         tmp.replace(GAMEFILES)
     finally:

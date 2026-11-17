@@ -2033,6 +2033,8 @@
   "ch.group.arms": "Beladungen und Waffen",
   "ch.group.weapon": "Raketen, Bomben, Lenkflugkörper, Torpedos",
   "ch.group.map": "Karten und Szenarien",
+  "ch.group.files": "Alle Spieldateien",
+  "ch.filesHint": "Jeder Wert, der sich in den von WTFTD gelesenen Spieldateien geändert hat, unter den Namen der Dateien selbst. Eine neue oder entfernte Datei ist eine Zeile. Eine Korrektur im Spielcode oder auf Gaijins Servern ändert keine Datei und steht daher nicht hier.",
   "update.changes": "Änderungen ansehen ({n})",
   "stat.rep": "Reparaturkosten",
   "stat.slm": "Belohnung (Silver Lions)",

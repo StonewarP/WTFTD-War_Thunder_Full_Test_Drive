@@ -2033,6 +2033,8 @@
   "ch.group.arms": "挂载和武器",
   "ch.group.weapon": "导弹、炸弹、火箭弹、鱼雷",
   "ch.group.map": "地图和场景",
+  "ch.group.files": "全部游戏文件",
+  "ch.filesHint": "WTFTD 读取的游戏文件中每一个变动的值，使用文件本身的名称。新增或删除的文件占一行。游戏代码或 Gaijin 服务器上的修复不会改动文件，因此不在此处。",
   "update.changes": "查看改动（{n}）",
   "stat.rep": "维修费用",
   "stat.slm": "收益 (银狮)",

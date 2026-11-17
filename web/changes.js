@@ -24,9 +24,13 @@ const chShell = sid => {
   return bullets.length ? bullets.map(b => I18N.bullet(b)).join(', ') : `${I18N.weapon(gun)} · ${belt ? I18N.mod(belt) || belt.replace(/_/g, ' ') : t('ammo.default')}`;
 };
 
+// a game file's vehicle, by the file's name (fm/su_15tm.blkx: the Su-15TM's flight model)
+const chFileUnit = file => file.split('/').pop().split('.')[0];
+
 // what a row is about, whatever the current data still has of it
 function chName(r) {
   const k = r[1], f = CH.fields[k];
+  if (f.group === 'files') return S.byId.has(chFileUnit(r[0])) ? I18N.unit(chFileUnit(r[0])) : r[0];
   if (f.of === 's') return chShell(r[0]);
   if (f.group === 'weapon') return AR.byId.get(r[0]) ? arName(AR.byId.get(r[0])) : r[2] && k === 'w.gone' ? r[2] : I18N.arm(r[0]);
   if (f.group === 'map') return k === 'm.gone' ? r[2] : mbMapName(r[0]);
@@ -37,7 +41,7 @@ function chName(r) {
 function chVehicles(r) {
   const k = r[1], f = CH.fields[k];
   if (k === 'gone') return [{ id: r[0], n: r[4][0], c: r[4][1] }];
-  const ids = f.of === 's' ? r[4] : f.group === 'weapon' ? AR.data?.carriers[r[0]] || [] : f.group === 'map' ? [] : [r[0]];
+  const ids = f.of === 's' ? r[4] : f.group === 'weapon' ? AR.data?.carriers[r[0]] || [] : f.group === 'map' ? [] : f.group === 'files' ? [chFileUnit(r[0])] : [r[0]];
   return ids.map(id => S.byId.get(id)).filter(Boolean);
 }
 
@@ -67,6 +71,10 @@ function chDir(f, a, b) {
 
 function chSubject(r) {
   const k = r[1], f = CH.fields[k], v = S.byId.get(r[0]);
+  if (f.group === 'files') {
+    const u = S.byId.get(chFileUnit(r[0]));
+    return `<span class="ch-sub">${u ? mbVehicle(u.id, flagHTML(u.n) + unitImgTag(u.id)) : ''}<small>${esc(r[0])}</small></span>`;
+  }
   if (f.of === 's') {
     const list = r[4].map(id => S.byId.get(id)).filter(Boolean), shown = list.slice(0, 3);
     return `<span class="ch-sub"><b>${esc(r.name)}</b><small>${shown.map(x => mbVehicle(x.id)).join(', ')}${list.length > 3 ? ` <span class="muted">+${I18N.num(list.length - 3)}</span>` : ''}</small></span>`;
@@ -82,6 +90,7 @@ function chSubject(r) {
 
 // the value column of what's new or removed: it has no before and after
 function chWhat(r) {
+  if (CH.fields[r[1]].group === 'files') return '';
   const v = S.byId.get(r[0]), it = AR.byId.get(r[0]);
   if (v) return `${className(v.k)}${v.r ? ` · ${t('rank', { r: ROMAN[v.r] || v.r })}` : ''}`;
   if (r[1] === 'new' && Array.isArray(r[4])) return className(r[4][2]);  // a dev server's: what the comparison kept of it
@@ -172,7 +181,7 @@ function chShareText(where) {
     return `- **${name(rows[0])}**: ${md(parts.join('; '))}\n`;
   };
   let out = head + (CH.rows.length ? '' : `\n${md(t('ch.nothing'))}\n`), left = 0;
-  for (const g of CH.groups.filter(x => CH.subjects[x])) {
+  for (const g of CH.groups.filter(x => CH.subjects[x] && x !== 'files')) {  // every file's raw values: not for a post
     const names = g === 'new' || g === 'gone', seen = new Set();  // new and removed vehicles: their names on one line, all they say
     twice = new Set(CH.subjects[g].map(s => s[0].name).filter(n => seen.has(n) || !seen.add(n)));
     let block = `\n**${md(t('ch.group.' + g))}** (${I18N.num(CH.subjects[g].length)})\n`, lines = 0;
@@ -223,6 +232,7 @@ function chRender() {
   const notes = [p.dev ? t(p.back ? 'ch.devBehind' : p.ahead ? 'ch.devNote' : 'ch.dmNewer', { dev: p.to, live: p.from }) : p.back && t('ch.back', { from: p.from, to: p.to }),
     p.circuit === 'dev' && t('ch.devClient'), p.schema && t('ch.schema')].filter(Boolean);
   const tab = present.includes(CH.tab) ? CH.tab : present[0];  // the one picked, while the filters leave it something
+  if (tab === 'files') notes.push(t('ch.filesHint'));
   body.innerHTML = `${notes.map(x => `<p class="hint ch-note">${icon('target', 'ic-sm')}<span>${esc(x)}</span></p>`).join('')}
     ${present.length ? `<div class="ar-cats ch-tabs" role="tablist">${present.map(g => `<button class="chipbtn${g === tab ? ' active' : ''}" role="tab" data-chtab="${g}">
       ${esc(t('ch.group.' + g))}<span class="n">${I18N.num(CH.subjects[g].length)}</span>${g === 'br' ? ud : ''}</button>`).join('')}</div>
@@ -234,11 +244,13 @@ async function chPick(id) {
   CH.id = id;
   CH.rows = null;
   chRender();
-  const rows = CH.cache[id] ||= await api('changes/' + id);
+  const files = CH.patches.find(x => x.id === id)?.files;  // every file's changes, kept apart: tens of thousands for a major update
+  const rows = CH.cache[id] ||= [...await api('changes/' + id), ...(files ? await api(`changes/${id}/files`) : [])];
   if (CH.id !== id) return;
   if (!rows[0]?.name) {
     for (const r of rows) r.name = chName(r);
-    rows.sort((a, b) => CH.groups.indexOf(CH.fields[a[1]].group) - CH.groups.indexOf(CH.fields[b[1]].group) || a.name.localeCompare(b.name, I18N.code, { numeric: true }));
+    const by = new Intl.Collator(I18N.code, { numeric: true }).compare;
+    rows.sort((a, b) => CH.groups.indexOf(CH.fields[a[1]].group) - CH.groups.indexOf(CH.fields[b[1]].group) || by(a.name, b.name));
   }
   CH.rows = rows;
   CH.more = {};
@@ -256,7 +268,7 @@ const chPatches = () => CH.patches.filter(p => !p.dev);
 function chUnseen() {
   const real = chPatches(), at = real.findIndex(p => p.id === CH.seen);
   const list = real.slice(0, at < 0 ? undefined : at).filter(p => !p.back);
-  const n = list.reduce((sum, p) => sum + Object.values(p.counts).reduce((a, b) => a + b, 0), 0);
+  const n = list.reduce((sum, p) => sum + Object.entries(p.counts).reduce((a, [g, b]) => a + (g === 'files' ? 0 : b), 0), 0);
   $('#changeCount').textContent = n ? I18N.num(n) : '';
 }
 
@@ -269,7 +281,7 @@ async function chLoad() {
   const last = chPatches()[0];
   CH.touched.clear();
   if (!last || last.back) return;  // gone back: what the latest patch moved isn't what the panel shows
-  const rows = CH.cache[last.id] ||= await api('changes/' + last.id);
+  const rows = await api('changes/' + last.id);  // not cached: the page's has every file's changes too
   for (const r of rows) {
     const f = CH.fields[r[1]];
     for (const id of f.of === 's' ? r[4] : f.of === 'v' ? [r[0]] : []) CH.touched.set(id, (CH.touched.get(id) || 0) + 1);

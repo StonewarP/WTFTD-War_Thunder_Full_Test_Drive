@@ -2033,6 +2033,8 @@
   "ch.group.arms": "Výzbroj a zbraně",
   "ch.group.weapon": "Řízené střely, bomby, rakety, torpéda",
   "ch.group.map": "Mapy a scénáře",
+  "ch.group.files": "Všechny soubory hry",
+  "ch.filesHint": "Každá hodnota, která se změnila v souborech hry, které WTFTD čte, pod názvy ze samotných souborů. Nový nebo odebraný soubor je jeden řádek. Oprava v kódu hry nebo na serverech Gaijinu nemění žádný soubor, proto tu není.",
   "update.changes": "Zobrazit změny ({n})",
   "stat.rep": "Cena opravy",
   "stat.slm": "Odměna (Stříbrní lvi)",

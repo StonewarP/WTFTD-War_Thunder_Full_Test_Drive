@@ -2033,6 +2033,8 @@
   "ch.group.arms": "Uzbrojenie i broń",
   "ch.group.weapon": "Pociski, bomby, rakiety, torpedy",
   "ch.group.map": "Mapy i scenariusze",
+  "ch.group.files": "Wszystkie pliki gry",
+  "ch.filesHint": "Każda wartość, która zmieniła się w plikach gry czytanych przez WTFTD, pod nazwami z samych plików. Nowy lub usunięty plik to jeden wiersz. Poprawka w kodzie gry lub na serwerach Gaijin nie zmienia żadnego pliku, więc jej tu nie ma.",
   "update.changes": "Zobacz, co się zmieniło ({n})",
   "stat.rep": "Koszt naprawy",
   "stat.slm": "Nagroda (Srebrne Lwy)",

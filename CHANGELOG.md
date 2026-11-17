@@ -4,6 +4,15 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## Unreleased
+
+- **What changed: every change of the game files.** A new **All game files** tab lists every value that moved in the
+  files WTFTD reads (vehicles, flight models, weapons, maps, missions, economy, translations), under the files' own
+  names: a new or removed file is one line, a language table gives its texts by id. 2.61.0.24's automatic flap limits on
+  the Su-27 family, for example, only show there. The old and new files are compared when the data is updated, from
+  the next game update on; a major update gives some 80,000 values in about 3,000 files. A fix in the game's code or
+  on Gaijin's servers changes no file, so it can't show.
+
 ## 0.33.6 - 2026-11-17
 
 - **Maps without an Oodle runtime** ([issue #20](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/20)):

@@ -2038,6 +2038,8 @@
   "ch.group.arms": "Chargements et armes",
   "ch.group.weapon": "Missiles, bombes, roquettes, torpilles",
   "ch.group.map": "Cartes et scénarios",
+  "ch.group.files": "Tous les fichiers du jeu",
+  "ch.filesHint": "Chaque valeur qui a bougé dans les fichiers du jeu que WTFTD lit, sous les noms des fichiers eux-mêmes. Un fichier ajouté ou retiré tient en une ligne. Un correctif dans le code du jeu ou sur les serveurs de Gaijin ne change aucun fichier : il n'apparaît pas ici.",
   "update.changes": "Voir ce qui a changé ({n})",
   "stat.rep": "Coût de la réparation",
   "stat.slm": "Récompense (Lions)",

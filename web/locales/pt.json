@@ -2033,6 +2033,8 @@
   "ch.group.arms": "Cargas e armas",
   "ch.group.weapon": "Mísseis, bombas, foguetes, torpedos",
   "ch.group.map": "Mapas e cenários",
+  "ch.group.files": "Todos os arquivos do jogo",
+  "ch.filesHint": "Cada valor que mudou nos arquivos do jogo que o WTFTD lê, com os nomes dos próprios arquivos. Um arquivo novo ou removido ocupa uma linha. Uma correção no código do jogo ou nos servidores da Gaijin não muda nenhum arquivo, então não aparece aqui.",
   "update.changes": "Ver o que mudou ({n})",
   "stat.rep": "Custo de reparação",
   "stat.slm": "Recompensa (Silver Lions)",
