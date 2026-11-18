@@ -1518,6 +1518,19 @@ def _ammo_groups(det: dict) -> list:
     return out
 
 
+def swapped_ammo(ammo: list, groups: list, am: list, swaps: dict) -> tuple[list, list]:
+    """An aircraft's belts once guns are replaced (swaps: {group index: catalog weapon}): its slots go by their gun's name
+    (mission.write_bullets), so a replaced one's is the new gun's, on that gun's own default belt."""
+    ammo, groups = [dict(a) if isinstance(a, dict) else {} for a in ammo], [dict(g) for g in groups]
+    for k, w in swaps.items():
+        i = int(k) if str(k).isdigit() else -1
+        if cdk.gun_swap_ok(True, w) and 0 <= i < min(len(am), len(groups)) and am[i].get("wi"):  # as cdk.build_files does
+            groups[i]["p"] = w["p"]
+            if i < len(ammo):
+                ammo[i]["id"] = ""
+    return ammo, groups
+
+
 def _prepare_ai(body: dict) -> tuple[dict, dict]:
     """Loadouts of the map editor's units (AI): their ammo groups, and for an aircraft / helicopter with
     pylons of its own, a custom aircraft of its own (CDK, "custom" method). Returns (mission cfg, {package:
@@ -1741,8 +1754,8 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     if isinstance(body.get("pylons"), dict):
         body["pylons"] = custom_weapons(body["pylons"])
     non_std = any(isinstance(v, dict) for v in (body.get("pylons") or {}).values())
-    if mods.get("invulnerable") or non_std or any(mods.get(k) for k in ("sensors", "sensorsAdd", "avionics", "warningVoice", "crewVoice")):
-        # needs the local game files (damage model, pylon layout for non-standard weapons, what the unit has)
+    if mods.get("invulnerable") or non_std or any(mods.get(k) for k in ("sensors", "sensorsAdd", "avionics", "warningVoice", "crewVoice", "guns")):
+        # needs the local game files (damage model, pylon layout for non-standard weapons, what the unit has, its guns)
         unit_data = builder.load(builder.unit_file(vid, veh["c"]))
     engine = str(mods.get("engineFrom") or "")
     donor = str((STATE.get_details().get(engine, {}).get("st") or {}).get("fm") or "") if SAFE_ID.match(engine) else ""
@@ -1754,7 +1767,10 @@ def _prepare_cdk(body: dict) -> tuple[dict, dict]:
     except cdk.CdkError as e:
         raise mission.MissionError(str(e))
     body = dict(body, unitClass=unit_class, _pkg=pkg, crewCountry=mods.get("crewCountry"))
-    if any(isinstance(g, dict) and g.get("swap") for g in (mods.get("guns") or {}).values()):
+    swaps = {k: STATE.get_catalog().get(str(g["swap"])) or {} for k, g in (mods.get("guns") or {}).items() if isinstance(g, dict) and g.get("swap")}
+    if swaps and veh["c"] in ("air", "heli"):
+        body["ammo"], body["_ammoGroups"] = swapped_ammo(body.get("ammo") or [], body["_ammoGroups"], det.get("am") or [], swaps)
+    elif swaps:
         body["ammo"] = []  # the shells picked were the old gun's
     if preset:
         body["preset"] = preset

@@ -4,6 +4,7 @@ user/imported as a scenario of its own (usr_<name>.json, its texts in usr_<name>
 creator put the player in: the page makes a mission, a map and a vehicle of them."""
 from __future__ import annotations
 
+import copy
 import csv
 import io
 import json
@@ -13,7 +14,7 @@ import zipfile
 from pathlib import Path
 
 from . import blk
-from .mission import IMPORTED, _find_player, _import_records
+from .mission import IMPORTED, UNIT_DEFAULTS, _append_unit, _as_list, _find_player, _import_records
 
 MAX_FILE = 20 << 20  # one mission or text, unpacked
 MAX_TOTAL = 60 << 20  # all of an archive, unpacked: a bomb stops here
@@ -86,9 +87,10 @@ def _sid(stem: str) -> str:
 
 
 def read(name: str, data: bytes, levels=None) -> list[dict]:
-    """The missions of a file: [{sid, stem, mission (the scenario), texts: {csv name: text}, name, description, player}].
-    levels: the maps the game has (data/levels.json); a mission on another one (its own terrain) is refused."""
-    return read_files(files_of(name, data), levels)
+    """The missions of a file the player imports: [{sid, stem, mission (the scenario), texts: {csv name: text}, name,
+    description, player}], one without a player given one (place). levels: the maps the game has (data/levels.json); a
+    mission on another one (its own terrain) is refused."""
+    return read_files(files_of(name, data), levels, place=True)
 
 
 def _parts(m: dict, find, kept: dict, depth: int = 0) -> dict:
@@ -109,13 +111,14 @@ def _parts(m: dict, find, kept: dict, depth: int = 0) -> dict:
     return kept
 
 
-def read_files(files: dict, levels=None, find=None) -> list[dict]:
+def read_files(files: dict, levels=None, find=None, place=False) -> list[dict]:
     """read, for {file name: text} already at hand. find(path): the text of a file of UserMissions a mission imports;
-    by default the one of that name among files (an archive's folders are flattened)."""
+    by default the one of that name among files (an archive's folders are flattened). place: when none has a player,
+    give one to each that isn't a part of another; else they're parts (a package's files, read one at a time)."""
     named = {k.lower(): v for k, v in files.items()}
     find = find or (lambda path: named.get(re.split(r"[/\\]", path)[-1].lower()))
     csvs = {k: v for k, v in files.items() if k.lower().endswith(".csv")}
-    out, templates = [], 0
+    out, spare = [], []
     for fname, text in files.items():
         if not fname.lower().endswith(".blk"):
             continue
@@ -136,20 +139,56 @@ def read_files(files: dict, levels=None, find=None) -> list[dict]:
         wing = str(((ms.get("player") or {}) if isinstance(ms.get("player"), dict) else {}).get("wing", ""))
         block, _, unit = _find_player(m["units"], wing)
         if unit is None or block not in KINDS:
-            templates += 1  # no player of its own: a part other missions import (the T-14's templates)
+            spare.append((fname, stem, m, info, level))  # no player of its own: a part other missions import (the T-14's templates)
             continue
-        own = {k: v for k, v in csvs.items() if k.lower() in (f"usr_{stem}.csv".lower(), f"{stem}.csv".lower())} or csvs
-        words = {}
-        for v in own.values():
-            words.update(_texts(v))
-        key, loc = f"missions/{info.get('name', '')}", str(info.get("locName") or "")
-        title = words.get(key) or words.get(loc) or loc or stem.replace("_", " ")  # locName: a text key or the text, as the game shows it
-        out.append({"sid": _sid(stem), "stem": stem, "mission": m, "texts": own, "map": level.group(1), "block": block,
-                    "wing": wing, "player": unit, "name": title.strip()[:80], "parts": _parts(m, find, {}),
-                    "description": " ".join(str(words.get(f"{key}/objective", "")).split())[:300]})
+        out.append(_found(stem, m, info, level, block, wing, unit, csvs, find))
+    if not out and place:  # none has a player (a PvE mission where each player brings their own): one is placed, the page asks for a vehicle
+        parts = {re.split(r"[/\\]", r["file"])[-1].lower() for f in spare for r in _import_records(f[2])}
+        for fname, stem, m, info, level in spare:
+            if fname.lower() not in parts:
+                wing, unit = _place_player(m)
+                out.append({**_found(stem, m, info, level, "tankModels", wing, unit, csvs, find), "placed": 1})
     if not out:
-        raise ImportFailed("player" if templates else "empty")
+        raise ImportFailed("player" if spare else "empty")
     return out
+
+
+def _found(stem, m, info, level, block, wing, unit, csvs, find) -> dict:
+    own = {k: v for k, v in csvs.items() if k.lower() in (f"usr_{stem}.csv".lower(), f"{stem}.csv".lower())} or csvs
+    words = {}
+    for v in own.values():
+        words.update(_texts(v))
+    key, loc = f"missions/{info.get('name', '')}", str(info.get("locName") or "")
+    title = words.get(key) or words.get(loc) or loc or stem.replace("_", " ")  # locName: a text key or the text, as the game shows it
+    return {"sid": _sid(stem), "stem": stem, "mission": m, "texts": own, "map": level.group(1), "block": block,
+            "wing": wing, "player": unit, "name": title.strip()[:80], "parts": _parts(m, find, {}),
+            "description": " ".join(str(words.get(f"{key}/objective", "")).split())[:300]}
+
+
+def _place_player(m: dict) -> tuple[str, dict]:
+    """A player for a mission that has none: a tank without a vehicle (WTFTD puts the one picked in its place) in the first
+    area named for a spawn, else beside the first unit of the player's side, else at the map's centre; the editor moves it."""
+    ms = m["mission_settings"]
+    player = ms["player"] if isinstance(ms.get("player"), dict) else {}
+    army = player.get("army") if player.get("army") in (1, 2) else 1
+    pos = None
+    areas = m.get("areas") if isinstance(m.get("areas"), dict) else {}
+    units = [u for e in m["units"].values() for u in _as_list(e) if isinstance(u, dict)]
+    for tm in [a.get("tm") for n, a in areas.items() if "spawn" in n.lower() and isinstance(a, dict)] \
+            + [u.get("tm") for u in units if isinstance(u.get("props"), dict) and u["props"].get("army") == army]:
+        try:
+            pos = [float(c) for c in tm[3]][:3]
+            if len(pos) == 3:
+                break
+        except (TypeError, ValueError, IndexError, KeyError):
+            pos = None
+    names = {u.get("name") for u in units}
+    wing = next(n for n in ("wtftd_player", *(f"wtftd_player_{i}" for i in range(2, 99))) if n not in names)
+    unit = {"name": wing, "tm": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], pos or [0.0, 0.0, 0.0]], "unit_class": "",
+            "objLayer": 1, "weapons": "", "applyAllMods": True, "props": {**copy.deepcopy(UNIT_DEFAULTS["tankModels"]), "army": army}, "way": {}}
+    _append_unit(m["units"], "tankModels", unit)
+    ms["player"] = {**player, "army": army, "wing": wing}
+    return wing, unit
 
 
 def vehicle(found: dict) -> dict:
@@ -199,7 +238,8 @@ def save(found: list[dict]) -> list[dict]:
                     "start": "air" if f["block"] == "armada" and float(pos[1] or 0) > 300 else "ground",
                     "block": f["block"], "wing": f["wing"], "pos": pos, "type": "singleMission", "en": {},
                     "units": sum(len(v) if isinstance(v, list) else 1 for v in f["mission"]["units"].values()),
-                    "imported": 1, "title": f["name"], "name": f["name"], "description": f["description"]})
+                    "imported": 1, "title": f["name"], "name": f["name"], "description": f["description"],
+                    **({"placed": 1} if f.get("placed") else {})})  # its player is WTFTD's: the page says to pick a vehicle
     index = {e["id"]: e for e in entries()}
     index.update({e["id"]: e for e in out})
     (IMPORTED / "index.json").write_text(json.dumps(list(index.values()), ensure_ascii=False, indent=1), encoding="utf-8")

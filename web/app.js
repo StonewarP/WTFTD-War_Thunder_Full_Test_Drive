@@ -1146,9 +1146,12 @@ function ammoBody(v, d) {
     </div>${penChart(g, new Set(c.ammo.filter(a => a.id !== null).map(a => a.id)))}${d.am.filter(x => x !== g && x.opts.some(o => /^(atgm|sam)/.test(o.t?.[0]))).map(x => penChart(x, new Set())).join('')}${unofficialToggle}${sightHTML()}`;
   }
   if (!d.am.length) return `<p class="hint">${esc(t('ammo.none'))}</p>`;
-  const guns = d.am.map((g, i) => `<div class="gun"><div class="gun-head">${icon('ammo', 'ic-sm')}<span class="gun-name">${esc(I18N.weapon(g.w))}</span>
-      ${g.n > 1 ? `<span class="chip">${esc(t('ammo.guns', { n: g.n }))}</span>` : ''}</div>
-      ${cmChaff(g) && i < 4 ? cmBody(g, i, c.ammo[i]) + '</div>' : `<div class="belt-row">${beltIcons(g.opts.find(o => o.id === (c.ammo[i]?.id ?? '')), g.trig === 'countermeasures')}
+  // an aircraft's gun listed on it (custom vehicles): another gun in its place, on that one's own default belt
+  const swappable = g => cdkOn() && g.wi && g.trig !== 'countermeasures' && (v.c === 'air' || v.c === 'heli');
+  const swapped = (g, i) => swappable(g) && getPath(c.mods, `guns.${i}.swap`);
+  const guns = d.am.map((g, i) => `<div class="gun"><div class="gun-head">${icon('ammo', 'ic-sm')}<span class="gun-name">${esc(I18N.weapon(swapped(g, i) || g.w))}</span>
+      ${g.n > 1 ? `<span class="chip">${esc(t('ammo.guns', { n: g.n }))}</span>` : ''}</div>${swappable(g) ? gunSwapHTML(g, i, 'air') : ''}
+      ${cmChaff(g) && i < 4 ? cmBody(g, i, c.ammo[i]) + '</div>' : swapped(g, i) ? `<p class="hint">${esc(t('ammo.swapBelt'))}</p></div>` : `<div class="belt-row">${beltIcons(g.opts.find(o => o.id === (c.ammo[i]?.id ?? '')), g.trig === 'countermeasures')}
         <select data-belt="${i}">${ammoOptions(g, c.ammo[i]?.id ?? '', true)}</select></div>${penChart(g, new Set([c.ammo[i]?.id ?? '']), true)}</div>`}`).join('');
   return `<p class="hint">${esc(t('ammo.beltNote'))}</p>${guns}${unofficialToggle}`;
 }
@@ -1591,11 +1594,7 @@ function modsBody(v, d) {
     if (g.cap) fields.push(modInput(`${base}.cap`, 'mods.cap', g.cap, t('mods.rounds'), 1));
     if (g.sf) fields.push(modInput(`${base}.reload`, v.c === 'ground' ? 'mods.reload' : 'mods.interval', +(1 / g.sf).toFixed(3), 's', 0.1));
     html += `<div class="mod-grid">${fields.join('')}</div>`;
-    if (v.c !== 'air' && v.c !== 'heli') {  // the list fills when opened (swapList): a ship has many guns, the game a thousand weapons
-      loadWeapons();
-      const swap = getPath(S.cfg.mods, `${base}.swap`);
-      html += `<div class="shell-pick"><label>${esc(t('mods.swap'))}</label><select data-modsel="${base}.swap" data-modswap><option value="">${esc(I18N.weapon(g.w))}</option>${swap ? `<option value="${esc(swap)}" selected>${esc(I18N.weapon(swap))}</option>` : ''}</select></div>`;
-    }
+    if (v.c !== 'air' && v.c !== 'heli') html += gunSwapHTML(g, gi, '');  // an aircraft's: in Ammunition
     const shells = g.opts.filter(o => ['v', 'm', 'e', 'h', 'l'].some(k => o.s?.[k] != null) && (S.showUnofficial || !o.x));
     if (!shells.length) return;
     const sel = S.modShell?.[gi] ?? shells[0].id;
@@ -1636,12 +1635,21 @@ function voicesHTML(v) {
 }
 
 // a gun's Replace with: every ground and ship weapon, as cdk takes them
+// a gun's replacement (custom vehicles): the list fills when opened (swapList), a ship has many guns, the game a thousand weapons
+function gunSwapHTML(g, gi, air) {
+  loadWeapons();
+  const path = `guns.${gi}.swap`, swap = getPath(S.cfg.mods, path);
+  return `<div class="shell-pick"><label>${esc(t('mods.swap'))}</label><select data-modsel="${path}" data-modswap="${air}"><option value="">${esc(I18N.weapon(g.w))}</option>${swap ? `<option value="${esc(swap)}" selected>${esc(I18N.weapon(swap))}</option>` : ''}</select></div>`;
+}
+
 async function swapList(sel) {
   const w = await loadWeapons();
   if (sel.dataset.filled) return;
   sel.dataset.filled = '1';
   const on = sel.value, own = sel.options[0].textContent;
-  const list = Object.keys(w).filter(k => /models_weapons/i.test(w[k].p || '')).map(k => [k, I18N.weapon(k)]).sort((a, b) => a[1].localeCompare(b[1]));
+  // as cdk.gun_swap_ok: an aircraft takes an aircraft's gun, a tank or a ship one of theirs
+  const fits = sel.dataset.modswap ? x => x.c === 'gun' && !x.pkg && !/models_weapons/i.test(x.p || '') : x => /models_weapons/i.test(x.p || '');
+  const list = Object.keys(w).filter(k => fits(w[k])).map(k => [k, I18N.weapon(k)]).sort((a, b) => a[1].localeCompare(b[1]));
   sel.innerHTML = `<option value="">${esc(own)}</option>${list.map(([k, n]) => `<option value="${esc(k)}"${k === on ? ' selected' : ''}>${esc(n)}</option>`).join('')}`;
 }
 document.addEventListener('focusin', ev => { if (ev.target.matches?.('[data-modswap]')) swapList(ev.target); });

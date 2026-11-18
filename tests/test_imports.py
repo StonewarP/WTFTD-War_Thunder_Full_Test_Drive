@@ -119,7 +119,9 @@ class Read(unittest.TestCase):
         cases = {"file": ("x.zip", b"not a zip"), "empty": ("x.zip", archive({"readme.txt": "hi", "sight.blk": "crosshair{}"})),
                  "parse": ("x.blk", b"mission_settings{ broken"),
                  "level": ("x.blk", MISSION.replace("levels/avg_training_ground.bin", "../../x").encode()),
-                 "player": ("x.blk", MISSION.replace('wing:t="_player"', 'wing:t="nobody"').encode())}
+                 # no player, and a part of itself: no mission of its own to give one to
+                 "player": ("x.blk", MISSION.replace('wing:t="_player"', 'wing:t="nobody"').replace(
+                     "imports{}", 'imports{\n  import_record{\n    file:t="UserMissions/x.blk"\n  }\n}').encode())}
         for code, (name, data) in cases.items():
             with self.subTest(code), self.assertRaises(imports.ImportFailed) as e:
                 imports.read(name, data)
@@ -127,6 +129,25 @@ class Read(unittest.TestCase):
         with self.assertRaises(imports.ImportFailed) as e:
             imports.read("x.exe", b"MZ")
         self.assertEqual(e.exception.code, "file")
+
+    def test_a_mission_without_a_player_gets_one_to_swap(self):  # issue #24: a PvE mission where each player brings their own
+        pve = MISSION.replace('wing:t="_player"', 'wing:t=""').replace("areas{}", "areas{\n  t1_spawn{\n    type:t=\"Sphere\"\n"
+                                                                       "    tm:m=[[1, 0, 0] [0, 1, 0] [0, 0, 1] [500, 30, 600]]\n  }\n}")
+        f, = imports.read("pve.blk", pve.encode())
+        self.assertEqual((f["block"], f["wing"], f["placed"], f["player"]["tm"][3]), ("tankModels", "wtftd_player", 1, [500.0, 30.0, 600.0]))
+        self.assertEqual(f["mission"]["mission_settings"]["player"], {"army": 1, "wing": "wtftd_player"})
+        self.assertEqual(imports.vehicle(f)["vehicle"], "")  # none WTFTD knows: the page asks for one
+        # no spawn zone: beside the first unit of the player's side (the old player stays as it was, an AI)
+        f, = imports.read("pve.blk", MISSION.replace('wing:t="_player"', 'wing:t=""').encode())
+        self.assertEqual(f["player"]["tm"][3], [100.0, 20.0, 200.0])
+        # a mission made of it plays with the vehicle picked, a tank or an aircraft
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(mission, "IMPORTED", Path(d)), mock.patch.object(imports, "IMPORTED", Path(d)):
+            e, = imports.save([f])
+            self.assertEqual((e["placed"], e["wing"], e["start"]), (1, "wtftd_player", "ground"))
+            for vid, block in (("us_m1_abrams", "tankModels"), ("p-51d-5", "armada")):
+                units = blk.loads(mission.build({"scenario": e["id"], "vehicle": vid, "block": block})[1])["units"]
+                me = [u for u in mission._as_list(units[block]) if u["name"] == "wtftd_player"]
+                self.assertEqual([u["unit_class"] for u in me], [vid])
 
     def test_an_archive_too_big_unpacked_is_refused_before_reading(self):
         with mock.patch.object(imports, "MAX_TOTAL", 100), self.assertRaises(imports.ImportFailed) as e:

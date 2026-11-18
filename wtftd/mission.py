@@ -133,6 +133,8 @@ EDITABLE_BLOCKS = ("tankModels", "armada", "ships")
 COUNTRIES = ("usa", "germany", "ussr", "britain", "japan", "china", "italy", "france", "sweden", "israel")
 OBJECT_BLOCKS = ("air_defence", "structures", "wheeled_vehicles", "tracked_vehicles", "radars", "infantry", "objectGroups")  # placed, not swapped
 ATTACK_TYPES = ("fire_at_will", "return_fire", "hold_fire", "dont_aim")
+# how AI units shoot: unitSetProperties keys of the game's own missions, at the bounds they use (0.1 / 5 s / 10 s mostly)
+AI_PROPS = {"accuracy": (0.0, 1.0), "effShootingRate": (0.0, 1.0), "targetChangeInterval": (0.5, 60.0), "adaptiveAccuracyTime": (0.0, 60.0)}
 ROUTE_POINTS = 40
 WAVE_PAUSE = 5.0  # s between the end of a wave and the next one
 _CLASS = re.compile(r"^[A-Za-z0-9_\-.]{1,120}$")
@@ -465,10 +467,10 @@ def _route(u: dict, e: dict):
         u["closed_waypoints"] = bool(e.get("routeLoop"))
 
 
-def apply_waves(m: dict, waves: dict, edits: dict, stay: list, passive: list):
+def apply_waves(m: dict, waves: dict, edits: dict, stay: list, passive: list, shooting: dict | None = None):
     """Enemies by wave (waves: {number: [unit]}): the first is there at the start, each next one comes when the one
     before is destroyed, the way the game's test flights bring their targets in: delayed units, unitRespawn in a zone
-    of their own. waveLoop: after the last one, the first again."""
+    of their own. waveLoop: after the last one, the first again. shooting: {unit: how it shoots}, set again on coming in."""
     triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
     if not isinstance(triggers, dict):
         return
@@ -496,6 +498,7 @@ def apply_waves(m: dict, waves: dict, edits: dict, stay: list, passive: list):
         # lost on coming in: the game's scripts set their targets passive again too
         held = [{"object": [x for x in names if x in group], flag: True} for group, flag in ((stay, "cannotMove"), (passive, "cannotShoot"))
                 if set(names) & set(group)]
+        held += [{"object": [x], **(shooting or {})[x]} for x in names if (shooting or {}).get(x)]
         if held:
             actions["unitSetProperties"] = held if len(held) > 1 else held[0]
         actions["playHint"] = _hint(text.replace("{n}", str(k + 1)))
@@ -513,6 +516,32 @@ def apply_waves(m: dict, waves: dict, edits: dict, stay: list, passive: list):
         t["conditions"] = {"unitWhenCountMatches": {"object_type": "isAlive", "object_marking": 0, "func": "less", "value": 1,
                                                     "object": f"wtftd_wave_{n}"}}
         triggers[f"wtftd_wave_{n}_end"] = t
+
+
+def ai_props(e) -> dict:
+    """How an AI unit shoots, as the editor sets it (the map's edits.ai or a unit's ai), checked: a share can hold anything."""
+    out = {}
+    for k, v in e.items() if isinstance(e, dict) else ():
+        if k in AI_PROPS and type(v) in (int, float) and math.isfinite(v):
+            out[k] = max(AI_PROPS[k][0], min(float(v), AI_PROPS[k][1]))
+        elif k == "checkVisibilityTarget" and isinstance(v, bool):
+            out[k] = v
+    return out
+
+
+def _ai_units(units: dict, wing: str) -> set:
+    """The mission's own units but the player (assets have no crew, squads are names for others)."""
+    return {u["name"] for block, e in units.items() if block not in ("squad", "objectGroups")
+            for u in _as_list(e) if isinstance(u, dict) and isinstance(u.get("name"), str) and u["name"] != wing}
+
+
+def _template_names(sid: str | None) -> set:
+    """The units the scenario's game templates bring (data/scenarios/<sid>.units.json), as the editor lists them."""
+    try:
+        tpl = json.loads((DATA / "scenarios" / f"{sid}.units.json").read_text(encoding="utf-8")) if sid else []
+    except (OSError, ValueError):
+        return set()
+    return {u["name"] for u in tpl if isinstance(u, dict) and isinstance(u.get("name"), str)} if isinstance(tpl, list) else set()
 
 
 def _wave_units(units: dict) -> set:
@@ -534,6 +563,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
     units = m.setdefault("units", {})
     stay, hunt, passive, sleep, follow, shoot = [], [], [], [], [], []
     waves: dict = {}
+    unit_ai: dict = {}  # {name: how it shoots}, set on that unit in the editor
     _, _, pu = _find_player(units, wing)
     my_army = (pu.get("props") or {}).get("army", 1) if pu else 1
     enemy_army = 2 if my_army == 1 else 1
@@ -563,6 +593,8 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             except (TypeError, ValueError):
                 pass
         behavior(name, e)
+        if ai_props(e.get("ai")):
+            unit_ai[name] = ai_props(e["ai"])
         if e.get("behavior") == "route":
             _route(u, e)
         if e.get("wave") in range(1, 10) and props.get("army") != my_army:
@@ -586,6 +618,8 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             sleep.append(name)
             continue
         behavior(name, e)
+        if ai_props(e.get("ai")):
+            unit_ai[name] = ai_props(e["ai"])
         if e.get("attack") == "hold_fire":
             passive.append(name)
         elif e.get("attack") == "fire_at_will":  # a template unit: made to fire by a start trigger
@@ -660,8 +694,14 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             else:
                 _hold_start(m, wing, pu["tm"], player, zone_info(sid) if sid else None)
 
+    # how they shoot: the map's setting on every AI unit (its own, added, the templates'), a unit's own over it
+    shooting = {n: ai_props(edits.get("ai")) for n in _ai_units(units, wing) | _template_names(sid)} if ai_props(edits.get("ai")) else {}
+    for name, p in unit_ai.items():
+        shooting[name] = {**shooting.get(name, {}), **p}
+    for name in sleep:
+        shooting.pop(name, None)
     if waves:
-        apply_waves(m, waves, edits, stay, passive)
+        apply_waves(m, waves, edits, stay, passive, shooting)
     actions: dict = {}
     if sleep:
         actions["unitPutToSleep"] = {"target": sleep}
@@ -670,6 +710,10 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         props_actions.append({"object": stay, "cannotMove": True})
     if passive:
         props_actions.append({"object": passive, "cannotShoot": True})
+    same: dict = {}  # units sharing a setting: one action
+    for name in sorted(shooting):
+        same.setdefault(json.dumps(shooting[name], sort_keys=True), []).append(name)
+    props_actions += [{"object": names, **json.loads(k)} for k, names in same.items()]
     if props_actions:
         actions["unitSetProperties"] = props_actions if len(props_actions) > 1 else props_actions[0]
     if follow:

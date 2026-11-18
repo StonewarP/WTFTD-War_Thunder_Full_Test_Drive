@@ -25,6 +25,18 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
   the Su-27 family, for example, only show there. The old and new files are compared when the data is updated, from
   the next game update on; a major update gives some 80,000 values in about 3,000 files. A fix in the game's code or
   on Gaijin's servers changes no file, so it can't show.
+- **Missions without a player vehicle can be imported** ([issue #24](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/24)):
+  a mission where each player brings their own vehicle (PvE missions) used to be refused ("no player vehicle WTFTD can
+  use"). Its map now goes to My maps with a start of WTFTD's: in the first zone named for a spawn, else beside the first
+  unit of the player's side. Pick your vehicle, then Create mission; the scenario editor moves the start.
+- **An aircraft's gun replaced by another** ([issue #23](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/23)):
+  with custom vehicles on, each gun of an aircraft or a helicopter has **Replace with** in Ammunition: its own by
+  default, or any aircraft gun of the game (an MG 151/20 by an NS-23). Both guns of a pair change, and the new one
+  fires its own default belt. Only guns listed on the aircraft itself, with more than one belt (as Ammunition shows them).
+- **How AI units shoot** ([issue #21](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/21)):
+  the scenario editor sets an AI's accuracy, fire rate, how often it changes target, the time it takes to find its aim
+  and whether it fires only at what it sees, the values the game's own missions use. For one unit, or for the whole map
+  with nothing selected (allies too); a unit's own setting wins.
 
 ## 0.33.6 - 2026-11-17
 

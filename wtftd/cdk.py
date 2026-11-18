@@ -651,6 +651,21 @@ def _damage_overrides(b: "Blk", node: dict, mult: float):
             b.close()
 
 
+def gun_swap_ok(flyer: bool, w: dict) -> bool:
+    """Can this catalog weapon take a gun's place? A tank's or a ship's: one of theirs; an aircraft's: an aircraft gun."""
+    p = str(w.get("p", "")).lower()
+    return w.get("c") == "gun" and "models_weapons" not in p if flyer else "models_weapons" in p
+
+
+def _same_gun(g: dict, unit_data: dict | None) -> list[int]:
+    """Every Weapon of commonWeapons (1-based) firing this group's gun: an aircraft's pair of MG 151 is one group, two
+    Weapon blocks. Without the unit's file: the group's first."""
+    ws = (unit_data or {}).get("commonWeapons") if isinstance((unit_data or {}).get("commonWeapons"), dict) else {}
+    weapons = ws.get("Weapon") if isinstance(ws.get("Weapon"), list) else [ws.get("Weapon")]
+    out = [i for i, w in enumerate(weapons, start=1) if isinstance(w, dict) and str(w.get("blk", "")).lower() == str(g.get("p", "")).lower()]
+    return out if g["wi"] in out else [g["wi"]]
+
+
 def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons: dict | None,
                 air_method: str = "custom", unit_data: dict | None = None,
                 catalog: dict | None = None, tag: str = "", fm_data: dict | None = None,
@@ -738,10 +753,10 @@ def build_files(vid: str, cat: str, details: dict, mods: dict, host: str, pylons
                     wb.close()
             files[wfile] = str(wb)
         swap = (catalog or {}).get(str(gm.get("swap") or "")) or {}
-        if "models_weapons" in str(swap.get("p", "")).lower():  # another ground or ship weapon in its place
+        if gun_swap_ok(flyer, swap):  # another weapon in its place: a ground or ship one, an aircraft's gun
             wfile = swap["p"]
         if yaw or pitch or cap or wfile:
-            weapon_overrides.append((g["wi"], yaw, pitch, cap, wfile))
+            weapon_overrides += [(wi, yaw, pitch, cap, wfile) for wi in _same_gun(g, unit_data)]
     if weapon_overrides:
         b.open("commonWeapons")
         for wi, yaw, pitch, cap, wfile in weapon_overrides:

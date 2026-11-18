@@ -31,8 +31,7 @@ function edEdits() {
 }
 function edCount() {
   const e = S.cfg?.edits;
-  if (!e || e.sid !== S.cfg.scenario) return 0;
-  return Object.keys(e.units || {}).length + (e.add || []).length + (e.player ? 1 : 0) + Object.keys(e.areas || {}).length;
+  return e && e.sid === S.cfg.scenario ? editsCount(e) : 0;
 }
 
 // a unit's name; objects of the game's templates have no translated name: "uk_40mm_bofors_airfield" -> "40mm bofors airfield"
@@ -1008,7 +1007,10 @@ function edBind() {
 
   $('#edPanel').addEventListener('click', ev => { edPanelClick(ev); });
   $('#edPanel').addEventListener('change', edPanelChange);
-  $('#edPanel').addEventListener('toggle', ev => { if (ev.target.classList?.contains('ed-auto')) ED.auto.open = ev.target.open; }, true);
+  $('#edPanel').addEventListener('toggle', ev => {
+    if (ev.target.classList?.contains('ed-ai')) ED.aiOpen = ev.target.open;
+    else if (ev.target.classList?.contains('ed-auto')) ED.auto.open = ev.target.open;
+  }, true);
   $('#edPanel').addEventListener('input', ev => {
     if (ev.target.id === 'edSearch') { ED.search = ev.target.value; edRenderResults(); }
     if (ev.target.dataset.edvfn) {  // BR range (dual slider): the list follows while dragging
@@ -1369,6 +1371,7 @@ function edSet(u, patch) {
     Object.assign(a, patch);
     if (a.loadout == null) delete a.loadout;
     if (a.auto == null) delete a.auto;
+    if (a.ai == null) delete a.ai;
     return;
   }
   const cur = Object.assign({}, e.units[u.name], patch);
@@ -1407,7 +1410,7 @@ function edRenderPanel() {
     }
   }
   const u = edSelected();
-  if (!u) { panel.innerHTML = `<p class="hint">${esc(t('editor.noSel'))}</p><p class="hint">${esc(t('editor.multiHint'))}</p>${edAutoHTML(false)}`; edRenderList(); return; }
+  if (!u) { panel.innerHTML = `<p class="hint">${esc(t('editor.noSel'))}</p><p class="hint">${esc(t('editor.multiHint'))}</p>${edAutoHTML(false)}${edAiHTML('map', edEdits().ai)}`; edRenderList(); return; }
   if (u.player) {
     const p = edStart();
     const sp = ED.data.spawn;
@@ -1448,6 +1451,7 @@ function edRenderPanel() {
       </select></div>
       ${u.swap ? edVehicleField(cats) + edLoadoutField(st) : ''}
       ${moveSeg}
+      ${edAiHTML('unit', st.ai)}
       <div class="row gap ed-actions">${copyBtns}
       <button class="btn btn-ghost btn-sm btn-danger" data-edact="remove">${icon('trash', 'ic-sm')}${esc(t('editor.remove'))}</button></div>`}`;
     edRenderResults();
@@ -1490,6 +1494,7 @@ function edRenderPanel() {
     ${u.block === 'tankModels' && (u.added || st.moved) ? `<div class="field"><label>${esc(t('editor.height'))}</label><input type="number" data-edf="y" value="${Math.round(st.y)}">${edGroundInfo(st, false) || `<small class="muted">${esc(t('editor.heightHint'))}</small>`}</div>` : ''}
     ${edVehicleField(cats.length ? cats : ['ground'], u.added)}
     ${edLoadoutField(st)}
+    ${edAiHTML('unit', st.ai)}
     <div class="row gap ed-actions">
       ${st.moved ? `<button class="btn btn-ghost btn-sm" data-edact="resetPos">${icon('refresh', 'ic-sm')}${esc(t('editor.resetPos'))}</button>` : ''}
       ${copyBtns}
@@ -1594,6 +1599,21 @@ function edWaveHTML(sts) {
       <option value="0"${loop ? '' : ' selected'}>${esc(t('editor.waveStop'))}</option>
       <option value="1"${loop ? ' selected' : ''}>${esc(t('editor.waveLoop'))}</option></select></div></div>
     <small class="muted ed-wavehint">${esc(t('editor.waveHint', { cheat: t('cheat.targetsBack') }))}</small>`;
+}
+
+// how AI units shoot (unitSetProperties, as the game's missions set them): the whole map's (edits.ai) or one unit's,
+// which wins; empty = the game's own
+const ED_AI = [['accuracy', 0, 1, 0.05], ['effShootingRate', 0, 1, 0.05], ['targetChangeInterval', 0.5, 60, 0.5], ['adaptiveAccuracyTime', 0, 60, 1]];
+function edAiHTML(scope, ai) {
+  ai ||= {};
+  const n = Object.keys(ai).length, vis = ai.checkVisibilityTarget;
+  return `<details class="ed-auto ed-ai"${ED.aiOpen || n ? ' open' : ''}><summary>${icon('target', 'ic-sm')} ${esc(t(scope === 'map' ? 'editor.ai.titleMap' : 'editor.ai.title'))}${n ? ` <span class="chip">${n}</span>` : ''}</summary>
+    <p class="hint">${esc(t(scope === 'map' ? 'editor.ai.hintMap' : 'editor.ai.hint'))}</p>
+    <div class="field-row">${ED_AI.map(([k, min, max, step]) => `<div class="field"><label>${esc(t('editor.ai.' + k))}</label>
+      <input type="number" min="${min}" max="${max}" step="${step}" data-edai="${k}" data-edaiscope="${scope}" value="${ai[k] == null ? '' : +ai[k]}" placeholder="${esc(t('editor.ai.game'))}"></div>`).join('')}</div>
+    <div class="field"><label>${esc(t('editor.ai.checkVisibilityTarget'))}</label><select data-edai="checkVisibilityTarget" data-edaiscope="${scope}">
+      ${[['', 'editor.ai.game'], ['1', 'editor.ai.yes'], ['0', 'editor.ai.no']].map(([v, l]) => `<option value="${v}"${(vis == null ? '' : vis ? '1' : '0') === v ? ' selected' : ''}>${esc(t(l))}</option>`).join('')}</select></div>
+    <small class="muted">${esc(t('editor.ai.help'))}</small></details>`;
 }
 
 // several units selected: what they share, changed for all at once
@@ -1855,6 +1875,16 @@ function edPanelChange(ev) {
     return;
   }
   if (el.dataset.edwaveloop !== undefined) { edEdits().waveLoop = el.value === '1'; return; }
+  if (el.dataset.edai) {  // AI shooting: the map's or the selected unit's, a value left empty is the game's
+    const k = el.dataset.edai, unit = el.dataset.edaiscope === 'unit' ? edSelected() : null;
+    const val = el.value === '' ? null : k === 'checkVisibilityTarget' ? el.value === '1' : +el.value;
+    const ai = { ...(unit ? edUnitState(unit).ai : edEdits().ai), [k]: Number.isNaN(val) ? null : val };
+    for (const x of Object.keys(ai)) if (ai[x] == null) delete ai[x];
+    const keep = Object.keys(ai).length ? ai : null;
+    if (unit) edSet(unit, { ai: keep }); else if (keep) edEdits().ai = keep; else delete edEdits().ai;
+    edRenderPanel();
+    return;
+  }
   if (el.dataset.edm && el.value !== '' && el.value !== '__mixed') {  // several units
     for (const u of edSelUnits()) {
       const st = edUnitState(u);

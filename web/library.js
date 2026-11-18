@@ -365,9 +365,11 @@ async function addImportedMissions(missions) {
     await persistVariants();
     await persistSetups();
     await persistCombos();
-    const unknown = missions.filter(m => !m.vehicle).map(m => m.scenario.name);
+    const unknown = missions.filter(m => !m.vehicle && !m.scenario.placed).map(m => m.scenario.name);
+    const placed = missions.filter(m => m.scenario.placed).map(m => m.scenario.name);  // no player of its own: WTFTD put one
     if (missions.length) toast({ title: t('share.imported', { name: missions.map(m => m.scenario.name).join(', ') }),
-      sub: unknown.length ? t('share.importedHint.gameMapOnly', { maps: t('nav.myMaps'), names: unknown.join(', ') })
+      sub: placed.length ? t('share.importedHint.gameNoPlayer', { maps: t('nav.myMaps'), names: placed.join(', ') })
+        : unknown.length ? t('share.importedHint.gameMapOnly', { maps: t('nav.myMaps'), names: unknown.join(', ') })
         : t('share.importedHint.game', { missions: t('nav.missions'), maps: t('nav.myMaps'), vehicles: t('nav.myVehicles') }), ms: 8000 });
   }
 }

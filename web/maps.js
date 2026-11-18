@@ -55,7 +55,7 @@ const mapName = (map, list) => (I18N.map(map) !== map ? I18N.map(map) : list?.[0
 const clone = o => JSON.parse(JSON.stringify(o));
 const sameEdits = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
 const savedVariant = () => (S.variants || []).find(x => x.id === S.pick.variant) || null;
-const editsCount = e => (e ? Object.keys(e.units || {}).length + (e.add || []).length + (e.player ? 1 : 0) + Object.keys(e.areas || {}).length : 0);
+const editsCount = e => (e ? Object.keys(e.units || {}).length + (e.add || []).length + (e.player ? 1 : 0) + Object.keys(e.areas || {}).length + (e.ai ? 1 : 0) : 0);
 
 async function loadVariants() {
   try { S.variants = await api('variants'); } catch { S.variants = []; }

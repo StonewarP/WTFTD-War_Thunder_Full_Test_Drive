@@ -853,6 +853,20 @@ and Normandy end to end from the server; not in the running app.
 - [ ] Scenario editor: a level's map background and its relief in 3D (Berlin, Normandy).
 - [ ] Linux (the Ubuntu VM): the same, with no Oodle runtime on the machine.
 
+## 2an. Issues #21, #23, #24 (new)
+
+**What was built.** A mission without a player of its own gets one at import (`imports._place_player`: a tank with no
+vehicle in the first area named for a spawn, else beside the first unit of the player's side). An aircraft's gun listed
+in commonWeapons can be replaced from Ammunition (`cdk.gun_swap_ok`, every Weapon of that gun overridden, the slot
+tagged with the new gun's name by `server.swapped_ammo`). The editor sets `unitSetProperties` accuracy, effShootingRate,
+targetChangeInterval, adaptiveAccuracyTime, checkVisibilityTarget at initMission, for one unit or every AI unit
+(`edits.ai`), again on a wave's coming in. Checked in the app and in the mission text, not in game.
+
+- [ ] A PvE mission (the issue's, if its author sends it) imported: a tank and an aircraft start at its spawn zone.
+- [ ] Bf 109 F-4, MG 151/20 replaced by an NS-23: it fires 23 mm, its tracers show, the ammo count is the NS-23's slot.
+- [ ] AI accuracy 0 and 1 on a few T-72 against a parked tank: the difference shows; the map's setting reaches the
+  test flight's template targets; a wave keeps its setting when it comes in.
+
 ## 3. Ammunition icons (UI only)
 
 Shell icons (tanks), belt icons (aircraft, helicopters, ships) and flare / chaff icons come from the game's own
