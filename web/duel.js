@@ -18,6 +18,7 @@ const BV_STATS = {
   turn: { dir: -1, ...bvPct(.05, .1) },
   roll: { dir: 1, ...bvPct(.1, .3) },
   wl: { dir: -1, ...bvPct(.07, .2) },
+  ind: { dir: -1, ...bvPct(.07, .2) },  // speed lost turning: induced drag, the wing's 1 / (pi aspect ratio Oswald) x wl
   pw: { dir: 1, ...bvPct(.05, .15), ground: bvAbs(2, 5) },
   tw: { dir: 1, ...bvAbs(.05, .1) },
   pwr: { dir: 1, ...bvPct(.05, .15), jet: bvAbs(.05, .1), mixed: { skip: true } },  // pw of propeller aircraft, tw of jets
@@ -81,7 +82,7 @@ function bvVal(v, k, stock) {
   return x == null && BV_STATS[k]?.cap ? 0 : x;
 }
 // "a jet": a thrust-to-weight ratio (jet or rocket engines; propellers have a power-to-weight ratio)
-const bvJet = v => v.c === 'air' && v.s?.tw != null;
+const bvJet = v => v.c === 'air' && v.s?.tw != null, bvAir = v => v.c === 'air';
 // the index of the pair kind in BV_PAIRS, from A's category and whether each is a jet
 const bvPair = (c, ja, jb) => (c === 'ground' ? 3 : c === 'boat' || c === 'ship' ? 4 : ja !== jb ? 2 : ja ? 1 : 0);
 // nominal card armor, [front, side, rear] mm of the hull (armH) and the turret (armT): the same stock and upgraded
@@ -243,12 +244,13 @@ const BV_WIDE = { reach: { e: 500, d: 2000 } };
 // percentiles among the style's candidates of the window), the modes it is offered in, the notes the page shows.
 const BV_STYLES = {
   air: [
-    { id: 'turn', cand: bvK('fighter'), foes: [{ is: bvK('fighter'), terms: { turn: 1.5, wl: 1, pwr: .6, fg: .5, climb: .4, roll: .3, irq: .3, spd: .2, cm: .2 },
+    // the fighter styles take every aircraft type: anything in the air can be met, and flown this way
+    { id: 'turn', cand: bvAir, foes: [{ is: bvAir, terms: { turn: 1.5, wl: 1, ind: 1, pwr: .6, fg: .5, climb: .4, roll: .3, irq: .3, spd: .2, cm: .2 },
       need: { cm: 'irq' }, gates: ['refuse'] }] },
-    { id: 'bnz', cand: bvK('fighter'), foes: [{ is: bvK('fighter'), terms: { spd: .9, climb: .8, fg: .8, roll: .6, vne: .6, pwr: .4, ceil: .3, turn: .1, wl: .1 }, gates: ['above'] }] },
-    { id: 'energy', cand: bvK('fighter'), foes: [{ is: bvK('fighter'), terms: { pwr: 1, climb: .9, spd: .6, turn: .5, roll: .4, fg: .4, wl: .3 } }] },
+    { id: 'bnz', cand: bvAir, foes: [{ is: bvAir, terms: { spd: .9, climb: .8, fg: .8, roll: .6, vne: .6, pwr: .4, ceil: .3, turn: .1, wl: .1 }, gates: ['above'] }] },
+    { id: 'energy', cand: bvAir, foes: [{ is: bvAir, terms: { pwr: 1, climb: .9, spd: .6, turn: .5, ind: .5, roll: .4, fg: .4, wl: .3 } }] },
     // bombers, and the attack aircraft that are no strike fighters (no radar missile)
-    { id: 'hunter', cand: bvK('fighter'), foes: [{ is: v => v.k === 'bomber' || (v.k === 'assault' && !(bvVal(v, 'rm') > 0)), terms: { spd: 1, climb: 1, ceil: .5 } }],
+    { id: 'hunter', cand: bvAir, foes: [{ is: v => v.k === 'bomber' || (v.k === 'assault' && !(bvVal(v, 'rm') > 0)), terms: { spd: 1, climb: 1, ceil: .5 } }],
       mission: { fg: 1, roll: .2 }, m: .4 },
     // close air support, in ground battles: aircraft at their ground-battle BR; in stock, what the stock aircraft carries
     { id: 'cas', brField: 'bt', cand: (v, stock) => v.k === 'assault' || ((v.k === 'fighter' || v.k === 'bomber') && (bvVal(v, 'pay', stock) >= 500 || bvVal(v, 'atg', stock) > 0)),
@@ -256,8 +258,11 @@ const BV_STYLES = {
         { is: bvK('fighter'), brField: 'bt', terms: { spd: .8, climb: .6, turn: .4, cm: .4, roll: .3, def: .3, fg: .3 } }],
       mission: { pay: 1, atg: .5, atr: .5, atq: .3, fg: .3 }, m: .5, notes: ['abApprox'] },
     { id: 'bomber', cand: bvK('bomber'), foes: [{ is: bvK('fighter'), terms: { spd: 1, ceil: .7, def: .6, climb: .5, crew: .4 } }], mission: { pay: 1 }, m: .5 },
-    { id: 'missile', cand: (v, stock) => bvJet(v) && (bvVal(v, 'ir', stock) > 0 || bvVal(v, 'rm', stock) > 0), foes: [{ is: v => bvJet(v) && v.k === 'fighter',
+    { id: 'missile', cand: (v, stock) => bvJet(v) && (bvVal(v, 'ir', stock) > 0 || bvVal(v, 'rm', stock) > 0), foes: [{ is: bvJet,
       terms: { tw: .8, irq: .6, rmr: .6, rad: .6, cm: .6, spd: .6, rmq: .5, rwr: .5, climb: .5, turn: .5, ir: .3, rm: .3, fg: .2 }, need: { cm: 'ir' } }] },
+    // beyond visual range: radar missiles first; a side's countermeasures act on the other side's radar missiles only
+    { id: 'bvr', cand: (v, stock) => bvJet(v) && bvVal(v, 'rm', stock) > 0, foes: [{ is: bvJet,
+      terms: { rmr: 1, rmq: .8, rad: .7, spd: .7, rm: .5, rwr: .5, cm: .4, climb: .3, ceil: .3 }, need: { cm: 'rm' } }] },
   ],
   // in ground battles, at the helicopter's BR (which ground vehicles share); their manoeuvre stats are placeholders
   heli: [

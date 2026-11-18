@@ -27,7 +27,7 @@ thresholds, gates, candidates and opponents come from spec §4-5 verbatim; this 
 - JS: prefix `bv`/`BV` for every new top-level name (one global scope across files); no inline handlers, no inline
   `<script>` (tests/test_safety.py); every game name through `esc()`.
 - Data: new `s` keys are written only when the vehicle has the thing; `su` holds stock values that differ (0 when the
-  stock vehicle lacks a capability the upgraded one has, `null` when it lacks a measured stat: read as unknown). Bump `SCHEMA` in `wtftd/builder.py` from 40 to 41 (as built: 44, bumped again with the fixes after the real-data checks; 42 and 43 went to the 3D view's commits).
+  stock vehicle lacks a capability the upgraded one has, `null` when it lacks a measured stat: read as unknown). Bump `SCHEMA` in `wtftd/builder.py` from 40 to 41 (as built: 44, bumped again with the fixes after the real-data checks; 42 and 43 went to the 3D view's commits; 45 with the turn drag `ind`).
 - Keep `vehicle_stats(cat, udata, wp, tags, st, ammo)` positional signature (tests/test_costs.py calls it).
 - Armor: never output "cannot penetrate" / "immune"; the spec §7 note text is shown on every ground style.
 - Test commands: `python -m unittest tests.<module> -v` for one module; full suite

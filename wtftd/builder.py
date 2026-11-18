@@ -37,7 +37,7 @@ from pathlib import Path
 from . import patches, vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 44  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 45  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1066,6 +1066,8 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
             out["tw"] = _r1(shop["thrustToWeightRatio"], 2)
         elif shop.get("powerToWeightRatio"):
             out["pw"] = _r1(shop["powerToWeightRatio"] * 1000)  # hp / t
+        if out.get("wl") and (k := induced_drag_factor(fm)):
+            out["ind"] = _r1(out["wl"] * k)  # speed lost turning: J-10C 84.9, F-16C 62.6
     elif cat == "ground":
         fwd, rev = ground_speeds(udata)
         if fwd:
@@ -1181,6 +1183,20 @@ def engine_count(fm: dict) -> int:
     """Engines of a flight model as /state lists them: take-off rockets (A-4, Mirage III...) are Engine<n> too."""
     kinds = engine_kinds(fm)
     return sum(k != "Rocket" for k in kinds) or len(kinds)  # or: rocket planes (Me 163)
+
+
+def induced_drag_factor(fm: dict) -> float:
+    """A flight model's wing induced drag factor 1 / (pi x aspect ratio x Oswald efficiency), clean wing: from the newer
+    Aerodynamics WingPlane (Span, Areas Left*/Right*, FlapsPolar0) or the older top-level Wingspan, Areas Wing* and
+    Aerodynamics' own OswaldsEfficiencyNumber; 0 when one is missing."""
+    aero = fm.get("Aerodynamics") if isinstance(fm.get("Aerodynamics"), dict) else {}
+    wing = aero.get("WingPlane") if isinstance(aero.get("WingPlane"), dict) else {}
+    span, areas, polar, pre = ((wing.get("Span"), wing.get("Areas"), wing.get("FlapsPolar0"), "") if wing
+                               else (fm.get("Wingspan"), fm.get("Areas"), aero, "Wing"))
+    areas, polar = (x if isinstance(x, dict) else {} for x in (areas, polar))
+    area = sum(_numval(areas.get(f"{pre}{side}{part}")) or 0 for side in ("Left", "Right") for part in ("In", "Mid", "Out"))
+    span, e = _numval(span) or 0, _numval(polar.get("OswaldsEfficiencyNumber")) or 0
+    return area / (math.pi * span * span * e) if span and area and e else 0
 
 
 def fm_power_ratio(fm: dict) -> float:
@@ -3190,6 +3206,7 @@ def stock_stats(cat: str, s: dict, f: dict) -> dict:
         put("tw", s.get("tw", 0) * P / M, 2)
         put("pw", s.get("pw", 0) * P / M)
         put("wl", s.get("wl", 0) * M, 0)
+        put("ind", s.get("ind", 0) * M, 0)
     elif cat in ("boat", "ship"):
         put("spd", s.get("spd", 0) * f["S"], 0)
     return out

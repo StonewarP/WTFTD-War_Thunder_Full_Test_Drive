@@ -292,13 +292,14 @@ for SPAA).
 
 | style | candidates | opponents and duel | mission (m) |
 |---|---|---|---|
-| Turn fighting | k fighter | k fighter: turn 1.5, wl 1.0 **[call]** (call 17), pwr 0.6, fg 0.5, climb 0.4, roll 0.3, irq 0.3, spd 0.2, cm 0.2 (needs irq). Gate *can refuse your turn fight*. | - |
-| Boom and zoom | k fighter | k fighter: spd 0.9, climb 0.8, fg 0.8, roll 0.6, vne 0.6, pwr 0.4, ceil 0.3, turn 0.1, wl 0.1. Gate *you can't get above it*. | - |
-| Energy fighting | k fighter | k fighter: pwr 1.0, climb 0.9, spd 0.6, turn 0.5, roll 0.4, fg 0.4, wl 0.3 | - |
-| Bomber hunting | k fighter | k bomber, and k assault without radar AAMs (`rm`) **[call]** (call 18): spd 1.0, climb 1.0, ceil 0.5 | fg 1.0, roll 0.2 (m 0.4) |
+| Turn fighting | every aircraft **[call]** (call 37) | every aircraft: turn 1.5, wl 1.0 **[call]** (call 17), ind 1.0 (call 38), pwr 0.6, fg 0.5, climb 0.4, roll 0.3, irq 0.3, spd 0.2, cm 0.2 (needs irq). Gate *can refuse your turn fight*. | - |
+| Boom and zoom | every aircraft (call 37) | every aircraft: spd 0.9, climb 0.8, fg 0.8, roll 0.6, vne 0.6, pwr 0.4, ceil 0.3, turn 0.1, wl 0.1. Gate *you can't get above it*. | - |
+| Energy fighting | every aircraft (call 37) | every aircraft: pwr 1.0, climb 0.9, spd 0.6, turn 0.5, ind 0.5 (call 38), roll 0.4, fg 0.4, wl 0.3 | - |
+| Bomber hunting | every aircraft (call 37) | k bomber, and k assault without radar AAMs (`rm`) **[call]** (call 18): spd 1.0, climb 1.0, ceil 0.5 | fg 1.0, roll 0.2 (m 0.4) |
 | Close air support (ground battles; RB and SB, AB shows the approximation note) | k assault, or k fighter / bomber with `pay` >= 500 kg or `atg` > 0 (in Stock: the stock aircraft's) | SPAA: `reach` 1.0 (A: `atr`, else 2000 m with bombs and rockets; B: `sam`, else 3000 m with guns), even 500 m, decisive 2000 m. Fighters: spd 0.8, climb 0.6, turn 0.4, cm 0.4, roll 0.3, def 0.3, fg 0.3. The two groups weigh half each **[call]** (call 19) | pay 1.0, atg 0.5, atr 0.5, atq 0.3, fg 0.3 (m 0.5) |
 | Bombing | k bomber | k fighter: spd 1.0, ceil 0.7, def 0.6, climb 0.5, crew 0.4 | pay 1.0 (m 0.5) |
-| Missiles and radar | jets with `ir` or `rm` (in Stock: the stock aircraft's **[call]** (call 33)) | jets of k fighter: tw 0.8, irq 0.6, rmr 0.6, rad 0.6, cm 0.6 (needs ir), spd 0.6, rmq 0.5, rwr 0.5, climb 0.5, turn 0.5, ir 0.3, rm 0.3, fg 0.2 | - |
+| Missiles and radar | jets with `ir` or `rm` (in Stock: the stock aircraft's **[call]** (call 33)) | every jet (call 37): tw 0.8, irq 0.6, rmr 0.6, rad 0.6, cm 0.6 (needs ir), spd 0.6, rmq 0.5, rwr 0.5, climb 0.5, turn 0.5, ir 0.3, rm 0.3, fg 0.2 | - |
+| BVR (radar missiles) **[call]** (call 39) | jets with `rm` (in Stock: the stock aircraft's) | every jet: rmr 1.0, rmq 0.8, rad 0.7, spd 0.7, rm 0.5, rwr 0.5, cm 0.4 (needs rm: a side's countermeasures count against the other side's radar missiles only), climb 0.3, ceil 0.3 | - |
 
 ### Helicopters (type "Helicopters"; window on the helicopter BR, which ground vehicles share)
 | style | candidates | opponents and duel | mission (m) |
@@ -531,6 +532,20 @@ changed, measured on the built data.
 36. A fixed launcher (`sy.el` [0, 0]: Swingfire, Striker, Type 60 ATM, LOSAT and SAM launchers, 38 records) has no
     `dep`: its missile steers after launch, and Sniper counted its 0 as no depression (call 22's limit). The BM-13N's
     rails, which rise, keep their measured 0.
+37. The user's call: the fighter styles (Turn fighting, Boom and zoom, Energy fighting, Bomber hunting as candidates;
+    Missiles and radar's opponents) take every aircraft type, not only the game's class fighter: the game files the
+    F-15E, F-15EX, F-15I and F-15IA as strike aircraft. Boom and zoom RB 15.0: F-15EX and F-15IA 95, Golden Eagle 74
+    (it was #1 with 81). Bombers and attack aircraft are now listed in those styles too, mostly at the bottom.
+38. `ind`, speed lost turning (internal, air): the wing's induced drag factor 1 / (pi x aspect ratio x Oswald efficiency),
+    from the flight model (the newer WingPlane block: Span, Areas, FlapsPolar0; the older top-level Wingspan, Areas
+    Wing*, Aerodynamics' OswaldsEfficiencyNumber), times `wl`; lower is better, stock follows `wl`. J-10C 84.9,
+    Typhoon 86.2, Rafale 94.4, F-16C 62.5, F-15EX 41.6, Spitfire IX 9.4. Asked by the user: the cards' turn time says
+    nothing of the speed a delta wing bleeds. On 1360 of 1523 aircraft; drones and a few AI copies have none. Turn
+    fighting weighs it 1.0, Energy fighting 0.5. Turn RB 14.7: the J-10C stays #1 (85 -> 73, 5 losses, all to the
+    F-16s and F-15s within 1.0); the thrust it would take to sustain the turn is not modelled, only `pwr` beside it.
+39. The user's call: a BVR style, beside Missiles and radar (which mixes IR dogfights and radar missiles). RB 14.7:
+    the Typhoons 78, JAS39E 74, J-10C 72, Su-30SM 72.
+40. The ranking's # column sorts, back to the ranking after another sort (asked by the user).
 
 Left as limits (the wiki page lists them for players):
 - the D.500, D.501, D.510 and D.371 cards copy the Gladiator's wing loading and roll (their `pw` too, near their flight

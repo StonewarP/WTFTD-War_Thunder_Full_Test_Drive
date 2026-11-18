@@ -36,7 +36,7 @@ function bvRows(st, ranked) {
   const rows = ranked.filter(({ v }) => (!f.ranks.length || f.ranks.includes(v.r)) && (!f.nations.length || f.nations.includes(v.n))
     && (!f.owned || HG.owned.has(v.id)) && (f.removed || v.ra !== 5)).sort((a, b) => none(a) - none(b));
   rows.forEach((r, i) => { r.pos = i + 1; });  // its place by score among the rows shown, whatever the sort
-  const by = { score: (a, b) => b.pos - a.pos, br: (a, b) => br(a) - br(b), rank: (a, b) => (a.v.r || 0) - (b.v.r || 0),
+  const by = { score: (a, b) => b.pos - a.pos, pos: (a, b) => a.pos - b.pos, br: (a, b) => br(a) - br(b), rank: (a, b) => (a.v.r || 0) - (b.v.r || 0),
     name: (a, b) => name(a).localeCompare(name(b), I18N.code, { numeric: true }) }[f.sort] || (() => 0);
   return rows.sort((a, b) => (f.sort === 'score' && none(a) - none(b)) || by(a, b) * f.dir || a.pos - b.pos);
 }
@@ -109,7 +109,7 @@ function bvTableHTML(st, rows) {
     return `<th class="sortable${on ? ' sorted' : ''}${cls}"${on ? ` aria-sort="${up ? 'ascending' : 'descending'}"` : ''}><button type="button" data-bvsort="${k}">${esc(label)}${
       on ? `<span aria-hidden="true">&nbsp;${up ? '▲' : '▼'}</span>` : ''}</button></th>`;
   };
-  return `<div class="ar-scroll"><table class="ar-table bv-table"><thead><tr><th class="num">#</th>${th('name', t('mb.vehicle'))}${th('rank', t('filters.rank'), ' num')}
+  return `<div class="ar-scroll"><table class="ar-table bv-table"><thead><tr>${th('pos', '#', ' num')}${th('name', t('mb.vehicle'))}${th('rank', t('filters.rank'), ' num')}
       ${th('br', 'BR', ' num')}${th('score', t('arm.col.score'))}<th class="num">${esc(t('bv.col.wel'))}</th><th>${esc(t('bv.col.traits'))}</th></tr></thead>
     <tbody>${shown.map(r => bvRowHTML(st, r)).join('')}</tbody></table></div>
     ${rows.length > shown.length ? `<button class="btn btn-sm ch-more" data-bvmore>${esc(t('ch.more', { n: I18N.num(Math.min(rows.length - shown.length, BV_PAGE)) }))}</button>` : ''}`;

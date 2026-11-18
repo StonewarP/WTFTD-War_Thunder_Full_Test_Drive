@@ -176,9 +176,9 @@ out.terms = { turn: bvTerm('turn', 18, 20.5), even: bvTerm('turn', 18, 18.5), re
   spd: [bvTerm('spd', 600, 620, 'prop'), bvTerm('spd', 600, 620, 'jet'), bvTerm('spd', 600, 640, 'prop')] };
 out.caps = { none: bvTerm('rad', 0, 0), lacks: bvTerm('rad', 0, 54), one: bvTerm('ir', 1, 0), absent: [bvVal({ s: {} }, 'rad'), bvVal({ s: {} }, 'spd')] };
 
-const turnFoe = foe('air', 'turn'), fighter = s => ({ turn: 18, wl: 150, pw: 400, fg: 3, climb: 15, roll: 100, spd: 500, ...s });
-// of the 4.8 compared (flares need an IR missile on either side), unknown: turn and roll 1.8; turn, roll and spd 2.0; turn and wl 2.5
-out.cover = [{ wl: 150, fg: 3, climb: 15, spd: 500, pw: 400 }, { wl: 150, fg: 3, climb: 15, pw: 400 }, { fg: 3, climb: 15, spd: 500, roll: 100, pw: 400 }]
+const turnFoe = foe('air', 'turn'), fighter = s => ({ turn: 18, wl: 150, ind: 40, pw: 400, fg: 3, climb: 15, roll: 100, spd: 500, ...s });
+// of the 5.8 compared (flares need an IR missile on either side), unknown: turn and roll 1.8; turn, roll and spd 2.0; turn and wl 2.5
+out.cover = [{ wl: 150, ind: 40, fg: 3, climb: 15, spd: 500, pw: 400 }, { wl: 150, ind: 40, fg: 3, climb: 15, pw: 400 }, { ind: 40, fg: 3, climb: 15, spd: 500, roll: 100, pw: 400 }]
   .map(s => bvDuel(air('a', fighter()), air('b', s), turnFoe, RB).v);
 
 const pick = terms => ({ is: () => true, terms }), radar = air('r', { spd: 500, rad: 50 }), plain = air('p', { spd: 500 });
@@ -204,7 +204,7 @@ out.armor = [has(armored('a', 8.3), armored('b', 8.3), 'brawl', 'front'), has(ar
   has(armored('a', 8.3), armored('b', 8.7), 'brawl', 'front'), has(armored('a', 8.3), armored('b', 8.3), 'flank', 'side'),
   has(armored('a', 8.3), armored('b', 8.7), 'flank', 'side')];
 
-const jet = (id, spd) => air(id, { spd, tw: .8, turn: 25, roll: 100 }), prop = (id, spd) => air(id, { spd, pw: 400, turn: 25, roll: 100 });
+const jet = (id, spd) => air(id, { spd, tw: .8, turn: 25, roll: 100, ind: 40 }), prop = (id, spd) => air(id, { spd, pw: 400, turn: 25, roll: 100, ind: 40 });
 const spdT = (a, b) => term(bvDuel(a, b, turnFoe, RB), 'spd').t, hasPwr = (a, b) => !!term(bvDuel(a, b, turnFoe, RB), 'pwr');
 out.kinds = { spd: [spdT(jet('a', 600), jet('b', 620)), spdT(prop('a', 600), prop('b', 620)), spdT(jet('a', 600), prop('b', 620))],
   pwr: [hasPwr(jet('a', 600), jet('b', 620)), hasPwr(prop('a', 600), prop('b', 620)), hasPwr(jet('a', 600), prop('b', 620))],
@@ -281,6 +281,17 @@ out.need = { hair: [cmIn(foe('heli', 'hair'), rotor('a', { cm: 60 }), rotor('b')
 // a side's flares act only on the other side's IR missiles
 const cmT = b => term(bvDuel(rotor('a', { ir: 4, cm: 192 }), b, foe('heli', 'hair'), RB), 'cm')?.t ?? null;
 out.need.oneSided = [cmT(rotor('b', { cm: 30 })), cmT(rotor('b', { cm: 0 })), cmT(rotor('b', { ir: 2, cm: 30 }))];
+// the fighter styles take every aircraft type, as candidates and opponents (a strike jet, a bomber)
+const styleAir = id => bvStyleOf('air', id), strike = air('x', { tw: 1, rm: 8 }, { k: 'assault' }), heavy = air('b', { spd: 450 }, { k: 'bomber' });
+out.allTypes = [...['turn', 'bnz', 'energy', 'hunter'].map(id => styleAir(id).cand(strike) && styleAir(id).cand(heavy)),
+  ...['turn', 'bnz', 'energy'].map(id => styleAir(id).foes[0].is(strike) && styleAir(id).foes[0].is(heavy)), styleAir('missile').foes[0].is(strike),
+  styleAir('turn').foes[0].is(tank('t', {}))];
+// speed lost turning: the lower induced drag wins
+out.ind = term(bvDuel(air('a', fighter({ ind: 40 })), air('b', fighter({ ind: 85 })), turnFoe, RB), 'ind')?.t ?? null;
+// BVR: jets with radar missiles, against every jet; chaff against radar missiles only
+const bvr = bvStyleOf('air', 'bvr');
+out.bvr = [bvr.cand(radarJet('a'), false), bvr.cand(radarJet('b', { rm: 0 }), false), bvr.foes[0].is(radarJet('c', { rm: 0 })),
+  cmIn(bvr.foes[0], radarJet('a', { cm: 60 }), radarJet('b', { rm: 0 })), cmIn(bvr.foes[0], radarJet('a', { cm: 60, rm: 0 }), radarJet('b'))];
 // Missiles and radar in Stock: candidates by their stock missiles
 const msl = bvStyleOf('air', 'missile');
 out.missileStock = [radarJet('a'), radarJet('b', {}), radarJet('c', { ir: 2 })].map((v, i) => { if (i === 1) v.su = { rm: 0 }; return [msl.cand(v, false), msl.cand(v, true)]; });
@@ -373,7 +384,7 @@ class DuelEngine(unittest.TestCase):
         self.assertEqual(c["absent"], [0, None])  # absent: a capability is 0, a measured stat unknown
 
     def test_coverage_and_not_enough_data(self):
-        self.assertEqual(self.got["cover"], ["even", "na", "na"])  # 3.0, 2.8 and 2.3 of 4.8 known
+        self.assertEqual(self.got["cover"], ["even", "even", "na"])  # 4.0, 3.8 and 3.3 of 5.8 known (60%: 3.48)
 
     def test_verdict_thresholds(self):
         v = self.got["verdicts"]
@@ -445,6 +456,15 @@ class DuelEngine(unittest.TestCase):
         # a side's flares count only against the other's IR missiles: 192 against none count for nothing
         self.assertEqual(n["oneSided"], [-1, None, 1])
 
+    def test_fighter_styles_take_every_aircraft_type(self):
+        self.assertEqual(self.got["allTypes"], [True] * 8 + [False])  # aircraft only
+
+    def test_speed_lost_turning(self):
+        self.assertEqual(self.got["ind"], 1)
+
+    def test_bvr(self):  # radar missile carriers against every jet; chaff counts against the other's radar missiles
+        self.assertEqual(self.got["bvr"], [True, False, True, False, True])
+
     def test_missile_candidates_in_stock(self):  # by the stock aircraft's missiles
         self.assertEqual(self.got["missileStock"], [[True, True], [True, False], [True, True]])
 
@@ -505,7 +525,7 @@ class DuelEngine(unittest.TestCase):
 
     def test_rank_order_and_ties(self):
         order = self.got["order"]
-        self.assertEqual([r[0] for r in order], ["x", "y", "z"])
+        self.assertEqual([r[0] for r in order], ["x", "y", "z", "b"])  # the bomber too: every aircraft type hunts
         self.assertEqual(order[0][1], order[1][1])
         self.assertGreater(order[0][2], order[1][2])
 
@@ -534,7 +554,7 @@ class DuelEngine(unittest.TestCase):
     def test_zero_and_empty_never_give_nan(self):
         self.assertNotIn("NOT FINITE", self.raw)
         runs = {(r["type"], r["style"], r["mode"], r["stock"]): r["rows"] for r in self.got["odd"]}
-        self.assertEqual(len(runs), 19 * 3 * 2)
+        self.assertEqual(len(runs), 20 * 3 * 2)
         for rows in runs.values():
             for r in rows:
                 self.assertTrue(all(isinstance(r[k], (int, float)) for k in ("score", "net", "meanD")), r)
@@ -542,9 +562,11 @@ class DuelEngine(unittest.TestCase):
                 self.assertNotIn("nobr", [r["v"]] + [m["o"] for m in r["met"]])  # no BR: nowhere to meet
         hunter = {r["v"]: r for r in runs[("air", "hunter", 1, False)]}
         self.assertEqual([m["v"] for m in hunter["f"]["met"]], ["na"])  # no stats at all against the bomber
-        self.assertEqual((hunter["f"]["score"], hunter["f"]["mission"]), (-0.5, -0.5))  # no duel: its guns, 0 kg/s against 0 and 2
+        # no duel: its guns, 0 kg/s against every aircraft of its window (every type a candidate)
+        self.assertAlmostEqual(hunter["f"]["score"], -1 / 3)
+        self.assertAlmostEqual(hunter["f"]["mission"], -1 / 3)
         turn = {r["v"]: r for r in runs[("air", "turn", 1, False)]}
-        self.assertEqual({m["o"]: m["v"] for m in turn["f"]["met"]}, {"g": "na"})  # only the capabilities compare
+        self.assertEqual({m["o"]: m["v"] for m in turn["f"]["met"]}, {"g": "na", "b": "na"})  # only the capabilities compare
         self.assertEqual(runs[("heli", "hrocket", 1, False)][0]["n"], 0)  # no SPAA within 1.0 of 9.0
         boats = {r["v"]: r for r in runs[("naval", "nbrawl", 1, False)]}
         self.assertEqual([m["v"] for m in boats["n"]["met"]], ["dis"])  # zeros against a gunboat

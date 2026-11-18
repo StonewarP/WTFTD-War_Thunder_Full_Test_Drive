@@ -6,12 +6,14 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
-- **Best vehicles.** A new page next to Vehicles ranks the vehicles of a type for a play style at a BR, in 19 styles:
-  Turn fighting, Boom and zoom, Energy fighting, Bomber hunting, Close air support, Bombing, Missiles and radar;
+- **Best vehicles.** A new page next to Vehicles ranks the vehicles of a type for a play style at a BR, in 20 styles:
+  Turn fighting, Boom and zoom, Energy fighting, Bomber hunting, Close air support, Bombing, Missiles and radar, BVR;
   Anti-tank missiles, Rockets and guns, Anti-helicopter; Brawler, Sniper, Flanker, Ambush, Anti-aircraft; Gun brawler,
   Torpedo attack, Destroyer, Long range. Each vehicle duels, on the game's stats and flight models, everything it can meet
   within 1.0 of its BR; open one to see whom it beats or loses to, and why. Arcade, Realistic or Simulator, stock or
   fully upgraded, by rank and nation. Armor only counts roughly (plate thickness, below BR 8.7), as the page says.
+  The fighter styles take every aircraft type (the F-15EX is a strike aircraft for the game), and turn and energy
+  fighting count the speed a wing loses turning, from the flight model's wing (span, area, Oswald efficiency).
 - **Radar, radar warner and missile warner coverage in 3D.** A vehicle's 3D view now shows what its sensors cover, from
   the game's sensor files: a radar's antenna travel (pale blue) and the zone of one of its search modes (green, picked by
   its size, *120° × 6°*), a radar warning receiver's sectors (violet: the SPO-15's ten slices and its top and bottom), a

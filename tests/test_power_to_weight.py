@@ -1,5 +1,6 @@
 """Aircraft power and thrust to weight: the game's card counts one engine on most twins and bombers, all of them on
 others, and puts some jets' thrust-to-weight in the power field and some propeller aircraft's power in the thrust one."""
+import math
 import unittest
 from unittest import mock
 
@@ -134,6 +135,30 @@ class WingLoading(unittest.TestCase):
         self.assertEqual(card_stats({"wingLoading": 32}, {}, {})["wl"], 32)
         stock = builder.stock_stats("air", card_stats({"wingLoading": 18.26}, {}, {}), {**builder.stock_factors({}, ()), "M": 1.04})
         self.assertNotIn("wl", stock)
+
+
+class TurnDrag(unittest.TestCase):
+    # speed lost turning: the wing's induced drag, 1 / (pi x aspect ratio x Oswald efficiency), times the wing loading
+    WING = {"Span": 9.2, "Areas": {"LeftIn": 7.0, "LeftMid": 6.0, "LeftOut": 5.5, "RightIn": 7.0, "RightMid": 6.0,
+                                   "RightOut": 5.5, "Aileron": 0.55}, "FlapsPolar0": {"OswaldsEfficiencyNumber": 0.51}}
+
+    def test_from_the_flight_model_wing(self):  # J-10C: 9.2 m, 37 m2, Oswald 0.51, 311 kg/m2
+        fm = {**kind_fm("Inline", 1, {"Power": 900}, 2000), "Aerodynamics": {"WingPlane": self.WING}}
+        s = card_stats({"powerToWeightRatio": 0.45, "wingLoading": 311}, fm, {"eng": 1})
+        self.assertEqual(s["ind"], round(311 / (math.pi * 9.2 ** 2 / 37 * 0.51), 1))
+        self.assertEqual(builder.stock_stats("air", s, {"P": 1.0, "M": 1.1, "D": 1.0, "Y": 1.0, "T": 1.0})["ind"],
+                         round(s["ind"] * 1.1))  # heavier in stock, like the wing loading
+
+    def test_older_flight_model(self):  # Spitfire IX: Wingspan, Areas Wing*, Aerodynamics' Oswald
+        fm = {**kind_fm("Inline", 1, {"Power": 1500}, 3000), "Wingspan": 11.25, "Aerodynamics": {"OswaldsEfficiencyNumber": 0.9},
+              "Areas": {"WingLeftIn": 4.146, "WingLeftMid": 3.746, "WingLeftOut": 3.346, "WingRightIn": 4.146, "WingRightMid": 3.746,
+                        "WingRightOut": 3.346, "WingLeftCut": 0.15, "Aileron": 0.878}}
+        s = card_stats({"powerToWeightRatio": 0.5, "wingLoading": 149}, fm, {"eng": 1})
+        self.assertEqual(s["ind"], round(149 / (math.pi * 11.25 ** 2 / 22.476 * 0.9), 1))
+
+    def test_no_wing_data_no_value(self):
+        s = card_stats({"powerToWeightRatio": 0.45, "wingLoading": 311}, kind_fm("Inline", 1, {"Power": 900}, 2000), {"eng": 1})
+        self.assertNotIn("ind", s)
 
 
 class CardAgainstFlightModel(unittest.TestCase):

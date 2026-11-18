@@ -281,11 +281,15 @@ S.byId = new Map(S.vehicles.map(x => [x.id, x]));
   out.removed = [ids().includes('f2')];
   change({ dataset: { bvsw: 'removed' }, checked: true });
   out.removed.push(ids().includes('f2'));
+  const byScore = ids();
   click({ bvsort: 'name' });
   out.byName = [ids()];
   out.heads.push(thead());
   click({ bvsort: 'name' });
   out.byName.push(ids());
+  click({ bvsort: 'pos' });  // the # column: back to the ranking
+  out.byPos = [ids().join() === byScore.join(), $('#bvBody').innerHTML.includes('data-bvsort="pos"')];
+  click({ bvsort: 'name' });
   click({ bvtype: 'ground' });
   click({ bvstyle: 'brawl' });
   change({ id: 'bvBr', value: '6.7' });
@@ -360,7 +364,7 @@ class ThePage(unittest.TestCase):
 
     def test_every_style_renders_and_opens(self):
         runs = self.got["runs"]
-        self.assertEqual(len({(r["type"], r["style"]) for r in runs}), 19)
+        self.assertEqual(len({(r["type"], r["style"]) for r in runs}), 20)
         for r in runs:
             self.assertEqual(r["odd"], "", r)  # no NaN, Infinity or a missing value in the page
             self.assertEqual(r["open"], r["rows"] > 0, r)
@@ -396,13 +400,14 @@ class ThePage(unittest.TestCase):
 
     def test_show_more_and_a_new_ranking(self):
         # a page, then the one row left; the Stock switch ranks anew and starts at one page again
-        self.assertEqual(self.got["more"], [[100, True], [101, False], [100, True]])
+        self.assertEqual(self.got["more"], [[100, True], [103, False], [100, True]])  # 96 + 5 + b1, a1
 
     def test_filters_hide_rows(self):
         self.assertEqual(self.got["removed"], [False, True])  # no longer available: shown on request
         by_name = self.got["byName"]
         self.assertEqual(by_name[0], sorted(by_name[0]))
         self.assertEqual(by_name[1], by_name[0][::-1])
+        self.assertEqual(self.got["byPos"], [True, True])  # the # column sorts back to the ranking
         self.assertEqual([sorted(x) for x in self.got["owned"]], [["t1", "t5", "z2"], ["t1"]])  # light tanks aren't brawlers
 
     def test_choices_saved_by_another_version(self):
@@ -418,14 +423,15 @@ class ThePage(unittest.TestCase):
         self.assertEqual(self.got["hidden"], "kept")  # a page not shown isn't rendered again
 
     def test_unscored_rows_last(self):
-        # z1 meets two fighters on terms all unknown and Boom and zoom has no mission part: score 0 would rank it above
-        # f1 and j2 (-1); it comes after them, highest or lowest score first, with no place
-        self.assertEqual(self.got["unjudged"], [["j1#1", "f1#2", "j2#3", "z1#"], ["j2#3", "f1#2", "j1#1", "z1#"]])
+        # z1 meets the others on terms all unknown and Boom and zoom has no mission part: score 0 would rank it above
+        # the others; it comes after them, highest or lowest score first, with no place (b1 and a1: every aircraft type)
+        self.assertEqual(self.got["unjudged"], [["j1#1", "f1#2", "j2#3", "b1#4", "a1#5", "z1#"],
+                                                ["a1#5", "b1#4", "j2#3", "f1#2", "j1#1", "z1#"]])
 
     def test_br_choice_lists_brs_with_rows(self):
-        # fighters at 4.0, 10.0 and 10.3, the removed f2 at 4.3 once shown; 4.3 hidden again moves to 4.0; with every
-        # aircraft, b1 (4.0) and a1 (9.7) too; bombers: b1 alone
-        self.assertEqual(self.got["brs"], [[4, 10, 10.3], [4, 4.3, 10, 10.3], 4, [4, 9.7, 10, 10.3], [4]])
+        # every aircraft type flies the fighter styles: 4.0, 9.7 (a1), 10.0 and 10.3, the removed f2 at 4.3 once shown;
+        # 4.3 hidden again moves to 4.0; with the filter off the same; bombers: b1 alone
+        self.assertEqual(self.got["brs"], [[4, 9.7, 10, 10.3], [4, 4.3, 9.7, 10, 10.3], 4, [4, 9.7, 10, 10.3], [4]])
 
     def test_keyboard_stays_on_the_control(self):
         self.assertEqual(self.got["keys"], ['[data-bvmode="1"]', "#bvBr", '[data-bvrank="3"]', '[data-bvnation="usa"]',
@@ -448,7 +454,7 @@ class ThePage(unittest.TestCase):
             self.assertIn(' aria-pressed="%s"' % str(bool(re.search(r'class="[^"]*\bactive\b', b))).lower(), b)
         self.assertEqual(sum('aria-pressed="true"' in b for b in buttons), 4)  # type, mode, style, rank III
         for head, sort in zip(self.got["heads"], [("descending", "score"), ("ascending", "name")]):
-            self.assertEqual(re.findall(r'<th class="sortable[^"]*"[^>]*><button type="button" data-bvsort="(\w+)"', head), ["name", "rank", "br", "score"])
+            self.assertEqual(re.findall(r'<th class="sortable[^"]*"[^>]*><button type="button" data-bvsort="(\w+)"', head), ["pos", "name", "rank", "br", "score"])
             self.assertEqual(re.findall(r'aria-sort="(\w+)"><button type="button" data-bvsort="(\w+)"', head), [sort])
 
     def test_words_it_asks_for_are_in_every_locale(self):
