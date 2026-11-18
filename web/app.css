@@ -1620,7 +1620,6 @@ td.hg-actions { height: 48px; }
 /* a subject's grid per row, the same shares in each: name, before, after line up down the whole table. A long value (a game
    file's text, a list of hundreds of names) wraps in its column instead of pushing the other out of the cell */
 .ch-list { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 3fr) 1em minmax(0, 3fr); gap: 3px 10px; align-items: center; }
-.ch-list > .muted { justify-self: end; }  /* the value before, against its arrow; a long one fills its column */
 .ch-k { color: var(--text-2); font-weight: 600; }
 .ch-names { grid-column: 2 / -1; }  /* a list's row: what went, what came, across the before / after columns */
 .ch-to { color: var(--muted); }
