@@ -229,7 +229,8 @@ def _stats(cat: str, g: str, p: dict, tnt_eq: dict) -> dict:
     bt = first_str(p.get("bulletType")).lower()
     if not pen and (bt.startswith(("ap", "atgm_ke", "ke")) or "_ke_" in bt):
         apw = p.get("armorpower") if isinstance(p.get("armorpower"), dict) else {}
-        pen = _n(apw.get("ArmorPower0m"))
+        # else the closest value: the MGM-166's table starts at 1000 m
+        pen = _n(apw.get("ArmorPower0m")) or next((mm for _, mm in builder._pen_table(p)), None)
     if cat in ("atgm", "agm", "rocket"):
         put("pen", pen, 0)
     pfz = p.get("proximityFuse") if isinstance(p.get("proximityFuse"), dict) else {}
@@ -298,7 +299,10 @@ def _name(lang: Lang, iid: str, stem: str) -> None:
         lang.out["arm"][iid] = known if known else {"en": humanize(iid)}
 
 
-def build_armament(lang: Lang, vehicles: list, progress=None) -> dict:
+def build_armament(lang: Lang, vehicles: list, progress=None, index: dict | None = None) -> dict:
+    """index, when given, gets for guidedstats: items (id -> item, before the de-duplication), by_file (weapon file
+    key -> the items it fires, with that file's own stats; ship 1: its seeker locks on ships only) and pods (a
+    container's key -> (the key of what it holds, how many))."""
     log("Building the weapons page...", progress)
     report(progress, 0.88)
     ex = load(builder.DM / "aces.vromfs.bin_u" / "gamedata" / "damage_model" / "explosive.blkx") or {}
@@ -306,6 +310,7 @@ def build_armament(lang: Lang, vehicles: list, progress=None) -> dict:
               for k, v in (ex.get("explosiveTypes") or {}).items() if isinstance(v, dict)}
     items: dict[str, dict] = {}
     by_file: dict[str, set] = {}  # weapon file key -> armament ids it fires
+    own: dict[str, list] = {}  # weapon file key -> its items, its own stats (Spike NLOS files fire spike_er, farther)
     for folder in FOLDERS:
         for f in sorted((builder.DM / "aces.vromfs.bin_u" / "gamedata" / "weapons" / folder).glob("*.blkx")):
             d = load(f)
@@ -318,11 +323,17 @@ def build_armament(lang: Lang, vehicles: list, progress=None) -> dict:
                     continue
                 iid = (first_str(p.get("bulletName")) or stem).lower()
                 by_file.setdefault(stem, set()).add(iid)
+                g = _guidance(cat, p)
+                st = _stats(cat, g, p, tnt_eq)
+                gd = p.get("guidance") if isinstance(p.get("guidance"), dict) else {}
+                # its seeker's smallest target: from 10 m, ships only (Harpoon 15, Penguin 10, GCS-1 30; others 1.5)
+                least = max((_n(x.get("targetRadiusMin")) or 0 for x in gd.values() if isinstance(x, dict)), default=0)
+                ship = {"ship": 1} if least >= 10 else {}
+                own.setdefault(stem, []).append({"id": iid, "c": cat, "g": g, **st, **ship})
                 old = items.get(iid)
                 if old and not old["_src"].endswith("_default") and not (old["c"] == "rocket" and cat != "rocket"):
                     continue
-                g = _guidance(cat, p)
-                it = {"id": iid, "c": cat, "g": g, "_src": stem, "_raw": p, **_stats(cat, g, p, tnt_eq)}
+                it = {"id": iid, "c": cat, "g": g, "_src": stem, "_raw": p, **st}
                 mesh = first_str(p.get("mesh")) or _mesh(d)
                 if mesh and mesh != "empty_mesh":  # the id is the projectile's: it doesn't say which file holds the weapon
                     it["md"] = mesh
@@ -330,6 +341,14 @@ def build_armament(lang: Lang, vehicles: list, progress=None) -> dict:
                 votes = ICON_VOTES.get(stem)
                 it["ic"] = icon or (max(votes, key=votes.get) if votes else ICONS[cat])
                 items[iid] = it
+    if index is not None:
+        pods = {}
+        for f in (builder.DM / "aces.vromfs.bin_u" / "gamedata" / "weapons" / "containers").glob("*.blkx"):
+            d = load(f)
+            inner = builder.basename(first_str(d.get("blk"))) if isinstance(d, dict) else ""
+            if inner in by_file:
+                pods[f.stem.lower()] = (inner, builder.num(d.get("bullets"), 1) or 1)
+        index.update(items=items, by_file=own, pods=pods)
     # carriers: pylon / preset weapons (file keys), launchers (file keys), ammunition (bullet names)
     carriers: dict[str, set] = {}
     for v in vehicles:

@@ -34,10 +34,12 @@ function renderCompareTray() {
     <button class="btn btn-primary btn-sm" data-ctact="open"${list.length < 2 ? ' disabled' : ''}>${icon('sliders', 'ic-sm')}<span>${esc(t('compare.button', { n: list.length }))}</span></button>`;
 }
 
-async function openCompare() {
+// ids: a list of the dialog's own (Best vehicles: a vehicle and one opponent), the user's tray stays as it was
+async function openCompare(ids) {
+  S.cmpTemp = ids || null;
   if (!WP.arsenal) { try { WP.arsenal = await getData('arsenal.json'); } catch { WP.arsenal = {}; } }
   if (!S.sensors) { try { S.sensors = await getData('sensors.json'); } catch { S.sensors = {}; } }
-  await Promise.all(S.compare.map(id => vehicleDetails(id).catch(() => null)));  // systems, guns, flight model
+  await Promise.all((S.cmpTemp || S.compare).map(id => vehicleDetails(id).catch(() => null)));  // systems, guns, flight model
   renderCompareTable();
   $('#dlgCompare').showModal();
 }
@@ -45,6 +47,8 @@ async function openCompare() {
 const CMP_SECTIONS = ['br', 'perf', 'fm', 'fire', 'prot', 'optics', 'radar', 'warn', 'av', 'crew', 'eco'];
 const CMP_STAT_SEC = { spd: 'perf', rev: 'perf', hp: 'perf', t: 'perf', pw: 'perf', disp: 'perf', alt: 'perf', ceil: 'perf', climb: 'perf',
   turn: 'perf', roll: 'perf', tw: 'perf', wl: 'perf', cal: 'fire', kin: 'fire', heat: 'fire', rel: 'fire', trav: 'fire', vert: 'fire',
+  fg: 'fire', pen: 'fire', vel: 'fire', aab: 'fire', fm: 'fire', fa: 'fire', pay: 'fire', ir: 'fire', irq: 'fire', rm: 'fire', rmq: 'fire', rmr: 'fire',
+  def: 'fire', atg: 'fire', atr: 'fire', atp: 'fire', atq: 'fire', sam: 'fire', tor: 'fire', torr: 'fire',
   armT: 'prot', armH: 'prot', crew: 'crew', rp: 'eco', sl: 'eco', rep: 'eco', slm: 'eco', rpm: 'eco', fr: 'eco' };
 const CMP_DASH = '<span class="muted">—</span>';
 
@@ -72,7 +76,7 @@ const cmpBands = bs => {  // radar bands as letters, runs joined: [3, 4, 5, 8] -
 };
 
 function renderCompareTable() {
-  const list = S.compare.map(id => S.byId.get(id)).filter(Boolean);
+  const list = (S.cmpTemp || S.compare).map(id => S.byId.get(id)).filter(Boolean);
   if (!list.length) { $('#dlgCompare').close(); return; }
   const D = list.map(v => S.details.get(v.id) || {});
   // what each vehicle is fitted with: researched (sy) or stock (sy.su replaces what modules bring)
@@ -89,9 +93,9 @@ function renderCompareTable() {
   ['AB', 'RB', 'SB'].forEach((m, i) => add('br', `BR ${m}`, list.map(v => (v.br?.[i] != null ? { html: esc(fmtBR(v.br[i])), n: v.br[i] } : null))));
   // the vehicles' stats, in the usual order, when at least one vehicle has a value
   const one = list.every(v => v.c === list[0].c) ? list[0].c : 'all';
-  for (const k of Object.keys(STATS).filter(k => list.some(v => STATS[k].cats.includes(v.c) && v.s?.[k] != null))) {
-    add(CMP_STAT_SEC[k] || 'perf', statLabel(k, one), list.map(v => (v.s?.[k] != null ? cell(fmtStat(k, statAt(v, k)), statVal(v, k), v.su?.[k] != null ? 'upg-chg' : '') : null)),
-      { better: STATS[k].better, hint: STATS[k].triple ? t('stat.armHint') : '' });
+  for (const k of Object.keys(STATS).filter(k => !STATS[k].dup && list.some(v => STATS[k].cats.includes(v.c) && v.s?.[k] != null))) {
+    add(CMP_STAT_SEC[k] || 'perf', statLabel(k, one), list.map(v => (statAt(v, k) != null ? cell(fmtStat(k, statAt(v, k)), statVal(v, k), v.su?.[k] !== undefined ? 'upg-chg' : '') : null)),
+      { better: STATS[k].better, hint: STATS[k].triple ? t(STATS[k].hint || 'stat.armHint') : '' });
   }
   rows.perf = (rows.perf || '') + bnCompareRows(list);
   add('perf', t('compare.gears'), Y.map(y => (y.gr ? cell(`${y.gr[0]} / ${y.gr[1]}`) : null)));
@@ -215,7 +219,8 @@ function renderCompareTable() {
 function bindCompare() {
   const onClick = e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.ctrm) { toggleCompare(b.dataset.ctrm); if ($('#dlgCompare').open) renderCompareTable(); }
+    if (b.dataset.ctrm && S.cmpTemp && $('#dlgCompare').open) { S.cmpTemp = S.cmpTemp.filter(id => id !== b.dataset.ctrm); renderCompareTable(); }
+    else if (b.dataset.ctrm) { toggleCompare(b.dataset.ctrm); if ($('#dlgCompare').open) renderCompareTable(); }
     else if (b.dataset.ctact === 'clear') { S.compare = []; store.set('compare', []); renderCompareTray(); if (S.sel) renderDrawer(); }
     else if (b.dataset.ctact === 'open') openCompare();
     else if (b.dataset.ctopen) { $('#dlgCompare').close(); showView('vehicles'); openVehicle(b.dataset.ctopen); }

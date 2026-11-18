@@ -63,6 +63,7 @@ function hgSet(ids, on) {
   hgMarks();
   if (S.f.owned) applyFilters();
   if (!$('#view-hangar').classList.contains('hidden')) hgRender();
+  bvRefresh();
   if (S.sel) renderDrawer();
 }
 

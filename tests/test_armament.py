@@ -123,6 +123,11 @@ class Warheads(unittest.TestCase):
         p = {"bulletType": "ap_tank", "armorpower": {"ArmorPower0m": [120.0, 10.0]}}
         self.assertEqual(stats("rocket", p)["pen"], 120)
 
+    def test_kinetic_missile_table_without_0_m(self):
+        # MGM-166 (LOSAT): its table starts at 1000 m ([mm, m]): the closest value
+        p = {"bulletType": "atgm_ke_tank", "armorpower": {"ArmorPower2000m": [675.0, 2000.0], "ArmorPower1000m": [775.0, 1000.0]}}
+        self.assertEqual(stats("atgm", p)["pen"], 775)
+
     def test_nuke_yield_and_killstreak_bomb(self):
         s = stats("nuke", {"yield": 30.0, "proximityFuse": {"radius": 45.0}, "mass": 350.0})
         self.assertEqual((s["yld"], s["bh"]), (30.0, 45))

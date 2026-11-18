@@ -89,6 +89,10 @@ Each one links to its page in the wiki.
   vehicles, grid or research trees, filters by type, nation, rank, BR, stats (stock or all upgrades) and carried
   weapons, a comparison of up to 5 (radars, warning receivers, night vision, rangefinder, stabilizer, flight limits...),
   research path, economy.
+- **[Best vehicles](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Best-vehicles)**: the
+  vehicles of a type ranked for a play style at a BR (turn fighting, boom and zoom, close air support, sniper, flanker,
+  torpedo attack... 19 styles) by the duels they win on the game's stats against everything they can meet, with whom
+  each one beats and why.
 - **[Loadouts](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Loadouts-and-pylons)**: every
   official preset, or any of the game's ~2,300 air weapons on any pylon - nuclear bombs, the missiles of ground vehicles
   and ships, guns - with several custom loadouts kept per aircraft. **[My weapons](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/My-weapons)**:

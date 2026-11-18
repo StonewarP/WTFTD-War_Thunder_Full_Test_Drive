@@ -1673,3 +1673,32 @@ td.hg-actions { height: 48px; }
 .bn-tick { width: 34px; padding-right: 0 !important; }
 .bn-hide { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .bn-pick { display: grid; place-items: center; width: 22px; height: 22px; cursor: pointer; }
+
+/* Best vehicles (best.js) */
+#bvBar .upg { margin: 0; }
+#bvBar .seg button:disabled { opacity: .45; cursor: default; }
+.bv-nat .flag { width: 20px; height: 13px; vertical-align: middle; }
+.bv-weights b { color: var(--text-2); }
+.bv-note { margin-bottom: 10px; }
+.bv-table tbody tr[data-bvrow] { cursor: pointer; }
+.bv-table tbody tr[data-bvrow]:hover td { background: var(--surface-2); }
+.bv-table th.num, .bv-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.bv-table .mb-link { text-align: left; vertical-align: middle; }
+.bv-table .mb-link .flag { width: 22px; height: 14px; }
+.bv-table .mb-link > span { display: flex; flex-direction: column; }
+.bv-table .tagx { margin-left: 8px; white-space: nowrap; }
+/* names, headers and traits wrap: unwrapped, the table was wider than its box below about 1100 px */
+.bv-table thead th, .bv-table .bv-name, .bv-table .bv-traits { white-space: normal; }
+.bv-traits .chip { margin: 2px 4px 2px 0; white-space: normal; height: auto; min-height: 22px; padding: 2px 8px; }  /* no overflow-wrap: anywhere (unlike .bv-why): the table would narrow this column and split words even where whole ones fit */
+.bv-table th.sortable { padding: 0; height: 1px; }  /* a set height (the row still grows) gives the button's 100% a wrapped header's full cell */
+.bv-table th.sortable button { display: block; width: 100%; height: 100%; padding: 6px 10px; border: 0; background: none; text-align: inherit; letter-spacing: inherit; }
+.bv-table th.sortable button:focus-visible { outline-offset: -2px; }
+.bv-det { display: flex; flex-direction: column; gap: 6px; padding: 6px 2px; }
+.bv-det h4 { margin: 6px 0 0; }
+.bv-acts { display: flex; gap: 8px; }
+.bv-foes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(440px, 100%), 1fr)); gap: 0 16px; }
+.bv-foe { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.bv-foe-name { display: inline-flex; align-items: center; gap: 6px; min-width: 150px; max-width: 50%; }  /* else a long name leaves the reasons no room */
+.bv-foe-name .flag { width: 20px; height: 13px; }
+.bv-why { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+.bv-why .chip { white-space: normal; overflow-wrap: anywhere; height: auto; min-height: 22px; padding: 2px 8px; }  /* a reason can be wider than its column (450 px in Russian) */

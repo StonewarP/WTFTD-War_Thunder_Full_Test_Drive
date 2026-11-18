@@ -35,6 +35,8 @@ then builds `data/`. Rebuild the data by hand with `python -m wtftd.builder --no
 | `wtftd/builder.py` | Datamine or game files → `data/*.json` (vehicles, scenarios, trees, translations) |
 | `wtftd/vromfs.py` | The game's own files: `.vromfs.bin` containers and binary BLK → the datamine's JSON |
 | `wtftd/armament.py` | Weapons page data (missiles, bombs, rockets, torpedoes) |
+| `wtftd/duelstats.py` | Best vehicles: the stats the duels read (guns, payload, unguided rockets and bombs, sensors, a ground vehicle's main gun and fire control, a naval battery and all its guns, stock presets, an aircraft's BR in ground battles), from what `build_vehicles` has already loaded; it writes no file. Duels in `web/duel.js`, page in `web/best.js` |
+| `wtftd/guidedstats.py` | Best vehicles: guided weapon stats (air-to-air missiles, anti-ground guided weapons, SAMs, torpedoes, a missile carrier's speed) from the weapons page's index (`armament.build_armament(..., index)`); it drops the private details keys `build_vehicles` left for it |
 | `wtftd/mission.py` | Official scenario + your setup → `.blk` user mission |
 | `wtftd/cdk.py` | Custom vehicle files (`userVehicles` + `@override`) |
 | `wtftd/alarms.py` | In-flight values (`reader()`), alarms and overlay (`available()`), Windows and Linux: game's `/state` + flight model limits; UI in `web/overlay.js`. Linux draws the overlay in `xoverlay.py` (X11 windows from `x11.py`, painted by `cairopaint.py`) |

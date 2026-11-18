@@ -37,7 +37,7 @@ from pathlib import Path
 from . import patches, vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 43  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 44  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -987,7 +987,9 @@ def _caliber_mm(blk: str) -> float | None:
         return _CAL_CACHE[blk]
     _CAL_CACHE[blk] = None
     d = load(blk_to_path(blk)) if blk else None
-    for b in aslist((d or {}).get("bullet")):
+    for b in aslist((d or {}).get("bullet")) or aslist((d or {}).get("rocket")):  # a launcher without an ammo set: its rocket
+        if isinstance(b, dict) and isinstance(b.get("rocket"), dict):
+            b = b["rocket"]  # as the game's bullet card: the BM-8-24's 82 mm rocket, not the 150 mm placeholder bullet around it
         if isinstance(b, dict) and isinstance(b.get("caliber"), (int, float)):
             _CAL_CACHE[blk] = round(b["caliber"] * 1000, 1)
             break
@@ -1008,9 +1010,35 @@ def ground_speeds(udata: dict) -> tuple[float | None, float | None]:
     return (round(k / min(fwd)) if fwd else None), (round(k / min(rev)) if rev else None)
 
 
-def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: list) -> dict:
+def main_gun(ammo: list) -> dict | None:
+    """A ground vehicle's main gun among its ammo groups (vehicle_ammo): the gunner's, else its first weapon's, else (that
+    one is a dummy turret or a launcher without an ammo set) the largest caliber, never a machine gun under 15 mm: the
+    LOSAT's missile launcher, not the M2 listed first; none on an M113A1 (TOW), whose TOW am leaves out (build_vehicles
+    adds such a launcher when it fires unguided rockets: unguided_launcher)."""
+    main = next((g for g in ammo if g.get("trig") == "gunner0" or g.get("wi") == 1), None)
+    if main or not ammo:
+        return main
+    cal = lambda g: _caliber_mm(g.get("p", "")) or 0
+    main = max(ammo, key=lambda g: (not 0 < cal(g) < 15, cal(g)))
+    return None if 0 < cal(main) < 15 else main
+
+
+def unguided_launcher(udata: dict, wc: WeaponCache) -> list:
+    """A ground vehicle's gunner's launcher of unguided rockets that vehicle_ammo leaves out (its file has no ammo set:
+    Type 75 MLRS, BM-13N), as an ammo group of its rocket, for main_gun when its ammo groups have no main gun; [] when the
+    gunner has none, or fires a guided missile (guided_stats makes it a missile carrier: the M113A1 (TOW))."""
+    w = next((w for w in _weapons(udata) if first_str(w.get("trigger")) == "gunner0" and not w.get("dummy")), {})
+    r = (wc.get(first_str(w["blk"])) or {}).get("rocket") if first_str(w.get("blk")) else None
+    if not isinstance(r, dict) or first_str(r.get("bulletType")).startswith(("atgm", "sam")):
+        return []
+    return [{"p": first_str(w["blk"]), "trig": "gunner0",
+             "opts": [{"id": "", "t": [first_str(r.get("bulletType"))], "s": shell_stats(r, wc.blast)}]}]
+
+
+def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: list, vid: str = "") -> dict:
     """Comparable stats of a vehicle for the list (sort / filter) and the vehicle card. Units: km/h, m,
-    m/s, s, deg/s, mm, t, hp/t. Air values are the game's own stat card (unittags Shop block)."""
+    m/s, s, deg/s, mm, t, hp/t. Air values are the game's own stat card (unittags Shop block); for aircraft, the flight
+    model's engines decide between pw (propellers) and tw (jets, rockets) and whether the card counts every engine."""
     shop = (tags or {}).get("Shop") or {}
     out = {}
     if cat in ("air", "heli"):
@@ -1018,9 +1046,23 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
             out["spd"] = round(shop["maxSpeed"] * 3.6)
         for key, src in (("alt", "maxSpeedAlt"), ("ceil", "maxAltitude"), ("turn", "turnTime"), ("roll", "rollRate"),
                          ("climb", "climbSpeed"), ("wl", "wingLoading")):
-            if isinstance(shop.get(src), (int, float)) and shop[src] > 0.05:
+            # wl: the lightest real card is the Po-2's 32 kg/m2; the P-39Q-5's 18.26 dropped a digit
+            if isinstance(shop.get(src), (int, float)) and shop[src] > (25 if key == "wl" else 0.05):
                 out[key] = _r1(shop[src])
-        if shop.get("thrustToWeightRatio"):
+        placeholder = cat == "heli" or vid.lower().startswith(("uav_", "ucav_"))  # AI drones: the same 0.71 on every card
+        fm = (load(fm_file(st["fm"])) or {}) if st.get("fm") and not placeholder else {}
+        kinds = engine_kinds(fm)
+        ratio = shop.get("thrustToWeightRatio") or shop.get("powerToWeightRatio")
+        if kinds and ratio:  # the card puts it in the wrong field on some (Mystère IVA's 0.41 power, Fokker D.21's 0.35 thrust)
+            thrust = "Jet" in kinds or all(k == "Rocket" for k in kinds)
+            ratio *= card_engine_factor(ratio, fm, thrust)
+            if not thrust and (fmr := fm_power_ratio(fm)):  # cards far off it (Fury Mk II 250 hp/t against 453): within 15%
+                ratio = min(max(ratio, fmr / 1.15), fmr * 1.15)
+            if thrust:
+                out["tw"] = _r1(ratio, 2)
+            else:
+                out["pw"] = _r1(ratio * 1000)  # hp / t
+        elif shop.get("thrustToWeightRatio"):
             out["tw"] = _r1(shop["thrustToWeightRatio"], 2)
         elif shop.get("powerToWeightRatio"):
             out["pw"] = _r1(shop["powerToWeightRatio"] * 1000)  # hp / t
@@ -1044,15 +1086,19 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
             out["trav"] = _r1(ts[0])
         if isinstance(ts, list) and len(ts) > 1 and isinstance(ts[1], (int, float)) and ts[1] > 0:
             out["vert"] = _r1(ts[1])
-        main = next((g for g in ammo if g.get("trig") == "gunner0" or g.get("wi") == 1), ammo[0] if ammo else None)
+        main = main_gun(ammo)
         if main:
             cal = _caliber_mm(main.get("p", ""))
             if cal:
                 out["cal"] = cal
-            heat = max((o.get("s", {}).get("h") or 0 for o in main.get("opts", [])), default=0)
+            shells = [(o.get("s") or {}, first_str(o.get("t"))) for o in main.get("opts", []) if not o.get("x")]
+            heat = max((s.get("h") or (s["pc"][0][1] if t.startswith("atgm") and not t.startswith("atgm_ke") and s.get("pc") else 0)
+                        for s, t in shells), default=0)  # a gun-launched missile's shaped charge has no h: its flat curve
             if heat:
                 out["heat"] = round(heat)
-            kin = max((o.get("s", {}).get("k") or 0 for o in main.get("opts", [])), default=0)
+            # a kinetic missile (MGM-166) speeds up: its best figure is far, not its first
+            kin = max((s.get("k") or (max(p for _, p in s["pc"]) if t.startswith("atgm_ke") and s.get("pc") else 0)
+                       for s, t in shells), default=0)
             if kin:
                 out["kin"] = round(kin)
         if isinstance(wp.get("reloadTime_cannon"), (int, float)):
@@ -1065,8 +1111,9 @@ def vehicle_stats(cat: str, udata: dict, wp: dict, tags: dict, st: dict, ammo: l
         hp = _numval(((udata.get("ShipPhys") or {}).get("engines") or {}).get("horsePowers")) if isinstance(udata.get("ShipPhys"), dict) else None
         if hp:
             out["hp"] = round(hp)
-        main = ammo[0] if ammo else None
-        cal = _caliber_mm(main.get("p", "")) if main else None
+        # the primary group's, the guns fm counts (MPK-201K: its first ammo group is a 25 mm, its primary a 45 mm)
+        primary = [_caliber_mm(first_str(w.get("blk"))) or 0 for w in _weapons(udata) if first_str(w.get("triggerGroup")) == "primary"]
+        cal = max(primary, default=0) or (_caliber_mm(ammo[0].get("p", "")) if ammo else None)
         if cal:
             out["cal"] = cal
     if isinstance(wp.get("crewTotalCount"), (int, float)) and wp["crewTotalCount"] > 0:
@@ -1119,16 +1166,58 @@ def vehicle_economy(cat: str, wp: dict, warpoints: dict, ranks: dict) -> tuple[d
     return out, {"rep": stock} if stock != rep else {}
 
 
+def engine_mains(fm: dict) -> list:
+    """The Main block of each Engine<n> of a flight model (older flight models: on the engine itself)."""
+    engines = [v for k, v in fm.items() if re.fullmatch(r"Engine\d+", k) and isinstance(v, dict)]
+    return [(fm.get(f"EngineType{e.get('Type')}") or e).get("Main") or {} for e in engines]
+
+
 def engine_kinds(fm: dict) -> list:
     """The kind of each Engine<n> of a flight model: Jet, Inline, Radial, Rocket..."""
-    engines = [v for k, v in fm.items() if re.fullmatch(r"Engine\d+", k) and isinstance(v, dict)]
-    return [((fm.get(f"EngineType{e.get('Type')}") or e).get("Main") or {}).get("Type") for e in engines]
+    return [m.get("Type") for m in engine_mains(fm)]
 
 
 def engine_count(fm: dict) -> int:
     """Engines of a flight model as /state lists them: take-off rockets (A-4, Mirage III...) are Engine<n> too."""
     kinds = engine_kinds(fm)
     return sum(k != "Rocket" for k in kinds) or len(kinds)  # or: rocket planes (Me 163)
+
+
+def fm_power_ratio(fm: dict) -> float:
+    """The flight model's power-to-weight (hp/kg): every engine over the lightest flying mass; 0 when it lacks them."""
+    mains = [m for m in engine_mains(fm) if m.get("Type") != "Rocket"]
+    mass = fm.get("Mass") or {}
+    kg = sum(_numval(mass.get(k)) or 0 for k in ("EmptyMass", "MaxFuelMass0", "OilMass"))
+    hp = sum((_numval(m.get("Power")) or 0) * (_numval(m.get("AfterburnerBoost")) or 1) for m in mains)
+    return hp / kg if hp and kg else 0
+
+
+def card_engine_factor(ratio: float, fm: dict, thrust: bool = False) -> float:
+    """What the card's power-to-weight ratio (hp/kg), or with thrust its thrust-to-weight, must be multiplied by to
+    count every engine: most twins' and bombers' cards give one engine's (B-17G 0.06, P-38J 0.2, Meteor F.8 0.22),
+    some all of them (Bf 110 G-4, Ju 52, F-5A). Told apart by the flight model's own figure for one engine: the engine
+    count when the card is nearer to it, else 1; a thrust card that already reaches every engine over the take-off
+    mass counts them all (Sk 60B). Power cards skip that take-off test: a bomber's take-off mass holds its bomb load,
+    which brings the test within 3% of undoing a right doubling (DB-3A). Engines that differ (Fireball's radial and
+    jet, the Yak-38's lift jets) leave the card as it is. A counted power card stays within 15% of every engine's
+    figure at that lightest mass, where the reference twins land at 0.94 to 1.11 of it: some cards sit above one
+    engine even there (He 219 A-7: 0.18 against 0.133), and doubled would be 1.36 x both."""
+    mains = engine_mains(fm)
+    mains = [m for m in mains if m.get("Type") != "Rocket"] or mains  # the engines engine_count counts
+    if thrust:  # static dry thrust, kgf; else Main.Thrust, assumed in newtons (no 2.61 jet or rocket model lacks ThrustMax)
+        each = [_numval((m.get("ThrustMax") or {}).get("ThrustMax0")) or (_numval(m.get("Thrust")) or 0) / 9.81 for m in mains]
+    else:
+        each = [(_numval(m.get("Power")) or 0) * (_numval(m.get("AfterburnerBoost")) or 1) for m in mains]
+    mass = fm.get("Mass") or {}
+    kg = sum(_numval(mass.get(k)) or 0 for k in ("EmptyMass", "MaxFuelMass0", "OilMass"))
+    takeoff = _numval(mass.get("Takeoff"))
+    if thrust and takeoff and ratio >= sum(each) / takeoff:
+        return 1
+    n = len(each)
+    one = each[0] / kg if n > 1 and kg and max(each) < 1.1 * min(each) else 0
+    if not one or ratio >= one * n ** 0.5:  # nearer to n engines than to one, on a log scale
+        return 1
+    return n if thrust else min(n, 1.15 * sum(each) / kg / ratio)
 
 
 def flight_limits(fm: dict, cat: str) -> dict:
@@ -1255,8 +1344,8 @@ def preset_composition(preset: dict, fm: dict | None, wc: WeaponCache):
             blk = first_str(cont.get("blk"))
             n = num(cont.get("bullets"), 1) or 1
         k = wc.weapon_name(blk)
-        if trig in ("machine gun", "cannon", "gunner0", "gunner1", "additional gun"):
-            n = 1  # guns: count barrels not rounds
+        if trig in ("machine gun", "cannon", "gunner0", "gunner1", "additional gun") and gun_rounds(wc.get(blk) or {}):
+            n = 1  # guns: count barrels not rounds (a torpedo tube on gunner1 counts its torpedoes: L'Intrepide 7)
         counts[k] = counts.get(k, 0) + int(n)
 
     for w in aslist(pdata.get("Weapon")):
@@ -1288,7 +1377,15 @@ def ground_side_weapons(udata: dict) -> list:
     return out
 
 
-def vehicle_ammo(udata: dict, cat: str, official_mods: set, wc: WeaponCache):
+def bullet_mods(mods) -> dict:
+    """{ammo set: the modification giving it} of these modifications: each its own, and the set the shared table gives
+    under another name (effects.additiveBulletMod: 76mm_AP_1942 gives the T-34 its 76mm_ussr_AP_1942)."""
+    other = {e["additiveBulletMod"]: m for m in mods for e in _mod_effects({}, [m])
+             if isinstance(e.get("additiveBulletMod"), str)}
+    return {**other, **{m: m for m in mods}}
+
+
+def vehicle_ammo(udata: dict, cat: str, official_mods: dict, wc: WeaponCache):
     """Ammo groups: one per distinct gun able to take alternate ammo / belts."""
     groups = []
     seen = set()
@@ -1357,6 +1454,9 @@ def vehicle_ammo(udata: dict, cat: str, official_mods: set, wc: WeaponCache):
         sf = _numval((wc.get(blk) or {}).get("shotFreq"))
         if sf:
             g["sf"] = sf
+        tubes = [num(x) for x in aslist(w.get("emitterGenRange"))]  # fired in turn: a rocket launcher's, the M50's rifles
+        if cat == "ground" and len(tubes) == 2 and tubes[1] > tubes[0]:
+            g["tubes"] = tubes[1] - tubes[0] + 1
         groups.append(g)
     if cat == "ground":
         # main gun first (gunner0 with the most ammo options)
@@ -1407,6 +1507,7 @@ def vehicle_roles(tags: dict, unit_class: str, lang: "Lang", vid: str = "") -> l
 
 
 def build_vehicles(lang: Lang, progress=None):
+    from . import duelstats  # here: it imports this module
     log("Reading vehicle economy table (wpcost)...", progress)
     report(progress, 0.49)
     wp = load(DM / "char.vromfs.bin_u" / "config" / "wpcost.blkx") or {}
@@ -1477,6 +1578,8 @@ def build_vehicles(lang: Lang, progress=None):
                 "br": [br_from(v.get("economicRankArcade")), br_from(v.get("economicRankHistorical")), br_from(v.get("economicRankSimulation"))],
                 "k": (v.get("unitClass") or "").replace("exp_", ""),
             }
+            if cat == "air" and (bt := duelstats.ground_battle_br(v, rec["br"])):
+                rec["bt"] = bt  # the BR it meets in ground battles
             if v.get("costGold"):
                 rec["p"] = 1
             if v.get("reqAir"):
@@ -1508,10 +1611,13 @@ def build_vehicles(lang: Lang, progress=None):
             details[vid] = {
                 "b": UNIT_BLOCK[cat],
                 "pr": presets,
-                "am": vehicle_ammo(udata, cat, mods, wc),
+                "am": vehicle_ammo(udata, cat, bullet_mods(mods), wc),
                 "st": base_stats(vid, udata, cat),
             }
-            systems = systems_with_stock(cat, udata, mods)
+            ammo = details[vid]["am"]  # what main_gun picks from: when it finds no main gun, an unguided launcher am leaves out
+            if cat == "ground" and not main_gun(ammo):
+                ammo = unguided_launcher(udata, wc) + ammo
+            systems = systems_with_stock(cat, udata, mods, (main_gun(ammo) or {}).get("p", "") if cat == "ground" else "")
             if systems:
                 details[vid]["sy"] = systems
             if cat in ("air", "heli"):
@@ -1552,12 +1658,41 @@ def build_vehicles(lang: Lang, progress=None):
             roles = vehicle_roles(unittags.get(vid) or {}, rec["k"], lang, vid)
             if roles:
                 rec["ro"] = roles
-            stats = vehicle_stats(cat, udata, v, unittags.get(vid) or {}, details[vid]["st"], details[vid]["am"])
+            st = {"fm": f"fm/{vid}", **details[vid]["st"]}  # no fmFile: the flight model is named after the aircraft
+            stats = vehicle_stats(cat, udata, v, unittags.get(vid) or {}, st, ammo, vid)
             economy, stock_economy = vehicle_economy(cat, v, warpoints, ranks)
             stats.update(economy)
+            wp_mods = v["modifications"] if isinstance(v.get("modifications"), dict) else {}
+            try:
+                if cat == "ground":
+                    duel, duel_stock = duelstats.ground_stats(ammo, systems, wp_mods, wc)
+                    if rec["k"] == "SPAA":
+                        aab, aab_stock = duelstats.spaa_stats(udata, wc, mods)
+                        duel.update(aab)
+                        duel_stock.update(aab_stock)
+                elif cat in ("air", "heli"):
+                    duel, duel_stock = duelstats.air_stats(cat, udata, wc, presets, catalog, systems, st.get("lim") or {}, mods, wp_mods)
+                else:
+                    duel, duel_stock = duelstats.naval_stats(udata, wc, systems, mods)
+                details[vid]["_sm"] = [o["id"] for g in details[vid]["am"] for o in g["opts"]  # free ammo, for guided_stats
+                                       if o["id"] and duelstats.stock_shell(o["id"], wp_mods)]
+                details[vid]["_sp"] = [p["id"] for p in presets if duelstats.preset_is_stock(p, udata, wp_mods)]  # stock presets, the same
+                if cat == "ground":  # for guided_stats too: launchers without an ammo set (TOW, Malyutka), which am leaves out,
+                    # in each fitted set (its own, then each modification's that replaces it: the BMP-1P's Konkurs), and the
+                    # rounds of an ammo set a spawn may carry (a gun-launched missile's maxToRespawn)
+                    shown, side = {g["w"] for g in details[vid]["am"]}, ground_side_weapons(udata)
+                    details[vid]["_gw"] = [[[k, num(w.get("bullets"))] for w in ws + side
+                                            if (k := basename(first_str(w.get("blk")))) and k not in shown and not w.get("dummy")]
+                                           for ws in duelstats.fitted_sets(udata, mods)]
+                    details[vid]["_ml"] = {m: num(e.get("maxToRespawn")) for m, e in wp_mods.items()
+                                           if isinstance(e, dict) and e.get("maxToRespawn")}
+            except (AttributeError, TypeError, KeyError, ValueError, IndexError) as e:
+                duel, duel_stock = {}, {}
+                log(f"  {vid}: no duel stats: {type(e).__name__}: {e}", progress)
+            stats.update(duel)
             if stats:
                 rec["s"] = stats
-                su = {**stock_stats(cat, stats, stock_factors(udata, mods)), **stock_economy}
+                su = {**stock_stats(cat, stats, stock_factors(udata, mods)), **stock_economy, **duel_stock}
                 if su:
                     rec["su"] = su  # stock values (rec["s"] = fully upgraded)
             # what it carries, for "search by weapon": guns, presets / pylon weapons, ammunition
@@ -1926,8 +2061,9 @@ def _weapons(udata: dict) -> list:
     return out
 
 
-def vehicle_systems(cat: str, udata: dict, mods) -> dict:
-    """What a vehicle is fitted with, for the comparison, with the given modifications researched. Keys:
+def vehicle_systems(cat: str, udata: dict, mods, gun: str = "") -> dict:
+    """What a vehicle is fitted with, for the comparison, with the given modifications researched (gun: a ground
+    vehicle's main gun file, main_gun's p, whose Weapon is the main one when the gunner's is a dummy turret). Keys:
       se   sensors [[file, kind, summary], ...]: kind radar (radar_summary), rwr (rwr_summary), mlws {r, rd: radar}, lws
       att  automatic target tracker;  acm  automatic countermeasures [[rwr / mlws...], programs];  cm  countermeasure charges
       nv   night vision (night_vision);  zg / zc  gunner / commander sight zoom [widest, narrowest];  rf  rangefinder laser / optic
@@ -1983,7 +2119,8 @@ def vehicle_systems(cat: str, udata: dict, mods) -> dict:
         rf = [e for e in effects if e.get("rangefinderMounted")]
         if rf:
             out["rf"] = "laser" if any(e.get("isLaser") for e in rf) else "optic"
-        main = next((w for w in weapons if first_str(w.get("trigger")) == "gunner0" and not w.get("dummy")), None) or {}
+        main = next((w for w in weapons if first_str(w.get("trigger")) == "gunner0" and not w.get("dummy")), None) or \
+            next((w for w in weapons if gun and first_str(w.get("blk")).lower() == gun.lower() and not w.get("dummy")), {})
         st = main.get("gunStabilizer") if isinstance(main.get("gunStabilizer"), dict) else {}
         if st.get("hasVertical") or st.get("hasHorizontal"):
             limits = [x for a in ("vertical", "horizontal") if st.get("has" + a.title())
@@ -1991,7 +2128,7 @@ def vehicle_systems(cat: str, udata: dict, mods) -> dict:
             out["stab"] = [int(bool(st.get("hasVertical"))), int(bool(st.get("hasHorizontal"))), round(min(limits)) if limits else 0]
         pitch = (main.get("limits") or {}).get("pitch") if isinstance(main.get("limits"), dict) else None
         if isinstance(pitch, list) and len(pitch) == 2 and all(isinstance(x, (int, float)) for x in pitch):
-            out["el"] = [round(pitch[0]), round(pitch[1])]
+            out["el"] = [round(x, 1) + 0 for x in pitch]  # + 0: no -0.0 (the Striker's launcher)
         if any(s.get("autoLoad") and first_str(s.get("weaponTrigger")) == "gunner0" for s in _children(udata.get("ammoStowages"))):
             out["al"] = 1
         smoke = [sum(num(w.get("bullets")) for w in aslist(ws.get("Weapon")) if isinstance(w, dict) and _smoke_launcher(first_str(w.get("blk"))))
@@ -2032,9 +2169,9 @@ def vehicle_systems(cat: str, udata: dict, mods) -> dict:
     return out
 
 
-def systems_with_stock(cat: str, udata: dict, mods) -> dict:
+def systems_with_stock(cat: str, udata: dict, mods, gun: str = "") -> dict:
     """vehicle_systems with every modification, and under su what a stock vehicle has instead (None: nothing)."""
-    full, stock = vehicle_systems(cat, udata, mods), vehicle_systems(cat, udata, ())
+    full, stock = vehicle_systems(cat, udata, mods, gun), vehicle_systems(cat, udata, (), gun)
     su = {k: stock.get(k) for k in sorted(full.keys() | stock.keys()) if full.get(k) != stock.get(k)}
     return {**full, "su": su} if su else full
 
@@ -2176,11 +2313,15 @@ def build_weapon_catalog(wc: "WeaponCache", progress=None) -> dict:
                     continue
                 inner = first_str(d["blk"])
                 ifolder = inner.replace("\\", "/").split("/")[-2].lower()
-                cl = classify_weapon(load(blk_to_path(inner)), ifolder)
+                held = load(blk_to_path(inner))
+                cl = classify_weapon(held, ifolder)
                 if not cl:
                     continue
                 cat, g = cl
                 entry = {"p": path, "c": cat, "g": g, "t": TRIGGERS.get(cat, "bombs"), "pod": num(d.get("bullets"), 1) or 1}
+                mass = (_numval(d.get("mass")) or 0) + entry["pod"] * (_numval(_payload(held)[1].get("mass")) or 0)
+                if mass:
+                    entry["m"] = round(mass, 1)  # kg: the pod's own and its rounds'
             else:
                 entry = air_weapon_entry(d, folder, path)
                 if not entry:
@@ -3000,7 +3141,7 @@ def _global_mods() -> dict:
 
 def stock_factors(udata: dict, mod_names) -> dict:
     """Product of the penalty multipliers a stock vehicle carries (all 1.0 when nothing applies)."""
-    f = {"P": 1.0, "M": 1.0, "D": 1.0, "Y": 1.0, "T": 1.0}
+    f = {"P": 1.0, "M": 1.0, "D": 1.0, "Y": 1.0, "T": 1.0, "S": 1.0}
     local = udata.get("modifications") if isinstance(udata.get("modifications"), dict) else {}
     for name in mod_names:
         g = _global_mods().get(name)
@@ -3022,6 +3163,7 @@ def stock_factors(udata: dict, mod_names) -> dict:
         f["D"] *= mul("mulCdmin")
         f["Y"] *= mul("mulSpeedYaw")
         f["T"] *= mul("mulTransmissionEfficiency")
+        f["S"] *= mul("mulMaxSpeed")  # a vessel's seakeeping modifications
     return f
 
 
@@ -3048,6 +3190,8 @@ def stock_stats(cat: str, s: dict, f: dict) -> dict:
         put("tw", s.get("tw", 0) * P / M, 2)
         put("pw", s.get("pw", 0) * P / M)
         put("wl", s.get("wl", 0) * M, 0)
+    elif cat in ("boat", "ship"):
+        put("spd", s.get("spd", 0) * f["S"], 0)
     return out
 
 
@@ -3154,7 +3298,11 @@ def _build(progress, source: str, history: bool = True, circuit: str | None = No
     trees = build_trees(lang, {v["id"] for v in vehicles}, progress)
     apply_rarity(vehicles, trees)
     from .armament import build_armament
-    build_armament(lang, vehicles, progress)
+    from .guidedstats import guided_stats
+    index = {"items": {}, "by_file": {}, "pods": {}}  # build_armament fills it: the weapons and what fires them
+    build_armament(lang, vehicles, progress, index)
+    # before details.json is written: guided_stats drops the keys build_vehicles left for it (_sp, _sm, _gw, _ml)
+    guided_stats(vehicles, details, index["items"], index["by_file"], index["pods"])
     log("Writing database...", progress)
     report(progress, 0.97)
     with open(DATA / "vehicles.json", "w", encoding="utf-8") as f:

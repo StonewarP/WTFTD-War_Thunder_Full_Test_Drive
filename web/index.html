@@ -84,6 +84,7 @@
 </header>
 <nav class="subtabs" role="tablist">
   <button class="subtab" data-view="vehicles" role="tab"><span data-i18n="nav.vehicles"></span></button>
+  <button class="subtab" data-view="best" role="tab"><span data-i18n="nav.best"></span></button>
   <button class="subtab" data-view="setups" role="tab"><span data-i18n="nav.myVehicles"></span><span class="tab-count" id="setupCount"></span></button>
   <button class="subtab" data-view="hangar" role="tab"><span data-i18n="nav.hangar"></span><span class="tab-count" id="hangarCount"></span></button>
   <button class="subtab" data-view="changes" role="tab"><span data-i18n="nav.changes"></span><span class="tab-count" id="changeCount"></span></button>
@@ -169,6 +170,12 @@
       <div class="grid" id="grid"></div>
       <div class="empty hidden" id="gridEmpty"><svg class="ic-xl"><use href="#i-search"/></svg><p data-i18n="results.empty"></p><button class="btn btn-sm hidden" id="gridHangar" data-i18n="nav.hangar"></button></div>
       <div id="sentinel"></div>
+    </div>
+
+    <div class="view hidden" id="view-best">
+      <div class="page-head"><div><h2 data-i18n="nav.best"></h2><p class="muted" data-i18n="bv.hint"></p></div></div>
+      <div id="bvBar"></div>
+      <div id="bvBody"></div>
     </div>
 
     <div class="view hidden" id="view-hangar">
@@ -863,6 +870,8 @@
 <script src="history.js"></script>
 <script src="changes.js"></script>
 <script src="hangar.js"></script>
+<script src="duel.js"></script>
+<script src="best.js"></script>
 <script src="mods.js"></script>
 <script src="wtlive.js"></script>
 <script src="bench.js"></script>

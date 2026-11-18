@@ -5,6 +5,8 @@
 const AIR = ['air', 'heli'], NAVAL = ['boat', 'ship'], ALL_CATS = ['ground', 'air', 'heli', 'boat', 'ship'];
 // better: 1 = higher is better (sorted descending), -1 = lower is better, 0 = neutral
 // mode: one value per game mode, the one of the AB / RB / SB control counts. eco: in the panel's Economy block
+// dup: the panel and the comparison show it their own way (no tile, no row; still sorted and filtered by)
+// vals: a kind, shown in words (stat.<key>.<value>). hint: a triple's tooltip key (default: front / side / rear)
 const STATS = {
   spd: { cats: ALL_CATS, unit: 'km/h', better: 1 },
   rev: { cats: ['ground'], unit: 'km/h', better: 1 },
@@ -26,6 +28,34 @@ const STATS = {
   ceil: { cats: AIR, unit: 'm', better: 1 },
   tw: { cats: AIR, unit: '', better: 1, digits: 2 },
   wl: { cats: ['air'], unit: 'kg/m²', better: -1 },
+  fg: { cats: AIR, unit: 'kg/s', better: 1, digits: 1 },
+  pen: { cats: ['ground'], unit: 'mm', better: 1, triple: true, hint: 'stat.penHint' },
+  vel: { cats: ['ground'], unit: 'm/s', better: 1 },
+  aab: { cats: ['ground'], unit: 'kg/s', better: 1, digits: 1 },
+  fm: { cats: NAVAL, unit: 'kg/min', better: 1 },
+  fa: { cats: NAVAL, unit: 'kg/min', better: 1 },
+  pay: { cats: AIR, unit: 'kg', better: 1 },
+  ir: { cats: AIR, unit: '', better: 1 },
+  irq: { cats: AIR, unit: '', better: 1, vals: true },
+  rm: { cats: ['air'], unit: '', better: 1 },
+  rmq: { cats: ['air'], unit: '', better: 1, vals: true },
+  rmr: { cats: ['air'], unit: 'km', better: 1, digits: 1 },
+  def: { cats: ['air'], unit: '', better: 1 },
+  atg: { cats: [...AIR, 'ground'], unit: '', better: 1 },
+  atr: { cats: [...AIR, 'ground'], unit: 'm', better: 1 },
+  atp: { cats: ['heli', 'ground'], unit: 'mm', better: 1 },
+  atq: { cats: [...AIR, 'ground'], unit: '', better: 1, vals: true },
+  sam: { cats: ['ground'], unit: 'm', better: 1 },
+  tor: { cats: NAVAL, unit: '', better: 1 },
+  torr: { cats: NAVAL, unit: 'm', better: 1 },
+  vne: { cats: ['air'], unit: 'km/h', better: 1, dup: true },
+  rad: { cats: ALL_CATS, unit: 'km', better: 1, digits: 1, dup: true },
+  cm: { cats: AIR, unit: '', better: 1, dup: true },
+  rwr: { cats: AIR, unit: '', better: 1, dup: true, vals: true },
+  dep: { cats: ['ground'], unit: '°', better: 1, digits: 1, dup: true },
+  stab: { cats: ['ground'], unit: '', better: 1, dup: true, vals: true },
+  rf: { cats: ['ground'], unit: '', better: 1, dup: true, vals: true },
+  th: { cats: ['ground', 'heli'], unit: '', better: 1, dup: true, vals: true },
   disp: { cats: NAVAL, unit: 't', better: 0 },
   crew: { cats: ALL_CATS, unit: '', better: 0 },
   rp: { cats: ALL_CATS, unit: 'RP', better: -1, eco: true },
@@ -45,10 +75,10 @@ const statKeys = cat => Object.keys(STATS).filter(k => (cat === 'all' ? ['spd', 
 S.upg = store.get('upg', 1) !== 0;
 function statAt(v, k) {
   const pick = x => (STATS[k].mode && Array.isArray(x) ? x[S.f.brMode] : x);
-  const x = pick(v.s?.[k]);
-  if (Array.isArray(x)) return x;
+  const x = pick(v.s?.[k]), su = pick(v.su?.[k]);
+  if (!S.upg && su === null) return null;  // the stock vehicle has no value for it: unknown, not the upgraded one
+  if (Array.isArray(x)) return !S.upg && Array.isArray(su) ? su : x;
   if (typeof x !== 'number') return null;
-  const su = pick(v.su?.[k]);
   return !S.upg && typeof su === 'number' ? su : x;
 }
 // one comparable number per stat (armor: the front plate)
@@ -70,16 +100,18 @@ function setUpgrade(on) {
   if (S.sel && $('#vstatsWrap')) $('#vstatsWrap').outerHTML = statsBlockHTML(S.sel);
   if ($('#dlgCompare')?.open) renderCompareTable();
   if (S.f.sort?.startsWith('s:') || Object.keys(S.f.stats || {}).length) applyFilters();
+  if (typeof bvRefresh === 'function') bvRefresh();
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-upgset]'); if (b) setUpgrade(b.dataset.upgset === '1'); });
 
 function fmtStat(k, x) {
-  if (x == null) return '—';
-  if (k === 'rep' && x === 0) return t('eco.free');
   const d = STATS[k];
+  if (x == null || (d.vals && !x)) return '—';  // vals 0: a stock vehicle without it
+  if (k === 'rep' && x === 0) return t('eco.free');
+  if (d.vals) return t(`stat.${k}.${x}`);
   const n = val => I18N.num(+(+val).toFixed(d.digits ?? 0));
   const txt = Array.isArray(x) ? x.map(n).join(' / ') : n(x);
-  return d.unit ? `${txt} ${d.unit}` : txt;
+  return d.unit === '°' ? txt + d.unit : d.unit ? `${txt} ${d.unit}` : txt;
 }
 
 // ------------------------------------------------------------------ filters
@@ -312,13 +344,13 @@ function economyHTML(v) {
 }
 
 function statsBlockHTML(v) {
-  const keys = statKeys(v.c).filter(k => v.s?.[k] != null && !STATS[k].eco);
+  const keys = statKeys(v.c).filter(k => v.s?.[k] != null && !STATS[k].eco && !STATS[k].dup);
   if (!keys.length && !v.s?.rep) return '<div id="vstatsWrap"></div>';
   const hasUpg = v.su && Object.keys(v.su).length;
   const estimated = hasUpg && ['air', 'heli'].includes(v.c);
   return `<div id="vstatsWrap">${hasUpg ? upgSwitchHTML(estimated) : ''}<div class="vstats">${keys.map(k => {
-    const chg = v.su?.[k] != null;
-    const tip = STATS[k].triple ? t('stat.armHint') : chg ? `${t('upg.stock')}: ${fmtStat(k, v.su[k])} → ${t('upg.full')}: ${fmtStat(k, v.s[k])}` : '';
+    const chg = v.su?.[k] !== undefined;
+    const tip = STATS[k].triple ? t(STATS[k].hint || 'stat.armHint') : chg ? `${t('upg.stock')}: ${fmtStat(k, v.su[k])} → ${t('upg.full')}: ${fmtStat(k, v.s[k])}` : '';
     return `<div class="vstat${chg ? ' upg-chg' : ''}" title="${esc(tip)}"><span>${esc(statLabel(k, v.c))}</span><b>${esc(fmtStat(k, statAt(v, k)))}</b></div>`;
   }).join('')}</div>${economyHTML(v)}${researchPathHTML(v)}</div>`;
 }

@@ -13,7 +13,7 @@ const NATIONS = ['usa', 'germany', 'ussr', 'britain', 'japan', 'china', 'italy',
 const NATION_TINT = { usa: '#3d6fd6', germany: '#8d96a5', ussr: '#d1453b', britain: '#2f8a63', japan: '#d65a5a', china: '#e2a92b', italy: '#2fa262', france: '#4766dd', sweden: '#f0c637', israel: '#4fa6e3', other: '#5b6b84' };
 const SCENARIO_KINDS = { ground: ['ground'], air: ['air'], heli: ['heli', 'ucav'], boat: ['boat'], ship: ['ship'] };
 // the top menu: each menu's pages, shown as sub-tabs under it when it has several
-const MENUS = { vehicles: ['vehicles', 'setups', 'hangar', 'changes', 'mods'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions', 'challenges'],
+const MENUS = { vehicles: ['vehicles', 'best', 'setups', 'hangar', 'changes', 'mods'], maps: ['maps', 'mymaps'], weapons: ['weapons', 'myweapons'], missions: ['missions', 'challenges'],
                 inflight: ['overlay', 'flight', 'battle', 'history', 'bench'] };
 const AVIONICS = ['laserDesignator', 'havePointOfInterestDesignator', 'hasHelmetDesignator', 'haveCCIPForGun', 'haveCCIPForRocket', 'haveCCIPForBombs', 'haveCCRPForBombs', 'haveCCRPForGun'];
 const ENVS = ['Day', 'Morning', 'Noon', 'Evening', 'Dusk', 'Dawn', 'Night'];
@@ -215,6 +215,7 @@ async function boot() {
   bindHistory();
   bindChanges();
   bindHangar();
+  bindBest();
   bindMods();
   bindBench();
   bindChallenges();
@@ -716,6 +717,7 @@ function showView(name) {
   if (name === 'bench') openBenchView();
   if (name === 'changes') openChangesView();
   if (name === 'hangar') openHangarView();
+  if (name === 'best') openBestView();
   if (name === 'mods') openModsView();
   if (name === 'challenges') openChallengesView();
 }
