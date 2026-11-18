@@ -150,7 +150,7 @@ function chTable(g) {
   const subjects = CH.subjects[g] || [], n = CH.more[g] || CH_PAGE, left = subjects.length - n, br = g === 'br';
   const head = br ? [t('ch.about'), t('filters.mode.ab'), t('filters.mode.rb'), t('filters.mode.sb')] : [t('ch.about'), t('ch.title')];
   return `<div class="ar-scroll"><table class="ar-table ch-table${br ? ' ch-br' : ''}"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
-    <tbody>${subjects.slice(0, n).map(s => (br ? chBrRow(s) : `<tr><td>${chSubject(s[0])}</td><td><div class="ch-list">${s.map(chChange).join('')}</div></td></tr>`)).join('')}</tbody></table></div>
+    <tbody>${subjects.slice(0, n).map(s => (br ? chBrRow(s) : `<tr><td>${chSubject(s[0])}</td><td><div class="ch-list">${s.map(r => `<div class="ch-row">${chChange(r)}</div>`).join('')}</div></td></tr>`)).join('')}</tbody></table></div>
     ${left > 0 ? `<button class="btn btn-sm ch-more" data-chmore="${g}">${esc(t('ch.more', { n: I18N.num(Math.min(left, CH_PAGE)) }))}</button>` : ''}`;
 }
 
