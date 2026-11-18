@@ -747,14 +747,19 @@ function mdCovBuild() {
 const mdCovKind = x => t(x.kind !== 'radar' ? 'mods.sensor.' + x.kind : x.s.k === 'esm' ? 'compare.esm' : !/radar/.test(x.s.k || 'radar') ? 'compare.irst'
   : { s: 'compare.searchRadar', t: 'compare.trackRadar', rf: 'compare.trackRadar' }[x.s.ro] || 'mods.sensor.radar');
 
-// the bar under a vehicle: each radar and warner by its kind (a warner's with its colour), switched on or off, a radar's
-// scan zones, and what a radar's two colours mean
+// the bar under a vehicle, a line a sensor: its kind, its name (a button that shows or hides it), its colours, a radar's
+// scan zones; then that the ranges aren't to scale
 function mdCovBar() {
-  const bar = $('#mdBar'), list = MD.cov.list, radar = list.some(x => x.kind === 'radar');
-  const swatch = (k, label) => `<span class="md-key">${k ? `<i class="md-swatch md-${k}"></i>` : ''}${esc(label)}</span>`;
-  bar.innerHTML = list.map((x, i) => `<div class="md-group">${swatch(x.kind !== 'radar' && x.kind, mdCovKind(x))}<button class="btn btn-ghost btn-sm${x.on ? ' active' : ''}" data-mdcov="${i}">${esc(I18N.sensor(x.key))}${x.s.r ? ' · ' + esc(cmpKm(x.s.r)) : ''}</button>${
-    x.on && x.s.zs?.length > 1 ? `<div class="seg">${x.s.zs.map((z, j) => `<button class="${j === x.zone ? 'active' : ''}" data-mdcov="${i}" data-mdzone="${j}">${z[0]}° × ${z[1]}°</button>`).join('')}</div>` : ''}</div>`).join('')
-    + `<div class="md-group">${radar ? swatch('lim', t('model.antennaLimits')) + swatch('zone', t('compare.scanZone')) + '<span>· ' : '<span>'}${esc(t('model.notToScale'))}</span></div>`;
+  const bar = $('#mdBar'), list = MD.cov.list;
+  const swatch = (k, label) => `<span class="md-key"><i class="md-swatch md-${k}"></i>${esc(label)}</span>`;
+  const size = z => `${z[0]}° × ${z[1]}°`;
+  bar.innerHTML = list.map((x, i) => `<div class="md-row"><span>${esc(mdCovKind(x))}</span>
+    <button class="btn btn-ghost btn-sm${x.on ? ' active' : ''}" data-mdcov="${i}">${esc(I18N.sensor(x.key))}${x.s.r ? ' · ' + esc(cmpKm(x.s.r)) : ''}</button>
+    <span>${x.kind !== 'radar' ? swatch(x.kind, '') : (x.s.lim ? swatch('lim', t('model.antennaLimits')) : '') + (x.s.zs ? swatch('zone', t('compare.scanZone')) : '')}</span>
+    <span>${!x.on || !x.s.zs ? '' : x.s.zs.length === 1 ? esc(size(x.s.zs[0]))
+      : `<div class="seg">${x.s.zs.map((z, j) => `<button class="${j === x.zone ? 'active' : ''}" data-mdcov="${i}" data-mdzone="${j}">${size(z)}</button>`).join('')}</div>`}</span></div>`).join('')
+    + `<div class="md-note">${esc(t('model.notToScale'))}</div>`;
+  bar.classList.add('md-cov');
   bar.classList.remove('hidden');
   bar.onclick = ev => {
     const b = ev.target.closest('[data-mdcov]'), x = b && list[b.dataset.mdcov];
@@ -807,7 +812,7 @@ async function mdControls(id, title, mesh, view) {
 async function openModel(kind, id, title, view, skin) {
   const token = ++MD.token;
   mdClear();
-  if (!view) { MD.hiddenParts.clear(); $('#mdBar').classList.add('hidden'); }
+  if (!view) { MD.hiddenParts.clear(); $('#mdBar').className = 'md-bar hidden'; }
   $('#mdTitle').textContent = title;
   $('#mdInfo').textContent = t('model.loading');
   $('#dlgModel').showModal();
