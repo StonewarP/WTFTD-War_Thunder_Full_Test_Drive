@@ -1064,7 +1064,8 @@ body.resizing .drawer, body.resizing .content { transition: none; }
 .md-swatch { width: 10px; height: 10px; border-radius: 3px; }
 .md-lim { background: rgb(115 190 255 / .45); }
 .md-zone { background: rgb(77 242 140); }
-.md-maw { background: rgb(255 153 64); }
+.md-mlws { background: rgb(255 153 64); }
+.md-rwr { background: rgb(204 115 255); }
 .cmp-scroll { overflow: auto; padding: 0 0 12px; }
 table.cmp { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
 table.cmp th, table.cmp td { padding: 7px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }

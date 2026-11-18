@@ -122,7 +122,7 @@ Each one links to its page in the wiki.
   between two game versions, down to every value of the game files (copied for Reddit or Discord in one click), **[Mods](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Mods)** (skins, sounds, vehicles of their own,
   hangars, and WT Live's posts installed in one click),
   **[3D views](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/3D-views)** of vehicles (with what
-  their radars and missile warners cover), weapons and maps.
+  their radars and warning receivers cover), weapons and maps.
 - **[Your library and sharing](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Setups-and-sharing)**:
   My vehicles, My maps, My weapons, My missions; share a setup as a short code or a `.wtftd` file.
 - **11 languages** (English, Français, Deutsch, Русский, Polski, Español, Português, Italiano, Čeština, 简体中文,

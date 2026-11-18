@@ -37,7 +37,7 @@ from pathlib import Path
 from . import patches, vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 42  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 43  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1805,11 +1805,17 @@ def scan_coverage(d: dict, search: bool) -> dict:
     return {"lim": [round(x) for x in lim], "zs": sorted(zs, key=lambda z: z[:2])}
 
 
+def _receivers(d: dict) -> list:
+    """A warner's receivers, for the 3D view: [[azimuth, elevation, width, height], ...] (deg, full widths: two 180 deg
+    receivers at 0 and 180 make the SPECTRA's whole sphere)."""
+    r = d.get("receivers")
+    return [[round(_numval(x.get(k)) or 0) for k in ("azimuth", "elevation", "azimuthWidth", "elevationWidth")]
+            for x in aslist(r.get("receiver")) if isinstance(x, dict)] if isinstance(r, dict) else []
+
+
 def mlws_summary(d: dict) -> dict:
-    """A missile warner: r range (m), rd radar-based, rc receivers [[azimuth, elevation, width, height], ...] (deg, full
-    widths: two 180 deg receivers at 0 and 180 make the SPECTRA's whole sphere)."""
-    rc = [[round(_numval(x.get(k)) or 0) for k in ("azimuth", "elevation", "azimuthWidth", "elevationWidth")]
-          for x in aslist((d.get("receivers") or {}).get("receiver")) if isinstance(x, dict)] if isinstance(d.get("receivers"), dict) else []
+    """A missile warner: r range (m), rd radar-based, rc receivers (_receivers)."""
+    rc = _receivers(d)
     return {"r": round(_numval(d.get("range")) or 0), **({"rd": 1} if first_str(d.get("targetSignatureType")) == "radar" else {}),
             **({"rc": rc} if rc else {})}
 
@@ -1817,7 +1823,7 @@ def mlws_summary(d: dict) -> dict:
 def rwr_summary(d: dict) -> dict:
     """A radar warning receiver: r range (m), b bands, dg / pg threat types told apart by direction / presence,
     trk targets tracked, lk lock warning, ln launch warning (1 any, else the number of threat types), ss signal
-    strength (rough range), iff."""
+    strength (rough range), iff, rc receivers (_receivers)."""
     out = {"r": round(_numval(d.get("range")) or 0), "b": [b for b in range(16) if d.get(f"band{b}") is True]}
     direction, presence = _children(d.get("targetsDirectionGroups")), _children(d.get("targetsPresenceGroups"))
     texts = {first_str(g.get("text")) for g in direction}
@@ -1841,6 +1847,8 @@ def rwr_summary(d: dict) -> dict:
         out["ss"] = 1
     if d.get("friendFoeId"):
         out["iff"] = 1
+    if rc := _receivers(d):
+        out["rc"] = rc
     return out
 
 

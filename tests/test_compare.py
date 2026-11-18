@@ -97,6 +97,11 @@ class Receivers(unittest.TestCase):
                                  "targetsDirectionGroups": direction, "targetTracking": True, "searchRangeFinder": True})
         self.assertEqual(r, {"r": 50000, "b": [2, 8], "dg": 3, "trk": 16, "lk": 1, "ln": 2, "ss": 1})
 
+    def test_rwr_receivers(self):  # the same layout as a missile warner's, for the 3D view
+        d = {"range": 70000.0, "receivers": {"receiver": [{"azimuth": 0.0, "elevation": 0.0, "azimuthWidth": 180.0, "elevationWidth": 90.0},
+                                                          {"azimuth": -180.0, "elevation": 0.0, "azimuthWidth": 180.0, "elevationWidth": 90.0}]}}
+        self.assertEqual(builder.rwr_summary(d)["rc"], [[0, 0, 180, 90], [-180, 0, 180, 90]])
+
     def test_rwr_without_lock_warning(self):
         r = builder.rwr_summary({"range": 30000.0, "detectTracking": False, "detectLaunch": True, "friendFoeId": True})
         self.assertEqual(r, {"r": 30000, "b": [], "ln": 1, "iff": 1})

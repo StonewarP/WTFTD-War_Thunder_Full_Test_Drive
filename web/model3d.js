@@ -679,7 +679,7 @@ const MD_COV_VS = `#version 300 es
 in vec3 aPos; uniform mat4 uVp; void main() { gl_Position = uVp * vec4(aPos, 1.0); }`;
 const MD_COV_FS = `#version 300 es
 precision highp float; uniform vec4 uColor; out vec4 color; void main() { color = uColor; }`;
-const MD_COV_COLOR = { lim: [0.45, 0.75, 1, 0.06], zone: [0.3, 0.95, 0.55, 0.16], maw: [1, 0.6, 0.25, 0.05] };
+const MD_COV_COLOR = { lim: [0.45, 0.75, 1, 0.06], zone: [0.3, 0.95, 0.55, 0.16], mlws: [1, 0.6, 0.25, 0.05], rwr: [0.8, 0.45, 1, 0.05] };
 
 // a sector seen from o, len long, as triangles and outline: azimuth a0..a1, elevation e0..e1 (deg), or a cone that wide
 function mdSector(o, len, [a0, a1, e0, e1], cone) {
@@ -713,8 +713,9 @@ function mdCovBuild() {
   }
   const parts = [];
   for (const x of c.list.filter(x => x.on)) {
-    if (x.kind === 'mlws') {
-      for (const [a, e, w, h] of x.s.rc) parts.push([mdSector(mesh.center, mesh.radius, [a - w / 2, a + w / 2, e - h / 2, e + h / 2]), MD_COV_COLOR.maw]);
+    if (x.kind !== 'radar') {  // a warner's receivers round the vehicle, the radar warner's a little wider than the missile warner's
+      const r = mesh.radius * (x.kind === 'rwr' ? 1.15 : 1);
+      for (const [a, e, w, h] of x.s.rc) parts.push([mdSector(mesh.center, r, [a - w / 2, a + w / 2, e - h / 2, e + h / 2]), MD_COV_COLOR[x.kind]]);
       continue;
     }
     const lim = x.s.lim, z = x.s.zs?.[x.zone], len = mesh.radius * 0.9, at = c.air ? mesh.nose : mesh.center;
@@ -742,13 +743,13 @@ function mdCovBuild() {
   c.draws = draws;
 }
 
-// the bar under a vehicle: each radar and missile warner, switched on or off, a radar's scan zones, and what the colours mean
+// the bar under a vehicle: each radar and warner, switched on or off, a radar's scan zones, and what the colours mean
 function mdCovBar() {
   const bar = $('#mdBar'), list = MD.cov.list, kinds = new Set(list.map(x => x.kind));
   const swatch = (k, label) => `<span class="md-key"><i class="md-swatch md-${k}"></i>${esc(label)}</span>`;
   bar.innerHTML = list.map((x, i) => `<div class="md-group"><button class="btn btn-ghost btn-sm${x.on ? ' active' : ''}" data-mdcov="${i}">${esc(I18N.sensor(x.key))}${x.s.r ? ' · ' + esc(cmpKm(x.s.r)) : ''}</button>${
     x.on && x.s.zs?.length > 1 ? `<div class="seg">${x.s.zs.map((z, j) => `<button class="${j === x.zone ? 'active' : ''}" data-mdcov="${i}" data-mdzone="${j}">${z[0]}° × ${z[1]}°</button>`).join('')}</div>` : ''}</div>`).join('')
-    + `<div class="md-group">${kinds.has('radar') ? swatch('lim', t('model.antennaLimits')) + swatch('zone', t('compare.scanZone')) : ''}${kinds.has('mlws') ? swatch('maw', t('mods.sensor.mlws')) : ''}<span>· ${esc(t('model.notToScale'))}</span></div>`;
+    + `<div class="md-group">${kinds.has('radar') ? swatch('lim', t('model.antennaLimits')) + swatch('zone', t('compare.scanZone')) : ''}${['rwr', 'mlws'].filter(k => kinds.has(k)).map(k => swatch(k, t('mods.sensor.' + k))).join('')}<span>· ${esc(t('model.notToScale'))}</span></div>`;
   bar.classList.remove('hidden');
   bar.onclick = ev => {
     const b = ev.target.closest('[data-mdcov]'), x = b && list[b.dataset.mdcov];
@@ -760,12 +761,13 @@ function mdCovBar() {
   };
 }
 
-// a vehicle's radars and missile warners, from its details (app.js): the first radar and the warners on, its widest zone
+// a vehicle's radars, radar warners and missile warners, from its details (app.js): the first radar and the warners on,
+// its widest zone
 async function mdCoverage(id, token) {
   const d = typeof vehicleDetails === 'function' ? await vehicleDetails(id).catch(() => null) : null;
   if (token !== MD.token || !MD.mesh) return;
-  const list = (d?.sy?.se || []).filter(([, kind, s]) => (kind === 'radar' && (s.lim || s.zs)) || (kind === 'mlws' && s.rc))
-    .map(([key, kind, s]) => ({ key, kind, s, on: kind === 'mlws', zone: (s.zs?.length || 1) - 1 }));
+  const list = (d?.sy?.se || []).filter(([, kind, s]) => (kind === 'radar' && (s.lim || s.zs)) || (['rwr', 'mlws'].includes(kind) && s.rc))
+    .map(([key, kind, s]) => ({ key, kind, s, on: kind !== 'radar', zone: (s.zs?.length || 1) - 1 }));
   const radar = list.find(x => x.kind === 'radar');
   if (radar) radar.on = true;
   if (!list.length) return;
