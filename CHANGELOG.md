@@ -4,6 +4,15 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.34.2 - 2026-11-18
+
+- **What changed: long texts no longer break the table.** In **All game files**, a long value (a translation, a list
+  of a tank's hundreds of parts) took its whole width on one line and left the new value one letter per line, a row
+  thousands of pixels tall. The values before and after now share the room and wrap.
+- **What changed: columns lined up.** Name, value before and value after start at the same place on every line, down
+  the whole table, and a light dashed line between a vehicle's changes keeps your line as you read across. The table
+  now takes the window's whole width instead of stopping at 1100 pixels.
+
 ## 0.34.1 - 2026-11-18
 
 - **Security: a web page could make WTFTD open a network path.** While WTFTD ran, a page in your browser could ask its
