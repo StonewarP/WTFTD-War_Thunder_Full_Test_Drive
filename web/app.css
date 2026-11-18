@@ -1617,11 +1617,11 @@ td.hg-actions { height: 48px; }
 .ch-table td { height: 44px; padding-top: 7px; padding-bottom: 7px; vertical-align: top; white-space: normal; overflow-wrap: anywhere; }
 .ch-table th:first-child { width: min(38vw, 420px); }  /* a wide window's room goes to the values; vw: Chromium drops a min() mixing % and px on a cell */
 .ch-table tbody tr:hover td { background: var(--surface-2); }
-/* sized to their text, the values stay near their names; a long one (a game file's text, a list of hundreds of names) wraps,
-   before and after sharing the room equally, instead of pushing the other out of the cell. The last column only fills the
-   rest: a list's row spans it, so the grid doesn't widen the arrow's column to hold that row */
-.ch-list { display: grid; grid-template-columns: minmax(110px, max-content) minmax(0, max-content) max-content minmax(0, max-content) minmax(0, 1fr); gap: 3px 10px; align-items: center; }
-.ch-k { grid-column: 1; color: var(--text-2); font-weight: 600; }  /* each change on its own line, the filler column left empty */
+/* a subject's grid per row, the same shares in each: name, before, after line up down the whole table. A long value (a game
+   file's text, a list of hundreds of names) wraps in its column instead of pushing the other out of the cell */
+.ch-list { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 3fr) 1em minmax(0, 3fr); gap: 3px 10px; align-items: center; }
+.ch-list > .muted { justify-self: end; }  /* the value before, against its arrow; a long one fills its column */
+.ch-k { color: var(--text-2); font-weight: 600; }
 .ch-names { grid-column: 2 / -1; }  /* a list's row: what went, what came, across the before / after columns */
 .ch-to { color: var(--muted); }
 .ch-br td:not(:first-child) { font-variant-numeric: tabular-nums; white-space: nowrap; }
