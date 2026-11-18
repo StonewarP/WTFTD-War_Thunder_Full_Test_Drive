@@ -864,8 +864,15 @@ targetChangeInterval, adaptiveAccuracyTime, checkVisibilityTarget at initMission
 
 - [ ] A PvE mission (the issue's, if its author sends it) imported: a tank and an aircraft start at its spawn zone.
 - [ ] Bf 109 F-4, MG 151/20 replaced by an NS-23: it fires 23 mm, its tracers show, the ammo count is the NS-23's slot.
-- [ ] AI accuracy 0 and 1 on a few T-72 against a parked tank: the difference shows; the map's setting reaches the
-  test flight's template targets; a wave keeps its setting when it comes in.
+- [x] 2026-11-18, the user: AI accuracy 0 (the map's setting) against 1 (each unit's own) on four T-72A, the
+  difference shows. Missions made by the app's /api/generate (tank test drive, an M1A2, immortal at first then
+  remade without, four T-72A about 400 m away at bearing 15-28 deg, in plain view by
+  the heightmap, that stay still and attack): *WTFTD #21 a: AI accuracy 0 (whole map)* (they should miss), *WTFTD #21 b:
+  AI accuracy 1 (each unit)* (they should hit), *WTFTD #21 c: control, no AI setting*. A first try at 550 m put them
+  behind the range's berm (0.6-1.2 m above the turrets' line): they never fired, and weren't on the map (only the
+  range's targets are forced visible).
+- [ ] The other AI shooting values (fire rate, target change, time to aim, fires only at what it sees); the map's
+  setting on a test flight's template targets; a wave keeping its setting when it comes in.
 
 ## 3. Ammunition icons (UI only)
 

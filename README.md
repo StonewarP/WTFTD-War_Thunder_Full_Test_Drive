@@ -98,14 +98,14 @@ Each one links to its page in the wiki.
   and ships, guns - with several custom loadouts kept per aircraft. **[My weapons](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/My-weapons)**:
   your own versions of the game's missiles, bombs, rockets and torpedoes.
 - **[Ammunition](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Ammunition)** with penetration by
-  distance, **[Modifications](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Modifications)**,
+  distance and an aircraft's guns replaced by others, **[Modifications](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Modifications)**,
   **[Cheats and in-mission keys](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Cheats-and-in-mission-keys)**,
   **[Custom sights](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Custom-sights)**.
 - **[Maps](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Maps)**: 100+ test scenarios, the hangar
   maps, the game's 131 other maps and its
   [ground battle maps](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Ground-battle-maps).
   **[Scenario editor](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Scenario-editor)**: units,
-  routes, waves of enemies, the game's assets, vehicles by BR, your start, the real map in 3D.
+  routes, waves of enemies, how AI units shoot, the game's assets, vehicles by BR, your start, the real map in 3D.
 - **[Weapons](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Weapons)**: every missile, bomb,
   rocket and torpedo with its stats, "best for" rankings, comparison, carriers, and how many it takes to destroy a base.
 - **[Challenges](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Challenges)**: scored missions with

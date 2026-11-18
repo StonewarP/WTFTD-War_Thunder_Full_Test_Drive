@@ -4,7 +4,7 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
-## Unreleased
+## 0.34.0 - 2026-11-18
 
 - **Best vehicles.** A new page next to Vehicles ranks the vehicles of a type for a play style at a BR, in 20 styles:
   Turn fighting, Boom and zoom, Energy fighting, Bomber hunting, Close air support, Bombing, Missiles and radar, BVR;
