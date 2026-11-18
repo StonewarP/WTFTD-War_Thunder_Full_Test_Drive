@@ -900,14 +900,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             return
+        # a URL's \\host\share (%5C%5C, ///) joins as a network path: resolve() would open it, sending the user's NTLM
+        # hash there, from any page's <img> (these GETs aren't origin-checked)
         if path.startswith("/data/"):
-            rel = path[6:]
-            target = (DATA / rel).resolve()
+            target = DATA / path[6:]
+            if on_network(target):
+                return self.send_error(HTTPStatus.NOT_FOUND)
+            target = target.resolve()
             if DATA.resolve() in target.parents and target.suffix == ".json" and "scenarios" not in target.parts:
                 return self.send_file(target)
             return self.send_error(HTTPStatus.NOT_FOUND)
-        rel = "index.html" if path in ("/", "") else path.lstrip("/")
-        target = (WEB / rel).resolve()
+        target = WEB / ("index.html" if path in ("/", "") else path.lstrip("/"))
+        if on_network(target):
+            return self.send_error(HTTPStatus.NOT_FOUND)
+        target = target.resolve()
         if WEB.resolve() not in target.parents or not target.is_file():
             return self.send_error(HTTPStatus.NOT_FOUND)
         return self.send_file(target)

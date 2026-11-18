@@ -7,6 +7,8 @@ import tempfile
 import threading
 import time
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
 from unittest import mock
 
@@ -157,6 +159,28 @@ class LocalServer(unittest.TestCase):
     def test_other_sites_are_refused(self):
         self.assertFalse(FakeHandler("evil.example.com").local_origin())  # DNS rebinding
         self.assertFalse(FakeHandler("127.0.0.1:8777", "https://evil.example.com").local_origin())  # cross-site request
+
+    def test_a_network_path_in_a_url_is_never_opened(self):  # any page's <img>: resolve() would reach \\host (NTLM)
+        httpd = server.ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        opened, resolve = [], Path.resolve
+
+        def watch(p, *a, **k):
+            if server.on_network(p):
+                opened.append(str(p))
+                return p  # the test never touches the network
+            return resolve(p, *a, **k)
+
+        port = httpd.server_address[1]
+        with mock.patch.object(Path, "resolve", watch):
+            for url in ("/%5C%5Cevil%5Cs%5Cx", "/data///evil/share/a.json", "/data/%5C%5Cevil%5Cs%5Ca.json"):
+                with self.subTest(url), self.assertRaises(urllib.error.HTTPError) as e:
+                    urllib.request.urlopen(f"http://127.0.0.1:{port}{url}", timeout=10)
+                self.assertEqual(e.exception.code, 404)
+                e.exception.close()
+        self.assertEqual(opened, [])
 
 
 if __name__ == "__main__":

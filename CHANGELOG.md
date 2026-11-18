@@ -4,6 +4,13 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## Unreleased
+
+- **Security: a web page could make WTFTD open a network path.** While WTFTD ran, a page in your browser could ask its
+  local server for a file named like `\\host\share\x`; on Windows, looking that path up reached the other machine, which
+  could then collect your Windows login's NTLM hash. No file could be read, written or deleted. Such a request now gets
+  "not found" at once. Found by GitHub's code scanning.
+
 ## 0.34.0 - 2026-11-18
 
 - **Best vehicles.** A new page next to Vehicles ranks the vehicles of a type for a play style at a BR, in 20 styles:
