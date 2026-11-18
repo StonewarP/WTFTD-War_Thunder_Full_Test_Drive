@@ -1253,6 +1253,8 @@
   "model.part.cap": "Kappen",
   "model.textures": "Texturen {n}/{total}",
   "model.stats": "{n} Dreiecke",
+  "model.antennaLimits": "Schwenkbereich der Antenne",
+  "model.notToScale": "Reichweiten nicht maßstabsgetreu",
   "compare.remove": "Aus dem Vergleich entfernen",
   "compare.clear": "Leeren",
   "compare.button": "Vergleichen ({n})",

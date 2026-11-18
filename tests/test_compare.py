@@ -66,7 +66,30 @@ class Radar(unittest.TestCase):
         self.assertNotIn("z", r)  # no beam, no pattern: no zone to tell
 
 
+    def test_coverage_for_the_3d_view(self):  # antenna limits over every pattern, search zones without locks
+        patterns = {"wide": {"type": "pyramide", "width": 60.0, "barHeight": 3.0, "barsCount": 2, "azimuthLimits": [-60.0, 60.0],
+                             "elevationLimits": [-45.0, 60.0]},
+                    "column": {"type": "pyramide", "width": 20.0, "barHeight": 4.0, "barsCount": 2, "rowMajor": False,
+                               "centerElevation": 10.0, "azimuthLimits": [-70.0, 70.0], "elevationLimits": [-30.0, 30.0]},
+                    "search360": {"type": "cylinder", "barHeight": 5.0, "barsCount": 3},
+                    "boresight": {"type": "cone", "width": 1.25, "indicate": True},
+                    "lock": {"type": "pyramide", "width": 10.0, "barHeight": 4.0, "barsCount": 4, "indicate": True},
+                    "track": {"type": "no", "azimuthLimits": [-60.0, 60.0], "elevationLimits": [-60.0, 60.0]}}
+        c = builder.scan_coverage({"scanPatterns": patterns}, True)
+        self.assertEqual(c, {"lim": [-70, 70, -60, 60], "zs": [[8, 40, 10], [120, 6, 0], [360, 15, 0]]})
+        self.assertEqual(builder.scan_coverage({"scanPatterns": patterns}, False)["zs"], [])  # a tracker turns but doesn't search
+        self.assertEqual(builder.radar_summary({**RADAR, "scanPatterns": patterns})["zs"][-1], [360, 15, 0])
+
+
 class Receivers(unittest.TestCase):
+    def test_mlws_receivers(self):  # full widths: the SPECTRA's two 180 deg receivers see all round
+        d = {"range": 5000.0, "receivers": {"receiver": [{"azimuth": 0.0, "elevation": 0.0, "azimuthWidth": 180.0, "elevationWidth": 180.0},
+                                                         {"azimuth": -180.0, "elevation": 0.0, "azimuthWidth": 180.0, "elevationWidth": 180.0}]}}
+        self.assertEqual(builder.mlws_summary(d), {"r": 5000, "rc": [[0, 0, 180, 180], [-180, 0, 180, 180]]})
+        one = {"range": 2300.0, "targetSignatureType": "radar",
+               "receivers": {"receiver": {"azimuth": -180.0, "azimuthWidth": 140.0, "elevationWidth": 90.0}}}
+        self.assertEqual(builder.mlws_summary(one), {"r": 2300, "rd": 1, "rc": [[-180, 0, 140, 90]]})
+
     def test_rwr(self):
         groups = {"group": [{"name": "fighters", "detectLaunch": True}, {"name": "sam", "detectLaunch": True}, {"name": "aaa"}]}
         direction = {"targetsDirectionGroup": [{"text": "F", "group": "fighters"}, {"text": "S", "group": "sam"}, {"text": "A", "group": "aaa"}]}

@@ -37,7 +37,7 @@ from pathlib import Path
 from . import patches, vromfs
 from .paths import CACHE, DATA, HOME as ROOT
 DM = CACHE / "datamine"
-SCHEMA = 40  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
+SCHEMA = 42  # bump when data/*.json gains fields the app needs: installed data gets rebuilt
 REPO = "https://github.com/gszabi99/War-Thunder-Datamine.git"
 SPARSE = [
     "aces.vromfs.bin_u/gamedata/flightmodels",
@@ -1759,6 +1759,7 @@ def radar_summary(d: dict, surface_unit: bool = False) -> dict:
         out["b"] = sorted(bands)
     if search and az * el > 0:
         out["z"] = [round(az), round(el)]
+    out.update(scan_coverage(d, search))
     for key, val in (("ld", sorted(ld)), ("sf", sorted(sf)), ("iff", iff)):
         if val:
             out[key] = val if isinstance(val, list) else 1
@@ -1782,6 +1783,35 @@ def radar_summary(d: dict, surface_unit: bool = False) -> dict:
             if on:
                 out[key] = on if isinstance(on, int) and not isinstance(on, bool) else 1
     return {k: v for k, v in out.items() if v}
+
+
+def scan_coverage(d: dict, search: bool) -> dict:
+    """For the 3D view: lim how far the antenna turns [azimuth min, max, elevation min, max] over all its patterns, and if
+    it searches, zs its search zones [[azimuth, elevation, centre elevation(, "c" a cone)], ...], full widths (deg).
+    Locks (indicate) and helmet modes left out."""
+    lim, zs = [], []
+    for p in _children(d.get("scanPatterns")):
+        az, el = aslist(p.get("azimuthLimits")), aslist(p.get("elevationLimits"))
+        if len(az) == 2 and len(el) == 2 and all(isinstance(x, (int, float)) for x in az + el):
+            lim = [min(lim[0], az[0]), max(lim[1], az[1]), min(lim[2], el[0]), max(lim[3], el[1])] if lim else az + el
+        kind, row = first_str(p.get("type")), p.get("rowMajor", True) is not False
+        if not search or p.get("indicate") or p.get("hmd"):
+            continue
+        w, bars = 2 * (_numval(p.get("width")) or 0), (_numval(p.get("barHeight")) or 0) * num(p.get("barsCount"))
+        size = {"cylinder": [360.0, bars], "pyramide": [w, bars] if row else [bars, w], "cone": [w, w]}.get(kind)
+        zone = [round(x) for x in size + [_numval(p.get("centerElevation")) or 0]] + (["c"] if kind == "cone" else []) if size else []
+        if zone and min(zone[:2]) > 0 and zone not in zs:
+            zs.append(zone)
+    return {"lim": [round(x) for x in lim], "zs": sorted(zs, key=lambda z: z[:2])}
+
+
+def mlws_summary(d: dict) -> dict:
+    """A missile warner: r range (m), rd radar-based, rc receivers [[azimuth, elevation, width, height], ...] (deg, full
+    widths: two 180 deg receivers at 0 and 180 make the SPECTRA's whole sphere)."""
+    rc = [[round(_numval(x.get(k)) or 0) for k in ("azimuth", "elevation", "azimuthWidth", "elevationWidth")]
+          for x in aslist((d.get("receivers") or {}).get("receiver")) if isinstance(x, dict)] if isinstance(d.get("receivers"), dict) else []
+    return {"r": round(_numval(d.get("range")) or 0), **({"rd": 1} if first_str(d.get("targetSignatureType")) == "radar" else {}),
+            **({"rc": rc} if rc else {})}
 
 
 def rwr_summary(d: dict) -> dict:
@@ -1917,8 +1947,7 @@ def vehicle_systems(cat: str, udata: dict, mods) -> dict:
         elif kind == "rwr":
             out.setdefault("se", []).append([key, kind, rwr_summary(d)])
         elif kind == "mlws":
-            out.setdefault("se", []).append([key, kind, {"r": round(_numval(d.get("range")) or 0),
-                                                         **({"rd": 1} if first_str(d.get("targetSignatureType")) == "radar" else {})}])
+            out.setdefault("se", []).append([key, kind, mlws_summary(d)])
         elif kind == "lws":
             out.setdefault("se", []).append([key, kind, {}])
         if kind in ("rwr", "mlws") and _auto_cm(d, kind, cm_flags):

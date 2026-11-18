@@ -1253,6 +1253,8 @@
   "model.part.cap": "整流罩",
   "model.textures": "贴图 {n}/{total}",
   "model.stats": "{n} 个三角形",
+  "model.antennaLimits": "天线转动范围",
+  "model.notToScale": "距离未按比例",
   "compare.remove": "移出对比",
   "compare.clear": "清空",
   "compare.button": "对比（{n}）",

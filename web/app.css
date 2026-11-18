@@ -1060,6 +1060,11 @@ body.resizing .drawer, body.resizing .content { transition: none; }
 .md-hint { padding: 8px 16px; font-size: 12px; }
 .md-bar { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 10px 16px 0; align-items: center; }
 .md-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--text-2); }
+.md-key { display: inline-flex; align-items: center; gap: 5px; margin-right: 6px; }
+.md-swatch { width: 10px; height: 10px; border-radius: 3px; }
+.md-lim { background: rgb(115 190 255 / .45); }
+.md-zone { background: rgb(77 242 140); }
+.md-maw { background: rgb(255 153 64); }
 .cmp-scroll { overflow: auto; padding: 0 0 12px; }
 table.cmp { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
 table.cmp th, table.cmp td { padding: 7px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }

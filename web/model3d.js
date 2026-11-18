@@ -566,6 +566,8 @@ function mdClear() {
   MD.textures.forEach(x => gl.deleteTexture(x));
   MD.textures = [];
   gl.deleteVertexArray(MD.vao);
+  if (MD.cov) gl.deleteVertexArray(MD.cov.vao);
+  MD.cov = null;
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 }
 
@@ -657,7 +659,120 @@ function mdDraw(ctx, mesh, view, w, h) {
     else { gl.disable(gl.BLEND); gl.depthMask(true); }
     gl.drawElements(gl.TRIANGLES, g.count, gl.UNSIGNED_INT, g.first * 4);
   }
+  if (view.cov?.draws.length) {  // the sensors' volumes, see through, behind the model where it hides them
+    const c = view.cov;
+    gl.useProgram(c.prog);
+    gl.uniformMatrix4fv(gl.getUniformLocation(c.prog, 'uVp'), false, vp);
+    gl.bindVertexArray(c.vao);
+    gl.enable(gl.BLEND); gl.depthMask(false);
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);  // the page shows through as much as the alpha says
+    for (const d of c.draws) { gl.uniform4fv(gl.getUniformLocation(c.prog, 'uColor'), d.color); gl.drawArrays(d.mode, d.first, d.count); }
+  }
   gl.depthMask(true);
+}
+
+// ------------------------------------------------------------------ what a vehicle's sensors cover
+// From the game's sensor files (builder scan_coverage, mlws_summary). Ranges aren't to scale: a radar's 60 km would dwarf a
+// 15 m aircraft. Model space: x forward, y up. shortcut: an aircraft's radar sits at the nose's tip, the rest at the centre,
+// not at their real places (an Apache's mast radar), and which side a positive azimuth is wasn't checked (every file of the game is symmetric)
+const MD_COV_VS = `#version 300 es
+in vec3 aPos; uniform mat4 uVp; void main() { gl_Position = uVp * vec4(aPos, 1.0); }`;
+const MD_COV_FS = `#version 300 es
+precision highp float; uniform vec4 uColor; out vec4 color; void main() { color = uColor; }`;
+const MD_COV_COLOR = { lim: [0.45, 0.75, 1, 0.06], zone: [0.3, 0.95, 0.55, 0.16], maw: [1, 0.6, 0.25, 0.05] };
+
+// a sector seen from o, len long, as triangles and outline: azimuth a0..a1, elevation e0..e1 (deg), or a cone that wide
+function mdSector(o, len, [a0, a1, e0, e1], cone) {
+  const N = 24, R = Math.PI / 180, tri = [], line = [], full = !cone && a1 - a0 >= 360;
+  const at = (u, v) => {
+    let a = a0 + (a1 - a0) * u / N, e = e0 + (e1 - e0) * v / N;
+    if (cone) { const r = (a1 - a0) / 2 * v / N, f = 2 * Math.PI * u / N; a = (a0 + a1) / 2 + r * Math.cos(f); e = (e0 + e1) / 2 + r * Math.sin(f); }
+    return [o[0] + len * Math.cos(e * R) * Math.cos(a * R), o[1] + len * Math.sin(e * R), o[2] + len * Math.cos(e * R) * Math.sin(a * R)];
+  };
+  for (let u = 0; u < N; u++) for (let v = 0; v < N; v++) tri.push(...at(u, v), ...at(u + 1, v), ...at(u + 1, v + 1), ...at(u, v), ...at(u + 1, v + 1), ...at(u, v + 1));
+  // its rims, each fanned back to the sensor: a cone's, a full turn's top and bottom, else the four sides
+  const run = f => Array.from({ length: N + 1 }, (_, i) => f(i));
+  const rims = cone ? [run(i => at(i, N))] : full ? [run(i => at(i, 0)), run(i => at(i, N))]
+    : [run(i => at(i, 0)), run(i => at(N, i)), run(i => at(N - i, N)), run(i => at(0, N - i))];
+  for (const rim of rims) {
+    for (let i = 0; i < N; i++) { tri.push(...o, ...rim[i], ...rim[i + 1]); line.push(...rim[i], ...rim[i + 1]); }
+    if (!cone && !full) line.push(...o, ...rim[0]);
+  }
+  return { tri, line };
+}
+
+// the volumes of the sensors switched on, onto the graphics card
+function mdCovBuild() {
+  const c = MD.cov, mesh = MD.mesh, gl = MD.gl;
+  if (!c || !mesh) return;
+  if (c.air && !mesh.nose) {  // the middle of an aircraft's front tip; a tank's or a ship's radar is nearer its middle
+    let n = 0, y = 0, z = 0;
+    const cut = mesh.max[0] - (mesh.max[0] - mesh.min[0]) * 0.03;
+    for (let i = 0; i < mesh.pos.length; i += 3) if (mesh.pos[i] >= cut) { n++; y += mesh.pos[i + 1]; z += mesh.pos[i + 2]; }
+    mesh.nose = [mesh.max[0], y / (n || 1), z / (n || 1)];
+  }
+  const parts = [];
+  for (const x of c.list.filter(x => x.on)) {
+    if (x.kind === 'mlws') {
+      for (const [a, e, w, h] of x.s.rc) parts.push([mdSector(mesh.center, mesh.radius, [a - w / 2, a + w / 2, e - h / 2, e + h / 2]), MD_COV_COLOR.maw]);
+      continue;
+    }
+    const lim = x.s.lim, z = x.s.zs?.[x.zone], len = mesh.radius * 0.9, at = c.air ? mesh.nose : mesh.center;
+    if (lim) parts.push([mdSector(at, len, lim), MD_COV_COLOR.lim]);
+    if (z) parts.push([mdSector(at, len, [-z[0] / 2, z[0] / 2, z[2] - z[1] / 2, z[2] + z[1] / 2], z[3] === 'c'), MD_COV_COLOR.zone]);
+  }
+  const all = [], draws = [];
+  for (const [{ tri, line }, color] of parts) {
+    draws.push({ mode: gl.TRIANGLES, first: all.length / 3, count: tri.length / 3, color });
+    all.push(...tri);
+    draws.push({ mode: gl.LINES, first: all.length / 3, count: line.length / 3, color: [...color.slice(0, 3), Math.min(1, color[3] * 5)] });
+    all.push(...line);
+  }
+  c.prog = MD.covProg ||= mdProgram(gl, MD_COV_VS, MD_COV_FS);
+  if (!c.vao) {
+    c.vao = gl.createVertexArray();
+    gl.bindVertexArray(c.vao);
+    MD.buffers.push(c.buf = gl.createBuffer());
+    gl.bindBuffer(gl.ARRAY_BUFFER, c.buf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, c.buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(all), gl.DYNAMIC_DRAW);
+  c.draws = draws;
+}
+
+// the bar under a vehicle: each radar and missile warner, switched on or off, a radar's scan zones, and what the colours mean
+function mdCovBar() {
+  const bar = $('#mdBar'), list = MD.cov.list, kinds = new Set(list.map(x => x.kind));
+  const swatch = (k, label) => `<span class="md-key"><i class="md-swatch md-${k}"></i>${esc(label)}</span>`;
+  bar.innerHTML = list.map((x, i) => `<div class="md-group"><button class="btn btn-ghost btn-sm${x.on ? ' active' : ''}" data-mdcov="${i}">${esc(I18N.sensor(x.key))}${x.s.r ? ' · ' + esc(cmpKm(x.s.r)) : ''}</button>${
+    x.on && x.s.zs?.length > 1 ? `<div class="seg">${x.s.zs.map((z, j) => `<button class="${j === x.zone ? 'active' : ''}" data-mdcov="${i}" data-mdzone="${j}">${z[0]}° × ${z[1]}°</button>`).join('')}</div>` : ''}</div>`).join('')
+    + `<div class="md-group">${kinds.has('radar') ? swatch('lim', t('model.antennaLimits')) + swatch('zone', t('compare.scanZone')) : ''}${kinds.has('mlws') ? swatch('maw', t('mods.sensor.mlws')) : ''}<span>· ${esc(t('model.notToScale'))}</span></div>`;
+  bar.classList.remove('hidden');
+  bar.onclick = ev => {
+    const b = ev.target.closest('[data-mdcov]'), x = b && list[b.dataset.mdcov];
+    if (!x) return;
+    if (b.dataset.mdzone) x.zone = +b.dataset.mdzone;
+    else x.on = !x.on;
+    mdCovBuild();
+    mdCovBar();
+  };
+}
+
+// a vehicle's radars and missile warners, from its details (app.js): the first radar and the warners on, its widest zone
+async function mdCoverage(id, token) {
+  const d = typeof vehicleDetails === 'function' ? await vehicleDetails(id).catch(() => null) : null;
+  if (token !== MD.token || !MD.mesh) return;
+  const list = (d?.sy?.se || []).filter(([, kind, s]) => (kind === 'radar' && (s.lim || s.zs)) || (kind === 'mlws' && s.rc))
+    .map(([key, kind, s]) => ({ key, kind, s, on: kind === 'mlws', zone: (s.zs?.length || 1) - 1 }));
+  const radar = list.find(x => x.kind === 'radar');
+  if (radar) radar.on = true;
+  if (!list.length) return;
+  MD.cov = { list, draws: [], air: ['air', 'heli'].includes(S.byId?.get(id)?.c) };
+  MD.dist = Math.max(MD.dist, MD.mesh.radius * 4.2);  // the volumes reach out past the model
+  mdCovBuild();
+  mdCovBar();
 }
 
 // a weapon's positions, when the game has a model for each, and its parts, each of which can be left out
@@ -699,6 +814,7 @@ async function openModel(kind, id, title, view, skin) {
     if (!mesh.triangles) throw new Error('an empty model');
     mdShow(mesh);
     if (kind === 'name') mdControls(id, title, mesh, view);
+    if (kind === 'vehicle') mdCoverage(id, token);
     await mdLoadTextures(mesh, token, skin);
   } catch (e) {
     console.warn(e);

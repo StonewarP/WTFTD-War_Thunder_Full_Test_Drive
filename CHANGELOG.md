@@ -6,6 +6,10 @@ Versions follow `major.minor.patch`; "beta" until 1.0.
 
 ## Unreleased
 
+- **Radar and missile warner coverage in 3D.** A vehicle's 3D view now shows what its sensors cover, from the game's
+  sensor files: a radar's antenna travel (pale blue) and the zone of one of its search modes (green, picked by its size,
+  *120° × 6°*), a missile warner's sensors (orange). Each one can be shown or hidden. Only the angles are the game's:
+  the ranges aren't to scale, and a radar starts at the aircraft's nose (a ground vehicle's middle), not its real place.
 - **What changed: every change of the game files.** A new **All game files** tab lists every value that moved in the
   files WTFTD reads (vehicles, flight models, weapons, maps, missions, economy, translations), under the files' own
   names: a new or removed file is one line, a language table gives its texts by id. 2.61.0.24's automatic flap limits on

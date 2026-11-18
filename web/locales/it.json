@@ -1253,6 +1253,8 @@
   "model.part.cap": "Coperture",
   "model.textures": "Texture {n}/{total}",
   "model.stats": "{n} triangoli",
+  "model.antennaLimits": "Escursione dell'antenna",
+  "model.notToScale": "Portate non in scala",
   "compare.remove": "Rimuovi dal confronto",
   "compare.clear": "Svuota",
   "compare.button": "Confronta ({n})",

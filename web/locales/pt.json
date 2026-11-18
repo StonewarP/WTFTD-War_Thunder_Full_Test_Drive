@@ -1253,6 +1253,8 @@
   "model.part.cap": "Tampas",
   "model.textures": "Texturas {n}/{total}",
   "model.stats": "{n} triângulos",
+  "model.antennaLimits": "Giro da antena",
+  "model.notToScale": "Alcances fora de escala",
   "compare.remove": "Remover da comparação",
   "compare.clear": "Limpar",
   "compare.button": "Comparar ({n})",

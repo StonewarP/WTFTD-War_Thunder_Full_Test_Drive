@@ -1253,6 +1253,8 @@
   "model.part.cap": "Крышки",
   "model.textures": "Текстуры {n}/{total}",
   "model.stats": "Треугольников: {n}",
+  "model.antennaLimits": "Пределы поворота антенны",
+  "model.notToScale": "Дальности не в масштабе",
   "compare.remove": "Убрать из сравнения",
   "compare.clear": "Очистить",
   "compare.button": "Сравнить ({n})",

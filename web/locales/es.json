@@ -1253,6 +1253,8 @@
   "model.part.cap": "Cubiertas",
   "model.textures": "Texturas {n}/{total}",
   "model.stats": "{n} triángulos",
+  "model.antennaLimits": "Giro de la antena",
+  "model.notToScale": "Alcances fuera de escala",
   "compare.remove": "Quitar de la comparación",
   "compare.clear": "Vaciar",
   "compare.button": "Comparar ({n})",

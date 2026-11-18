@@ -1253,6 +1253,8 @@
   "model.part.cap": "Osłony",
   "model.textures": "Tekstury {n}/{total}",
   "model.stats": "Trójkąty: {n}",
+  "model.antennaLimits": "Zakres ruchu anteny",
+  "model.notToScale": "Zasięgi nie w skali",
   "compare.remove": "Usuń z porównania",
   "compare.clear": "Wyczyść",
   "compare.button": "Porównaj ({n})",

@@ -1253,6 +1253,8 @@
   "model.part.cap": "カバー",
   "model.textures": "テクスチャ {n}/{total}",
   "model.stats": "三角形 {n} 個",
+  "model.antennaLimits": "アンテナ可動範囲",
+  "model.notToScale": "距離は縮尺どおりではありません",
   "compare.remove": "比較から外す",
   "compare.clear": "クリア",
   "compare.button": "比較（{n}）",

@@ -1253,6 +1253,8 @@
   "model.part.cap": "Kryty",
   "model.textures": "Textury {n}/{total}",
   "model.stats": "Trojúhelníky: {n}",
+  "model.antennaLimits": "Rozsah natáčení antény",
+  "model.notToScale": "Dosahy nejsou v měřítku",
   "compare.remove": "Odebrat z porovnání",
   "compare.clear": "Vymazat",
   "compare.button": "Porovnat ({n})",
