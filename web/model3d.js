@@ -743,13 +743,18 @@ function mdCovBuild() {
   c.draws = draws;
 }
 
-// the bar under a vehicle: each radar and warner, switched on or off, a radar's scan zones, and what the colours mean
+// what a sensor is, as the comparison names it: a radar by what it does (search, track, both), an IRST, an ESM, a warner
+const mdCovKind = x => t(x.kind !== 'radar' ? 'mods.sensor.' + x.kind : x.s.k === 'esm' ? 'compare.esm' : !/radar/.test(x.s.k || 'radar') ? 'compare.irst'
+  : { s: 'compare.searchRadar', t: 'compare.trackRadar', rf: 'compare.trackRadar' }[x.s.ro] || 'mods.sensor.radar');
+
+// the bar under a vehicle: each radar and warner by its kind (a warner's with its colour), switched on or off, a radar's
+// scan zones, and what a radar's two colours mean
 function mdCovBar() {
-  const bar = $('#mdBar'), list = MD.cov.list, kinds = new Set(list.map(x => x.kind));
-  const swatch = (k, label) => `<span class="md-key"><i class="md-swatch md-${k}"></i>${esc(label)}</span>`;
-  bar.innerHTML = list.map((x, i) => `<div class="md-group"><button class="btn btn-ghost btn-sm${x.on ? ' active' : ''}" data-mdcov="${i}">${esc(I18N.sensor(x.key))}${x.s.r ? ' · ' + esc(cmpKm(x.s.r)) : ''}</button>${
+  const bar = $('#mdBar'), list = MD.cov.list, radar = list.some(x => x.kind === 'radar');
+  const swatch = (k, label) => `<span class="md-key">${k ? `<i class="md-swatch md-${k}"></i>` : ''}${esc(label)}</span>`;
+  bar.innerHTML = list.map((x, i) => `<div class="md-group">${swatch(x.kind !== 'radar' && x.kind, mdCovKind(x))}<button class="btn btn-ghost btn-sm${x.on ? ' active' : ''}" data-mdcov="${i}">${esc(I18N.sensor(x.key))}${x.s.r ? ' · ' + esc(cmpKm(x.s.r)) : ''}</button>${
     x.on && x.s.zs?.length > 1 ? `<div class="seg">${x.s.zs.map((z, j) => `<button class="${j === x.zone ? 'active' : ''}" data-mdcov="${i}" data-mdzone="${j}">${z[0]}° × ${z[1]}°</button>`).join('')}</div>` : ''}</div>`).join('')
-    + `<div class="md-group">${kinds.has('radar') ? swatch('lim', t('model.antennaLimits')) + swatch('zone', t('compare.scanZone')) : ''}${['rwr', 'mlws'].filter(k => kinds.has(k)).map(k => swatch(k, t('mods.sensor.' + k))).join('')}<span>· ${esc(t('model.notToScale'))}</span></div>`;
+    + `<div class="md-group">${radar ? swatch('lim', t('model.antennaLimits')) + swatch('zone', t('compare.scanZone')) + '<span>· ' : '<span>'}${esc(t('model.notToScale'))}</span></div>`;
   bar.classList.remove('hidden');
   bar.onclick = ev => {
     const b = ev.target.closest('[data-mdcov]'), x = b && list[b.dataset.mdcov];
