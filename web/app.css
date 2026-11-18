@@ -1611,14 +1611,17 @@ td.hg-actions { height: 48px; }
 .ch-dev:empty { display: none; }
 .ch-dev-err { flex-basis: 100%; color: var(--danger); }
 .ch-note svg { flex: none; margin-top: 2px; }
-.ch-rows .ar-scroll { max-width: 1100px; overflow: clip; }  /* the values stay near their names; clip, not a scroll box: the headers stay in view */
+.ch-rows .ar-scroll { overflow: clip; }  /* clip, not a scroll box: the headers stay in view */
 .ch-table thead th { top: 46px; z-index: 2; box-shadow: inset 0 -1px var(--line); }  /* under the tabs */
 .ch-table { table-layout: fixed; }
 .ch-table td { height: 44px; padding-top: 7px; padding-bottom: 7px; vertical-align: top; white-space: normal; overflow-wrap: anywhere; }
-.ch-table th:first-child { width: 38%; }
+.ch-table th:first-child { width: min(38vw, 420px); }  /* a wide window's room goes to the values; vw: Chromium drops a min() mixing % and px on a cell */
 .ch-table tbody tr:hover td { background: var(--surface-2); }
-.ch-list { display: grid; grid-template-columns: minmax(110px, max-content) max-content max-content 1fr; gap: 3px 10px; align-items: center; }
-.ch-k { color: var(--text-2); font-weight: 600; }
+/* sized to their text, the values stay near their names; a long one (a game file's text, a list of hundreds of names) wraps,
+   before and after sharing the room equally, instead of pushing the other out of the cell. The last column only fills the
+   rest: a list's row spans it, so the grid doesn't widen the arrow's column to hold that row */
+.ch-list { display: grid; grid-template-columns: minmax(110px, max-content) minmax(0, max-content) max-content minmax(0, max-content) minmax(0, 1fr); gap: 3px 10px; align-items: center; }
+.ch-k { grid-column: 1; color: var(--text-2); font-weight: 600; }  /* each change on its own line, the filler column left empty */
 .ch-names { grid-column: 2 / -1; }  /* a list's row: what went, what came, across the before / after columns */
 .ch-to { color: var(--muted); }
 .ch-br td:not(:first-child) { font-variant-numeric: tabular-nums; white-space: nowrap; }
