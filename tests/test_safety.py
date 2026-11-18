@@ -165,16 +165,19 @@ class LocalServer(unittest.TestCase):
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         self.addCleanup(httpd.server_close)
         self.addCleanup(httpd.shutdown)
-        opened, resolve = [], Path.resolve
+        opened, port = [], httpd.server_address[1]
 
-        def watch(p, *a, **k):
-            if server.on_network(p):
-                opened.append(str(p))
-                return p  # the test never touches the network
-            return resolve(p, *a, **k)
+        def watch(name):
+            real = getattr(Path, name)
 
-        port = httpd.server_address[1]
-        with mock.patch.object(Path, "resolve", watch):
+            def look(p, *a, **k):
+                if server.on_network(p):
+                    opened.append(f"{name} {p}")
+                    raise OSError("the test never touches the network")
+                return real(p, *a, **k)
+            return mock.patch.object(Path, name, look)
+
+        with watch("resolve"), watch("is_file"), watch("exists"), watch("stat"), watch("read_bytes"):
             for url in ("/%5C%5Cevil%5Cs%5Cx", "/data///evil/share/a.json", "/data/%5C%5Cevil%5Cs%5Ca.json"):
                 with self.subTest(url), self.assertRaises(urllib.error.HTTPError) as e:
                     urllib.request.urlopen(f"http://127.0.0.1:{port}{url}", timeout=10)

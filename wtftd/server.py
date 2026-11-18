@@ -504,6 +504,17 @@ def on_network(path) -> bool:
     return str(path or "")[:2] in ("\\\\", "//", "\\/", "/\\")
 
 
+def static_file(base: Path, rel: str) -> Path | None:
+    """A file a URL names in one of the app's folders, checked as text before anything opens it: a URL's \\\\host\\share
+    (%5C%5C, ///) joins as a network path, and only looking it up on Windows reaches that host with the user's NTLM
+    hash, from any page's <img> (these GETs aren't origin-checked). None outside base."""
+    root = os.path.normpath(base)
+    target = os.path.normpath(os.path.join(root, rel))
+    if not target.startswith(root + os.sep):
+        return None
+    return Path(target)
+
+
 def capture_url(key: str) -> str:
     p = CAPTURES / f"{key}.png"
     return f"/img/capture/{key}.png?v={int(p.stat().st_mtime)}" if p.is_file() else ""
@@ -900,21 +911,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             return
-        # a URL's \\host\share (%5C%5C, ///) joins as a network path: resolve() would open it, sending the user's NTLM
-        # hash there, from any page's <img> (these GETs aren't origin-checked)
         if path.startswith("/data/"):
-            target = DATA / path[6:]
-            if on_network(target):
-                return self.send_error(HTTPStatus.NOT_FOUND)
-            target = target.resolve()
-            if DATA.resolve() in target.parents and target.suffix == ".json" and "scenarios" not in target.parts:
+            target = static_file(DATA, path[6:])
+            if target and target.suffix == ".json" and "scenarios" not in target.parts:
                 return self.send_file(target)
             return self.send_error(HTTPStatus.NOT_FOUND)
-        target = WEB / ("index.html" if path in ("/", "") else path.lstrip("/"))
-        if on_network(target):
-            return self.send_error(HTTPStatus.NOT_FOUND)
-        target = target.resolve()
-        if WEB.resolve() not in target.parents or not target.is_file():
+        target = static_file(WEB, "index.html" if path in ("/", "") else path.lstrip("/"))
+        if not target or not target.is_file():
             return self.send_error(HTTPStatus.NOT_FOUND)
         return self.send_file(target)
 
