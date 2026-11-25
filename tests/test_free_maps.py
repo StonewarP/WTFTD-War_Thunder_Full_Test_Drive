@@ -222,12 +222,23 @@ class FreeTanks(unittest.TestCase):
         self.assertFalse(m["units"]["tankModels"][1]["way"])
 
 
+def battle_map():
+    """A ground battle map as builder.build_battle_scenarios writes one (the real ones live in data/, not in CI)."""
+    at = lambda x, z: [[40.0, 0, 0], [0, 30.0, 0], [0, 0, 40.0], [x, 8.0, z]]
+    return {"mission_settings": {"player": {"army": 1, "wing": "t1_player01"}, "mission": {"type": "singleMission", "level": "levels/x.bin"}},
+            "units": {"tankModels": {"name": "t1_player01", "tm": [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 8.0, 0]], "unit_class": "",
+                                     "props": {"army": 1}, "way": {}}},
+            "areas": {"wtftd_spawn": {"tm": at(0, 0)}, "wtftd_capture_A": {"tm": at(350, 500)}, "wtftd_capture_B": {"tm": at(0, 500)},
+                      "wtftd_capture_C": {"tm": at(-400, 500)}, "wtftd_enemy_spawn": {"tm": at(0, 1000)}},
+            "triggers": {"isCategory": True, "is_enabled": True}}
+
+
 class CaptureZones(unittest.TestCase):
     """Issue #28: on a ground battle map, in a tank, A, B, C are capture zones with tickets."""
 
     def test_battle_map_in_a_tank(self):
         from wtftd import mission
-        m = mission.load_scenario("battle_abandoned_factory_a_ground")
+        m = battle_map()
         mission.apply_capture_zones(m)
         marks = m["triggers"]["wtftd_capture"]["actions"]["missionMarkAsCaptureZone"]
         self.assertEqual([z["target"] for z in marks], ["wtftd_capture_A", "wtftd_capture_B", "wtftd_capture_C"])
@@ -239,18 +250,22 @@ class CaptureZones(unittest.TestCase):
         self.assertEqual(m["mission_settings"]["mission"]["scoreLimit"], mission.TICKETS)
         self.assertNotIn("ctaCaptureZoneDominationPenalty", m["mission_settings"]["mission"])  # the game's own loss
         for loss, got in (("slow", 14), ("vslow", 7), ("none", None), ("x", None)):  # the map's Ticket loss
-            m = mission.load_scenario("battle_abandoned_factory_a_ground")
+            m = battle_map()
             mission.apply_capture_zones(m, loss)
             self.assertEqual(m["mission_settings"]["mission"].get("ctaCaptureZoneDominationPenalty"), got)
             self.assertEqual(m["mission_settings"]["mission"]["gt_mp_tickets"], loss != "none")  # none: no tickets at all
             self.assertTrue(m["mission_settings"]["mission"]["gt_mp_capture"])  # the zones still taken
 
     def test_only_in_a_tank_on_a_map_with_zones(self):
+        from unittest import mock
         from wtftd import mission
-        air = {"scenario": "battle_abandoned_factory_a_air", "vehicle": "p_51d_5", "block": "armada"}
-        self.assertNotIn("missionMarkAsCaptureZone", mission.build(air)[1])
-        tank = {"scenario": "battle_abandoned_factory_a_ground", "vehicle": "us_m4a2_sherman", "block": "tankModels"}
-        self.assertIn("missionMarkAsCaptureZone", mission.build(tank)[1])
+        with mock.patch.object(mission, "load_scenario", side_effect=lambda sid: battle_map()):
+            air = {"scenario": "battle_x_a_air", "vehicle": "p_51d_5", "block": "armada"}
+            self.assertNotIn("missionMarkAsCaptureZone", mission.build(air)[1])
+            tank = {"scenario": "battle_x_a_ground", "vehicle": "us_m4a2_sherman", "block": "tankModels", "ticketLoss": "none"}
+            text = mission.build(tank)[1]
+        self.assertIn("missionMarkAsCaptureZone", text)
+        self.assertIn("gt_mp_tickets:b=no", text)  # the map's Ticket loss reaches the mission
         m = {"areas": {"spawn": {"tm": []}}, "triggers": {"isCategory": True}}
         mission.apply_capture_zones(m)
         self.assertNotIn("wtftd_capture", m["triggers"])
