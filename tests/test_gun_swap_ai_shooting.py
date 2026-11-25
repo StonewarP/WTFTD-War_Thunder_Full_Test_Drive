@@ -61,9 +61,9 @@ def base():
                       "objectGroups": {"name": "crate", "tm": tm(300), "unit_class": "z", "props": {"army": 2}}}}
 
 
-def shooting(m):
+def shooting(m):  # how they shoot: an added tank's collisions are another setting (test_free_maps)
     acts = m["triggers"]["wtftd_editor"]["actions"]["unitSetProperties"]
-    return sorted((sorted(a.pop("object")), a) for a in mission._as_list(acts))
+    return sorted((sorted(a.pop("object")), a) for a in mission._as_list(acts) if "ignoreCollisions" not in a)
 
 
 class AiShooting(unittest.TestCase):

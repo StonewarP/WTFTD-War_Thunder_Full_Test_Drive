@@ -1437,7 +1437,9 @@ function edRenderPanel() {
   const behaviors = edBehaviors(side, air, u.added, edRoutable(st));
   const moveSeg = `<div class="field"><label>${esc(t('editor.move'))}</label><div class="seg seg-wrap${behaviors.length === 4 ? 2 : 3}">
       ${behaviors.map(([k, l]) => `<button class="${(st.behavior || '') === k ? 'active' : ''}" data-edbeh="${k}">${esc(t(l))}</button>`).join('')}
-    </div>${st.behavior === 'follow' ? `<small class="muted">${esc(t('editor.followHint'))}</small>` : ''}${st.moves && !u.added ? `<small class="muted">${esc(t('editor.movesHint'))}</small>` : ''}</div>`;
+    </div>${st.behavior === 'follow' ? `<small class="muted">${esc(t('editor.followHint'))}</small>` : ''}${u.added && u.block === 'tankModels' && !st.behavior ? `<small class="muted">${esc(t('editor.freeHint'))}</small>
+      <div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" min="1" max="3000" data-edm="routeSpeed" value="${esc(st.routeSpeed ?? '')}"
+        placeholder="${esc(t('editor.topSpeed', { n: S.byId.get(st.cls)?.s?.spd ?? '?' }))}"></div>` : ''}${st.moves && !u.added ? `<small class="muted">${esc(t('editor.movesHint'))}</small>` : ''}</div>`;
   const removed = `<p class="hint">${esc(t('editor.removedHint'))}</p><button class="btn btn-sm" data-edact="restore">${icon('refresh', 'ic-sm')}${esc(t('editor.restore'))}</button>`;
   const copyBtns = ED_ADD_BLOCK[u.block] || u.added ? `<button class="btn btn-ghost btn-sm" data-edact="copy">${esc(t('editor.copy'))}</button>
       <button class="btn btn-ghost btn-sm" data-edact="duplicate">${esc(t('editor.duplicate'))}</button>` : '';
@@ -1883,6 +1885,11 @@ function edPanelChange(ev) {
     const keep = Object.keys(ai).length ? ai : null;
     if (unit) edSet(unit, { ai: keep }); else if (keep) edEdits().ai = keep; else delete edEdits().ai;
     edRenderPanel();
+    return;
+  }
+  if (el.dataset.edm === 'routeSpeed' && el.value === '') {  // emptied: full speed on Free (AI), the default on a route
+    for (const u of edSelUnits()) if (edRoutable(u)) edSet(u, { routeSpeed: null });
+    edRenderPanel(); edDraw();
     return;
   }
   if (el.dataset.edm && el.value !== '' && el.value !== '__mixed') {  // several units

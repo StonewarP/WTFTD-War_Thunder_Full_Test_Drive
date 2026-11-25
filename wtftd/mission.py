@@ -446,6 +446,13 @@ def take_over_units(m: dict, names: set) -> set:
     return brought
 
 
+def _waypoint(pos: list, speed: float, find: bool = False) -> dict:
+    """find: the unit finds its own way there (canUsePathFinder), else straight, as all the game's ground routes."""
+    return {"type": "normal", "tm": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], pos],
+            "props": {"speed": speed, "moveType": "MOVETO_STRAIGHT", "tas": False, "shouldKeepFormation": False,
+                      "canUsePathFinder": find}}
+
+
 def _route(u: dict, e: dict):
     """Points drawn in the editor: the game drives the unit along them by itself, from the start or when it appears."""
     try:
@@ -458,13 +465,130 @@ def _route(u: dict, e: dict):
             pos = [float(p["x"]), float(p["y"]), float(p["z"])]
         except (KeyError, TypeError, ValueError):
             continue
-        way[f"{u['name']}_wp_{len(way) + 1:02d}"] = {
-            "type": "normal", "tm": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], pos],
-            "props": {"speed": speed, "moveType": "MOVETO_STRAIGHT", "tas": False, "shouldKeepFormation": False,
-                      "canUsePathFinder": False}}
+        way[f"{u['name']}_wp_{len(way) + 1:02d}"] = _waypoint(pos, speed)
     if way:
         u["way"] = way
         u["closed_waypoints"] = bool(e.get("routeLoop"))
+
+
+# km/h of a Free (AI) tank whose top speed the app doesn't know (server._prepare_ai gives the others theirs: at 200 they
+# drove through walls, in game 2026-11-26)
+FREE_SPEED = 50.0
+# the last metres into the zone: at full speed the tanks drove through it and stopped ~100 m past (in game, 2026-11-25);
+# a waypoint's speed is the one it is driven to at (30 km/h: 15 m past the centre)
+ZONE_SLOW, ZONE_SLOW_SPEED = 60.0, 20.0
+ZONE_CHECK = 5.0  # s between two looks of a tank in its zone at who holds the zones
+
+
+def _zone_way(name: str, x: float, z: float, p: list, speed: float) -> dict:
+    """Waypoints from (x, z) into the zone centred on p: at `speed`, then slowly for its last ZONE_SLOW metres."""
+    d = math.hypot(p[0] - x, p[2] - z)
+    pts = [(list(p), min(speed, ZONE_SLOW_SPEED))]
+    if d > ZONE_SLOW:  # where it starts slowing down, on the way in
+        k = (d - ZONE_SLOW) / d
+        pts.insert(0, ([x + (p[0] - x) * k, p[1], z + (p[2] - z) * k], speed))
+    # shortcut: straight, the tanks drove through the factory's walls (in game, 2026-11-25); whether the game's
+    # pathfinder drives ground units around them is unchecked (no game mission sets it on one)
+    return {f"{name}_wp_{i + 1:02d}": _waypoint(pos, s, find=True) for i, (pos, s) in enumerate(pts)}
+
+
+def _capture_zones(areas) -> dict:
+    """{area name: centre} of the battle map's zones A, B, C (builder)."""
+    out = {}
+    for n, a in sorted((areas or {}).items()):
+        if n.startswith("wtftd_capture_"):
+            try:
+                out[n] = [float(c) for c in a["tm"][3]]
+            except (KeyError, TypeError, ValueError, IndexError):
+                continue
+    return out
+
+
+def _to_nearest_zone(m: dict, u: dict, army: int, speed=None):
+    """A tank left free on a battle map: a route to the nearest capture zone, as custom battles' AI heads for the
+    zones. In a user mission a unit without a route or an order stays where it is (issue #29). No zone: nothing.
+    speed: km/h picked in the editor, else full speed. Once its zone is its side's, it goes on to the nearest one that
+    isn't (_zone_rounds)."""
+    zones = _capture_zones(m.get("areas"))
+    try:
+        x, z = float(u["tm"][3][0]), float(u["tm"][3][2])
+        speed = max(1.0, min(float(speed or FREE_SPEED), 3000.0))
+    except (KeyError, TypeError, ValueError, IndexError):
+        return
+    if not zones:
+        return
+    p = min(zones.values(), key=lambda p: (p[0] - x) ** 2 + (p[2] - z) ** 2)
+    u["way"] = _zone_way(u["name"], x, z, p, speed)
+    u["closed_waypoints"] = False
+    _zone_rounds(m, u["name"], army, zones, speed)
+
+
+def _zone_rounds(m: dict, name: str, army: int, zones: dict, speed: float):
+    """What custom battles' AI does once a zone is taken: every ZONE_CHECK s, a tank in a zone its side holds drives to
+    the nearest zone its side doesn't hold (unitSetRoute, as the game's columns get theirs), or stays if they hold
+    them all. Per zone: a look (in it and ours?), then one trigger per other zone, nearest first (ours? next : go)."""
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
+    if len(zones) < 2 or not isinstance(triggers, dict):
+        return
+    routes = m.setdefault("wayPoints", {})
+    held = lambda zone: {"missionIsZoneCaptured": {"target": zone, "army": army}}
+    run = lambda t: {"triggerActivate": {"target": t, "activate_type": "checkConidtions", "check_trigger_status": False,
+                                         "after_activation": "disable"}}
+    for here, p in zones.items():
+        others = sorted((n for n in zones if n != here), key=lambda n: math.hypot(zones[n][0] - p[0], zones[n][2] - p[2]))
+        base = f"wtftd_{name}_{here[len('wtftd_capture_'):]}"
+        steps = [f"{base}_{i + 1}" for i in range(len(others))]
+        for i, there in enumerate(others):
+            route = f"{base}_to_{there[len('wtftd_capture_'):]}"
+            routes[route] = {"closed_waypoints": False, "isShipSpline": False, "shipTurnRadius": 100.0,
+                             "way": _zone_way(route, p[0], p[2], zones[there], speed)}
+            t = _trigger({"periodicEvent": {"time": 1.0}}, run(steps[i + 1]) if i + 1 < len(steps) else {}, False)
+            t["is_enabled"] = False  # run by the look only
+            t["conditions"] = held(there)
+            t["else_actions"] = {"unitSetRoute": {"object": name, "route": route, "teleportToStart": False,
+                                                  "object_var_name": "", "object_var_comp_op": "equal"}}
+            triggers[steps[i]] = t
+        look = _trigger({"periodicEvent": {"time": ZONE_CHECK}}, run(steps[0]), True)
+        look["conditions"] = {"unitWhenInArea": {"math": "2D", "object_type": "isAlive", "object_marking": 0, "check_objects": "any",
+                                                 "object": name, "target": here}, **held(here)}
+        triggers[base] = look
+
+
+# a capture zone as the game's tank Domination marks one (templates/tank_templates/dom_template: no airfield voice, its
+# circle on the ground through markUnits), neutral at the start, its border on the map (demo_tank), taken by AI tanks too
+CAPTURE_ZONE = {"army": 0, "name_for_respawn_base": "", "timeMultiplier": 1.5, "disableZone": False, "canCaptureOnGround": True,
+                "playAirfieldSound": False, "canCaptureInAir": False, "canCaptureByGM": True, "onlyPlayersCanCapture": False,
+                "useHUDMarkers": True, "showBorderOnMap": True, "markUnitPreset": "tank_decal", "zoneDefenders": {},
+                "capture_tags": {"vtol_jet": True, "type_attack_helicopter": True, "type_utility_helicopter": True, "tank": True}}
+
+
+TICKETS = 10000  # scoreLimit, as demo_tank: the game takes a share of it a minute, so it doesn't make a battle longer
+# the map's Ticket loss: the share a side loses a minute while the other holds more zones (gameplay.blk cta
+# ctaCaptureZoneDominationPenalty 28: 2000 and 10000 tickets both ran out ~3 min after one side led, in game 2026-11-25);
+# none: no loss to deaths either (deathPenaltyMul, as cta missions set it)
+# none: no tickets at all (gt_mp_tickets off: with ctaCaptureZoneDominationPenalty 0 and deathPenaltyMul 0 the bar still
+# dropped, in game 2026-11-26). shortcut: whether slow / vslow change anything is unchecked, the bar can't be read on 8111
+TICKET_LOSS = {"slow": {"ctaCaptureZoneDominationPenalty": 14}, "vslow": {"ctaCaptureZoneDominationPenalty": 7},
+               "none": {"gt_mp_tickets": False}}
+
+
+def apply_capture_zones(m: dict, loss=None):
+    """Ground battle maps: A, B, C made capture zones, with tickets, as demo_tank does in a single mission (issue #28),
+    each with the game's capture_zone_circle on the ground. loss: the map's Ticket loss (TICKET_LOSS), else the game's."""
+    zones = _capture_zones(m.get("areas"))
+    triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
+    if not zones or not isinstance(triggers, dict):
+        return
+    marks = []
+    for z, pos in zones.items():
+        circle = f"wtftd_cz_circle_{z[len('wtftd_capture_'):]}"
+        _append_unit(m.setdefault("units", {}), "objectGroups", {"name": circle, "tm": _yaw_tm(0.0, *pos), "unit_class": "capture_zone_circle",
+                                                                 "objLayer": 2, "props": {"army": 0, "active": True}})
+        marks.append(dict(CAPTURE_ZONE, target=z, markUnits=circle))
+    triggers["wtftd_capture"] = _trigger({"initMission": {}}, {"missionMarkAsCaptureZone": marks if len(marks) > 1 else marks[0]}, False)
+    m.setdefault("mission_settings", {}).setdefault("mission", {}).update(
+        {"gt_mp_tickets": True, "gt_mp_capture": True, "scoreLimit": TICKETS, "ctaCaptureZoneEqualPenaltyMul": 0.0, "allowEmptyTeams": True,
+         **TICKET_LOSS.get(loss if isinstance(loss, str) else "", {})})
 
 
 def apply_waves(m: dict, waves: dict, edits: dict, stay: list, passive: list, shooting: dict | None = None):
@@ -646,6 +770,8 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             if _is_start_trigger(t):
                 _strip_unit_moves(a, moved)
 
+    free = []  # tanks added on "Free (AI)"
+    solid = []  # tanks added: the player drove through them (in game, 2026-11-25)
     for i, a in enumerate((edits.get("add") or [])[:300]):
         if not isinstance(a, dict) or a.get("block") not in EDITABLE_BLOCKS + OBJECT_BLOCKS or not _CLASS.match(str(a.get("cls", ""))):
             continue
@@ -675,6 +801,10 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
                 props["speed"] = 400.0
         _append_unit(units, block, u)
         apply(u, a)
+        if block == "tankModels":
+            solid.append(u["name"])
+            if not a.get("behavior"):
+                free.append((u, a.get("routeSpeed")))
 
     for name, e in (edits.get("areas") or {}).items():  # zones moved in the editor
         a = (m.get("areas") or {}).get(name)
@@ -683,6 +813,8 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             a["tm"][3] = [float(e["x"]), float(e.get("y", pos[1])), float(e["z"])]
         except (TypeError, KeyError, IndexError, ValueError):
             continue
+    for u, speed in free:  # after the zones moved: where they really are
+        _to_nearest_zone(m, u, u["props"]["army"], speed)
     player = edits.get("player")
     if isinstance(player, dict):
         _strip_airfield_spawn(m.get("triggers"), wing)  # the start was placed on the map: no runway spawn
@@ -710,6 +842,10 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         props_actions.append({"object": stay, "cannotMove": True})
     if passive:
         props_actions.append({"object": passive, "cannotShoot": True})
+    if solid:  # collisions on (the player drove through them); stuck, they no longer drive through walls (a stuck AI
+        # ignores obstacles, they went through unbreakable walls in game 2026-11-26) and they test buildings on their way,
+        # both as the game's missions set them on units of theirs. shortcut: the last two unchecked in game
+        props_actions.append({"object": solid, "ignoreCollisions": False, "ignoresObstaclesAfterTime": False, "movementTraceRI": True})
     same: dict = {}  # units sharing a setting: one action
     for name in sorted(shooting):
         same.setdefault(json.dumps(shooting[name], sort_keys=True), []).append(name)
@@ -1393,6 +1529,8 @@ def build(cfg: dict) -> tuple[str, str]:
     apply_hotkeys(m, wing, cheats, block == "armada", cfg.get("hotkeyTexts"), unit.get("tm"))
     if isinstance(cfg.get("_challenge"), dict):
         apply_challenge(m, wing, cfg["_challenge"])
+    elif block == "tankModels":  # zones to take in a tank; in the air they would only bleed your tickets
+        apply_capture_zones(m, cfg.get("ticketLoss"))
 
     # ---- template units given another vehicle in the editor: the mission declares them itself
     eu = (cfg.get("edits") or {}).get("units") or {}

@@ -1385,7 +1385,7 @@ function missionPayload() {
   return {
     scenario: c.scenario, vehicle: c.vehicle, block: c.block, preset: c.preset,
     ammo: ammoPayload(c),
-    environment: S.map.environment, weather: S.map.weather, start: 'scenario', altitude: c.altitude, speed: c.speed,
+    environment: S.map.environment, weather: S.map.weather, ticketLoss: S.map.ticketLoss || undefined, start: 'scenario', altitude: c.altitude, speed: c.speed,
     heading: null, missionType: missionOpts().missionType, allMods: c.allMods,
     fuel: (c.block === 'armada' && c.fuel) || null,
     title: missionOpts().title || autoTitle(), fileName: missionOpts().fileName || `wtftd_${c.vehicle}`,

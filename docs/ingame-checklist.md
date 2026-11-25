@@ -358,6 +358,53 @@ Turn them on first: In flight → My overlay → Turn on the overlay and alarms 
   an aircraft and on a tank (a custom tank may speak its host vehicle's language)? Rita in place of Betty; a special crew voice.
 - [ ] **Routes**: a tank, a truck, a ship and an aircraft follow their points at the speed asked, stop at the end or go round
   again. Three units sharing a route keep their gaps. Does a ground unit get stuck on a straight line across a slope or a river?
+- [x] **Free (AI) tanks** (issue #29, "WTFTD #29: Free (AI) tanks drive to the zones", Abandoned Factory side A,
+  2026-11-25): the allied Pz.IV stopped 4 m from C's centre, the enemy T-34 16 m from B's, the M4A2 15 m from A's
+  (read on 8111's map_obj), none stuck on the way across the factory. Made at 30 km/h; full speed (200 km/h asked,
+  `mission.FREE_SPEED`) unchecked: does each tank simply drive flat out?
+- [ ] **Capture zones** (issue #28): in a tank on a battle map, A, B, C show their letters (in that order?) and their outline
+  on the map, start neutral, and you or an AI tank sitting in one takes it. Is there a ticket bar, does holding zones
+  bleed the other side's tickets by itself (`gt_mp_tickets`, `scoreLimit` 10000, as demo_tank), and what happens at 0?
+  First run ("WTFTD #28: capture zones, AI at full speed", 2026-11-25): zones on 8111's map_obj (`capture_zone`), the
+  allied Pz.IV took C (white to blue in ~15 s), but the voice said an airfield was captured, no circle on the ground,
+  and the enemies at full speed drove through A and B (red for 6 s) and stopped ~100 m past. Now as dom_template:
+  `playAirfieldSound: no`, a `capture_zone_circle` per zone (`markUnits`), `capture_tags`, and a 20 km/h last 60 m.
+  Also seen: the player drove through the enemy tanks (no `ghost`, no `ignoreCollisions` in the mission): the game's
+  own AI tanks in a user mission? Does `unitSetProperties ignoreCollisions: no` on them change it?
+  Second run ("WTFTD #28b", 2026-11-25): circles on the ground, the capture voice, the enemies stopping in A and B and
+  taking them, the ticket bar: all fine. But once a zone was taken its tanks did nothing more.
+- [ ] **After a zone** (issue #28): every 5 s a Free (AI) tank in a zone its side holds gets the route to the nearest zone
+  its side doesn't hold (`unitSetRoute`, `wayPoints` `wtftd_<unit>_<zone>_to_<zone>`, triggers `wtftd_<unit>_<zone>`
+  and `_1`, `_2` run by `triggerActivate`). Does `unitSetRoute` without `teleportToStart` drive it there? Does it stop in
+  the zone, and stay when its side holds them all? You no longer drive through added tanks (`ignoreCollisions: no`)?
+  Third run ("WTFTD #28c", 2026-11-25): tanks move on to the next zone and stop in it, no more driving through them.
+  Tickets: 2000 ran out 150 s after the enemies held A and B, as fast as 10000 did (the game takes a share of
+  `scoreLimit` a minute: the Tickets field gave way to **Ticket loss**). Unchecked: do they stay once their side holds all 3?
+- [ ] **Ticket loss** (map setting): Slow / Very slow / None set `ctaCaptureZoneDominationPenalty` 14 / 7 / 0 (gameplay.blk
+  cta: 28) in the mission, None also `deathPenaltyMul` 0. Does a mission's value override gameplay.blk's? Very slow: the
+  bar should take ~4 times as long; None: it should not move, even when you die.
+  "WTFTD #28d" (2026-11-25): the bar drops more slowly (the mission's value does override gameplay.blk's); still running
+  3.5 min after the enemies held A and B, where #28c ended after 2.5. The enemies seemed to drive through walls.
+- [ ] **Pathfinder on the zone routes**: Free (AI) tanks' routes to and between zones now have `canUsePathFinder: yes`
+  (the game's ground routes never do). Do they still move, go round the factory's walls instead of through, still slow
+  down and stop in the zone?
+  "WTFTD #28e" (2026-11-25, player at x5: hp 1050, speedMul 5, fine and brakes): they move, go round the walls, stop in
+  their zone, but slower (A and B taken at 240 s instead of 107; the allied Pz.IV sat 45 m from C, the zone's edge,
+  for 40 s), and now and then still seem to drive through a wall (breakable walls the pathfinder counts as open?).
+  The two enemies left A and B for C (20-50 m from it): moving on works. With 2 zones against 0, Very slow still
+  ended the mission 2 min later: watch "all 3 held" with Ticket loss None.
+  "WTFTD #28f" (Ticket loss None: penalty 0, deathPenaltyMul 0): the bar still dropped too fast to see "all 3 held",
+  so the mission's ctaCaptureZoneDominationPenalty may not count after all (Very slow's "slower" unproven). Breakable
+  walls break; some walls that don't break are still driven through. The user's guess: the 200 km/h asked.
+- [ ] **Top speed and no tickets** ("WTFTD #28g"): Free (AI) tanks get their own top speed (server._prepare_ai, `s.spd`),
+  not 200 km/h: still through unbreakable walls? None now turns tickets off (`gt_mp_tickets: no`): no bar, the mission
+  never ends on tickets, and are A, B, C still taken (`gt_mp_capture` alone)? Then: do the tanks stay once all 3 are held?
+  "WTFTD #28g" (2026-11-26): no bar, A, B, C still taken; once their side holds all 3 the tanks stay. But 27 s after
+  the enemy took the 3rd zone the mission ended (no tickets: the game's own end on total domination?). Unbreakable
+  walls still crossed at the tanks' own top speed.
+- [x] **Walls** ("WTFTD #28h", 2026-11-26): added tanks get `ignoresObstaclesAfterTime: no` (a stuck AI then ignores
+  obstacles, the game sets it on its trucks) and `movementTraceRI: yes` (its moving units have it): they bounce off
+  unbreakable walls instead of driving through, and don't get stuck.
 - [ ] **Waves**: wave 2 is absent at the start, comes at its place 5 s after wave 1 is destroyed, with the hint; a delayed unit
   with a route drives it; aircraft come in at their height and speed; with *First wave again*, the first comes back, twice.
   Do Hold fire and Stays still hold on coming in, and do passive enemies of the Targets setting stay passive?

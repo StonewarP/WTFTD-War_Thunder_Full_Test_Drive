@@ -103,7 +103,8 @@ Each one links to its page in the wiki.
   **[Custom sights](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Custom-sights)**.
 - **[Maps](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Maps)**: 100+ test scenarios, the hangar
   maps, the game's 131 other maps and its
-  [ground battle maps](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Ground-battle-maps).
+  [ground battle maps](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Ground-battle-maps), with
+  capture zones, tickets and AI tanks that fight for them.
   **[Scenario editor](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Scenario-editor)**: units,
   routes, waves of enemies, how AI units shoot, the game's assets, vehicles by BR, your start, the real map in 3D.
 - **[Weapons](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/wiki/Weapons)**: every missile, bomb,

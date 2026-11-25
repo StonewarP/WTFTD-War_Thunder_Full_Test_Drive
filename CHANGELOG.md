@@ -4,6 +4,24 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.35.0 - 2026-11-26
+
+- **Scenario editor: tanks on "Free (AI)" now move** ([#29](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/29)).
+  A tank added on Free (AI) had no route and no order, and in a user mission the game leaves such a unit where it is:
+  it shot, but never drove. On a ground battle map it now drives to the nearest capture zone (A, B or C), as the AI of
+  custom battles heads for the zones: at its own top speed (or the **Speed** set in its panel), finding its way round
+  buildings, slowing down for its last 60 m so it stops inside. Once its side holds that zone it drives on to the
+  nearest zone its side doesn't hold, and stays once they hold all three. On a map without zones it still stays where
+  it is, as the editor now says: give it a route.
+- **Scenario editor: added tanks are solid.** You no longer drive through tanks added in the editor, and a stuck one no
+  longer drives through walls.
+- **Ground battle maps: A, B and C can be captured** ([#28](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/28)).
+  In a tank, the three zones are now real capture zones, set as the game's tank Domination sets them: their letters on
+  screen, their circle on the ground and their outline on the map, neutral at the start, taken by you and by the AI,
+  with a ticket bar for each side. A new map setting, **Ticket loss**: as the game (about a quarter of the tickets a
+  minute while the other side holds more zones), slow, very slow, or none (no tickets at all, the zones are still
+  taken). When one side holds all three zones the battle ends about 30 seconds later, as the game decides.
+
 ## 0.34.2 - 2026-11-18
 
 - **What changed: long texts no longer break the table.** In **All game files**, a long value (a translation, a list

@@ -168,6 +168,94 @@ class AiLoadouts(unittest.TestCase):
         self.assertEqual((added["unit_class"], added["weapons"]), ("wtftd_rafale_c_f3_ai1", "wtftd_custom"))
 
 
+class FreeTanks(unittest.TestCase):
+    """Issue #29: a tank added on Free (AI) gets a route to the nearest capture zone, else stays as it was."""
+
+    def test_nearest_zone_after_the_zones_moved(self):
+        from wtftd import mission
+        at = lambda x, z: [[1, 0, 0], [0, 1, 0], [0, 0, 1], [x, 5.0, z]]
+        m = {"units": {"tankModels": [{"name": "me", "tm": at(0, 0), "props": {"army": 1}}]},
+             "areas": {"wtftd_capture_A": {"tm": at(100, 0)}, "wtftd_capture_B": {"tm": at(900, 0)}, "wtftd_spawn": {"tm": at(1000, 0)}}}
+        mission.apply_edits(m, "me", {"add": [{"block": "tankModels", "cls": "t_72a", "x": 950, "z": 0},
+                                              {"block": "tankModels", "cls": "t_72a", "x": 950, "z": 0, "behavior": "stay"},
+                                              {"block": "ships", "cls": "us_fletcher", "x": 950, "z": 0},
+                                              {"block": "tankModels", "cls": "t_72a", "x": 50, "z": 0, "routeSpeed": 25}],
+                                      "areas": {"wtftd_capture_A": {"x": 960, "z": 10}}})
+        free, stay, slow = m["units"]["tankModels"][1:]
+        self.assertEqual([w["tm"][3] for w in free["way"].values()], [[960.0, 5.0, 10.0]])  # A, moved next to it
+        self.assertEqual([w["props"]["speed"] for w in free["way"].values()], [mission.ZONE_SLOW_SPEED])  # already near: slow in
+        # far from B: the speed picked up to 60 m before its centre, then slowly into it
+        self.assertEqual([w["tm"][3] for w in slow["way"].values()], [[840.0, 5.0, 0.0], [900.0, 5.0, 0.0]])
+        self.assertEqual([w["props"]["speed"] for w in slow["way"].values()], [25.0, mission.ZONE_SLOW_SPEED])
+        self.assertFalse(stay["way"])
+        self.assertFalse(m["units"]["ships"]["way"])
+
+    def test_after_its_zone_the_next_one_not_held(self):
+        from wtftd import mission
+        at = lambda x, z: [[1, 0, 0], [0, 1, 0], [0, 0, 1], [x, 5.0, z]]
+        m = {"units": {"tankModels": [{"name": "me", "tm": at(0, 0), "props": {"army": 1}}]},
+             "areas": {f"wtftd_capture_{k}": {"tm": at(x, 0)} for k, x in (("A", 0), ("B", 400), ("C", 1000))}}
+        mission.apply_edits(m, "me", {"add": [{"block": "tankModels", "cls": "t_72a", "x": 380, "z": 500}]})
+        tr = m["triggers"]
+        look = tr["wtftd_wtftd_unit_01_B"]  # in B, B ours: then A (nearer), then C
+        self.assertEqual(look["conditions"]["unitWhenInArea"]["target"], "wtftd_capture_B")
+        self.assertEqual(look["conditions"]["missionIsZoneCaptured"], {"target": "wtftd_capture_B", "army": 2})
+        self.assertEqual(look["actions"]["triggerActivate"]["target"], "wtftd_wtftd_unit_01_B_1")
+        first, last = tr["wtftd_wtftd_unit_01_B_1"], tr["wtftd_wtftd_unit_01_B_2"]
+        self.assertFalse(first["is_enabled"])
+        self.assertEqual(first["conditions"]["missionIsZoneCaptured"]["target"], "wtftd_capture_A")
+        self.assertEqual(first["else_actions"]["unitSetRoute"]["route"], "wtftd_wtftd_unit_01_B_to_A")
+        self.assertEqual(first["actions"]["triggerActivate"]["target"], "wtftd_wtftd_unit_01_B_2")
+        self.assertEqual((last["else_actions"]["unitSetRoute"]["route"], last["actions"]), ("wtftd_wtftd_unit_01_B_to_C", {}))
+        way = list(m["wayPoints"]["wtftd_wtftd_unit_01_B_to_C"]["way"].values())  # from B's centre, slowly into C
+        self.assertEqual([w["tm"][3] for w in way], [[940.0, 5.0, 0.0], [1000.0, 5.0, 0.0]])
+        self.assertEqual([w["props"]["speed"] for w in way], [mission.FREE_SPEED, mission.ZONE_SLOW_SPEED])
+        self.assertTrue(all(w["props"]["canUsePathFinder"] for w in way))  # around the walls, not through
+        solid = m["triggers"]["wtftd_editor"]["actions"]["unitSetProperties"]
+        self.assertIn({"object": ["wtftd_unit_01"], "ignoreCollisions": False, "ignoresObstaclesAfterTime": False, "movementTraceRI": True},
+                      solid if isinstance(solid, list) else [solid])
+
+    def test_no_zone_no_route(self):
+        from wtftd import mission
+        m = {"units": {"tankModels": {"name": "me", "tm": [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0]], "props": {"army": 1}}}}
+        mission.apply_edits(m, "me", {"add": [{"block": "tankModels", "cls": "t_72a", "x": 50, "z": 0}]})
+        self.assertFalse(m["units"]["tankModels"][1]["way"])
+
+
+class CaptureZones(unittest.TestCase):
+    """Issue #28: on a ground battle map, in a tank, A, B, C are capture zones with tickets."""
+
+    def test_battle_map_in_a_tank(self):
+        from wtftd import mission
+        m = mission.load_scenario("battle_abandoned_factory_a_ground")
+        mission.apply_capture_zones(m)
+        marks = m["triggers"]["wtftd_capture"]["actions"]["missionMarkAsCaptureZone"]
+        self.assertEqual([z["target"] for z in marks], ["wtftd_capture_A", "wtftd_capture_B", "wtftd_capture_C"])
+        self.assertTrue(all(z["army"] == 0 and z["useHUDMarkers"] and not z["onlyPlayersCanCapture"] and not z["playAirfieldSound"] for z in marks))
+        circles = {u["name"]: u for u in m["units"]["objectGroups"] if u.get("unit_class") == "capture_zone_circle"}
+        self.assertEqual([z["markUnits"] for z in marks], ["wtftd_cz_circle_A", "wtftd_cz_circle_B", "wtftd_cz_circle_C"])
+        self.assertEqual(circles["wtftd_cz_circle_B"]["tm"][3], m["areas"]["wtftd_capture_B"]["tm"][3])  # on its zone
+        self.assertTrue(m["mission_settings"]["mission"]["gt_mp_capture"] and m["mission_settings"]["mission"]["gt_mp_tickets"])
+        self.assertEqual(m["mission_settings"]["mission"]["scoreLimit"], mission.TICKETS)
+        self.assertNotIn("ctaCaptureZoneDominationPenalty", m["mission_settings"]["mission"])  # the game's own loss
+        for loss, got in (("slow", 14), ("vslow", 7), ("none", None), ("x", None)):  # the map's Ticket loss
+            m = mission.load_scenario("battle_abandoned_factory_a_ground")
+            mission.apply_capture_zones(m, loss)
+            self.assertEqual(m["mission_settings"]["mission"].get("ctaCaptureZoneDominationPenalty"), got)
+            self.assertEqual(m["mission_settings"]["mission"]["gt_mp_tickets"], loss != "none")  # none: no tickets at all
+            self.assertTrue(m["mission_settings"]["mission"]["gt_mp_capture"])  # the zones still taken
+
+    def test_only_in_a_tank_on_a_map_with_zones(self):
+        from wtftd import mission
+        air = {"scenario": "battle_abandoned_factory_a_air", "vehicle": "p_51d_5", "block": "armada"}
+        self.assertNotIn("missionMarkAsCaptureZone", mission.build(air)[1])
+        tank = {"scenario": "battle_abandoned_factory_a_ground", "vehicle": "us_m4a2_sherman", "block": "tankModels"}
+        self.assertIn("missionMarkAsCaptureZone", mission.build(tank)[1])
+        m = {"areas": {"spawn": {"tm": []}}, "triggers": {"isCategory": True}}
+        mission.apply_capture_zones(m)
+        self.assertNotIn("wtftd_capture", m["triggers"])
+
+
 class ZoneRoles(unittest.TestCase):
     def test_what_each_zone_gets(self):
         from unittest import mock
@@ -187,6 +275,21 @@ class ZoneRoles(unittest.TestCase):
         self.assertEqual(r["player"], ["spawn_area01", "spawn_area02"])
         self.assertEqual(r["spawns"]["tank_zone"], ["t1", "t2"])
         self.assertTrue(r["playerOther"])  # @later: only known while the mission runs
+
+
+class FreeTankSpeed(unittest.TestCase):
+    """At 200 km/h the Free (AI) tanks drove through walls: the server gives each its own top speed."""
+
+    def test_top_speed_unless_one_is_picked(self):
+        from unittest import mock
+        from wtftd import server
+        vehicles = {"us_m4a2_sherman": {"id": "us_m4a2_sherman", "c": "ground", "s": {"spd": 47}}}
+        add = [{"block": "tankModels", "cls": "us_m4a2_sherman"}, {"block": "tankModels", "cls": "us_m4a2_sherman", "routeSpeed": 20},
+               {"block": "tankModels", "cls": "us_m4a2_sherman", "behavior": "stay"}, {"block": "tankModels", "cls": "unknown"}]
+        with mock.patch.object(server.STATE, "get_vehicles", return_value=vehicles):
+            body, _ = server._prepare_ai({"edits": {"add": add}})
+        self.assertEqual([a.get("routeSpeed") for a in body["edits"]["add"]], [47, 20, None, None])
+        self.assertNotIn("routeSpeed", add[0])  # the saved setup keeps what the app sent
 
 
 if __name__ == "__main__":

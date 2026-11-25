@@ -1551,6 +1551,11 @@ def _prepare_ai(body: dict) -> tuple[dict, dict]:
     body = dict(body, edits=edits)
     entries = [e for e in list((edits.get("units") or {}).values()) + list(edits.get("add") or []) if isinstance(e, dict)]
     out: dict = {}
+    for e in edits.get("add") or []:  # Free (AI) tanks drive at their own top speed (200 km/h asked: through walls)
+        if isinstance(e, dict) and e.get("block") == "tankModels" and not e.get("behavior") and not e.get("routeSpeed"):
+            spd = ((STATE.get_vehicles().get(str(e.get("cls") or "")) or {}).get("s") or {}).get("spd")
+            if isinstance(spd, (int, float)) and spd > 0:
+                e["routeSpeed"] = spd
     n = 0
     for e in entries:
         lo = e.get("loadout")

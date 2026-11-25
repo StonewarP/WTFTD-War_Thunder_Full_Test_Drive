@@ -12,7 +12,7 @@ const MAP_KINDS = ['ground', 'air', 'heli', 'ship', 'boat'];
 function savePick() { store.set('pick', S.pick); }
 
 // the map's settings, for any vehicle (and kept in saved variants)
-const MAP_DEFAULTS = { environment: '', weather: '', enemies: '', heading: '' };
+const MAP_DEFAULTS = { environment: '', weather: '', enemies: '', heading: '', ticketLoss: '' };
 const mapDefaults = () => JSON.parse(JSON.stringify(MAP_DEFAULTS));
 S.map = Object.assign(mapDefaults(), store.get('mapset', {}));
 delete S.map.targets;  // the former "Training targets" (now Vehicles by BR in the map editor)
@@ -36,7 +36,7 @@ function mapFromSetup(cfg) {
   S.map = {
     environment: cfg.environment || '', weather: cfg.weather || '',
     enemies: ch.hostileEnemies ? 'hostile' : ch.passiveEnemies ? 'passive' : '',
-    heading: cfg.heading == null ? '' : cfg.heading,
+    heading: cfg.heading == null ? '' : cfg.heading, ticketLoss: cfg.ticketLoss || '',
   };
   saveMap();
   const d = DIFFS.includes(cfg.difficulty) ? cfg.difficulty : '';
@@ -421,6 +421,8 @@ function mapSettingsHTML(s) {
     <div class="field"><label>${esc(t('cond.time'))}</label>${seg('environment', ['', ...ENVS], m.environment, x => (x ? t('env.' + x) : t('cond.keep')))}</div>
     <div class="field"><label>${esc(t('cond.weather'))}</label>
       <select data-mset-weather><option value="">${esc(t('cond.keep'))}</option>${WEATHERS.map(w => `<option value="${w}"${m.weather === w ? ' selected' : ''}>${esc(t('weather.' + w))}</option>`).join('')}</select></div>
+    ${s.battle && s.kind === 'ground' ? `<div class="field"><label>${esc(t('mapset.ticketLoss'))}</label>${seg('ticketLoss', ['', 'slow', 'vslow', 'none'], m.ticketLoss || '', x => t('mapset.ticketLoss.' + (x || 'game')))}
+      <small class="muted">${esc(t('mapset.ticketLossHint'))}</small></div>` : ''}
   </div>`;
 }
 
