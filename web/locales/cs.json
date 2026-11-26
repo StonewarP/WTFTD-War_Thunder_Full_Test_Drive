@@ -971,6 +971,8 @@
   "editor.zonePlayer": "Scénář tě objeví zde (na startu nebo po havárii). Tvůj start, nastavený v Ty, posune tuto zónu s sebou.",
   "editor.zoneUnits": "Scénář sem přivádí tyto jednotky (na startu nebo během mise, někdy několik náhodně vybraných z nich):",
   "editor.sceneryBtn": "Kulisy",
+  "editor.slotsBtn": "Rezervovaná místa",
+  "editor.slotsHint": "Místa hráčů v misi pro více hráčů a figuríny hry: každý hráč tam přiveze vlastní vozidlo. V misi pro jednoho hráče se tam nic neobjeví.",
   "editor.paste": "Vložit",
   "editor.pasteClick": "Klikněte na mapu a zkopírované jednotky se tam vloží (Esc: zrušit)",
   "editor.menu.pasteHere": "Vložit sem",

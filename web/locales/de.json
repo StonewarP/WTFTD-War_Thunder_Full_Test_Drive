@@ -971,6 +971,8 @@
   "editor.zonePlayer": "Das Szenario lässt dich hier erscheinen (am Start oder nach einem Absturz). Dein Start, eingestellt unter Du, verschiebt diese Zone mit.",
   "editor.zoneUnits": "Das Szenario bringt diese Einheiten hierher (am Start oder während der Mission, manchmal einige zufällig gewählt):",
   "editor.sceneryBtn": "Kulisse",
+  "editor.slotsBtn": "Platzhalter",
+  "editor.slotsHint": "Die Spielerplätze einer Mehrspielermission und die Attrappen des Spiels: Jeder Spieler bringt dort sein eigenes Fahrzeug mit. In einer Einzelspielermission erscheint dort nichts.",
   "editor.paste": "Einfügen",
   "editor.pasteClick": "Klicken Sie auf die Karte, um die kopierten Einheiten dort einzufügen (Esc: abbrechen)",
   "editor.menu.pasteHere": "Hier einfügen",

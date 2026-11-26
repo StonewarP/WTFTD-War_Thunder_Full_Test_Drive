@@ -971,6 +971,8 @@
   "editor.zonePlayer": "The scenario puts you here (at start or after a crash). Your start, set under You, moves this zone with it.",
   "editor.zoneUnits": "The scenario brings these units here (at start or while the mission runs, sometimes a few picked at random among them):",
   "editor.sceneryBtn": "Scenery",
+  "editor.slotsBtn": "Placeholders",
+  "editor.slotsHint": "A multiplayer mission's player slots and the game's dummies: places where each player brings their own vehicle. Nothing appears there in a solo mission.",
   "editor.paste": "Paste",
   "editor.pasteClick": "Click on the map to paste the copied units there (Esc: cancel)",
   "editor.menu.pasteHere": "Paste here",

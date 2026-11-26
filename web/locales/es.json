@@ -971,6 +971,8 @@
   "editor.zonePlayer": "El escenario te hace aparecer aquí (al inicio o tras estrellarte). Tu salida, ajustada en Tú, mueve esta zona con ella.",
   "editor.zoneUnits": "El escenario trae estas unidades aquí (al inicio o durante la misión, a veces algunas elegidas al azar entre ellas):",
   "editor.sceneryBtn": "Decorado",
+  "editor.slotsBtn": "Marcadores",
+  "editor.slotsHint": "Los puestos de jugador de una misión multijugador y los objetos ficticios del juego: cada jugador trae ahí su propio vehículo. En una misión individual no aparece nada.",
   "editor.paste": "Pegar",
   "editor.pasteClick": "Haz clic en el mapa para pegar allí las unidades copiadas (Esc: cancelar)",
   "editor.menu.pasteHere": "Pegar aquí",

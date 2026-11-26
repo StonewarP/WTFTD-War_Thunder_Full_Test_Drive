@@ -4,6 +4,14 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.35.1 - 2026-11-26
+
+- **Scenario editor: a multiplayer mission's player slots are hidden** ([#24](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/24)).
+  An imported multiplayer or PvE mission keeps a place for each player, who brings their own vehicle: the game marks
+  them `dummy_plane` (a mission can have dozens). The editor showed them as allied aircraft to edit, among the real
+  units. They are now hidden, with a **Placeholders** button (and their number) next to **Scenery** to show them, and
+  they can't be edited: nothing appears there in a solo mission. The game's other dummy objects go the same way.
+
 ## 0.35.0 - 2026-11-26
 
 - **Scenario editor: tanks on "Free (AI)" now move** ([#29](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/29)).

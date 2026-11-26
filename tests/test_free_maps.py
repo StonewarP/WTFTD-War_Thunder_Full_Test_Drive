@@ -271,6 +271,22 @@ class CaptureZones(unittest.TestCase):
         self.assertNotIn("wtftd_capture", m["triggers"])
 
 
+class Placeholders(unittest.TestCase):
+    """Issue #24: an imported multiplayer mission's player slots (dummy_plane) aren't vehicles to edit."""
+
+    def test_player_slots_are_placeholders(self):
+        from unittest import mock
+        from wtftd import mission
+        m = battle_map()
+        ident = lambda x: [[1, 0, 0], [0, 1, 0], [0, 0, 1], [x, 5.0, 0]]
+        m["units"]["armada"] = [{"name": "t1_player02", "tm": ident(10), "unit_class": "dummy_plane", "props": {"army": 1}},
+                                {"name": "bomber", "tm": ident(20), "unit_class": "b_17g", "props": {"army": 2}}]
+        with mock.patch.object(mission, "load_scenario", return_value=m), mock.patch.object(mission, "zone_info", return_value=None, create=True):
+            units = {u["name"]: u for u in mission.scenario_units("usr_x")["units"]}
+        self.assertEqual((units["t1_player02"].get("slot"), units["t1_player02"]["edit"]), (1, False))
+        self.assertEqual((units["bomber"].get("slot"), units["bomber"]["edit"]), (None, True))
+
+
 class ZoneRoles(unittest.TestCase):
     def test_what_each_zone_gets(self):
         from unittest import mock

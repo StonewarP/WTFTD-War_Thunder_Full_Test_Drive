@@ -971,6 +971,8 @@
   "editor.zonePlayer": "O cenário faz você aparecer aqui (no início ou após cair). A sua partida, definida em Você, move esta zona com ela.",
   "editor.zoneUnits": "O cenário traz estas unidades para aqui (no início ou durante a missão, às vezes algumas escolhidas ao acaso entre elas):",
   "editor.sceneryBtn": "Cenário",
+  "editor.slotsBtn": "Marcadores",
+  "editor.slotsHint": "Os lugares de jogador de uma missão multijogador e os objetos fictícios do jogo: cada jogador traz o seu próprio veículo. Numa missão a solo nada aparece ali.",
   "editor.paste": "Colar",
   "editor.pasteClick": "Clique no mapa para colar ali as unidades copiadas (Esc: cancelar)",
   "editor.menu.pasteHere": "Colar aqui",

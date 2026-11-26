@@ -231,6 +231,10 @@ def _strip_unit_moves(node, names: set):
             _strip_unit_moves(x, names)
 
 
+def _placeholder(u: dict) -> bool:
+    return str(u.get("unit_class") or "").startswith("dummy")
+
+
 def scenario_units(sid: str) -> dict:
     """Units of a scenario for the map editor (only those defined in the mission itself)."""
     m = load_scenario(sid)
@@ -253,7 +257,10 @@ def scenario_units(sid: str) -> dict:
                 "x": round(x, 1), "y": round(y, 1), "z": round(z, 1), "yaw": round(math.degrees(math.atan2(fz, fx)), 1),
                 "army": props.get("army", 0), "count": props.get("count", 1), "attack": props.get("attack_type", ""),
                 "moves": bool(u.get("way")), "player": u.get("name") == wing,
-                "edit": block in EDITABLE_BLOCKS and u.get("name") != wing,
+                "edit": block in EDITABLE_BLOCKS and u.get("name") != wing and not _placeholder(u),
+                # a multiplayer mission's player slots (dummy_plane t1_player02...) and the game's other dummies: no vehicle
+                # (each player brings their own), empty in a solo mission; the editor hides them (issue #24)
+                **({"slot": 1} if _placeholder(u) and u.get("name") != wing else {}),
                 # delayed: not there at start, the scripts bring it in (or not) while the mission runs
                 **({"runtime": 1} if props.get("isDelayed") and u.get("name") != wing else {}),
             })

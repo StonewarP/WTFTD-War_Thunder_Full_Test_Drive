@@ -971,6 +971,8 @@
   "editor.zonePlayer": "场景会让你在这里出现（开始时或坠毁后）。在“你”中设置的出发点会带着这个区域一起移动。",
   "editor.zoneUnits": "场景会把这些单位带到这里（开始时或任务进行中，有时从中随机挑选几个）：",
   "editor.sceneryBtn": "布景",
+  "editor.slotsBtn": "占位单位",
+  "editor.slotsHint": "多人任务的玩家位置和游戏的虚拟单位：每位玩家在此带入自己的载具。单人任务中这里不会出现任何东西。",
   "editor.paste": "粘贴",
   "editor.pasteClick": "点击地图，将复制的单位粘贴到该处（Esc：取消）",
   "editor.menu.pasteHere": "粘贴到此处",

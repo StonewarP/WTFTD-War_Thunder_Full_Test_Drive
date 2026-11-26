@@ -971,6 +971,8 @@
   "editor.zonePlayer": "Scenariusz umieszcza cię tutaj (na starcie lub po rozbiciu). Twój start, ustawiony w Ty, przesuwa tę strefę razem z nim.",
   "editor.zoneUnits": "Scenariusz sprowadza tu te jednostki (na starcie lub w trakcie misji, czasem kilka wybranych losowo spośród nich):",
   "editor.sceneryBtn": "Dekoracje",
+  "editor.slotsBtn": "Miejsca zastępcze",
+  "editor.slotsHint": "Miejsca graczy w misji wieloosobowej i atrapy gry: każdy gracz przyprowadza tam własny pojazd. W misji jednoosobowej nic się tam nie pojawia.",
   "editor.paste": "Wklej",
   "editor.pasteClick": "Kliknij na mapie, aby wkleić tam skopiowane jednostki (Esc: anuluj)",
   "editor.menu.pasteHere": "Wklej tutaj",

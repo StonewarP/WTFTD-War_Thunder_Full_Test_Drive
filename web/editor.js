@@ -15,7 +15,7 @@ const ED_ADD_BLOCK = { tankModels: 'tankModels', armada: 'armada', ships: 'ships
 const ED_PAN_KEYS = { KeyW: [0, 1], KeyS: [0, -1], KeyA: [-1, 0], KeyD: [1, 0] };
 
 const ED = {
-  data: null, sel: null, multi: [], keys: new Set(), mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true,
+  data: null, sel: null, multi: [], keys: new Set(), mode: 'select', addBlock: 'tankModels', addSide: 'enemy', addN: 1, zones: false, scenery: true, slots: false,
   view: { scale: 1, cx: 0, cz: 0 }, drag: null, canvas: null, ctx: null, search: '', resTab: 'all', layers: [],
   labels: [], clip: null, mouse: null, byName: new Map(), configuring: false,
   auto: { src: 'me', br: 5.0, nations: [], who: 'enemy', fire: '' },
@@ -318,7 +318,8 @@ function edMapHint(key) {
 // ------------------------------------------------------------------ geometry
 function edAllPoints() {  // what the map shows: template units the scenario places in game have no known spot
   const e = edEdits();
-  return [...ED.data.units.filter(u => !u.runtime), ...e.add.map((a, idx) => ({ ...a, added: true, idx }))];
+  // player slots (an imported multiplayer mission's dummy_plane units): hidden unless Placeholders is on
+  return [...ED.data.units.filter(u => !u.runtime && (ED.slots || !u.slot)), ...e.add.map((a, idx) => ({ ...a, added: true, idx }))];
 }
 function edFit() {
   const pts = edAllPoints().filter(u => u.edit || u.player || u.added);
@@ -1042,6 +1043,7 @@ function edBind() {
     if (b.dataset.edact === 'reset') { S.cfg.edits = { sid: S.cfg.scenario, units: {}, add: [], areas: {} }; edSelect([]); }
     if (b.dataset.edact === 'zones') { ED.zones = !ED.zones; if (!ED.zones && ED.sel?.zone && !edZoneItems(window.devicePixelRatio || 1).some(i => i.z0.name === ED.sel.zone)) ED.sel = null; }
     if (b.dataset.edact === 'scenery') ED.scenery = !ED.scenery;
+    if (b.dataset.edact === 'slots') { ED.slots = !ED.slots; if (!ED.slots && ED.sel && ED.data.units.find(u => u.slot && 'u:' + u.name === edSelKeys()[0])) ED.sel = null; }
     if (b.dataset.edact === 'paste') edPlacing(true);
     edRenderPanel(); edDraw();
   });
@@ -1389,6 +1391,10 @@ function edRenderPanel() {
   $('#edChanges').textContent = t('editor.changes', { n: edCount() });
   $('#edZones')?.classList.toggle('active', ED.zones);
   $('#edScenery')?.classList.toggle('active', ED.scenery);
+  const slots = ED.data.units.filter(u => u.slot).length;
+  $('#edSlots')?.classList.toggle('hidden', !slots);
+  $('#edSlots')?.classList.toggle('active', ED.slots);
+  if ($('#edSlotsN')) $('#edSlotsN').textContent = slots;
   const panel = $('#edInspector');
   if (ED.multi.length) { panel.innerHTML = edMultiHTML(); edRenderResults(); edRenderList(); return; }
   if (ED.sel?.zone) {

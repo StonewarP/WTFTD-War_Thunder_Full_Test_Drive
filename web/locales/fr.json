@@ -971,6 +971,8 @@
   "editor.zonePlayer": "Le scénario vous fait apparaître ici (au départ ou après un crash). Votre départ, réglé dans « Vous », déplace cette zone avec lui.",
   "editor.zoneUnits": "Le scénario fait apparaître ces unités ici (au départ ou en cours de mission, parfois quelques-unes tirées au hasard parmi elles) :",
   "editor.sceneryBtn": "Décor",
+  "editor.slotsBtn": "Places réservées",
+  "editor.slotsHint": "Les places des joueurs d'une mission multijoueur et les objets factices du jeu : chaque joueur y apporte son propre véhicule. Rien n'y apparaît dans une mission solo.",
   "editor.paste": "Coller",
   "editor.pasteClick": "Cliquez sur la carte pour y coller les unités copiées (Échap : annuler)",
   "editor.menu.pasteHere": "Coller ici",
