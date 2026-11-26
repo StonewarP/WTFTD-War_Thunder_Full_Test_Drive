@@ -405,6 +405,39 @@ Turn them on first: In flight → My overlay → Turn on the overlay and alarms 
 - [x] **Walls** ("WTFTD #28h", 2026-11-26): added tanks get `ignoresObstaclesAfterTime: no` (a stuck AI then ignores
   obstacles, the game sets it on its trucks) and `movementTraceRI: yes` (its moving units have it): they bounce off
   unbreakable walls instead of driving through, and don't get stuck.
+- [ ] **Back at their start** (issue #31): with Targets come back, an added enemy tank destroyed reappears at its start
+  20 s later (`wtftd_home_<unit>`: unitWhenCountMatches isAlive less 1, wait 20, unitRestore resurrect, unitRespawn in
+  the zone `wtftd_home_<unit>`, its editor properties sent again). Does it come back, at its start, solid? On a battle
+  map, does it drive its route to the nearest zone again, and then the zone rounds? A unit of several tanks only comes
+  back once all are destroyed. The scenario's targets still come back in place.
+  "WTFTD #31b" (2026-11-26, player invulnerable, x5, enemies 300 m away): it comes back at its start, solid, but no
+  longer moves: unitRespawn doesn't drive its own route again. Now a copy of its route (`wayPoints` `wtftd_homeway_<unit>`)
+  is given back 1 s after (`wtftd_home_<unit>_go`: wait 1, unitSetRoute). Does it drive to its zone again?
+  "WTFTD #31c" / "#31d" (2026-11-26): it comes back and drives to its zone again, with the editor's own "When destroyed"
+  and its delay too.
+- [ ] **Ticket loss None tops up** ("WTFTD #28i"): the battle ended ~120 s after one side held more zones (2 to 1), ~27 s
+  after all 3, whatever the setting (2000 tickets 130 s, Very slow 117 s, tickets off 120 s twice). None now keeps the
+  bar and gives both sides +5 % every 5 s (`wtftd_tickets_refill`, gameMPChangeScore percentage). Does the bar stay
+  full, and does the battle go on with 2 zones to 1? If the bar stays full and it still ends, it's the game's own rule.
+  "WTFTD #28i" (2026-11-26): the bar didn't move and the battle went on: seems to work (end time not measured yet).
+  Also seen: the AI tanks didn't shoot each other, and the player drove through AI again (which tank, when: asked).
+- [x] **Free (AI) tanks fight each other** ("WTFTD #28j"): with Free (AI) tanks on both sides of a battle map, every 10 s
+  each side gets unitAttackTarget on a squad of the other side's tanks (`wtftd_fight`, squads `wtftd_side_<army>`, the
+  player in the allies' squad), as the game's Moscow mission orders its AI tanks. Do they shoot each other? Do enemies
+  still shoot at you? Do they still go to and stay in their zones, or chase each other instead?
+  "WTFTD #28k" (2026-11-26, the three AI side by side 100 m apart, the player 85 m away): they shoot each other and
+  still drive to zone A. The kill feed on 8111 (/hudmsg) showed only the player's kills.
+  But they drove through unbreakable walls again, and in "#28i" the player drove through AI: the solid properties seem
+  undone during the battle (coming back, attack orders?).
+- [ ] **Solid all along** ("WTFTD #28l"): the added tanks' `ignoreCollisions: no`, `ignoresObstaclesAfterTime: no`,
+  `movementTraceRI: yes` are now sent again every 3 s (`wtftd_solid`). No more driving through them, nor them through
+  unbreakable walls, also after they come back and while they fight?
+  "#28l" (2026-11-26): no more walls crossed, but they kept clear of what they can crush. Before (#28k) at speed they
+  went through unbreakable walls without a crash and came back by themselves: movementTraceRI lost. Now every 3 s also
+  `destroyRIByCollision: yes` (the game's Reichstag mission on its city tanks) ("#28m"): do they crush fences again and
+  still keep out of unbreakable walls? Do they knock unbreakable walls down instead?
+  "#28m" (2026-11-26): they crush breakable walls again, and don't cross unbreakable ones on purpose: at their top speed
+  they turn too late on the pathfinder's corners, slip through a wall and come back on their own.
 - [ ] **Waves**: wave 2 is absent at the start, comes at its place 5 s after wave 1 is destroyed, with the hint; a delayed unit
   with a route drives it; aircraft come in at their height and speed; with *First wave again*, the first comes back, twice.
   Do Hold fire and Stays still hold on coming in, and do passive enemies of the Targets setting stay passive?

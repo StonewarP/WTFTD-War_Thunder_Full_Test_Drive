@@ -8,6 +8,7 @@ const ED_SPACING = { tankModels: 40, armada: 150, ships: 300, air_defence: 40, s
 // the block a unit is added as when copied (template air defence / vehicles become ground units)
 const ED_ROUTE_BLOCKS = ['tankModels', 'armada', 'ships', 'wheeled_vehicles', 'tracked_vehicles', 'infantry'];  // what can drive
 const ED_ROUTE_SPEED = { tankModels: 30, wheeled_vehicles: 50, tracked_vehicles: 30, infantry: 6, ships: 40 };  // km/h, aircraft: their own
+const ED_BACK_DELAY = 20;  // s, a destroyed tank coming back at its start (mission.TARGETS_BACK_EVERY)
 const ED_ROUTE_POINTS = 40;  // mission.ROUTE_POINTS
 const ED_ADD_BLOCK = { tankModels: 'tankModels', armada: 'armada', ships: 'ships', air_defence: 'tankModels',
   tracked_vehicles: 'tankModels', wheeled_vehicles: 'tankModels', structures: 'structures', radars: 'radars', infantry: 'infantry', objectGroups: 'objectGroups' };
@@ -481,6 +482,7 @@ function edCopy() {
       behavior: ['stay', 'hunt', 'follow', 'route'].includes(u.behavior) && !(block === 'armada' && u.behavior === 'stay') ? u.behavior : '',
       ...(u.behavior === 'route' ? { route: u.route, routeSpeed: u.routeSpeed, routeLoop: u.routeLoop } : {}),
       ...(u.wave ? { wave: u.wave } : {}),
+      ...(u.respawn ? { respawn: u.respawn } : {}),
       ...(u.loadout ? { loadout: JSON.parse(JSON.stringify(u.loadout)) } : {}),
     };
   });
@@ -1374,6 +1376,7 @@ function edSet(u, patch) {
     if (a.loadout == null) delete a.loadout;
     if (a.auto == null) delete a.auto;
     if (a.ai == null) delete a.ai;
+    if (a.respawn == null) delete a.respawn;
     return;
   }
   const cur = Object.assign({}, e.units[u.name], patch);
@@ -1496,7 +1499,7 @@ function edRenderPanel() {
       </select></div>
     </div>
     ${moveSeg}
-    ${edRouteHTML([st])}${edWaveHTML([st])}
+    ${edRouteHTML([st])}${edWaveHTML([st])}${edBackHTML([st])}
     ${air ? `<div class="field-row"><div class="field"><label>${esc(t('cond.altitude'))}</label><input type="number" data-edf="y" value="${Math.round(st.y)}">${edGroundInfo(st, true)}</div>
       ${u.added ? `<div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" data-edf="speed" value="${Math.round(st.speed || 450)}"></div>` : ''}</div>` : ''}
     ${u.block === 'tankModels' && (u.added || st.moved) ? `<div class="field"><label>${esc(t('editor.height'))}</label><input type="number" data-edf="y" value="${Math.round(st.y)}">${edGroundInfo(st, false) || `<small class="muted">${esc(t('editor.heightHint'))}</small>`}</div>` : ''}
@@ -1596,6 +1599,20 @@ function edRouteHTML(sts) {
         <option value="0"${loop === false ? ' selected' : ''}>${esc(t('editor.routeStop'))}</option>
         <option value="1"${loop ? ' selected' : ''}>${esc(t('editor.routeLoop'))}</option></select></div></div>`;
 }
+// what an added tank does once destroyed: stays, or comes back at its start after a delay and drives its route again
+// (mission._back_home); not in a wave, which brings its units itself
+const edBackable = u => u.added && u.block === 'tankModels' && !u.wave;
+function edBackHTML(sts) {
+  const us = sts.filter(edBackable);
+  if (!us.length) return '';
+  const same = f => (us.every(u => f(u) === f(us[0])) ? f(us[0]) : undefined);
+  const on = same(u => !!u.respawn), delay = same(u => +u.respawn || 0);
+  return `<div class="field-row"><div class="field"><label>${esc(t('editor.back'))}</label><select data-edm="respawn">${on === undefined ? `<option value="__mixed" selected disabled>${esc(t('editor.mixed'))}</option>` : ''}
+      <option value="0"${on === false ? ' selected' : ''}>${esc(t('editor.backNo'))}</option>
+      <option value="1"${on ? ' selected' : ''}>${esc(t('editor.backStart'))}</option></select></div>
+    ${on !== false ? `<div class="field"><label>${esc(t('editor.backDelay'))}</label><input type="number" min="1" max="3600" data-edm="respawnDelay" value="${esc(delay || '')}" placeholder="${esc(t('editor.mixed'))}"></div>` : ''}</div>
+    ${on !== false ? `<small class="muted">${esc(t('editor.backHint'))}</small>` : ''}`;
+}
 // the wave of the selected enemies
 function edWaveHTML(sts) {
   const us = sts.filter(u => !u.tpl && edSide(u) === 'enemy');
@@ -1654,7 +1671,7 @@ function edMultiHTML() {
     <div class="field"><label>${esc(t('editor.move'))}</label><div class="seg seg-wrap3">
       ${behs.map(([k, l]) => `<button class="${beh === k ? 'active' : ''}" data-edmbeh="${k}">${esc(t(l))}</button>`).join('')}</div>
       <small class="muted">${esc(t('editor.multiMoveHint'))}</small></div>
-    ${edRouteHTML(sts)}${edWaveHTML(sts)}
+    ${edRouteHTML(sts)}${edWaveHTML(sts)}${edBackHTML(sts)}
     ${air.length ? `<div class="field-row"><div class="field"><label>${esc(t('cond.altitude'))}</label><input type="number" data-edm="y" value="${same(air, u => Math.round(u.y)) ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div>
       <div class="field"><label>${esc(t('cond.speed'))} (km/h)</label><input type="number" data-edm="speed" value="${same(air, u => Math.round(u.speed || 450)) ?? ''}" placeholder="${esc(t('editor.mixed'))}"></div></div>` : ''}
     ${swp.length ? edVehicleField(cats) : ''}
@@ -1908,6 +1925,8 @@ function edPanelChange(ev) {
       else if (el.dataset.edm === 'routeSpeed' && edRoutable(u)) edSet(u, { routeSpeed: Math.max(1, Math.min(3000, +el.value || 1)) });
       else if (el.dataset.edm === 'routeLoop' && edRoutable(u)) edSet(u, { routeLoop: el.value === '1' });
       else if (el.dataset.edm === 'wave' && !u.tpl) edSet(u, { wave: +el.value || null });
+      else if (el.dataset.edm === 'respawn' && edBackable(u)) edSet(u, { respawn: el.value === '1' ? +st.respawn || ED_BACK_DELAY : null });
+      else if (el.dataset.edm === 'respawnDelay' && edBackable(u) && st.respawn) edSet(u, { respawn: Math.max(1, Math.min(3600, Math.round(+el.value) || ED_BACK_DELAY)) });
     }
     edRenderPanel(); edDraw();
     return;

@@ -116,7 +116,9 @@ class Waves(unittest.TestCase):
         m = base()
         mission.apply_edits(m, "me", {"add": [enemy(1, wave=1), enemy(2, wave=2), enemy(3)]})
         mission.apply_hotkeys(m, "me", {"targetsBack": True, "hotkeys": True}, False, None, None)
-        self.assertEqual(m["triggers"]["wtftd_targets_back"]["actions"]["unitRestore"]["target"], ["wtftd_unit_03"])
+        homes = sorted(n for n in m["triggers"] if n.startswith("wtftd_home_"))
+        self.assertEqual(homes, ["wtftd_home_wtftd_unit_03"])  # an added tank comes back at its start (#31), the waves don't
+        self.assertNotIn("wtftd_targets_back", m["triggers"])  # nothing left to bring back in place
         self.assertEqual(m["triggers"]["wtftd_key_targets"]["actions"]["unitRestore"]["target"], ["wtftd_unit_03"])
 
     def test_it_all_writes_out_and_reads_back(self):

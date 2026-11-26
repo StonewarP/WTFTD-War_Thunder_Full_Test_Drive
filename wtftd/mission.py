@@ -573,10 +573,13 @@ TICKETS = 10000  # scoreLimit, as demo_tank: the game takes a share of it a minu
 # the map's Ticket loss: the share a side loses a minute while the other holds more zones (gameplay.blk cta
 # ctaCaptureZoneDominationPenalty 28: 2000 and 10000 tickets both ran out ~3 min after one side led, in game 2026-11-25);
 # none: no loss to deaths either (deathPenaltyMul, as cta missions set it)
-# none: no tickets at all (gt_mp_tickets off: with ctaCaptureZoneDominationPenalty 0 and deathPenaltyMul 0 the bar still
-# dropped, in game 2026-11-26). shortcut: whether slow / vslow change anything is unchecked, the bar can't be read on 8111
-TICKET_LOSS = {"slow": {"ctaCaptureZoneDominationPenalty": 14}, "vslow": {"ctaCaptureZoneDominationPenalty": 7},
-               "none": {"gt_mp_tickets": False}}
+# shortcut: slow / vslow barely change when the battle ends (2 zones to 1: 130 s as the game, 117 s very slow, in game
+# 2026-11-26), the bar can't be read on 8111
+TICKET_LOSS = {"slow": {"ctaCaptureZoneDominationPenalty": 14}, "vslow": {"ctaCaptureZoneDominationPenalty": 7}}
+# none: both sides topped up (gameMPChangeScore, as the game's missions give tickets back). With tickets off the battle
+# still ended ~120 s after one side held more zones (in game 2026-11-26): a hidden drain, or the game's own rule.
+# shortcut: unchecked in game whether this keeps the battle going
+REFILL_EVERY, REFILL_PCT = 5.0, 5
 
 
 def apply_capture_zones(m: dict, loss=None):
@@ -596,6 +599,9 @@ def apply_capture_zones(m: dict, loss=None):
     m.setdefault("mission_settings", {}).setdefault("mission", {}).update(
         {"gt_mp_tickets": True, "gt_mp_capture": True, "scoreLimit": TICKETS, "ctaCaptureZoneEqualPenaltyMul": 0.0, "allowEmptyTeams": True,
          **TICKET_LOSS.get(loss if isinstance(loss, str) else "", {})})
+    if loss == "none":
+        triggers["wtftd_tickets_refill"] = _trigger({"periodicEvent": {"time": REFILL_EVERY}}, {"gameMPChangeScore": [
+            {"value": REFILL_PCT, "valueSystem": "percentage", "team": team, "ignoreSingleMissions": False} for team in ("A", "B")]}, True)
 
 
 def apply_waves(m: dict, waves: dict, edits: dict, stay: list, passive: list, shooting: dict | None = None):
@@ -779,6 +785,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
 
     free = []  # tanks added on "Free (AI)"
     solid = []  # tanks added: the player drove through them (in game, 2026-11-25)
+    back: dict = {}  # tanks added with "When destroyed: Comes back at its start": {name: delay}
     for i, a in enumerate((edits.get("add") or [])[:300]):
         if not isinstance(a, dict) or a.get("block") not in EDITABLE_BLOCKS + OBJECT_BLOCKS or not _CLASS.match(str(a.get("cls", ""))):
             continue
@@ -810,6 +817,8 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         apply(u, a)
         if block == "tankModels":
             solid.append(u["name"])
+            if a.get("respawn"):
+                back[u["name"]] = a["respawn"]
             if not a.get("behavior"):
                 free.append((u, a.get("routeSpeed")))
 
@@ -822,6 +831,10 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
             continue
     for u, speed in free:  # after the zones moved: where they really are
         _to_nearest_zone(m, u, u["props"]["army"], speed)
+    fighters: dict = {}  # {army: Free (AI) tanks} on a map with zones, to fight each other
+    if _capture_zones(m.get("areas")):
+        for u, _ in free:
+            fighters.setdefault(u["props"]["army"], []).append(u["name"])
     player = edits.get("player")
     if isinstance(player, dict):
         _strip_airfield_spawn(m.get("triggers"), wing)  # the start was placed on the map: no runway spawn
@@ -852,7 +865,7 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
     if solid:  # collisions on (the player drove through them); stuck, they no longer drive through walls (a stuck AI
         # ignores obstacles, they went through unbreakable walls in game 2026-11-26) and they test buildings on their way,
         # both as the game's missions set them on units of theirs. shortcut: the last two unchecked in game
-        props_actions.append({"object": solid, "ignoreCollisions": False, "ignoresObstaclesAfterTime": False, "movementTraceRI": True})
+        props_actions.append({"object": solid, **SOLID})
     same: dict = {}  # units sharing a setting: one action
     for name in sorted(shooting):
         same.setdefault(json.dumps(shooting[name], sort_keys=True), []).append(name)
@@ -880,6 +893,16 @@ def apply_edits(m: dict, wing: str, edits: dict, sid: str | None = None):
         attacks = [{"playerAttracted": True, "object": n, "target": wing, "fireRandom": False} for n in hunt]
         triggers["wtftd_hunt"] = _trigger({"periodicEvent": {"time": 10.0}},
                                           {"unitAttackTarget": attacks if len(attacks) > 1 else attacks[0]}, True)
+    if solid:  # sent again every SOLID_EVERY s: something in the battle undoes them (in game 2026-11-26, after the AI
+        # came back and fought, the player drove through them and they through unbreakable walls again)
+        m.setdefault("triggers", {"isCategory": True, "is_enabled": True})["wtftd_solid"] = _trigger(
+            {"periodicEvent": {"time": SOLID_EVERY}}, {"unitSetProperties": {"object": solid, **SOLID}}, True)
+    if len(fighters) > 1:
+        _fight(m, m.setdefault("triggers", {"isCategory": True, "is_enabled": True}), wing, fighters, my_army)
+    in_waves = {u["name"] for us in waves.values() for u in us}  # a wave brings its units itself
+    back = {n: d for n, d in back.items() if n not in in_waves}
+    if back:  # after wtftd_editor: what it sets on them is sent again when they come back
+        _back_home(m, m.setdefault("triggers", {"isCategory": True, "is_enabled": True}), back)
 
 
 def _test_flight_spawn(m: dict) -> tuple[dict, str] | None:
@@ -1168,6 +1191,74 @@ def _clean_text(s, default: str) -> str:
     return s or default
 
 
+FIGHT_EVERY = 10.0  # s between two attack orders
+# added tanks: collide with the player, don't drive through walls when stuck, test buildings on their way (lost during the
+# battle: they drove through unbreakable walls without a crash, in game 2026-11-26), and crush what they bump into (with
+# movementTraceRI alone they kept clear of fences too), as the game's Reichstag mission sets its city tanks
+SOLID = {"ignoreCollisions": False, "ignoresObstaclesAfterTime": False, "movementTraceRI": True, "destroyRIByCollision": True}
+SOLID_EVERY = 3.0
+
+
+def _fight(m: dict, triggers: dict, wing: str, fighters: dict, my_army: int):
+    """Free (AI) tanks of both sides on a battle map attack each other: AI ground units left other AI alone (in game
+    2026-11-26); the game's solo missions order them to (singlemissions/moscow/ussr_moscow_the_last_stand: unitAttackTarget
+    squad on squad, fireRandom). Each side's target is a squad of the other side's tanks, the player with the allies so
+    that enemies don't leave them alone. Given again every FIGHT_EVERY s: a tank coming back has lost it.
+    shortcut: whether the order pulls them off their zone routes is unchecked in game"""
+    units = m["units"]
+    where = {u.get("name"): u for e in units.values() for u in _as_list(e) if isinstance(u, dict)}
+    sides = {}
+    for army, names in fighters.items():
+        sides[army] = f"wtftd_side_{army}"
+        _append_unit(units, "squad", {"name": sides[army], "tm": copy.deepcopy(where[names[0]]["tm"]),
+                                      "props": {"squad_members": names + ([wing] if army == my_army and wing in where else [])}})
+    orders = [{"playerAttracted": False, "object": names, "target": sides[other], "fireRandom": True}
+              for army, names in fighters.items() for other in sides if other != army]
+    triggers["wtftd_fight"] = _trigger({"periodicEvent": {"time": FIGHT_EVERY}}, {"unitAttackTarget": orders}, True)
+
+
+def _back_home(m: dict, triggers: dict, delays: dict):
+    """Tanks added in the editor coming back at their start (issue #31): {name: s} from their "When destroyed" setting, or
+    TARGETS_BACK_EVERY for the enemies "Targets come back" brings back. That long after their unit is destroyed
+    they come back at their start, the way waves come in (unitRestore, then unitRespawn in a zone of their own), with the
+    properties the editor gave them sent again (solid, how they shoot). Not repaired on the spot while alive. The game
+    doesn't drive a respawned unit's own route again (in game 2026-11-26): a copy of it (route wtftd_homeway_<unit>, not
+    the area's name) is given back 1 s later (wtftd_home_<unit>_go: wait, unitSetRoute), as its missions give an order
+    after a wait following unitRespawn."""
+    units = {u.get("name"): u for u in _as_list((m.get("units") or {}).get("tankModels")) if isinstance(u, dict)}
+    given = (((triggers.get("wtftd_editor") or {}).get("actions") or {}).get("unitSetProperties"))
+    for name, delay in delays.items():
+        try:
+            delay = max(1.0, min(float(delay), 3600.0))
+        except (TypeError, ValueError):
+            delay = TARGETS_BACK_EVERY
+        area = {"type": "Sphere", "objLayer": 0, "props": {}}
+        _place_area(area, units[name]["tm"])
+        m.setdefault("areas", {})[f"wtftd_home_{name}"] = area
+        actions = {"wait": {"time": delay},
+                   "unitRestore": {"target": [name], "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True},
+                   "unitRespawn": {"delay": 0.0, "offset": [0.0, 0.0, 0.0], "object": name, "target": f"wtftd_home_{name}"}}
+        again = [{**p, "object": [name]} for p in _as_list(given) if isinstance(p, dict) and name in _as_list(p.get("object"))]
+        if again:
+            actions["unitSetProperties"] = again if len(again) > 1 else again[0]
+        way = units[name].get("way")
+        if isinstance(way, dict) and way:  # its route: to the zones (Free AI) or the one drawn in the editor
+            route = f"wtftd_homeway_{name}"
+            m.setdefault("wayPoints", {})[route] = {
+                "closed_waypoints": bool(units[name].get("closed_waypoints")), "isShipSpline": False, "shipTurnRadius": 100.0,
+                "way": {f"{route}_wp_{i + 1:02d}": copy.deepcopy(w) for i, w in enumerate(way.values())}}
+            go = _trigger({"periodicEvent": {"time": 1.0}}, {"wait": {"time": 1.0}, "unitSetRoute": {
+                "object": name, "route": route, "teleportToStart": False, "object_var_name": "", "object_var_comp_op": "equal"}}, False)
+            go["is_enabled"] = False  # run by the respawn only
+            triggers[f"wtftd_home_{name}_go"] = go
+            actions["triggerActivate"] = {"target": f"wtftd_home_{name}_go", "activate_type": "checkConidtions", "check_trigger_status": False,
+                                          "after_activation": "disable"}
+        t = _trigger({"periodicEvent": {"time": 2.0}}, actions, True)
+        t["conditions"] = {"unitWhenCountMatches": {"object_type": "isAlive", "object_marking": 0, "func": "less", "value": 1,
+                                                    "object": name}}
+        triggers[f"wtftd_home_{name}"] = t
+
+
 def apply_hotkeys(m: dict, wing: str, ch: dict, air: bool, texts: dict | None, start_tm: list | None):
     """In-mission keys (cheat "hotkeys") and "Targets come back" (cheat "targetsBack"): see HOTKEYS."""
     triggers = m.setdefault("triggers", {"isCategory": True, "is_enabled": True})
@@ -1177,9 +1268,15 @@ def apply_hotkeys(m: dict, wing: str, ch: dict, air: bool, texts: dict | None, s
     enemies = _enemy_units(m.get("units") or {})
     waves = _wave_units(m.get("units") or {})
     revive = [n for n in enemies if n not in waves]  # a wave only ends with its units destroyed, the next ones wait for that
-    if ch.get("targetsBack") and revive:
-        triggers["wtftd_targets_back"] = _trigger({"periodicEvent": {"time": TARGETS_BACK_EVERY}}, {"unitRestore": {
-            "target": revive, "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True}}, True)
+    if ch.get("targetsBack"):
+        added = {u.get("name") for u in _as_list((m.get("units") or {}).get("tankModels")) if isinstance(u, dict)
+                 and str(u.get("name", "")).startswith("wtftd_unit_")}
+        home = [n for n in revive if n in added]
+        in_place = [n for n in revive if n not in added]
+        if in_place:
+            triggers["wtftd_targets_back"] = _trigger({"periodicEvent": {"time": TARGETS_BACK_EVERY}}, {"unitRestore": {
+                "target": in_place, "fullRestore": True, "ressurectIfDead": True, "ammoRestore": True}}, True)
+        _back_home(m, triggers, {n: TARGETS_BACK_EVERY for n in home if f"wtftd_home_{n}" not in triggers})
     if not ch.get("hotkeys"):
         return
     tx = {k: _clean_text((texts or {}).get(k), v) for k, v in HOTKEY_TEXTS.items()}

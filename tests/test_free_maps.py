@@ -212,8 +212,11 @@ class FreeTanks(unittest.TestCase):
         self.assertEqual([w["props"]["speed"] for w in way], [mission.FREE_SPEED, mission.ZONE_SLOW_SPEED])
         self.assertTrue(all(w["props"]["canUsePathFinder"] for w in way))  # around the walls, not through
         solid = m["triggers"]["wtftd_editor"]["actions"]["unitSetProperties"]
-        self.assertIn({"object": ["wtftd_unit_01"], "ignoreCollisions": False, "ignoresObstaclesAfterTime": False, "movementTraceRI": True},
-                      solid if isinstance(solid, list) else [solid])
+        self.assertIn({"object": ["wtftd_unit_01"], **mission.SOLID}, solid if isinstance(solid, list) else [solid])
+        self.assertTrue(mission.SOLID["movementTraceRI"] and mission.SOLID["destroyRIByCollision"])
+        again = m["triggers"]["wtftd_solid"]  # and every few seconds: something in the battle undoes it
+        self.assertEqual(again["actions"]["unitSetProperties"], {"object": ["wtftd_unit_01"], **mission.SOLID})
+        self.assertTrue(again["props"]["enableAfterComplete"])
 
     def test_no_zone_no_route(self):
         from wtftd import mission
@@ -253,8 +256,12 @@ class CaptureZones(unittest.TestCase):
             m = battle_map()
             mission.apply_capture_zones(m, loss)
             self.assertEqual(m["mission_settings"]["mission"].get("ctaCaptureZoneDominationPenalty"), got)
-            self.assertEqual(m["mission_settings"]["mission"]["gt_mp_tickets"], loss != "none")  # none: no tickets at all
-            self.assertTrue(m["mission_settings"]["mission"]["gt_mp_capture"])  # the zones still taken
+            self.assertTrue(m["mission_settings"]["mission"]["gt_mp_tickets"] and m["mission_settings"]["mission"]["gt_mp_capture"])
+            refill = m["triggers"].get("wtftd_tickets_refill")
+            self.assertEqual(bool(refill), loss == "none")  # none: both sides topped up
+            if refill:
+                self.assertEqual([(x["team"], x["value"], x["valueSystem"]) for x in refill["actions"]["gameMPChangeScore"]],
+                                 [("A", mission.REFILL_PCT, "percentage"), ("B", mission.REFILL_PCT, "percentage")])
 
     def test_only_in_a_tank_on_a_map_with_zones(self):
         from unittest import mock
@@ -265,10 +272,93 @@ class CaptureZones(unittest.TestCase):
             tank = {"scenario": "battle_x_a_ground", "vehicle": "us_m4a2_sherman", "block": "tankModels", "ticketLoss": "none"}
             text = mission.build(tank)[1]
         self.assertIn("missionMarkAsCaptureZone", text)
-        self.assertIn("gt_mp_tickets:b=no", text)  # the map's Ticket loss reaches the mission
+        self.assertIn("wtftd_tickets_refill", text)  # the map's Ticket loss reaches the mission
         m = {"areas": {"spawn": {"tm": []}}, "triggers": {"isCategory": True}}
         mission.apply_capture_zones(m)
         self.assertNotIn("wtftd_capture", m["triggers"])
+
+
+class BackHome(unittest.TestCase):
+    """Issue #31: with Targets come back, an enemy tank added in the editor comes back at its start, not in place."""
+
+    def test_added_enemy_tanks_respawn_at_their_start(self):
+        from wtftd import mission
+        m = battle_map()
+        at = lambda x: [[1, 0, 0], [0, 1, 0], [0, 0, 1], [x, 8.0, 900]]
+        m["units"]["tankModels"] = [m["units"]["tankModels"], {"name": "target", "tm": at(50), "unit_class": "t_72a", "props": {"army": 2}}]
+        mission.apply_edits(m, "t1_player01", {"add": [{"block": "tankModels", "cls": "t_72a", "x": 100, "z": 900},
+                                                       {"block": "tankModels", "cls": "m1a1", "x": 200, "z": 900, "side": "ally"}]})
+        start = [float(c) for c in m["units"]["tankModels"][2]["tm"][3]]
+        mission.apply_hotkeys(m, "t1_player01", {"targetsBack": True}, False, None, None)
+        tr = m["triggers"]
+        self.assertEqual(tr["wtftd_targets_back"]["actions"]["unitRestore"]["target"], ["target"])  # the scenario's: in place
+        home = tr["wtftd_home_wtftd_unit_01"]
+        self.assertEqual(home["conditions"]["unitWhenCountMatches"]["object"], "wtftd_unit_01")
+        self.assertEqual(home["actions"]["unitRespawn"]["target"], "wtftd_home_wtftd_unit_01")
+        self.assertEqual(m["areas"]["wtftd_home_wtftd_unit_01"]["tm"][3], start)  # where it started
+        self.assertEqual(home["actions"]["unitSetProperties"]["ignoreCollisions"], False)  # still solid on coming back
+        self.assertNotIn("wtftd_home_wtftd_unit_02", tr)  # allies don't come back
+        # its route given back 1 s after it comes back (the game doesn't drive it again): a copy of its own
+        go = tr["wtftd_home_wtftd_unit_01_go"]
+        self.assertFalse(go["is_enabled"])
+        self.assertEqual(home["actions"]["triggerActivate"]["target"], "wtftd_home_wtftd_unit_01_go")
+        self.assertEqual(go["actions"]["unitSetRoute"]["route"], "wtftd_homeway_wtftd_unit_01")  # not the area's name
+        own = [w["tm"][3] for w in m["units"]["tankModels"][2]["way"].values()]
+        self.assertEqual([w["tm"][3] for w in m["wayPoints"]["wtftd_homeway_wtftd_unit_01"]["way"].values()], own)
+        self.assertTrue(own)
+        m2 = battle_map()
+        mission.apply_edits(m2, "t1_player01", {"add": [{"block": "tankModels", "cls": "t_72a", "x": 100, "z": 900}]})
+        mission.apply_hotkeys(m2, "t1_player01", {}, False, None, None)
+        self.assertFalse([n for n in m2["triggers"] if n.startswith("wtftd_home_")])  # only with Targets come back
+
+
+class Fight(unittest.TestCase):
+    """Free (AI) tanks of both sides on a battle map get orders to attack each other, the player in the allies' squad."""
+
+    def test_both_sides_attack_each_other(self):
+        from wtftd import mission
+        m = battle_map()
+        mission.apply_edits(m, "t1_player01", {"add": [{"block": "tankModels", "cls": "t_72a", "x": 100, "z": 900},
+                                                       {"block": "tankModels", "cls": "m1a1", "x": 200, "z": 300, "side": "ally"},
+                                                       {"block": "tankModels", "cls": "t_72a", "x": 300, "z": 900, "behavior": "stay"}]})
+        squads = {sq["name"]: sq["props"]["squad_members"] for sq in m["units"]["squad"]}
+        self.assertEqual(squads, {"wtftd_side_2": ["wtftd_unit_01"], "wtftd_side_1": ["wtftd_unit_02", "t1_player01"]})
+        orders = m["triggers"]["wtftd_fight"]["actions"]["unitAttackTarget"]
+        self.assertEqual([(o["object"], o["target"]) for o in orders],
+                         [(["wtftd_unit_01"], "wtftd_side_1"), (["wtftd_unit_02"], "wtftd_side_2")])
+        self.assertTrue(m["triggers"]["wtftd_fight"]["props"]["enableAfterComplete"])  # given again
+
+    def test_not_with_one_side_or_no_zones(self):
+        from wtftd import mission
+        m = battle_map()
+        mission.apply_edits(m, "t1_player01", {"add": [{"block": "tankModels", "cls": "t_72a", "x": 100, "z": 900}]})
+        self.assertNotIn("wtftd_fight", m["triggers"])
+        m = battle_map()
+        m["areas"] = {"wtftd_spawn": m["areas"]["wtftd_spawn"]}
+        mission.apply_edits(m, "t1_player01", {"add": [{"block": "tankModels", "cls": "t_72a", "x": 100, "z": 900},
+                                                       {"block": "tankModels", "cls": "m1a1", "x": 200, "z": 300, "side": "ally"}]})
+        self.assertNotIn("wtftd_fight", m["triggers"])
+
+
+class WhenDestroyed(unittest.TestCase):
+    """An added tank's own "When destroyed: Comes back at its start" and its delay, allies included, without the cheat."""
+
+    def test_own_setting_and_delay(self):
+        from wtftd import mission
+        m = battle_map()
+        mission.apply_edits(m, "t1_player01", {"add": [
+            {"block": "tankModels", "cls": "t_72a", "x": 100, "z": 900, "respawn": 45},
+            {"block": "tankModels", "cls": "m1a1", "x": 200, "z": 900, "side": "ally", "respawn": 5},
+            {"block": "tankModels", "cls": "t_72a", "x": 300, "z": 900, "respawn": 30, "wave": 2},
+            {"block": "tankModels", "cls": "t_72a", "x": 400, "z": 900}]})
+        tr = m["triggers"]
+        self.assertEqual(tr["wtftd_home_wtftd_unit_01"]["actions"]["wait"]["time"], 45.0)
+        self.assertEqual(tr["wtftd_home_wtftd_unit_02"]["actions"]["wait"]["time"], 5.0)  # an ally too
+        self.assertNotIn("wtftd_home_wtftd_unit_03", tr)  # a wave brings its units itself
+        self.assertNotIn("wtftd_home_wtftd_unit_04", tr)  # stays destroyed
+        mission.apply_hotkeys(m, "t1_player01", {"targetsBack": True}, False, None, None)
+        self.assertEqual(tr["wtftd_home_wtftd_unit_01"]["actions"]["wait"]["time"], 45.0)  # its own delay kept
+        self.assertEqual(tr["wtftd_home_wtftd_unit_04"]["actions"]["wait"]["time"], mission.TARGETS_BACK_EVERY)  # the cheat's
 
 
 class Placeholders(unittest.TestCase):

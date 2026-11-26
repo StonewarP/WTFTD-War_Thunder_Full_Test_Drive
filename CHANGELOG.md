@@ -4,6 +4,26 @@ What changed in each version of WTFTD. Downloads: [Releases](https://github.com/
 (only the latest version is kept there; from 0.19.0 on, each version's code stays available through its git tag).
 Versions follow `major.minor.patch`; "beta" until 1.0.
 
+## 0.35.2 - 2026-11-26
+
+- **Scenario editor: tanks that come back** ([#31](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/31)).
+  A tank added in the editor, enemy or ally, has a new setting, **When destroyed**: *Stays destroyed* or *Comes back at
+  its start*, after a delay you choose (20 s by default). It then reappears where it started, still solid and shooting
+  as set in the editor, and drives its route again (to the zones on a ground battle map, or the one drawn in the
+  editor). It works on several tanks selected at once.
+- **Targets come back** now brings an enemy tank added in the editor back at its start 20 seconds after it is destroyed,
+  instead of bringing it back to life where it was and repairing it every 20 seconds. The scenario's own targets come
+  back in place, as before.
+- **Ground battle maps: AI tanks fight each other.** With tanks on **Free (AI)** on both sides, each side is now told to
+  attack the other's tanks (and you, for the enemies), as the game's own missions order their AI tanks: before, they
+  left each other alone.
+- **Scenario editor: added tanks keep solid all battle long.** The settings that make them collide with you and see walls
+  were sent once and got lost during the battle: you drove through them again, and they through unbreakable walls. They
+  are now sent again every few seconds, and the tanks crush fences and breakable walls they bump into. At their top
+  speed they can still slip through a wall on a tight turn and come back on their own.
+- **Ticket loss: None now keeps the battle going.** It turned off the ticket bar, but the battle still ended about 2
+  minutes after one side held more zones. Both sides' tickets are now topped up every 5 seconds instead.
+
 ## 0.35.1 - 2026-11-26
 
 - **Scenario editor: a multiplayer mission's player slots are hidden** ([#24](https://github.com/StonewarP/WTFTD-War_Thunder_Full_Test_Drive/issues/24)).
